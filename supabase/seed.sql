@@ -1,0 +1,3 @@
+-- Put safe, idempotent seeds here
+-- Example:
+-- insert into public.tanks(name) values ('TANK-TEST') on conflict do nothing;
