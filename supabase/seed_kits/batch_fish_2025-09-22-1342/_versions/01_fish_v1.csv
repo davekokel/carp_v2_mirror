@@ -1,0 +1,7 @@
+fish_name,nickname,date_birth,line_building_stage,strain,has_transgene,has_mutation,has_treatment_injected_plasmid,has_treatment_injected_rna,has_treatment_dye,n_new_tanks
+test_fish_1,,9/17/25,stable>maintain,casper,1,0,0,0,0,0
+test_fish_2,,9/17/25,stable>maintain,casper,1,0,0,0,0,1
+test_fish_3,,9/20/25,injected>find_founder,casper,0,0,1,0,0,2
+test_fish_4,,9/20/25,P0_founder>outcross,casper,1,0,0,0,0,3
+test_fish_5,,9/21/25,stable>maintain,casper,1,0,0,0,1,1
+test_fish_6,,9/21/25,stable>maintain,casper,0,0,0,1,0,0

@@ -1,0 +1,5 @@
+fish_code,name,sex,birth_date,notes
+FISH-001,alpha,unknown,2025-09-10,starter brood
+FISH-002,beta,female,2025-09-12,
+FISH-003,gamma,male,2025-09-12,
+FISH-004,delta,unknown,2025-09-15,raised alone

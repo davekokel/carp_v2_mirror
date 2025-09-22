@@ -1,0 +1,7 @@
+fish_name,transgene_name,allele_name,zygosity,new_allele_note
+mem-tdmSG-8m,ef1a:2xLynk:mSG,301,heterozygous,"multiple alleles, male founder #8"
+mem-tdmSG-11m,ef1a:2xLynk:mSG,302,heterozygous,"multiple alleles, male founder #11"
+mem-tdmSG-8m-F1,ef1a:2xLynk:mSG,301,heterozygous,"multiple alleles, selected brightest"
+mem-tdmSG-11m-F1,ef1a:2xLynk:mSG,302,heterozygous,"multiple alleles, selected brightest"
+mem-tdmSG-8m-F2,ef1a:2xLynk:mSG,301,homozygous,"multiple alleles, selected brightest, check for homozygosity"
+mem-tdmSG-11m-F2,ef1a:2xLynk:mSG,302,homozygous,"multiple alleles, selected brightest, check for homozygosity"

@@ -1,3 +1,6 @@
-
-.env.staging*
 .env*
+supabase/.temp/
+supabase/migrations/_archive/
+*.bak
+*.bak.*
+*.prev.sql

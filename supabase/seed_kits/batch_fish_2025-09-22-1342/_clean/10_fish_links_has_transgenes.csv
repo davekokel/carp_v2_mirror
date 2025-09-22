@@ -1,0 +1,4 @@
+fish_name,transgene_name,allele_name,zygosity,new_allele_note
+test_fish_1,pTest_1,1,unknown,
+test_fish_2,pTest_2,2,unknown,
+test_fish_4,pTest_3,new_allele,unknown,
