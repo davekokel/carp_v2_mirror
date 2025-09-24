@@ -3,4 +3,9 @@ supabase/.temp/
 supabase/migrations/_archive/
 *.bak
 *.bak.*
-*.prev.sql
+*.prev.sql# local DB dumps & machine snapshots
+_snapshots/
+supabase/snapshots/snapshots_local/
+*.dump
+*.sql.gz
+*.tgz
