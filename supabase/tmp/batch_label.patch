@@ -1,0 +1,93 @@
+cd /Users/davekokel/Documents/github/carp_v2/supabase
+cat > /tmp/batch_label.patch <<'DIFF'
+*** a/Makefile
+--- b/Makefile
+@@
+-CONN_LOCAL := postgres://postgres@127.0.0.1:54322/postgres?sslmode=disable
++CONN_LOCAL := postgres://postgres@127.0.0.1:54322/postgres?sslmode=disable
++# Use the seed kit folder name as the batch label
++BATCH := $(notdir $(SEED_KIT_DIR))
+@@
+-	load-treatments-local:
++	load-treatments-local:
+ 		@[ -n "$$SEED_KIT_DIR" ] || (echo "SEED_KIT_DIR is required"; exit 1)
+ 		@echo ">> loading from $$SEED_KIT_DIR"
+-		psql "$(CONN_LOCAL)" -At <<-'SQL'
++		psql "$(CONN_LOCAL)" -v batch='$(BATCH)' -At <<-'SQL'
+ 		CREATE EXTENSION IF NOT EXISTS pgcrypto;
+ 		ALTER TABLE public.treatments ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ 		ALTER TABLE public.treatments ADD COLUMN IF NOT EXISTS code text;
++		ALTER TABLE public.treatments ADD COLUMN IF NOT EXISTS batch_label text;
++		ALTER TABLE public.fish      ADD COLUMN IF NOT EXISTS batch_label text;
+@@
+-		psql "$(CONN_LOCAL)" -At <<-'SQL'
++		psql "$(CONN_LOCAL)" -v batch='$(BATCH)' -At <<-'SQL'
+ 		WITH names AS (
+@@
+-		csv_all AS (
++		csv_all AS (
+ 		  SELECT lower(trim(fish_name)) AS fish_name_lc, 'injected_plasmid' AS ttype_label,
+-		         trim(material_code) AS code,
+-		         (treatment_date::text||' 00:00:00+00')::timestamptz AS performed_at,
+-		         NULLIF(trim(operator),'') AS operator,
+-		         NULLIF(trim(notes),'')    AS notes FROM _stag_plasmid
++		         trim(material_code) AS code,
++		         (treatment_date::text||' 00:00:00+00')::timestamptz AS performed_at,
++		         NULLIF(trim(operator),'') AS operator,
++		         NULLIF(trim(notes),'')    AS notes,
++		         :batch                    AS batch_label
++		  FROM _stag_plasmid
+ 		  UNION ALL
+ 		  SELECT lower(trim(fish_name)), 'injected_rna',
+-		         trim(material_code),
+-		         (treatment_date::text||' 00:00:00+00')::timestamptz,
+-		         NULLIF(trim(operator),''),
+-		         NULLIF(trim(notes),'') FROM _stag_rna
++		         trim(material_code),
++		         (treatment_date::text||' 00:00:00+00')::timestamptz,
++		         NULLIF(trim(operator),''),
++		         NULLIF(trim(notes),''),
++		         :batch
++		  FROM _stag_rna
+ 		  UNION ALL
+ 		  SELECT lower(trim(fish_name)), 'dye',
+-		         trim(material_code),
+-		         (treatment_date::text||' 00:00:00+00')::timestamptz,
+-		         NULLIF(trim(operator),''),
+-		         NULLIF(trim(notes),'') FROM _stag_dye
++		         trim(material_code),
++		         (treatment_date::text||' 00:00:00+00')::timestamptz,
++		         NULLIF(trim(operator),''),
++		         NULLIF(trim(notes),''),
++		         :batch
++		  FROM _stag_dye
+ 		),
+@@
+-		ins AS (
+-		  INSERT INTO public.treatments (treatment_type, performed_at, operator, notes, code)
+-		  SELECT (ttype_label)::treatment_type_enum, performed_at, operator, notes, code
++		ins AS (
++		  INSERT INTO public.treatments (treatment_type, performed_at, operator, notes, code, batch_label)
++		  SELECT (ttype_label)::treatment_type_enum, performed_at, operator, notes, code, batch_label
+ 		  FROM csv
+ 		  RETURNING id, treatment_type, performed_at, code
+ 		),
+ 		r_link AS (
+@@
+ 		  ON CONFLICT DO NOTHING
+ 		  RETURNING 1
+-		)
+-		SELECT (SELECT count(*) FROM ins) AS treatments_inserted,
+-		       (SELECT count(*) FROM r_link) AS fish_links_inserted;
++		),
++		fish_tag AS (
++		  UPDATE public.fish f
++		     SET batch_label = COALESCE(f.batch_label, :batch)
++		   FROM (SELECT DISTINCT fish_id FROM csv) x
++		  WHERE f.id = x.fish_id
++		  RETURNING 1
++		)
++		SELECT (SELECT count(*) FROM ins)      AS treatments_inserted,
++		       (SELECT count(*) FROM r_link)   AS fish_links_inserted,
++		       (SELECT count(*) FROM fish_tag) AS fish_tagged;
+ DIFF

@@ -1,0 +1,2 @@
+fish_code,treatment_date,treatment_type,material_code,method,operator,notes
+# treatment_type one of: injected_plasmid | injected_rna | dye_labeling
