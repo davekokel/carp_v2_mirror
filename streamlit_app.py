@@ -33,3 +33,19 @@ if st.button("Run DB check"):
         st.success(quick_db_check(eng))
     except Exception as e:
         st.error(f"DB check failed: {e}")
+
+# test
+
+import streamlit as st
+from supabase import create_client
+
+url = st.secrets["SUPABASE_URL"]
+anon = st.secrets["SUPABASE_ANON_KEY"]
+client = create_client(url, anon)
+
+try:
+    res = client.table("fish").select("id", count="exact").limit(1).execute()
+    st.success(f"Anon OK. fish rows={res.count}")
+except Exception as e:
+    st.error("Supabase anon client failed")
+    st.exception(e)

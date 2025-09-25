@@ -39,3 +39,7 @@ coverage.xml
 *.dump
 *.sqlite
 *.db
+
+# Secrets
+**/.streamlit/secrets.toml
+**/secrets.toml
