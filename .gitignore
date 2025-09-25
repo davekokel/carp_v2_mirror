@@ -42,3 +42,18 @@ export/
 **/secrets.toml
 export/
 .vscode/
+
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+.env.staging
+
+# OS & bytecode
+**/.DS_Store
+**/__pycache__/
+**/*.pyc
