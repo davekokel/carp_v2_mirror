@@ -35,3 +35,10 @@ export/
 **/secrets.toml
 export/
 .vscode/
+
+**/.env
+**/.env.*
+**/.streamlit/secrets.toml
+**/secrets.toml
+export/
+.vscode/
