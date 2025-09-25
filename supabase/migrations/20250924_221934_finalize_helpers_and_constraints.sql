@@ -1,0 +1,56 @@
+-- Helpers (idempotent)
+CREATE SEQUENCE IF NOT EXISTS public.auto_fish_seq;
+
+CREATE OR REPLACE FUNCTION public.next_auto_fish_code()
+RETURNS text
+LANGUAGE sql
+AS $$
+  SELECT 'FSH-' || to_char(now(), 'YYYY') || '-' ||
+         to_char(nextval('public.auto_fish_seq'), 'FM000');
+$$;
+
+CREATE SEQUENCE IF NOT EXISTS public.tank_label_seq;
+
+-- Keep arg name EXACTLY 'prefix' to avoid replace errors on existing signatures
+CREATE OR REPLACE FUNCTION public.next_tank_code(prefix text)
+RETURNS text
+LANGUAGE plpgsql
+AS $func$
+DECLARE n bigint;
+BEGIN
+  n := nextval('public.tank_label_seq');
+  RETURN prefix || to_char(n, 'FM000');
+END
+$func$;
+
+-- Columns (safe if already exist)
+ALTER TABLE public.fish
+  ADD COLUMN IF NOT EXISTS auto_fish_code text;
+
+-- Add NOT VALID check if absent, then normalize spacing and VALIDATE
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname='chk_auto_fish_code_format'
+      AND conrelid='public.fish'::regclass
+  ) THEN
+    ALTER TABLE public.fish
+      ADD CONSTRAINT chk_auto_fish_code_format
+      CHECK (auto_fish_code IS NULL OR auto_fish_code ~ '^FSH-[0-9]{4}-[0-9]{3}$')
+      NOT VALID;
+  END IF;
+END$$;
+
+-- Normalize common spacing issues like 'FSH-2025- 123' -> 'FSH-2025-123'
+UPDATE public.fish
+SET auto_fish_code = regexp_replace(auto_fish_code, '-\\s+', '-', 'g')
+WHERE auto_fish_code ~ '-\\s+';
+
+-- Try to validate; it's fine if it fails (no transaction abort)
+DO $$
+BEGIN
+  EXECUTE 'ALTER TABLE public.fish VALIDATE CONSTRAINT chk_auto_fish_code_format';
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'Validation skipped (some legacy rows still fail).';
+END$$;
