@@ -1,44 +1,35 @@
 # streamlit_app.py
 import streamlit as st
-from typing import Optional
 
 st.set_page_config(page_title="CARP", layout="wide")
-
-# Optional: quick status panel
-def secret_bool(k: str) -> bool:
-    try:
-        return bool(st.secrets.get(k))
-    except Exception:
-        return False
-
 st.title("CARP")
 st.caption("Use the sidebar to navigate pages.")
 
-# Show env + secrets presence
-env_name: Optional[str] = None
-try:
-    env_name = st.secrets.get("ENV_NAME")
-except Exception:
-    env_name = None
+# show a tiny secrets sanity panel (never blocks)
+def _has_secret(k: str) -> str:
+    try:
+        v = st.secrets.get(k)
+        return "yes" if (isinstance(v, str) and v.strip()) else ("yes" if v else "no")
+    except Exception:
+        return "no"
 
 c1, c2, c3 = st.columns(3)
-with c1:
-    st.metric("ENV_NAME", env_name or "(unset)")
-with c2:
-    st.metric("Has CONN", "yes" if secret_bool("CONN") else "no")
-with c3:
-    st.metric("Has PGHOST", "yes" if secret_bool("PGHOST") else "no")
+with c1: st.metric("ENV_NAME", st.secrets.get("ENV_NAME", "(unset)"))
+with c2: st.metric("Has CONN", _has_secret("CONN"))
+with c3: st.metric("Has PGHOST", _has_secret("PGHOST"))
 
-# Optional DB check (works whether you set CONN or PG* parts)
-try:
-    from lib.db import get_engine, quick_db_check  # present in your repo
-    eng = get_engine()  # reads st.secrets
-    st.success(quick_db_check(eng))
-except Exception as e:
-    st.info(f"DB check skipped/failed: {e}")
-
+st.divider()
 st.subheader("Pages")
 st.page_link("pages/01_Overview.py", label="Overview", icon="📊")
 st.page_link("pages/02_Assign_and_Labels.py", label="Assign & Labels", icon="🏷️")
 st.page_link("pages/02_Details.py", label="Details", icon="🧬")
 st.page_link("pages/09_seed_loader.py", label="Seed Loader", icon="📦")
+
+# Optional: DB check on demand (prevents blocking at startup)
+if st.button("Run DB check"):
+    try:
+        from lib.db import get_engine, quick_db_check
+        eng = get_engine()  # reads st.secrets
+        st.success(quick_db_check(eng))
+    except Exception as e:
+        st.error(f"DB check failed: {e}")
