@@ -28,3 +28,10 @@ supabase/snapshots/snapshots_local/
 
 # build/export artifacts
 export/
+
+**/.env
+**/.env.*
+**/.streamlit/secrets.toml
+**/secrets.toml
+export/
+.vscode/
