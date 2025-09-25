@@ -14,3 +14,11 @@ supabase/snapshots/snapshots_local/
 # --- Streamlit secrets ---
 **/.streamlit/secrets.toml
 **/secrets.toml
+
+# --- Secrets & local config ---
+.env
+.env.*
+**/.env
+**/.env.*
+**/.streamlit/secrets.toml
+**/secrets.toml
