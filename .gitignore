@@ -9,3 +9,8 @@ supabase/snapshots/snapshots_local/
 *.dump
 *.sql.gz
 *.tgz
+
+.streamlit/secrets.toml
+# --- Streamlit secrets ---
+**/.streamlit/secrets.toml
+**/secrets.toml
