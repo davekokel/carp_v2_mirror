@@ -1,0 +1,1 @@
+-r supabase/ui/requirements.txt
