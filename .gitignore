@@ -1,7 +1,41 @@
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+
+# ---- Python build / caches ----
 __pycache__/
-*.pyc
-.DS_Store
-.streamlit/
-.DS_Store
-.env*
-*.local
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.build/
+dist/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# ---- Streamlit secrets (very important) ----
+.streamlit/secrets.toml
+**/secrets.toml
+
+# ---- Env files ----
+.env
+.env.*
+**/.env
+**/.env.*
+
+# ---- Editor / tooling ----
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---- Local data / zips you might test with ----
+*.zip
+*.dump
+*.sqlite
+*.db
