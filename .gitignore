@@ -22,3 +22,6 @@ supabase/snapshots/snapshots_local/
 **/.env.*
 **/.streamlit/secrets.toml
 **/secrets.toml
+
+# --- VSCode project files ---
+.vscode/
