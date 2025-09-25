@@ -25,3 +25,6 @@ supabase/snapshots/snapshots_local/
 
 # --- VSCode project files ---
 .vscode/
+
+# build/export artifacts
+export/
