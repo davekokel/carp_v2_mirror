@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .DS_Store
 .streamlit/
+.DS_Store
+.env*
+*.local
