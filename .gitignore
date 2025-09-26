@@ -57,3 +57,14 @@ export/
 **/.DS_Store
 **/__pycache__/
 **/*.pyc
+
+# UI env files (local/real secrets never in git)
+supabase/ui/env.*
+
+# UI env files (local/real secrets never in git)
+supabase/ui/env.*
+
+# Finder duplicate patterns (e.g., foo 2.py)
+supabase/ui/* [0-9].py
+supabase/ui/* [0-9][0-9].py
+supabase/ui/* copy*.py
