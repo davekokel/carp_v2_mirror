@@ -1,65 +1,56 @@
-# streamlit_app.py  —  DIAGNOSTIC HEALTH PAGE
-import sys, os, platform
+# streamlit_app.py — defensive bootstrap
+import sys, os, time, platform
 import streamlit as st
 
-st.set_page_config(page_title="CARP – Health", layout="wide")
-st.title("CARP · Health check")
+st.set_page_config(page_title="CARP", layout="wide")
 
-# 1) Show basic runtime info
-c1, c2, c3 = st.columns(3)
-with c1: st.metric("Python", sys.version.split()[0])
-with c2: st.metric("Platform", platform.platform().split('-')[0])
-with c3: st.metric("PID", os.getpid())
+# 0) Prove Streamlit is rendering
+st.title("CARP (app entry)")
+st.success("✅ UI is rendering")
+st.caption(f"Python {sys.version.split()[0]} · {platform.platform()}")
 
-# 2) Safely read secrets (won't crash if missing)
-secrets_ok, secrets_err, secrets = False, "", {}
+# 1) Secrets visibility (don’t crash if missing)
 try:
-    secrets = st.secrets  # may raise if no secrets configured
-    # accessing a key will parse TOML; wrap in try
-    _ = secrets.get("ENV_NAME", None)
-    secrets_ok = True
+    env_name = st.secrets.get("ENV_NAME", "(unset)")
+    dsn = st.secrets.get("CONN") or st.secrets.get("CONN_STAGING")
+    st.write("Secrets → ENV_NAME:", env_name, " · DSN present:", bool(dsn))
 except Exception as e:
-    secrets_err = str(e)
+    st.error(f"Secrets unavailable: {e}")
 
-st.subheader("Secrets status")
-if secrets_ok:
-    c1, c2, c3 = st.columns(3)
-    with c1: st.write("ENV_NAME:", secrets.get("ENV_NAME", "(unset)"))
-    with c2: st.write("CONN set:", bool(secrets.get("CONN")))
-    with c3: st.write("PGHOST set:", bool(secrets.get("PGHOST")))
+# 2) Import your app modules with error surfacing
+with st.spinner("Importing modules…"):
+    try:
+        from lib_shared import pick_environment
+        from lib.db import get_engine, quick_db_check
+    except Exception as e:
+        st.error("❌ Import error while loading app modules:")
+        st.exception(e)
+        st.stop()
+
+# 3) Optional quick DB ping if DSN provided
+dsn = st.secrets.get("CONN") or st.secrets.get("CONN_STAGING")
+if dsn:
+    from sqlalchemy import create_engine, text
+    try:
+        st.info("Connecting to database…")
+        engine = create_engine(
+            dsn,
+            pool_pre_ping=True,
+            pool_size=2,
+            max_overflow=0,
+            future=True,
+            connect_args={"prepare_threshold": None, "connect_timeout": 5},
+        )
+        t0 = time.time()
+        with engine.connect() as cx:
+            who = cx.execute(text("select current_user")).scalar()
+            ver = cx.execute(text("select version()")).scalar()
+        st.success(f"DB OK as {who} · {str(ver).split()[0]}  (%.2fs)" % (time.time()-t0))
+    except Exception as e:
+        st.error("❌ Database connection failed:")
+        st.exception(e)
 else:
-    st.error(f"Secrets unavailable: {secrets_err}")
-    st.stop()
+    st.warning("No DSN found in secrets. Set `CONN` (or PGHOST/PGUSER/PGPASSWORD/PGPORT/PGDATABASE).")
 
-# 3) Build DSN (CONN preferred; else from PG* parts)
-dsn = secrets.get("CONN") or secrets.get("CONN_STAGING")
-if not dsn:
-    host = secrets.get("PGHOST")
-    user = secrets.get("PGUSER")
-    pwd  = secrets.get("PGPASSWORD")
-    db   = secrets.get("PGDATABASE", "postgres")
-    port = str(secrets.get("PGPORT", "5432"))
-    if host and user and pwd:
-        dsn = f"postgresql://{user}:{pwd}@{host}:{port}/{db}?sslmode=require"
-
-st.subheader("Database connectivity")
-if not dsn:
-    st.warning("No DSN found (CONN/PG*). Add secrets on Streamlit Cloud.")
-    st.stop()
-
-# psycopg wants postgresql:// (not postgresql+psycopg://)
-dsn_psycopg = dsn.replace("postgresql+psycopg://", "postgresql://")
-
-# 4) Try connecting and read a couple values
-try:
-    import psycopg
-    with psycopg.connect(dsn_psycopg) as conn:
-        with conn.cursor() as cur:
-            cur.execute("select current_user, version()")
-            who, ver = cur.fetchone()
-    st.success(f"Connected as '{who}'. Server: {ver.split()[0]}")
-except Exception as e:
-    st.error(f"DB connect failed: {e}")
-    st.stop()
-
-st.info("Health OK. Once this is green, we’ll switch back to the full app.")
+st.divider()
+st.write("🎯 If you see the green checks above, the core runtime is healthy. Your **Pages/** will appear in the sidebar automatically.")
