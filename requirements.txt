@@ -1,6 +1,4 @@
-streamlit>=1.37
-sqlalchemy>=2.0
-psycopg[binary]>=3.2
-pandas>=2.2
-reportlab
-# noop
+streamlit==1.37.1
+sqlalchemy==2.0.34
+psycopg[binary]==3.2.1
+pandas==2.2.2
