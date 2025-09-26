@@ -43,3 +43,6 @@ coverage.xml
 # Secrets
 **/.streamlit/secrets.toml
 **/secrets.toml
+
+# stray
+/main
