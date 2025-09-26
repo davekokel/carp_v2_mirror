@@ -1,7 +1,4 @@
-# exclude everything by default
 **
-# but include these files
-!.streamlitignore
 !streamlit_app.py
 !requirements.txt
 !runtime.txt
