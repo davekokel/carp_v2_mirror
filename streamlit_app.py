@@ -1,83 +1,65 @@
-# streamlit_app.py — ultra-safe boot + DB diag
-import os, sys, platform, time
+# streamlit_app.py  —  DIAGNOSTIC HEALTH PAGE
+import sys, os, platform
 import streamlit as st
 
-st.set_page_config(page_title="CARP", layout="wide")
+st.set_page_config(page_title="CARP – Health", layout="wide")
+st.title("CARP · Health check")
 
-st.title("CARP — Boot & DB diagnostics")
-
-# --- Always render something first ---
-c1, c2, c3, c4 = st.columns(4)
+# 1) Show basic runtime info
+c1, c2, c3 = st.columns(3)
 with c1: st.metric("Python", sys.version.split()[0])
-with c2: st.metric("Platform", platform.system())
-with c3: st.metric("ENV_NAME", str(st.secrets.get("ENV_NAME","(unset)")))
-with c4: st.metric("Has CONN", "yes" if st.secrets.get("CONN") else "no")
+with c2: st.metric("Platform", platform.platform().split('-')[0])
+with c3: st.metric("PID", os.getpid())
 
-# Show secrets presence (not values)
-st.caption("Secrets present → "
-           f"CONN:{bool(st.secrets.get('CONN'))} "
-           f"PGHOST:{bool(st.secrets.get('PGHOST'))} "
-           f"PGUSER:{bool(st.secrets.get('PGUSER'))} "
-           f"PGDATABASE:{bool(st.secrets.get('PGDATABASE'))}")
-
-# Masked preview of CONN
-def _mask_conn(s: str) -> str:
-    if not s: return "(missing)"
-    # keep scheme and host; mask credentials
-    try:
-        before_at = s.split("@", 1)[0]
-        after_at  = s.split("@", 1)[1]
-        scheme = before_at.split("://",1)[0]
-        return f"{scheme}://***:***@{after_at}"
-    except Exception:
-        return "(unparseable)"
-
-st.write("CONN (masked):", _mask_conn(st.secrets.get("CONN","")))
-
-# ---- Try DB connection, but never crash the page ----
-status = st.empty()
-status.info("Connecting to database...")
-
-err_box = st.empty()
-ok_box  = st.empty()
-
+# 2) Safely read secrets (won't crash if missing)
+secrets_ok, secrets_err, secrets = False, "", {}
 try:
-    from sqlalchemy import create_engine, text
-    dsn = st.secrets.get("CONN")
-    if not dsn:
-        # Optional fallback from PG*; also make password URL-safe
-        from urllib.parse import quote_plus
-        host = st.secrets.get("PGHOST")
-        user = st.secrets.get("PGUSER")
-        pwd  = st.secrets.get("PGPASSWORD")
-        db   = st.secrets.get("PGDATABASE","postgres")
-        port = str(st.secrets.get("PGPORT","5432"))
-        if host and user and pwd:
-            dsn = f"postgresql+psycopg://{user}:{quote_plus(pwd)}@{host}:{port}/{db}?sslmode=require"
-
-    if not dsn:
-        raise RuntimeError("No DSN. Provide CONN in Secrets (or PG* parts).")
-
-    engine = create_engine(
-        dsn,
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=5,
-        pool_recycle=1800,
-        future=True,
-        connect_args={"prepare_threshold": None},  # avoid DuplicatePreparedStatement
-    )
-
-    with engine.connect() as cx:
-        who = cx.execute(text("select current_user")).scalar()
-        ver = cx.execute(text("select version()")).scalar()
-        status.success("DB connected ✅")
-        ok_box.write(f"**current_user:** `{who}`")
-        ok_box.write(f"**version:** `{str(ver).split()[0]}`")
-
+    secrets = st.secrets  # may raise if no secrets configured
+    # accessing a key will parse TOML; wrap in try
+    _ = secrets.get("ENV_NAME", None)
+    secrets_ok = True
 except Exception as e:
-    status.error("DB connection failed")
-    err_box.exception(e)
+    secrets_err = str(e)
 
-st.divider()
-st.write("If this page renders but DB fails, fix the app secrets (CONN).")
+st.subheader("Secrets status")
+if secrets_ok:
+    c1, c2, c3 = st.columns(3)
+    with c1: st.write("ENV_NAME:", secrets.get("ENV_NAME", "(unset)"))
+    with c2: st.write("CONN set:", bool(secrets.get("CONN")))
+    with c3: st.write("PGHOST set:", bool(secrets.get("PGHOST")))
+else:
+    st.error(f"Secrets unavailable: {secrets_err}")
+    st.stop()
+
+# 3) Build DSN (CONN preferred; else from PG* parts)
+dsn = secrets.get("CONN") or secrets.get("CONN_STAGING")
+if not dsn:
+    host = secrets.get("PGHOST")
+    user = secrets.get("PGUSER")
+    pwd  = secrets.get("PGPASSWORD")
+    db   = secrets.get("PGDATABASE", "postgres")
+    port = str(secrets.get("PGPORT", "5432"))
+    if host and user and pwd:
+        dsn = f"postgresql://{user}:{pwd}@{host}:{port}/{db}?sslmode=require"
+
+st.subheader("Database connectivity")
+if not dsn:
+    st.warning("No DSN found (CONN/PG*). Add secrets on Streamlit Cloud.")
+    st.stop()
+
+# psycopg wants postgresql:// (not postgresql+psycopg://)
+dsn_psycopg = dsn.replace("postgresql+psycopg://", "postgresql://")
+
+# 4) Try connecting and read a couple values
+try:
+    import psycopg
+    with psycopg.connect(dsn_psycopg) as conn:
+        with conn.cursor() as cur:
+            cur.execute("select current_user, version()")
+            who, ver = cur.fetchone()
+    st.success(f"Connected as '{who}'. Server: {ver.split()[0]}")
+except Exception as e:
+    st.error(f"DB connect failed: {e}")
+    st.stop()
+
+st.info("Health OK. Once this is green, we’ll switch back to the full app.")
