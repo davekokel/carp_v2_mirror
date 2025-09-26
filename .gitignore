@@ -46,3 +46,18 @@ coverage.xml
 
 # stray
 /main
+# macOS cruft
+.DS_Store
+
+# Python build artifacts
+__pycache__/
+*.pyc
+
+# Finder duplicate patterns (e.g., "foo 2.py", "bar 3.py")
+* [0-9].py
+* [0-9][0-9].py
+* copy*.py
+
+# Streamlit secrets
+**/.streamlit/secrets.toml
+**/secrets.toml
