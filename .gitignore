@@ -1,63 +1,40 @@
-# ---- OS junk ----
-.DS_Store
-Thumbs.db
-
-# ---- Python build / caches ----
+# --- Python ---
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
 *.pyd
-*.so
 *.egg-info/
-.build/
-dist/
-.eggs/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-coverage.xml
 
-# ---- Streamlit secrets (very important) ----
-.streamlit/secrets.toml
+# --- macOS cruft ---
+.DS_Store
+
+# --- Finder duplicate filenames (e.g., "foo 2.py") ---
+* [0-9].py
+* [0-9][0-9].py
+* copy*.py
+
+# --- Editors/IDE ---
+.vscode/
+
+# --- Streamlit secrets (never commit) ---
+**/.streamlit/secrets.toml
 **/secrets.toml
 
-# ---- Env files ----
+# --- Env files / local config (never commit) ---
 .env
 .env.*
 **/.env
 **/.env.*
 
-# ---- Editor / tooling ----
-.vscode/
-.idea/
-*.swp
-*.swo
+# --- Builds / artifacts ---
+dist/
+build/
 
-# ---- Local data / zips you might test with ----
-*.zip
+# --- DB dumps & large snapshots (repo-specific) ---
+supabase/409DIR/
+supabase/409SNAP
+supabase/snapshots/
 *.dump
-*.sqlite
-*.db
 
-# Secrets
-**/.streamlit/secrets.toml
-**/secrets.toml
-
-# stray
-/main
-# macOS cruft
-.DS_Store
-
-# Python build artifacts
-__pycache__/
-*.pyc
-
-# Finder duplicate patterns (e.g., "foo 2.py", "bar 3.py")
-* [0-9].py
-* [0-9][0-9].py
-* copy*.py
-
-# Streamlit secrets
-**/.streamlit/secrets.toml
-**/secrets.toml
+# --- Misc ---
+*.log
