@@ -1,7 +1,8 @@
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
-from lib_shared import pick_environment, get_engine, parse_query
+from lib_shared import pick_environment, parse_query
+from lib.db import get_engine, fetch_df, exec_sql  # as needed per page
 
 st.set_page_config(page_title="Fish Overview", layout="wide")
 st.title("Fish Overview")
@@ -92,24 +93,32 @@ where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 # -- Query: build select list based on available columns ----------------------
 with engine.connect() as cx:
     tank = detect_tank_sql(cx)
+
     has_nick = has_col(cx, "fish", "nickname")
     has_dob  = has_col(cx, "fish", "date_of_birth")
+    nick_sel = "f.nickname" if has_nick else "NULL::text"
+    dob_sel  = "f.date_of_birth" if has_dob else "NULL::date"
 
-    nick_sel = "f.nickname" if has_nick else "NULL::text AS nickname"
-    dob_sel  = "f.date_of_birth" if has_dob else "NULL::date AS date_of_birth"
+    has_tgn_name = has_col(cx, "transgenes", "name")
+    name_expr = "COALESCE(NULLIF(t.name,''), t.transgene_base_code)" if has_tgn_name else "t.transgene_base_code"
+
+    auto_code_expr = (
+        "f.auto_fish_code" if has_col(cx, "fish", "auto_fish_code")
+        else ("f.fish_code" if has_col(cx, "fish", "fish_code")
+        else ("f.auto_code" if has_col(cx, "fish", "auto_code")
+        else "NULL::text"))
+    )
 
     sql = f"""
     WITH tg AS (
       SELECT
-        ft.fish_id,
-        string_agg(DISTINCT tgn.code, ', ' ORDER BY tgn.code) AS transgene_codes,
-        string_agg(
-          DISTINCT COALESCE(NULLIF(tgn.name,''), tgn.code),
-          ', ' ORDER BY COALESCE(NULLIF(tgn.name,''), tgn.code)
-        ) AS transgene_names
-      FROM public.fish_transgenes ft
-      JOIN public.transgenes tgn ON tgn.code = ft.transgene_code
-      GROUP BY ft.fish_id
+        fta.fish_id,
+        string_agg(DISTINCT t.transgene_base_code, ', ' ORDER BY t.transgene_base_code) AS transgene_codes,
+        string_agg(DISTINCT {name_expr}, ', ' ORDER BY {name_expr}) AS transgene_names
+      FROM public.fish_transgene_alleles fta
+      JOIN public.transgenes t
+        ON t.transgene_base_code = fta.transgene_base_code
+      GROUP BY fta.fish_id
     ),
     alle AS (
       SELECT
@@ -142,17 +151,17 @@ with engine.connect() as cx:
       GROUP BY ft.fish_id
     )
     SELECT
-      f.name                               AS fish_name,
-      f.auto_fish_code                     AS auto_fish_code,
-      f.batch_label                        AS batch,
-      f.line_building_stage                AS line_building_stage,
-      f.nickname                           AS nickname,
-      f.date_of_birth                      AS date_of_birth,
-      f.description                        AS description,  
+      f.name                             AS fish_name,
+      {auto_code_expr}                   AS auto_fish_code,
+      f.batch_label                      AS batch,
+      f.line_building_stage              AS line_building_stage,
+      {nick_sel}                         AS nickname,
+      {dob_sel}                          AS date_of_birth,
+      f.description                      AS description,
       {tank['select']},
-      COALESCE(tg.transgene_names, '')     AS transgenes,
-      COALESCE(alle.alleles, '')           AS alleles,
-      COALESCE(tx.n_treatments, 0)         AS n_treatments,
+      COALESCE(tg.transgene_names, '')   AS transgenes,
+      COALESCE(alle.alleles, '')         AS alleles,
+      COALESCE(tx.n_treatments, 0)       AS n_treatments,
       tx.last_treatment_on
     FROM public.fish f
     LEFT JOIN tg   ON tg.fish_id   = f.id
@@ -181,7 +190,7 @@ else:
         "tank",
         "transgenes",
         "alleles",
-        "description"
+        "description",
         "n_treatments",
         "last_treatment_on",
     ]

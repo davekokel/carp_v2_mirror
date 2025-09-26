@@ -53,25 +53,29 @@ def detect_tank_select_join(cx):
 
     return "'' AS tank, NULL::text AS status", ""
 
-def sql_overview(select_tank_clause: str, join_tank_clause: str, where_sql: str):
+def sql_overview(tank_select: str, tank_join: str, where_sql: str = "") -> str:
     return f"""
     WITH tg AS (
-      SELECT ft.fish_id,
-             string_agg(DISTINCT tgn.code, ', ' ORDER BY tgn.code) AS transgenes
+      SELECT
+        ft.fish_id,
+        string_agg(DISTINCT t.transgene_base_code, ', ' ORDER BY t.transgene_base_code) AS transgenes
       FROM public.fish_transgenes ft
-      JOIN public.transgenes tgn ON tgn.code = ft.transgene_code
+      JOIN public.transgenes t
+        ON t.transgene_base_code = ft.transgene_code
       GROUP BY ft.fish_id
     ),
     alle AS (
-      SELECT x.fish_id,
-             string_agg(DISTINCT x.allele_label, ', ' ORDER BY x.allele_label) AS alleles
+      SELECT
+        x.fish_id,
+        string_agg(DISTINCT x.allele_label, ', ' ORDER BY x.allele_label) AS alleles
       FROM (
-        SELECT f.id AS fish_id,
-               trim(CONCAT(
-                    fta.transgene_base_code,
-                    CASE WHEN NULLIF(fta.allele_number,'') IS NOT NULL
-                         THEN '('||fta.allele_number||')' ELSE '' END
-               )) AS allele_label
+        SELECT
+          f.id AS fish_id,
+          trim(CONCAT(
+            fta.transgene_base_code,
+            CASE WHEN NULLIF(fta.allele_number,'') IS NOT NULL
+                 THEN '('||fta.allele_number||')' ELSE '' END
+          )) AS allele_label
         FROM public.fish f
         LEFT JOIN public.fish_transgene_alleles fta ON fta.fish_id = f.id
       ) x
@@ -79,19 +83,20 @@ def sql_overview(select_tank_clause: str, join_tank_clause: str, where_sql: str)
     )
     SELECT
       f.id,
-      f.name            AS fish_name,
-      f.auto_fish_code  AS auto_fish_code,
-      f.batch_label     AS batch,
-      f.line_building_stage,
+      f.name                       AS fish_name,
+      f.auto_fish_code             AS auto_fish_code,
+      f.batch_label                AS batch,
+      f.line_building_stage        AS line_building_stage,
       f.nickname,
       f.date_of_birth,
-      {select_tank_clause},
-      COALESCE(tg.transgenes, '') AS transgenes,
-      COALESCE(alle.alleles, '')  AS alleles
+      {tank_select},
+      COALESCE(tg.transgenes, '')  AS transgenes,
+      COALESCE(alle.alleles, '')   AS alleles,
+      f.description
     FROM public.fish f
     LEFT JOIN tg   ON tg.fish_id   = f.id
     LEFT JOIN alle ON alle.fish_id = f.id
-    {join_tank_clause}
+    {tank_join}
     {where_sql}
     ORDER BY fish_name
     LIMIT :lim
