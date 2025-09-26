@@ -1,45 +1,15 @@
-# ---- OS junk ----
+# macOS cruft
 .DS_Store
-Thumbs.db
 
-# ---- Python build / caches ----
+# Python
 __pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.so
-*.egg-info/
-.build/
-dist/
-.eggs/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-coverage.xml
+*.pyc
 
-# ---- Streamlit secrets (very important) ----
-.streamlit/secrets.toml
-**/secrets.toml
+# Finder duplicate patterns (e.g., "foo 2.py")
+* [0-9].py
+* [0-9][0-9].py
+* copy*.py
 
-# ---- Env files ----
-.env
-.env.*
-**/.env
-**/.env.*
-
-# ---- Editor / tooling ----
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# ---- Local data / zips you might test with ----
-*.zip
-*.dump
-*.sqlite
-*.db
-
-# Secrets
+# Streamlit secrets
 **/.streamlit/secrets.toml
 **/secrets.toml
