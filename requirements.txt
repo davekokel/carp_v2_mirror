@@ -1,4 +1,6 @@
 streamlit==1.31.0
-pandas==2.3.2
-SQLAlchemy==2.0.43
-psycopg==3.2.10
+pandas==2.2.2
+SQLAlchemy==2.0.32
+psycopg==3.2.1
+qrcode[pil]==7.4.2
+reportlab
