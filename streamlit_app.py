@@ -1,4 +1,5 @@
 import streamlit as st
-st.set_page_config(page_title="CARP boot", layout="wide")
-st.success("✅ Streamlit rendered — build finished")
-st.caption("Add dependencies back gradually after this turns green.")
+st.set_page_config(page_title="CARP health", layout="wide")
+st.success("✅ UI is rendering")
+st.write("ENV:", st.secrets.get("ENV_NAME", "(unset)"))
+st.write("has CONN:", bool(st.secrets.get("CONN")))
