@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 from lib_shared import pick_environment
-from lib.db import get_engine, fetch_df, exec_sql
+# pages/*.py
+from lib.db import get_engine
+engine = get_engine()
 from lib.schema import ensure_tank_schema
 from lib.queries import sql_batches, detect_tank_select_join, sql_overview, sql_auto_assign
 from components.fish_table import render_select_table

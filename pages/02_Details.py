@@ -4,7 +4,9 @@ import pandas as pd
 from sqlalchemy import text
 
 from lib_shared import pick_environment
+# pages/*.py
 from lib.db import get_engine
+engine = get_engine()
 
 st.set_page_config(page_title="CARP – Details", layout="wide")
 st.title("CARP Treatments — Detailed Listing")

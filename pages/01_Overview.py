@@ -2,7 +2,9 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 from lib_shared import pick_environment, parse_query
-from lib.db import get_engine, fetch_df, exec_sql  # as needed per page
+# pages/*.py
+from lib.db import get_engine
+engine = get_engine()
 
 st.set_page_config(page_title="Fish Overview", layout="wide")
 st.title("Fish Overview")

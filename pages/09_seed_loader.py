@@ -8,7 +8,9 @@ import streamlit as st
 from sqlalchemy import text
 
 # minimal dependency: your engine builder that reads st.secrets PG*
+# pages/*.py
 from lib.db import get_engine
+engine = get_engine()
 
 st.set_page_config(page_title="Seed Loader (ZIP-only, strict fish_name)", layout="wide")
 st.title("Seed Loader — ZIP only (strict fish_name)")
