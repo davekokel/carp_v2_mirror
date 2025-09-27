@@ -169,3 +169,55 @@ if engine:
         st.exception(e)
 else:
     st.caption("No engine available for audit display.")
+
+
+
+import pandas as pd
+from lib.db import fetch_df, get_engine
+
+st.divider()
+st.subheader("Audit table — live check")
+
+engine = get_engine(st.secrets["CONN_POOL"])
+
+colX, colY = st.columns(2)
+
+with colX:
+    if st.button("Show DB endpoint + audit count", key="audit_show_meta"):
+        with engine.connect() as cx:
+            meta = fetch_df(cx, "select current_database() as db, inet_server_addr() as host")
+            cnt  = fetch_df(cx, "select count(*) as n from public.audit_events")
+        st.write(meta)
+        st.metric("audit_events rows", int(cnt.iloc[0]["n"]))
+
+with colY:
+    if st.button("Insert test row (explicit columns)", key="audit_insert_explicit"):
+        try:
+            with engine.begin() as cx:
+                cx.execute(
+                    # explicit column list + typed JSON so RLS/permissions are the only remaining variable
+                    # if your table has extra NOT NULL columns, add them here too
+                    """
+                    insert into public.audit_events (actor, action, details)
+                    values (:actor, :action, CAST(:details as jsonb))
+                    """,
+                    {
+                        "actor": "health_page",
+                        "action": "diagnostic_insert",
+                        "details": '{"source":"health_button"}',
+                    },
+                )
+            st.success("Inserted 1 audit row.")
+        except Exception as e:
+            st.error("Insert failed")
+            st.exception(e)
+
+# always show last 10 we can see
+with engine.connect() as cx:
+    df = fetch_df(cx, """
+        select happened_at, actor, action, details
+        from public.audit_events
+        order by happened_at desc
+        limit 10
+    """)
+st.dataframe(df if not df.empty else pd.DataFrame({"info": ["(no rows visible)"]}))
