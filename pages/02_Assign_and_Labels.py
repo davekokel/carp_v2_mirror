@@ -14,13 +14,13 @@ from lib.queries import (
 )
 from components.fish_table import render_select_table
 from components.labels import generate_labels
-from lib.authz import require_app_access, read_only_banner, guard_writes, logout_button
+import lib.authz as authz           # <— import as module to avoid name shadowing
 from lib.audit import log_event
 
 # --- Auth / banners / logout ---
-require_app_access("🔐 CARP — Private")
-read_only_banner()
-logout_button("sidebar")  # global logout in sidebar
+authz.require_app_access("🔐 CARP — Private")
+authz.read_only_banner()
+authz.logout_button("sidebar")  # global logout in sidebar
 
 st.title("Assign Tanks & Print Labels")
 
@@ -28,7 +28,7 @@ st.title("Assign Tanks & Print Labels")
 env, conn = pick_environment()
 engine = get_engine(conn)
 
-# --- Ensure schema (no-op unless ALLOW_SCHEMA_MIGRATIONS is set in secrets) ---
+# --- Ensure schema (no-op unless your ensure_* is safe/idempotent) ---
 with engine.begin() as cx:
     ensure_tank_schema(cx)
 
@@ -57,11 +57,12 @@ col1, col2 = st.columns([1, 1], gap="large")
 # --- Auto-assign tanks (inactive) ---
 with col1:
     if st.button("Auto-assign tanks (inactive) for this batch"):
-        if not guard_writes():
+        if not authz.guard_writes():
             st.stop()
         try:
             with engine.begin() as cx:
                 exec_sql(cx, sql_auto_assign(), {"batch": batch_choice})
+                # audit
                 log_event(cx, "auto_assign", {"batch": batch_choice})
             st.success(f"Auto-assigned tanks for batch: {batch_choice}")
             st.rerun()
@@ -74,7 +75,7 @@ with col2:
         if not selected_ids:
             st.warning("Select at least one fish first.")
             return
-        if not guard_writes():
+        if not authz.guard_writes():
             st.stop()
         try:
             with engine.begin() as cx:
@@ -97,14 +98,13 @@ with col2:
                     """,
                     {"st": new_status, "ids": selected_ids},
                 )
+                # audit
                 log_event(cx, "status_update", {"status": new_status, "count": len(selected_ids)})
-                
             st.success(f"Updated status → {new_status} for {len(selected_ids)} fish")
             st.rerun()
         except Exception as e:
             st.error(f"Status update failed: {e}")
-            
-    
+
     c1, c2, c3 = st.columns(3)
     with c1:
         st.button("Activate (alive)", on_click=lambda: set_status("alive"))
