@@ -9,6 +9,8 @@ from lib.schema import ensure_tank_schema
 from lib.queries import sql_batches, detect_tank_select_join, sql_overview, sql_auto_assign
 from components.fish_table import render_select_table
 from components.labels import generate_labels
+from lib.authz import require_app_access
+require_app_access("🔐 CARP — Private")
 
 st.set_page_config(page_title="Assign & Labels", layout="wide")
 st.title("Assign Tanks & Print Labels")

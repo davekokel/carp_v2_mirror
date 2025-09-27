@@ -1,5 +1,6 @@
 # health.py
-import os, sys, platform, time
+from lib.authz import require_app_access
+require_app_access("🔐 CARP — Private")
 import streamlit as st
 from sqlalchemy import create_engine, text
 
