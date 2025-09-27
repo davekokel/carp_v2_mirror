@@ -31,3 +31,26 @@ def require_app_access(title: str = "🔐 Private app"):
             st.stop()
     else:
         st.stop()
+
+import streamlit as st
+
+def is_read_only() -> bool:
+    # Streamlit secrets set as strings; accept bool-ish values
+    val = st.secrets.get("READ_ONLY", False)
+    if isinstance(val, str):
+        return val.strip().lower() in {"1","true","yes","on"}
+    return bool(val)
+
+def read_only_banner():
+    if is_read_only():
+        st.info("🔒 Read-only mode is ON — write actions are disabled.", icon="🔒")
+
+def guard_writes(enabled: bool, label: str = "Submit"):
+    """
+    Return (disabled_flag, help_text) pair you can pass to st.button()
+    """
+    if is_read_only():
+        return True, "Disabled in read-only mode"
+    if not enabled:
+        return True, f"Disabled: {label} not available"
+    return False, None

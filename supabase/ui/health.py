@@ -3,6 +3,8 @@ from lib.authz import require_app_access
 require_app_access("🔐 CARP — Private")
 import streamlit as st
 from sqlalchemy import create_engine, text
+from lib.authz import read_only_banner
+read_only_banner()
 
 st.set_page_config(page_title="Health", layout="wide")
 st.success("✅ Streamlit rendered")
@@ -15,6 +17,10 @@ with c2: st.metric("has CONN_POOL", bool(st.secrets.get("CONN_POOL")))
 with c3: st.metric("ENV_NAME", st.secrets.get("ENV_NAME", "(unset)"))
 
 st.title("DB health")
+with eng.connect() as cx:
+    who = cx.execute(text("select current_user")).scalar()
+    ver = cx.execute(text("select version()")).scalar()
+st.success(f"DB OK as {who} · {ver.split()[0]}")
 
 def mask_pwd(url: str) -> str:
     pwd = st.secrets.get("PGPASSWORD")  # may be None if using DSN
