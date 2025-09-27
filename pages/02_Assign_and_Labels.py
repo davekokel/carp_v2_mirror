@@ -14,7 +14,7 @@ from lib.queries import (
 )
 from components.fish_table import render_select_table
 from components.labels import generate_labels
-import lib.authz as authz           # import as module to avoid name shadowing
+import lib.authz as authz           # import module to avoid name shadowing
 from lib.audit import log_event
 
 # --- Auth / banners / logout ---
@@ -67,7 +67,6 @@ with col1:
         try:
             with engine.begin() as cx:
                 exec_sql(cx, sql_auto_assign(), {"batch": batch_choice})
-                # audit
                 log_event(cx, "auto_assign", {"batch": batch_choice})
             st.success(f"Auto-assigned tanks for batch: {batch_choice}")
             st.rerun()
@@ -76,29 +75,20 @@ with col1:
 
 # --- Status updates ---
 with col2:
-    def set_status(new_status: str):
+
+    def set_status(new_status: str) -> bool:
+        """Update status for selected fish. Returns True on success."""
         if not selected_ids:
             st.warning("Select at least one fish first.")
-            return
+            return False
         if authz.is_read_only():
             st.warning("Read-only mode is ON; write actions are disabled.")
             st.stop()
-        try:
-            with engine.begin() as cx:
-                # ensure a row exists for each selected fish
-                exec_sql(
-                    cx,
-                    """
-                    INSERT INTO public.tank_assignments (fish_id, tank_label, status)
-                    SELECT x::uuid, public.next_tank_code('TANK-'), 'inactive'
-                    FROM UNNEST(CAST(:ids AS uuid[])) AS x
-                    ON CONFLICT (fish_id) DO NOTHING;
-                    """,
-                    {"ids": selected_ids},
-                )
 
-                # update status using explicit casts on the binds
-                exec_sql(
+        try:
+            # Simple & reliable: only UPDATE. If no rows updated, ask user to auto-assign first.
+            with engine.begin() as cx:
+                res = exec_sql(
                     cx,
                     """
                     UPDATE public.tank_assignments
@@ -107,22 +97,35 @@ with col2:
                     """,
                     {"st": new_status, "ids": selected_ids},
                 )
+                # If your exec_sql returns a SQLAlchemy Result, try to get rowcount:
+                updated = getattr(res, "rowcount", None)
+                if updated == 0:
+                    st.warning("No rows updated. Try 'Auto-assign tanks' first for these fish.")
+                    return False
+                log_event(cx, "status_update", {"status": new_status, "count": updated or len(selected_ids)})
 
-                # audit
-                log_event(cx, "status_update", {"status": new_status, "count": len(selected_ids)})
-
-            st.success(f"Updated status → {new_status} for {len(selected_ids)} fish")
-            st.rerun()
+            st.success(f"Updated status → {new_status}")
+            return True
         except Exception as e:
             st.error(f"Status update failed: {e}")
+            return False
 
     c1, c2, c3 = st.columns(3)
+
     with c1:
-        st.button("Activate (alive)", on_click=lambda: set_status("alive"), disabled=authz.is_read_only())
+        if st.button("Activate (alive)", disabled=authz.is_read_only()):
+            if set_status("alive"):
+                st.rerun()
+
     with c2:
-        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"), disabled=authz.is_read_only())
+        if st.button("Mark to_kill", disabled=authz.is_read_only()):
+            if set_status("to_kill"):
+                st.rerun()
+
     with c3:
-        st.button("Mark dead", on_click=lambda: set_status("dead"), disabled=authz.is_read_only())
+        if st.button("Mark dead", disabled=authz.is_read_only()):
+            if set_status("dead"):
+                st.rerun()
 
 st.divider()
 st.subheader("Labels")
