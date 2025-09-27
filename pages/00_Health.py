@@ -1,32 +1,32 @@
 # pages/00_Health.py
 
 import os
+import time
 import streamlit as st
 
 from lib.authz import require_app_access, read_only_banner, logout_button
 from lib.db import get_engine, fetch_df, exec_sql
-from lib.audit import log_event  # used for the test write
 
 st.set_page_config(page_title="CARP — Health", layout="wide")
 
-# ── Gate + banner + logout ─────────────────────────────────────────────────────
+# ---------------- Gate + banner + logout ----------------
 require_app_access("🔐 CARP — Private")
 read_only_banner()
 logout_button("sidebar")
 
 st.title("Health")
 
-# ── Environment info (no DB access here) ───────────────────────────────────────
+# ---------------- Basics (no DB here) ----------------
 env_name = st.secrets.get("ENV_NAME", "(unset)")
 read_only = st.secrets.get("READ_ONLY", False)
 timeout = st.secrets.get("TIMEOUT_MINUTES", 0)
-audit    = st.secrets.get("AUDIT_ENABLED", False)
+audit_enabled = st.secrets.get("AUDIT_ENABLED", False)
 
 colA, colB, colC, colD = st.columns(4)
 colA.metric("ENV_NAME", str(env_name))
 colB.metric("READ_ONLY", str(read_only))
 colC.metric("TIMEOUT_MINUTES", str(timeout))
-colD.metric("AUDIT_ENABLED", str(audit))
+colD.metric("AUDIT_ENABLED", str(audit_enabled))
 
 st.divider()
 st.subheader("Database connectivity (manual tests)")
@@ -55,74 +55,76 @@ with right:
 
 st.caption("These tests only run when you press the button, so the page won’t crash if the DB is unreachable.")
 
-# ── Audit viewer (uses pool DSN) ───────────────────────────────────────────────
 st.divider()
-st.subheader("Audit log")
+st.subheader("Audit events")
 
-POOL_DSN = st.secrets.get("CONN_POOL")
+# --------------- Helpers -----------------
+def _write_test_audit(cx):
+    # Minimal no-op test event
+    exec_sql(
+        cx,
+        """
+        insert into public.audit_events (happened_at, actor, action, details)
+        values (now(), 'health_page', 'test_event', '{"note":"manual test"}'::jsonb)
+        """,
+    )
 
-audit_box = st.container()  # placeholder to render/refresh audit list
+def _fetch_audit_df(cx):
+    return fetch_df(
+        cx,
+        """
+        select happened_at, actor, action, details
+        from public.audit_events
+        order by happened_at desc
+        limit 50
+        """
+    )
 
-def render_audit():
-    if not POOL_DSN:
-        with audit_box:
-            st.warning("CONN_POOL is not set; cannot read audit events.")
-        return
+# Session keys to avoid duplicate widget IDs and to drive rerenders
+if "audit_refresh_counter" not in st.session_state:
+    st.session_state.audit_refresh_counter = 0
 
-    try:
-        engine = get_engine(POOL_DSN)
-        with engine.connect() as cx:
-            df = fetch_df(
-                cx,
-                """
-                select happened_at, actor, action, details
-                from public.audit_events
-                order by happened_at desc
-                limit 50
-                """
-            )
-        with audit_box:
-            if df.empty:
+if "audit_last_write_ts" not in st.session_state:
+    st.session_state.audit_last_write_ts = 0.0
+
+pool_dsn = st.secrets.get("CONN_POOL") or st.secrets.get("CONN_DIRECT")
+engine = get_engine(pool_dsn) if pool_dsn else None
+
+controls_col, table_col = st.columns([1, 3])
+
+with controls_col:
+    write_clicked = st.button("Write test audit event", key="btn_audit_write", disabled=not bool(engine))
+    refresh_clicked = st.button("Refresh audit list", key=f"btn_audit_refresh_{st.session_state.audit_refresh_counter}", disabled=not bool(engine))
+
+with table_col:
+    if not engine:
+        st.warning("No DB connection string set (CONN_POOL / CONN_DIRECT).")
+    else:
+        # Handle actions first (no duplicate labels/IDs)
+        if write_clicked:
+            try:
+                with engine.begin() as cx:
+                    _write_test_audit(cx)
+                st.session_state.audit_last_write_ts = time.time()
+                st.success("Wrote test audit event.")
+                # bump refresh counter so the button key changes and forces a fresh run
+                st.session_state.audit_refresh_counter += 1
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to write test audit event: {e}")
+
+        if refresh_clicked:
+            st.session_state.audit_refresh_counter += 1
+            st.rerun()
+
+        # Now fetch and render once per run
+        try:
+            with engine.connect() as cx:
+                df_audit = _fetch_audit_df(cx)
+            if df_audit.empty:
                 st.caption("No audit events recorded yet.")
             else:
-                st.dataframe(df, use_container_width=True)
-    except Exception as e:
-        with audit_box:
-            st.error("Failed to load audit events.")
+                st.dataframe(df_audit, use_container_width=True, height=360)
+        except Exception as e:
+            st.error("Failed to fetch audit events.")
             st.exception(e)
-
-# Top row of audit actions (unique keys avoid duplicate element IDs)
-col1, col2 = st.columns([1, 1])
-with col1:
-    if st.button("Refresh audit list", key="btn_audit_refresh"):
-        render_audit()
-with col2:
-    if st.button("Write test audit row", key="btn_audit_write"):
-        # Try to write through log_event(); fall back to raw SQL if needed.
-        if not POOL_DSN:
-            st.error("CONN_POOL is not set; cannot write test event.")
-        else:
-            try:
-                engine = get_engine(POOL_DSN)
-                with engine.begin() as cx:
-                    # Prefer the helper if AUDIT_ENABLED and table exists
-                    try:
-                        log_event(cx, "health_test", {"note": "manual test from Health page"})
-                    except Exception:
-                        # Fallback raw insert (actor is the shared app user)
-                        exec_sql(
-                            cx,
-                            """
-                            insert into public.audit_events (happened_at, actor, action, details)
-                            values (now(), current_user, 'health_test', '{"note":"manual test"}'::jsonb)
-                            """,
-                        )
-                st.success("Wrote test audit event.")
-            except Exception as e:
-                st.error("Failed to write test audit event.")
-                st.exception(e)
-        # Immediately refresh the list in-place
-        render_audit()
-
-# Initial render on first load
-render_audit()
