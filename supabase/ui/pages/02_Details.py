@@ -1,3 +1,4 @@
+from lib.page_bootstrap import secure_page; secure_page()
 # supabase/ui/pages/02_Details.py
 import streamlit as st
 import pandas as pd
@@ -6,8 +7,10 @@ from sqlalchemy import text
 from lib_shared import pick_environment
 # pages/*.py
 from lib.db import get_engine
-from lib.authz import require_app_access
+from lib.authz import require_app_access, logout_button
+
 require_app_access("🔐 CARP — Private")
+logout_button("sidebar")  # puts a Log out button in the sidebar
 engine = get_engine()
 
 st.set_page_config(page_title="CARP – Details", layout="wide")

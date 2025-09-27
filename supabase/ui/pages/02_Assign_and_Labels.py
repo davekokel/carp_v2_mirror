@@ -1,5 +1,6 @@
+from lib.page_bootstrap import secure_page; secure_page()
 # pages/02_Assign_and_Labels.py
-
+import os
 import streamlit as st
 st.set_page_config(page_title="Assign & Labels", layout="wide")
 
@@ -15,10 +16,10 @@ from lib.queries import (
 from components.fish_table import render_select_table
 from components.labels import generate_labels
 from lib.authz import require_app_access, read_only_banner, guard_writes
-# from lib.audit import log_event  # optional if you wired audit
+from lib.authz import require_app_access, logout_button
 
-# --- Auth / banners ---
 require_app_access("🔐 CARP — Private")
+logout_button("sidebar")  # puts a Log out button in the sidebar
 read_only_banner()
 
 st.title("Assign Tanks & Print Labels")

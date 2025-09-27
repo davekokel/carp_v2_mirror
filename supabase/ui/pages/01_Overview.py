@@ -1,11 +1,15 @@
+from lib.page_bootstrap import secure_page; secure_page()
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 from lib_shared import pick_environment, parse_query
 # pages/*.py
 from lib.db import get_engine
-from lib.authz import require_app_access
+from lib.authz import require_app_access, logout_button
+
 require_app_access("🔐 CARP — Private")
+logout_button("sidebar")  # puts a Log out button in the sidebar
+
 engine = get_engine()
 
 st.set_page_config(page_title="Fish Overview", layout="wide")
