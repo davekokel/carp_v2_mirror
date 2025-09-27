@@ -115,7 +115,7 @@ with colW:
 
 with colR:
     if st.button("Refresh audit list"):
-        st.experimental_rerun()
+        st.rerun()
 
 # Always show latest 20
 if engine:
