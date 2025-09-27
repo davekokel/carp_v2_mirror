@@ -1,5 +1,3 @@
-from lib.authz import logout_button
-logout_button("sidebar")
 # pages/02_Assign_and_Labels.py
 
 import streamlit as st
@@ -16,12 +14,13 @@ from lib.queries import (
 )
 from components.fish_table import render_select_table
 from components.labels import generate_labels
-from lib.authz import require_app_access, read_only_banner, guard_writes
-# from lib.audit import log_event  # optional if you wired audit
+from lib.authz import require_app_access, read_only_banner, guard_writes, logout_button
+from lib.audit import log_event
 
-# --- Auth / banners ---
+# --- Auth / banners / logout ---
 require_app_access("🔐 CARP — Private")
 read_only_banner()
+logout_button("sidebar")  # global logout in sidebar
 
 st.title("Assign Tanks & Print Labels")
 
@@ -29,7 +28,7 @@ st.title("Assign Tanks & Print Labels")
 env, conn = pick_environment()
 engine = get_engine(conn)
 
-# --- Ensure schema (no-op unless ALLOW_SCHEMA_MIGRATIONS is set) ---
+# --- Ensure schema (no-op unless ALLOW_SCHEMA_MIGRATIONS is set in secrets) ---
 with engine.begin() as cx:
     ensure_tank_schema(cx)
 
@@ -57,13 +56,13 @@ col1, col2 = st.columns([1, 1], gap="large")
 
 # --- Auto-assign tanks (inactive) ---
 with col1:
-    if st.button("Auto-assign tanks (inactive) for this batch"):
+    if st.button("Auto-assign tanks (inactive) for this batch", **({} if guard_writes() else {"disabled": True})):
         if not guard_writes():
             st.stop()
         try:
             with engine.begin() as cx:
                 exec_sql(cx, sql_auto_assign(), {"batch": batch_choice})
-                # log_event(cx, "auto_assign", {"batch": batch_choice})  # optional
+                log_event(cx, "auto_assign", {"batch": batch_choice})
             st.success(f"Auto-assigned tanks for batch: {batch_choice}")
             st.rerun()
         except Exception as e:
@@ -98,7 +97,7 @@ with col2:
                     """,
                     {"st": new_status, "ids": selected_ids},
                 )
-                # log_event(cx, "status_update", {"status": new_status, "count": len(selected_ids)})  # optional
+                log_event(cx, "status_update", {"status": new_status, "count": len(selected_ids)})
             st.success(f"Updated status → {new_status} for {len(selected_ids)} fish")
             st.rerun()
         except Exception as e:
@@ -106,11 +105,11 @@ with col2:
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.button("Activate (alive)", on_click=lambda: set_status("alive"))
+        st.button("Activate (alive)", on_click=lambda: set_status("alive"), **({} if guard_writes() else {"disabled": True}))
     with c2:
-        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"))
+        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"), **({} if guard_writes() else {"disabled": True}))
     with c3:
-        st.button("Mark dead", on_click=lambda: set_status("dead"))
+        st.button("Mark dead", on_click=lambda: set_status("dead"), **({} if guard_writes() else {"disabled": True}))
 
 st.divider()
 st.subheader("Labels")
