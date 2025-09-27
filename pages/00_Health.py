@@ -83,3 +83,59 @@ with st.expander("View recent audit events", expanded=False):
             except Exception as e:
                 st.error("Failed to load audit events.")
                 st.exception(e)
+
+
+# -- add to imports at top if missing --
+from lib.db import get_engine, fetch_df, exec_sql
+from lib.audit import log_event
+
+# ... keep the rest of your Health page as-is ...
+
+# --- Audit: writer + viewer (use POOL DSN consistently) ---
+pool_dsn = st.secrets.get("CONN_POOL")
+engine = get_engine(pool_dsn) if pool_dsn else None
+
+st.divider()
+st.subheader("Audit")
+
+colW, colR = st.columns([1, 1])
+
+with colW:
+    if st.button("Write test audit event"):
+        if not engine:
+            st.error("No CONN_POOL configured.")
+        else:
+            try:
+                with engine.begin() as cx:
+                    # actor/action/details are free-form; keep it simple
+                    log_event(cx, "health_smoke_test", {"note": "manual test from Health page"})
+                st.success("Wrote test audit event.")
+            except Exception as e:
+                st.error(f"Failed to write audit event: {e}")
+
+with colR:
+    if st.button("Refresh audit list"):
+        st.experimental_rerun()
+
+# Always show latest 20
+if engine:
+    try:
+        with engine.connect() as cx:
+            df_audit = fetch_df(
+                cx,
+                """
+                select happened_at, actor, action, details
+                from public.audit_events
+                order by happened_at desc
+                limit 20
+                """
+            )
+        if not df_audit.empty:
+            st.dataframe(df_audit, use_container_width=True)
+        else:
+            st.caption("No audit events recorded yet.")
+    except Exception as e:
+        st.error("Could not load audit events.")
+        st.exception(e)
+else:
+    st.caption("No engine available for audit display.")
