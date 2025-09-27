@@ -1,7 +1,10 @@
 # health.py
 from lib.authz import require_app_access
 require_app_access("🔐 CARP — Private")
+logout_button("sidebar")
+
 import streamlit as st
+from lib.authz import require_app_access, read_only_banner, logout_button
 from sqlalchemy import create_engine, text
 from lib.authz import read_only_banner
 read_only_banner()
