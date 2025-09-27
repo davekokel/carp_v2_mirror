@@ -57,7 +57,9 @@ col1, col2 = st.columns([1, 1], gap="large")
 # --- Auto-assign tanks (inactive) ---
 with col1:
     if st.button("Auto-assign tanks (inactive) for this batch"):
-        if not authz.guard_writes():
+        if authz.is_read_only():
+            st.warning("Read-only mode is ON; write actions are disabled.")
+            st.stop()
             st.stop()
         try:
             with engine.begin() as cx:
@@ -75,7 +77,9 @@ with col2:
         if not selected_ids:
             st.warning("Select at least one fish first.")
             return
-        if not authz.guard_writes():
+        if authz.is_read_only():
+            st.warning("Read-only mode is ON; write actions are disabled.")
+            st.stop()
             st.stop()
         try:
             with engine.begin() as cx:
@@ -107,11 +111,11 @@ with col2:
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.button("Activate (alive)", on_click=lambda: set_status("alive"))
+        st.button("Activate (alive)", on_click=lambda: set_status("alive"), disabled=authz.is_read_only())
     with c2:
-        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"))
+        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"), disabled=authz.is_read_only())
     with c3:
-        st.button("Mark dead", on_click=lambda: set_status("dead"))
+        st.button("Mark dead", on_click=lambda: set_status("dead"), disabled=authz.is_read_only())
 
 st.divider()
 st.subheader("Labels")
