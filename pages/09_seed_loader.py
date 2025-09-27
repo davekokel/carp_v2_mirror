@@ -10,6 +10,8 @@ from sqlalchemy import text
 # minimal dependency: your engine builder that reads st.secrets PG*
 # pages/*.py
 from lib.db import get_engine
+from lib.authz import require_app_access
+require_app_access("🔐 CARP — Private")
 engine = get_engine()
 
 st.set_page_config(page_title="Seed Loader (ZIP-only, strict fish_name)", layout="wide")
