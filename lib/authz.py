@@ -54,3 +54,17 @@ def guard_writes(enabled: bool, label: str = "Submit"):
     if not enabled:
         return True, f"Disabled: {label} not available"
     return False, None
+
+# --- Logout button helper ---
+def logout_button(location: str = "sidebar"):
+    """
+    Renders a Logout button that clears the app-access session and reruns.
+    location: "sidebar" or "main"
+    """
+    import streamlit as st
+    btn = st.sidebar.button if location == "sidebar" else st.button
+    if btn("Log out"):
+        # clear auth session keys
+        st.session_state.pop("app_auth_ok", None)
+        st.session_state.pop("app_auth_last_seen", None)
+        st.rerun()
