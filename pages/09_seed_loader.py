@@ -1,3 +1,5 @@
+from lib.authz import logout_button
+logout_button("sidebar")
 # supabase/ui/pages/09_seed_loader.py
 import io, zipfile, re, math
 from datetime import datetime
