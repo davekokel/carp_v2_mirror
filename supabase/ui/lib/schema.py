@@ -1,21 +1,17 @@
+import streamlit as st
+# lib/schema.py
 from sqlalchemy import text
 
-ENSURE_TANK_SCHEMA_SQL = """
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'tank_status') THEN
-    CREATE TYPE tank_status AS ENUM ('inactive','alive','to_kill','dead');
-  END IF;
-END; $$;
-
-CREATE TABLE IF NOT EXISTS public.tank_assignments(
-  fish_id    uuid PRIMARY KEY REFERENCES public.fish(id) ON DELETE CASCADE,
-  tank_label text NOT NULL,
-  status     tank_status NOT NULL DEFAULT 'inactive'
-);
-
-CREATE INDEX IF NOT EXISTS ix_tank_assignments_status ON public.tank_assignments(status);
-"""
+# ... your ENSURE_TANK_SCHEMA_SQL stays as-is ...
 
 def ensure_tank_schema(cx):
-    cx.execute(text(ENSURE_TANK_SCHEMA_SQL))
+    # Only run schema changes if explicitly enabled
+    if not bool(st.secrets.get("ALLOW_SCHEMA_MIGRATIONS", False)):
+        return
+    try:
+        cx.execute(text(ENSURE_TANK_SCHEMA_SQL))
+    except Exception as e:
+        # Surface the real error for diagnosis
+        st.error("Schema ensure failed")
+        st.code(str(e))
+        raise

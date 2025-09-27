@@ -1,1 +1,5 @@
--r supabase/ui/requirements.txt
+streamlit==1.31.0
+pandas==2.3.2
+SQLAlchemy==2.0.43
+psycopg[binary]==3.2.10
+qrcode==7.4.2
