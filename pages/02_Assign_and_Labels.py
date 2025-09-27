@@ -1,3 +1,5 @@
+from lib.authz import logout_button
+logout_button("sidebar")
 # pages/02_Assign_and_Labels.py
 
 import streamlit as st

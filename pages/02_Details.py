@@ -1,3 +1,5 @@
+from lib.authz import logout_button
+logout_button("sidebar")
 # supabase/ui/pages/02_Details.py
 import streamlit as st
 import pandas as pd

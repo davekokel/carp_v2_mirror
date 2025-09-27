@@ -1,3 +1,5 @@
+from lib.authz import logout_button
+logout_button("sidebar")
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text

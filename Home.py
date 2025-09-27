@@ -1,3 +1,5 @@
+from lib.authz import logout_button
+logout_button("sidebar")
 # supabase/ui/Home.py
 import streamlit as st
 from sqlalchemy import text
