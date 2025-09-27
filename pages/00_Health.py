@@ -1,11 +1,11 @@
 # pages/00_Health.py
 
 import os
-import json
+import json, time
 import streamlit as st
 from typing import Optional
 from lib.authz import require_app_access, read_only_banner, logout_button
-from lib.db import get_engine, fetch_df  # <-- import fetch_df
+from lib.db import fetch_df, exec_sql, get_engine
 
 st.set_page_config(page_title="CARP — Health", layout="wide")
 
@@ -58,31 +58,61 @@ st.caption("These tests only run when you press the button, so the page won’t 
 st.divider()
 st.subheader("Audit")
 
-with st.expander("View recent audit events", expanded=False):
-    if st.button("Load recent audit events"):
-        pool_dsn = st.secrets.get("CONN_POOL") or st.secrets.get("CONN_DIRECT")
-        if not pool_dsn:
-            st.warning("No CONN_POOL/CONN_DIRECT found in secrets.")
-        else:
+# show the flag so we know what the helper would do
+st.caption(f"AUDIT_ENABLED: {bool(st.secrets.get('AUDIT_ENABLED', False))}")
+
+# use the same DSN for both write + read
+dsn = st.secrets.get("CONN_POOL")
+if not dsn:
+    st.warning("CONN_POOL not set; cannot test audit table.")
+else:
+    eng = get_engine(dsn)
+
+    colL, colR = st.columns(2)
+    with colL:
+        if st.button("Write test audit event (direct SQL)"):
             try:
-                engine = get_engine(pool_dsn)  # <-- define engine here
-                with engine.connect() as cx:
-                    df_audit = fetch_df(
+                actor = "health_page"
+                action = "test_health"
+                details = json.dumps({"ts": time.time()})
+                with eng.begin() as cx:
+                    exec_sql(
                         cx,
                         """
-                        select happened_at, actor, action, details
-                        from public.audit_events
-                        order by happened_at desc
-                        limit 20
-                        """
+                        INSERT INTO public.audit_events(actor, action, details)
+                        VALUES (:actor, :action, CAST(:details AS jsonb))
+                        """,
+                        {"actor": actor, "action": action, "details": details},
                     )
-                if not df_audit.empty:
-                    st.dataframe(df_audit, use_container_width=True)
-                else:
-                    st.caption("No audit events recorded yet.")
+                st.success("✅ Inserted test audit row.")
+                st.rerun()
             except Exception as e:
-                st.error("Failed to load audit events.")
+                st.error("Failed to insert test audit row.")
                 st.exception(e)
+
+    with colR:
+        if st.button("Refresh audit list"):
+            st.rerun()
+
+    # always try to show the most recent 20
+    try:
+        with eng.connect() as cx:
+            df_audit = fetch_df(
+                cx,
+                """
+                SELECT happened_at, actor, action, details
+                FROM public.audit_events
+                ORDER BY happened_at DESC
+                LIMIT 20
+                """
+            )
+        if df_audit.empty:
+            st.caption("No audit events recorded yet.")
+        else:
+            st.dataframe(df_audit, use_container_width=True)
+    except Exception as e:
+        st.error("Failed to read audit events.")
+        st.exception(e)
 
 
 # -- add to imports at top if missing --
