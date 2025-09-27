@@ -14,7 +14,7 @@ from lib.queries import (
 )
 from components.fish_table import render_select_table
 from components.labels import generate_labels
-import lib.authz as authz          # import as module to avoid name collisions
+import lib.authz as authz
 from lib.audit import log_event
 
 # --- Auth / banners / logout ---
@@ -28,32 +28,29 @@ st.title("Assign Tanks & Print Labels")
 env, conn = pick_environment()
 engine = get_engine(conn)
 
-# --- Ensure schema (no-op unless ALLOW_SCHEMA_MIGRATIONS is set in secrets) ---
-try:
-    with engine.begin() as cx:
-        ensure_tank_schema(cx)
-except Exception:
-    # Don't block the page if migrations aren't allowed/available
-    pass
+# --- Ensure schema (no-op unless you enabled migrations) ---
+with engine.begin() as cx:
+    ensure_tank_schema(cx)
 
 # --- Pick batch ---
 with engine.connect() as cx:
     batches = fetch_df(cx, sql_batches())["batch"].tolist()
 
-if not batches:
-    st.info("No batches available.")
-    st.stop()
-
-batch_choice = st.selectbox("Filter by batch", batches, index=0)
+batch_choice = st.selectbox("Filter by batch", batches, index=0 if batches else None)
 
 # --- Load data for chosen batch ---
+selected_ids: list[str] = []
+
+if not batches:
+    st.info("No batches found.")
+    st.stop()
+
 with engine.connect() as cx:
     sel, join = detect_tank_select_join(cx)
     where_sql = "WHERE COALESCE(NULLIF(f.batch_label,''),'(none)') = :batch"
     sql = sql_overview(sel, join, where_sql)
     df = fetch_df(cx, sql, {"batch": batch_choice, "lim": 5000})
 
-selected_ids: list[str] = []
 if df.empty:
     st.info("No fish in this batch.")
 else:
@@ -62,17 +59,11 @@ else:
 
 col1, col2 = st.columns([1, 1], gap="large")
 
-def _writes_allowed() -> bool:
-    """Guard for read-only mode without calling guard_writes()."""
-    if authz.is_read_only():
-        st.warning("Read-only mode is ON; write actions are disabled.")
-        return False
-    return True
-
 # --- Auto-assign tanks (inactive) ---
 with col1:
     if st.button("Auto-assign tanks (inactive) for this batch"):
-        if not _writes_allowed():
+        if authz.is_read_only():
+            st.warning("Read-only mode is ON; write actions are disabled.")
             st.stop()
         try:
             with engine.begin() as cx:
@@ -89,7 +80,8 @@ with col2:
         if not selected_ids:
             st.warning("Select at least one fish first.")
             return
-        if not _writes_allowed():
+        if authz.is_read_only():
+            st.warning("Read-only mode is ON; write actions are disabled.")
             st.stop()
         try:
             with engine.begin() as cx:
@@ -120,14 +112,11 @@ with col2:
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        if st.button("Activate (alive)"):
-            set_status("alive")
+        st.button("Activate (alive)", on_click=lambda: set_status("alive"))
     with c2:
-        if st.button("Mark to_kill"):
-            set_status("to_kill")
+        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"))
     with c3:
-        if st.button("Mark dead"):
-            set_status("dead")
+        st.button("Mark dead", on_click=lambda: set_status("dead"))
 
 st.divider()
 st.subheader("Labels")
