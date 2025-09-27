@@ -112,11 +112,11 @@ with col2:
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.button("Activate (alive)", on_click=lambda: set_status("alive"))
+        st.button("Activate (alive)", on_click=lambda: set_status("alive"), disabled=authz.is_read_only())
     with c2:
-        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"))
+        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"), disabled=authz.is_read_only())
     with c3:
-        st.button("Mark dead", on_click=lambda: set_status("dead"))
+        st.button("Mark dead", on_click=lambda: set_status("dead"), disabled=authz.is_read_only())
 
 st.divider()
 st.subheader("Labels")
