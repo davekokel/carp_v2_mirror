@@ -14,7 +14,7 @@ from lib.queries import (
 )
 from components.fish_table import render_select_table
 from components.labels import generate_labels
-import lib.authz as authz           # import module to avoid name shadowing
+import lib.authz as authz           # import as module to avoid name shadowing
 from lib.audit import log_event
 
 # --- Auth / banners / logout ---
@@ -89,24 +89,28 @@ with col2:
                 exec_sql(
                     cx,
                     """
-                    INSERT INTO public.tank_assignments(fish_id, tank_label, status)
-                    SELECT UNNEST(%(ids)s)::uuid, public.next_tank_code('TANK-'), 'inactive'
+                    INSERT INTO public.tank_assignments (fish_id, tank_label, status)
+                    SELECT x::uuid, public.next_tank_code('TANK-'), 'inactive'
+                    FROM UNNEST(CAST(:ids AS uuid[])) AS x
                     ON CONFLICT (fish_id) DO NOTHING;
                     """,
                     {"ids": selected_ids},
                 )
-                # then update status
+
+                # update status using explicit casts on the binds
                 exec_sql(
                     cx,
                     """
                     UPDATE public.tank_assignments
-                    SET status = %(st)s::tank_status
-                    WHERE fish_id = ANY(%(ids)s);
+                    SET status = CAST(:st AS tank_status)
+                    WHERE fish_id = ANY(CAST(:ids AS uuid[]));
                     """,
                     {"st": new_status, "ids": selected_ids},
                 )
+
                 # audit
                 log_event(cx, "status_update", {"status": new_status, "count": len(selected_ids)})
+
             st.success(f"Updated status → {new_status} for {len(selected_ids)} fish")
             st.rerun()
         except Exception as e:
