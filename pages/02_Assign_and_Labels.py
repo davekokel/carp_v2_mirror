@@ -14,7 +14,7 @@ from lib.queries import (
 )
 from components.fish_table import render_select_table
 from components.labels import generate_labels
-import lib.authz as authz           # <— import as module to avoid name shadowing
+import lib.authz as authz          # import as module to avoid name collisions
 from lib.audit import log_event
 
 # --- Auth / banners / logout ---
@@ -28,13 +28,21 @@ st.title("Assign Tanks & Print Labels")
 env, conn = pick_environment()
 engine = get_engine(conn)
 
-# --- Ensure schema (no-op unless your ensure_* is safe/idempotent) ---
-with engine.begin() as cx:
-    ensure_tank_schema(cx)
+# --- Ensure schema (no-op unless ALLOW_SCHEMA_MIGRATIONS is set in secrets) ---
+try:
+    with engine.begin() as cx:
+        ensure_tank_schema(cx)
+except Exception:
+    # Don't block the page if migrations aren't allowed/available
+    pass
 
 # --- Pick batch ---
 with engine.connect() as cx:
     batches = fetch_df(cx, sql_batches())["batch"].tolist()
+
+if not batches:
+    st.info("No batches available.")
+    st.stop()
 
 batch_choice = st.selectbox("Filter by batch", batches, index=0)
 
@@ -54,15 +62,21 @@ else:
 
 col1, col2 = st.columns([1, 1], gap="large")
 
+def _writes_allowed() -> bool:
+    """Guard for read-only mode without calling guard_writes()."""
+    if authz.is_read_only():
+        st.warning("Read-only mode is ON; write actions are disabled.")
+        return False
+    return True
+
 # --- Auto-assign tanks (inactive) ---
 with col1:
     if st.button("Auto-assign tanks (inactive) for this batch"):
-        if not authz.guard_writes():
+        if not _writes_allowed():
             st.stop()
         try:
             with engine.begin() as cx:
                 exec_sql(cx, sql_auto_assign(), {"batch": batch_choice})
-                # audit
                 log_event(cx, "auto_assign", {"batch": batch_choice})
             st.success(f"Auto-assigned tanks for batch: {batch_choice}")
             st.rerun()
@@ -75,7 +89,7 @@ with col2:
         if not selected_ids:
             st.warning("Select at least one fish first.")
             return
-        if not authz.guard_writes():
+        if not _writes_allowed():
             st.stop()
         try:
             with engine.begin() as cx:
@@ -98,7 +112,6 @@ with col2:
                     """,
                     {"st": new_status, "ids": selected_ids},
                 )
-                # audit
                 log_event(cx, "status_update", {"status": new_status, "count": len(selected_ids)})
             st.success(f"Updated status → {new_status} for {len(selected_ids)} fish")
             st.rerun()
@@ -107,11 +120,14 @@ with col2:
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.button("Activate (alive)", on_click=lambda: set_status("alive"))
+        if st.button("Activate (alive)"):
+            set_status("alive")
     with c2:
-        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"))
+        if st.button("Mark to_kill"):
+            set_status("to_kill")
     with c3:
-        st.button("Mark dead", on_click=lambda: set_status("dead"))
+        if st.button("Mark dead"):
+            set_status("dead")
 
 st.divider()
 st.subheader("Labels")
