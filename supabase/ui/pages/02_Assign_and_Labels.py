@@ -27,9 +27,15 @@ st.title("Assign Tanks & Print Labels")
 env, conn = pick_environment()
 engine = get_engine(conn)
 
-# --- Ensure schema (no-op unless ALLOW_SCHEMA_MIGRATIONS is set) ---
-with engine.begin() as cx:
-    ensure_tank_schema(cx)
+# Ensure schema (only when explicitly enabled)
+def _truthy(x) -> bool:
+    return str(x).strip().lower() in {"1", "true", "yes", "on"}
+
+ALLOW_MIGR = _truthy(st.secrets.get("ALLOW_SCHEMA_MIGRATIONS", "")) or _truthy(os.getenv("ALLOW_SCHEMA_MIGRATIONS", ""))
+
+if ALLOW_MIGR:
+    with engine.begin() as cx:
+        ensure_tank_schema(cx)
 
 # --- Pick batch ---
 with engine.connect() as cx:
