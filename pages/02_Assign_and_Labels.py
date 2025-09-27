@@ -1,4 +1,5 @@
 import streamlit as st
+from lib.db import fetch_df, exec_sql
 import pandas as pd
 from lib_shared import pick_environment
 # pages/*.py
