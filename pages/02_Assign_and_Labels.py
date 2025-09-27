@@ -56,7 +56,7 @@ col1, col2 = st.columns([1, 1], gap="large")
 
 # --- Auto-assign tanks (inactive) ---
 with col1:
-    if st.button("Auto-assign tanks (inactive) for this batch", **({} if guard_writes() else {"disabled": True})):
+    if st.button("Auto-assign tanks (inactive) for this batch"):
         if not guard_writes():
             st.stop()
         try:
@@ -98,18 +98,20 @@ with col2:
                     {"st": new_status, "ids": selected_ids},
                 )
                 log_event(cx, "status_update", {"status": new_status, "count": len(selected_ids)})
+                
             st.success(f"Updated status → {new_status} for {len(selected_ids)} fish")
             st.rerun()
         except Exception as e:
             st.error(f"Status update failed: {e}")
-
+            
+    
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.button("Activate (alive)", on_click=lambda: set_status("alive"), **({} if guard_writes() else {"disabled": True}))
+        st.button("Activate (alive)", on_click=lambda: set_status("alive"))
     with c2:
-        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"), **({} if guard_writes() else {"disabled": True}))
+        st.button("Mark to_kill", on_click=lambda: set_status("to_kill"))
     with c3:
-        st.button("Mark dead", on_click=lambda: set_status("dead"), **({} if guard_writes() else {"disabled": True}))
+        st.button("Mark dead", on_click=lambda: set_status("dead"))
 
 st.divider()
 st.subheader("Labels")
