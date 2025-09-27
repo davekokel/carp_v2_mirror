@@ -5,9 +5,6 @@ from sqlalchemy import text
 from lib_shared import pick_environment
 from lib.db import get_engine, quick_db_check
 
-from lib.authz import require_app_access
-require_app_access("🔐 CARP — Private")
-
 st.caption(f"secrets seen → CONN:{bool(st.secrets.get('CONN'))} "
            f"PGHOST:{bool(st.secrets.get('PGHOST'))} "
            f"ENV_NAME:{st.secrets.get('ENV_NAME','(missing)')}")
