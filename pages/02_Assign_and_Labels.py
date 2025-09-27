@@ -14,7 +14,7 @@ from lib.queries import (
 )
 from components.fish_table import render_select_table
 from components.labels import generate_labels
-import lib.authz as authz           # <— import as module to avoid name shadowing
+import lib.authz as authz           # import module to avoid name shadowing
 from lib.audit import log_event
 
 # --- Auth / banners / logout ---
@@ -28,13 +28,17 @@ st.title("Assign Tanks & Print Labels")
 env, conn = pick_environment()
 engine = get_engine(conn)
 
-# --- Ensure schema (no-op unless your ensure_* is safe/idempotent) ---
+# --- Ensure schema (safe / idempotent) ---
 with engine.begin() as cx:
     ensure_tank_schema(cx)
 
 # --- Pick batch ---
 with engine.connect() as cx:
     batches = fetch_df(cx, sql_batches())["batch"].tolist()
+
+if not batches:
+    st.info("No batches found yet.")
+    st.stop()
 
 batch_choice = st.selectbox("Filter by batch", batches, index=0)
 
@@ -56,10 +60,9 @@ col1, col2 = st.columns([1, 1], gap="large")
 
 # --- Auto-assign tanks (inactive) ---
 with col1:
-    if st.button("Auto-assign tanks (inactive) for this batch"):
+    if st.button("Auto-assign tanks (inactive) for this batch", disabled=authz.is_read_only()):
         if authz.is_read_only():
             st.warning("Read-only mode is ON; write actions are disabled.")
-            st.stop()
             st.stop()
         try:
             with engine.begin() as cx:
@@ -80,7 +83,6 @@ with col2:
         if authz.is_read_only():
             st.warning("Read-only mode is ON; write actions are disabled.")
             st.stop()
-            st.stop()
         try:
             with engine.begin() as cx:
                 # ensure a row exists for each selected fish
@@ -88,17 +90,18 @@ with col2:
                     cx,
                     """
                     INSERT INTO public.tank_assignments(fish_id, tank_label, status)
-                    SELECT UNNEST(:ids)::uuid, public.next_tank_code('TANK-'), 'inactive'
+                    SELECT UNNEST(%(ids)s)::uuid, public.next_tank_code('TANK-'), 'inactive'
                     ON CONFLICT (fish_id) DO NOTHING;
                     """,
                     {"ids": selected_ids},
                 )
+                # then update status
                 exec_sql(
                     cx,
                     """
                     UPDATE public.tank_assignments
-                    SET status = :st::tank_status
-                    WHERE fish_id = ANY(:ids);
+                    SET status = %(st)s::tank_status
+                    WHERE fish_id = ANY(%(ids)s);
                     """,
                     {"st": new_status, "ids": selected_ids},
                 )
