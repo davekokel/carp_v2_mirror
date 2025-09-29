@@ -11,3 +11,9 @@ logout_button("sidebar", key="logout_btn_health")
 
 _engine = get_engine()
 render_health_panel(_engine)
+
+from lib.health import render_snapshot_button
+render_snapshot_button()
+
+from lib.health import render_seed_loader
+render_seed_loader()

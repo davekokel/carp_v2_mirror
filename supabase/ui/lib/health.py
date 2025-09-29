@@ -87,8 +87,57 @@ def render_health_panel(engine: Engine) -> None:
 
         # Details expanders
         with st.expander("Counts (tables)"):
-            st.dataframe(checks["counts"], use_container_width=True)
+            st.dataframe(checks["counts"], width='stretch')
 
         if "overview_preview" in checks:
             with st.expander("Overview preview (first 20)"):
-                st.dataframe(checks["overview_preview"], use_container_width=True)
+                df = checks["overview_preview"].copy()
+                # stringify UUID-like id columns so Arrow is happy
+                for _c in list(df.columns):
+                    if _c.lower().endswith('id'):
+                        try:
+                            df[_c] = df[_c].astype(str)
+                        except Exception:
+                            pass
+                st.dataframe(df, width='stretch')
+
+# --- Local snapshot (pg_dump) -------------------------------------------------
+def render_snapshot_button():
+    import os, subprocess, datetime, streamlit as st
+    host = os.getenv("PGHOST", st.secrets.get("PGHOST","127.0.0.1"))
+    port = str(os.getenv("PGPORT", st.secrets.get("PGPORT", 54322)))
+    user = os.getenv("PGUSER", st.secrets.get("PGUSER","postgres"))
+    db   = os.getenv("PGDATABASE", st.secrets.get("PGDATABASE","postgres"))
+    pw   = os.getenv("PGPASSWORD", st.secrets.get("PGPASSWORD","postgres"))
+
+    snaps = os.path.expanduser("~/Documents/github/carp_v2/snapshots/snapshots_local")
+    os.makedirs(snaps, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    out = f"{snaps}/local_full_{ts}.dump"
+
+    st.subheader("Snapshot")
+    st.caption(f"Dest: {out}")
+    if st.button("Create DB snapshot (.dump)"):
+        env = dict(os.environ)
+        env["PGPASSWORD"] = str(pw)
+        cmd = ["pg_dump","-Fc","-h",host,"-p",str(port),"-U",user,"-d",db,"-f",out]
+        try:
+            subprocess.check_call(cmd, env=env)
+            st.success(f"Snapshot created: {out}")
+        except Exception as e:
+            st.error(f"Snapshot failed: {e}")
+
+
+# --- Seed kit loader (local) --------------------------------------------------
+def render_seed_loader():
+    import os, subprocess, streamlit as st
+    st.subheader("Seed kit loader (local)")
+    repo_root = os.path.expanduser("~/Documents/github/carp_v2")
+    script = f"{repo_root}/scripts/load_seedkit_core_local.sh"
+    st.caption(script)
+    if st.button("Load seed kit now"):
+        try:
+            subprocess.check_call(["bash", script], cwd=repo_root)
+            st.success("Seed kit loaded.")
+        except Exception as e:
+            st.error(f"Seed load failed: {e}")
