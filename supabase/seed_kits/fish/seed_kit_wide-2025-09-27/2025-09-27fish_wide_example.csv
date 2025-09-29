@@ -1,0 +1,4 @@
+seed_batch_id,fish_name,nickname,birth_date,background_strain,batch_label,line_building_stage,description,notes,transgene_base_code,allele_number,allele_label_legacy,zygosity,created_by
+,Blue Stripe 01,Bluey,2025-09-27,AB,seed_demo,F1_het,Demo row,TGX carrier,TGX,1,,heterozygous,dave
+,Blue Stripe 01,Bluey,2025-09-27,AB,seed_demo,F1_het,Demo row,TGX carrier,MYO,2,,heterozygous,dave
+,Blue Stripe 02,Stripes,2025-09-27,AB,seed_demo,F1_het,Uses legacy label,, , ,legacy-abc,unknown,dave

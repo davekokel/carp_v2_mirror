@@ -1,0 +1,5 @@
+fish_code,nickname,date_of_birth,line_building_stage,strain,description
+fish-201,epsilon,8/11/25,founder,casper,baseline founder for elavl3 line
+fish-202,zeta,8/15/24,founder,AB,alternate genetic background
+fish-203,eta,7/30/25,F1,mixed,offspring from elavl3 founder cross
+fish-204,theta,7/28/25,F1,casper,offspring from myo6b founder cross

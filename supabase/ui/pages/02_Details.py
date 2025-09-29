@@ -16,6 +16,7 @@ engine = get_engine()
 st.set_page_config(page_title="CARP – Details", layout="wide")
 st.title("CARP Treatments — Detailed Listing")
 
+require_app_password()
 # ---- connection ----
 env, conn = pick_environment()
 engine = get_engine(conn)
@@ -38,7 +39,6 @@ select
   t.operator,
   t.notes,
   t.performed_at::date           as performed_on
-from public.treatments t
 join public.fish_treatments ft on ft.treatment_id = t.id
 join public.fish f            on f.id = ft.fish_id
 where 1=1
@@ -74,7 +74,7 @@ st.subheader("Results")
 if detail_df.empty:
     st.info("No rows match your filters.")
 else:
-    st.dataframe(detail_df, hide_index=True, use_container_width=True)
+    st.dataframe(detail_df, hide_index=True, width="stretch")
     st.download_button(
         "Download detailed CSV",
         detail_df.to_csv(index=False).encode("utf-8"),

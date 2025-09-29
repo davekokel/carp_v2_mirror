@@ -1,0 +1,2 @@
+fish_name,plasmid_name,operator,performed_at,batch_label,injection_mix,injection_notes,enzyme
+test_fish_3,pTest,DK,9/20/25,pTest + mega,1 ul of plasmid at 50ng/ul + tol2,,meganuclease

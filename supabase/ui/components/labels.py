@@ -62,7 +62,8 @@ def generate_labels(df: pd.DataFrame) -> bytes | None:
                 dob_str = str(dob)
 
         y = LABEL_H - MARGIN_T - 2
-        c.setFont("Helvetica-Bold", 14); c.drawString(MARGIN_L, y, tank)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(MARGIN_L, y, tank)
         if auto:
             c.setFont("Helvetica", 10)
             w = c.stringWidth(auto, "Helvetica", 10)

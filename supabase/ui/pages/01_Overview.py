@@ -1,25 +1,33 @@
 from lib.page_bootstrap import secure_page; secure_page()
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
-from lib_shared import pick_environment, parse_query
-# pages/*.py
-from lib.db import get_engine
+
+from lib_shared import parse_query
 from lib.authz import require_app_access, logout_button
+from lib import db as _dbmod
+from lib.db import get_engine, fetch_df, quick_db_check
 
-require_app_access("🔐 CARP — Private")
-logout_button("sidebar")  # puts a Log out button in the sidebar
+# Optional health panel
+try:
+    from health import render_health_panel
+except Exception:
+    def render_health_panel(_engine):
+        pass
 
-engine = get_engine()
-
+# ---- Page setup & access ----
 st.set_page_config(page_title="Fish Overview", layout="wide")
-st.title("Fish Overview")
+require_app_access("🔐 CARP — Private")
+logout_button("sidebar", key="logout_btn_overview")  # unique key
 
-# -- Environment --------------------------------------------------------------
-env, conn = pick_environment()
-engine = get_engine(conn)
+# ---- DB engine & quick diagnostics ----
+_engine = get_engine()  # honors secrets/env incl. sslmode
+st.caption(f"DB DSN: {_dbmod._dsn_from_secrets()}")
+st.caption(quick_db_check(_engine))
+render_health_panel(_engine)
 
-# -- Helpers: detect optional columns & tank source ---------------------------
+# ---- Helpers ---------------------------------------------------------------
 def has_col(cx, table: str, col: str) -> bool:
     q = text("""
         SELECT EXISTS (
@@ -30,7 +38,6 @@ def has_col(cx, table: str, col: str) -> bool:
     return bool(cx.execute(q, {"tbl": table, "col": col}).scalar())
 
 def detect_tank_sql(cx):
-    # prefer tank_assignments if present
     tbl_exists = text("""
         SELECT EXISTS (
           SELECT 1 FROM information_schema.tables
@@ -39,14 +46,11 @@ def detect_tank_sql(cx):
     """)
     if cx.execute(tbl_exists, {"t": "tank_assignments"}).scalar():
         return {"select": "ta.tank_label AS tank", "join": "LEFT JOIN public.tank_assignments ta ON ta.fish_id = f.id"}
-
-    # fish.tank or fish.tank_label
     if has_col(cx, "fish", "tank"):
         return {"select": "f.tank AS tank", "join": ""}
     if has_col(cx, "fish", "tank_label"):
         return {"select": "f.tank_label AS tank", "join": ""}
 
-    # fish_tanks + tanks (handle id-type mismatches)
     has_ft = cx.execute(tbl_exists, {"t": "fish_tanks"}).scalar()
     has_t  = cx.execute(tbl_exists, {"t": "tanks"}).scalar()
     if has_ft and has_t:
@@ -67,14 +71,13 @@ def detect_tank_sql(cx):
 
     return {"select": "'' AS tank", "join": ""}
 
-# -- Search (supports AND/OR + quoted phrases) --------------------------------
+# ---- Search (AND/OR, quotes) -----------------------------------------------
 st.caption('Global search supports **AND/OR** and quoted phrases, e.g. `fish-201 AND "gcamp"`')
 q = st.text_input("Global search", value="")
 q_parsed = parse_query(q)
-mode = q_parsed["mode"]          # "AND" or "OR"
-terms = q_parsed["terms"]        # list[str]
+mode = q_parsed["mode"]
+terms = q_parsed["terms"]
 
-# Build WHERE bundles across fish + related text fields
 where_clauses = []
 params = {}
 if terms:
@@ -84,13 +87,13 @@ if terms:
         params[k] = f"%{term}%"
         bundles.append(
             "("
-            f"f.name ILIKE :{k} OR "                           # fish_name
-            f"f.auto_fish_code ILIKE :{k} OR "                 # auto code
-            f"coalesce(f.nickname,'') ILIKE :{k} OR "          # NEW: nickname
-            f"coalesce(f.strain,'') ILIKE :{k} OR "            # NEW: strain
-            f"coalesce(f.description,'') ILIKE :{k} OR "       # NEW: notes/description
-            f"coalesce(tg.transgene_names,'') ILIKE :{k} OR "  # transgene display names
-            f"coalesce(tg.transgene_codes,'') ILIKE :{k}"      # transgene codes
+            f"f.name ILIKE :{k} OR "
+            f"f.auto_fish_code ILIKE :{k} OR "
+            f"coalesce(f.nickname,'') ILIKE :{k} OR "
+            f"coalesce(f.strain,'') ILIKE :{k} OR "
+            f"coalesce(f.description,'') ILIKE :{k} OR "
+            f"coalesce(tg.transgene_names,'') ILIKE :{k} OR "
+            f"coalesce(tg.transgene_codes,'') ILIKE :{k}"
             ")"
         )
     joiner = " AND " if mode == "AND" else " OR "
@@ -98,8 +101,8 @@ if terms:
 
 where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-# -- Query: build select list based on available columns ----------------------
-with engine.connect() as cx:
+# ---- Main query -------------------------------------------------------------
+with _engine.connect() as cx:
     tank = detect_tank_sql(cx)
 
     has_nick = has_col(cx, "fish", "nickname")
@@ -184,7 +187,9 @@ with engine.connect() as cx:
     params["lim"] = 5000
     df = pd.read_sql(text(sql), cx, params=params)
 
-# -- Display ------------------------------------------------------------------
+# ---- Display ---------------------------------------------------------------
+st.title("Fish Overview")
+
 if df.empty:
     st.info("No fish found.")
 else:
@@ -211,3 +216,12 @@ else:
         file_name="fish_overview.csv",
         mime="text/csv",
     )
+
+# Optional: small rollup sample from the view if present
+st.subheader("Fish overview (first 50 from v_fish_overview_v1, if available)")
+try:
+    with _engine.connect() as cx:
+        df2 = fetch_df(cx, "select * from public.v_fish_overview_v1 order by fish_name nulls last limit 50")
+    st.dataframe(df2, use_container_width=True)
+except Exception as e:
+    st.info(f"Rollup view not available yet: {e}")

@@ -1,0 +1,3 @@
+plasmid_code,name,description
+pTol2-elavl3_GCaMP6s,pan-neuronal GCaMP6s,Tol2; elavl3 promoter; inject at 1-cell
+pTol2-myo6b_chr2,myo6b chr2 reporter,Tol2; myo6b promoter; inject at 1-cell

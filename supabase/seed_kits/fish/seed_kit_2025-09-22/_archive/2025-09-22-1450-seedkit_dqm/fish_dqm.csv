@@ -1,0 +1,7 @@
+fish_name,nickname,date_birth,line_building_stage,strain,has_transgenes,has_mutation,has_treatment_injected_plasmid,has_treatment_injected_rna,n_new_tanks
+mem-tdmSG-8m,membrane-tandem-mStayGold,8/16/24,P0_founder>outcross,casper,1,1,0,0,1
+mem-tdmSG-11m,membrane-tandem-mStayGold,8/16/24,P0_founder>outcross,casper,1,1,0,0,1
+mem-tdmSG-8m-F1,membrane-tandem-mStayGold,11/12/24,stable>maintain,casper,1,1,0,0,4
+mem-tdmSG-11m-F1,membrane-tandem-mStayGold,11/25/24,stable>maintain,casper,1,1,0,0,1
+mem-tdmSG-8m-F2,membrane-tandem-mStayGold,4/17/25,stable>maintain,casper,1,1,0,0,3
+mem-tdmSG-11m-F2,membrane-tandem-mStayGold,3/3/25,stable>maintain,casper,1,1,0,0,1

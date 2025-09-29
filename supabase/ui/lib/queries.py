@@ -1,5 +1,6 @@
 from sqlalchemy import text
 
+
 def sql_batches():
     return """
     SELECT DISTINCT COALESCE(NULLIF(batch_label,''),'(none)') AS batch
@@ -7,51 +8,65 @@ def sql_batches():
     ORDER BY 1
     """
 
+
 def detect_tank_select_join(cx):
     # returns tuple (select_clause, join_clause)
-    tbl_exists = text("""
+    tbl_exists = text(
+        """
         SELECT EXISTS (
           SELECT 1 FROM information_schema.tables
           WHERE table_schema='public' AND table_name=:t
         );
-    """)
-    col_exists = text("""
+    """
+    )
+    col_exists = text(
+        """
         SELECT EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_schema='public' AND table_name=:tbl AND column_name=:col
         );
-    """)
+    """
+    )
 
     # fish columns
-    if cx.execute(col_exists, {"tbl":"fish","col":"tank"}).scalar():
+    if cx.execute(col_exists, {"tbl": "fish", "col": "tank"}).scalar():
         return "f.tank AS tank, NULL::text AS status", ""
-    if cx.execute(col_exists, {"tbl":"fish","col":"tank_label"}).scalar():
+    if cx.execute(col_exists, {"tbl": "fish", "col": "tank_label"}).scalar():
         return "f.tank_label AS tank, NULL::text AS status", ""
 
     # tank_assignments preferred (has status)
-    if cx.execute(tbl_exists, {"t":"tank_assignments"}).scalar():
-        return "ta.tank_label AS tank, ta.status::text AS status", \
-               "LEFT JOIN public.tank_assignments ta ON ta.fish_id = f.id"
+    if cx.execute(tbl_exists, {"t": "tank_assignments"}).scalar():
+        return (
+            "ta.tank_label AS tank, ta.status::text AS status",
+            "LEFT JOIN public.tank_assignments ta ON ta.fish_id = f.id",
+        )
 
     # fish_tanks + tanks (no status)
-    has_ft = cx.execute(tbl_exists, {"t":"fish_tanks"}).scalar()
-    has_t  = cx.execute(tbl_exists, {"t":"tanks"}).scalar()
+    has_ft = cx.execute(tbl_exists, {"t": "fish_tanks"}).scalar()
+    has_t = cx.execute(tbl_exists, {"t": "tanks"}).scalar()
     if has_ft and has_t:
-        lab_name  = cx.execute(col_exists, {"tbl":"tanks","col":"name"}).scalar()
-        lab_label = cx.execute(col_exists, {"tbl":"tanks","col":"label"}).scalar()
+        lab_name = cx.execute(col_exists, {"tbl": "tanks", "col": "name"}).scalar()
+        lab_label = cx.execute(col_exists, {"tbl": "tanks", "col": "label"}).scalar()
         tank_expr = "t.name" if lab_name else ("t.label" if lab_label else "NULL")
-        type_q = text("""
+        type_q = text(
+            """
             SELECT data_type
             FROM information_schema.columns
             WHERE table_schema='public' AND table_name=:tbl AND column_name=:col
-        """)
-        ft_tid = cx.execute(type_q, {"tbl":"fish_tanks","col":"tank_id"}).scalar()
-        t_id   = cx.execute(type_q, {"tbl":"tanks","col":"id"}).scalar()
-        join_expr = "t.id = ft.tank_id" if (ft_tid == t_id) else "t.id::text = ft.tank_id::text"
-        return f"COALESCE({tank_expr}, '') AS tank, NULL::text AS status", \
-               f"LEFT JOIN public.fish_tanks ft ON ft.fish_id = f.id LEFT JOIN public.tanks t ON {join_expr}"
+        """
+        )
+        ft_tid = cx.execute(type_q, {"tbl": "fish_tanks", "col": "tank_id"}).scalar()
+        t_id = cx.execute(type_q, {"tbl": "tanks", "col": "id"}).scalar()
+        join_expr = (
+            "t.id = ft.tank_id" if (ft_tid == t_id) else "t.id::text = ft.tank_id::text"
+        )
+        return (
+            f"COALESCE({tank_expr}, '') AS tank, NULL::text AS status",
+            f"LEFT JOIN public.fish_tanks ft ON ft.fish_id = f.id LEFT JOIN public.tanks t ON {join_expr}",
+        )
 
     return "'' AS tank, NULL::text AS status", ""
+
 
 def sql_overview(tank_select: str, tank_join: str, where_sql: str = "") -> str:
     return f"""
@@ -101,6 +116,7 @@ def sql_overview(tank_select: str, tank_join: str, where_sql: str = "") -> str:
     ORDER BY fish_name
     LIMIT :lim
     """
+
 
 def sql_auto_assign():
     return """

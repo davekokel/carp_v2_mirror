@@ -42,9 +42,9 @@ def build_preview(engine, df_01, df_10, df_02, default_batch):
                 lambda x: x.strip() if isinstance(x, str) and x.strip() else None
             )
             disp["disp_name"] = disp.apply(
-                lambda r: r["disp_name"]
-                if r["disp_name"]
-                else r["transgene_base_code"],
+                lambda r: (
+                    r["disp_name"] if r["disp_name"] else r["transgene_base_code"]
+                ),
                 axis=1,
             )
 
@@ -60,9 +60,11 @@ def build_preview(engine, df_01, df_10, df_02, default_batch):
                 how="left",
             )
             l2["tg_name"] = l2.apply(
-                lambda r: r["disp_name"]
-                if isinstance(r.get("disp_name"), str) and r["disp_name"].strip()
-                else r.get("transgene_base_code"),
+                lambda r: (
+                    r["disp_name"]
+                    if isinstance(r.get("disp_name"), str) and r["disp_name"].strip()
+                    else r.get("transgene_base_code")
+                ),
                 axis=1,
             )
         else:

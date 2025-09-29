@@ -1,0 +1,5 @@
+fish_name,treatment_date,plasmid_code,method,operator,notes
+fish-201,8/11/25,pTol2-elavl3_GCaMP6s,one-cell injection,dk,good fluorescence at 5 dpf
+fish-204,7/28/25,pTol2-myo6b_chr2,one-cell injection,dk,robust otic expression
+fish-202,8/12/25,rna:gfp-sense,one-cell injection,dk,strong heart signal
+fish-203,8/13/25,dye:dii,retro-orbital label,dk,optic tract labeled

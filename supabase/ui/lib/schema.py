@@ -1,8 +1,10 @@
 import streamlit as st
+
 # lib/schema.py
 from sqlalchemy import text
 
 # ... your ENSURE_TANK_SCHEMA_SQL stays as-is ...
+
 
 def ensure_tank_schema(cx):
     # Only run schema changes if explicitly enabled

@@ -1,0 +1,7 @@
+fish_name,nickname,birth_date,background_strain,line_building_stage,description,notes,transgene_base_code,allele_number,allele_label_legacy,zygosity,created_by
+mem-tdmSG-8m,membrane-tandem-mStayGold,8/16/24,casper,founder,"multiple alleles, male founder #8",test_notes,pDQM005,,301,heterozygous,dqm
+mem-tdmSG-11m,membrane-tandem-mStayGold,8/16/24,casper,founder,"multiple alleles, male founder #11",test_notes,pDQM005,,302,heterozygous,dqm
+mem-tdmSG-8m-F1,membrane-tandem-mStayGold,11/12/24,casper,F1,"multiple alleles, selected brightest",test_notes,pDQM005,,301,heterozygous,dqm
+mem-tdmSG-11m-F1,membrane-tandem-mStayGold,11/25/24,casper,F1,"multiple alleles, selected brightest",test_notes,pDQM005,,302,heterozygous,dqm
+mem-tdmSG-8m-F2,membrane-tandem-mStayGold,4/17/25,casper,F2,"multiple alleles, selected brightest, check for homozygosity",test_notes,pDQM005,,301,heterozygous,dqm
+mem-tdmSG-11m-F2,membrane-tandem-mStayGold,3/3/25,casper,F2,"multiple alleles, selected brightest, check for homozygosity",test_notes,pDQM005,,302,heterozygous,dqm

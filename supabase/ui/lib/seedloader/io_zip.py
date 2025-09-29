@@ -1,9 +1,7 @@
 import io
 import zipfile
-from typing import Optional
 
 import pandas as pd
-import streamlit as st
 
 from .utils import clean_df
 

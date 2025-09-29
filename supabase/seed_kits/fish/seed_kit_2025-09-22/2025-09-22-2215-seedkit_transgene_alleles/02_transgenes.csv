@@ -1,0 +1,3 @@
+transgene_base_code,name,description
+elavl3_gcamp6s,pan-neuronal GCaMP6s,Tol2 backbone; elavl3 promoter; calcium reporter
+myo6b_chr2,chr2 hair-cell reporter,Tol2 backbone; myo6b promoter; chromoprotein #2

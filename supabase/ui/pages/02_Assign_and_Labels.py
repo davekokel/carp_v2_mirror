@@ -24,6 +24,7 @@ read_only_banner()
 
 st.title("Assign Tanks & Print Labels")
 
+require_app_password()
 # --- DB engine (env-aware) ---
 env, conn = pick_environment()
 engine = get_engine(conn)
@@ -32,7 +33,9 @@ engine = get_engine(conn)
 def _truthy(x) -> bool:
     return str(x).strip().lower() in {"1", "true", "yes", "on"}
 
-ALLOW_MIGR = _truthy(st.secrets.get("ALLOW_SCHEMA_MIGRATIONS", "")) or _truthy(os.getenv("ALLOW_SCHEMA_MIGRATIONS", ""))
+ALLOW_MIGR = _truthy(st.secrets.get("ALLOW_SCHEMA_MIGRATIONS", "")) or _truthy(
+    os.getenv("ALLOW_SCHEMA_MIGRATIONS", "")
+)
 
 if ALLOW_MIGR:
     with engine.begin() as cx:
@@ -76,6 +79,7 @@ with col1:
 
 # --- Status updates ---
 with col2:
+
     def set_status(new_status: str):
         if not selected_ids:
             st.warning("Select at least one fish first.")

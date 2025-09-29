@@ -22,6 +22,7 @@ def ensure_tank_helpers(cx):
     """,
     )
 
+
 def ensure_auto_fish_helpers(cx):
     exec_sql(cx, "create sequence if not exists public.auto_fish_seq")
     exec_sql(
@@ -35,6 +36,7 @@ def ensure_auto_fish_helpers(cx):
     $$;
     """,
     )
+
 
 def upsert_transgenes(cx, df_tg):
     exec_sql(cx, "alter table public.transgenes add column if not exists name text")
@@ -59,6 +61,7 @@ def upsert_transgenes(cx, df_tg):
                 "desc": blank(r.get("description")),
             },
         )
+
 
 def upsert_alleles(cx, df_ac):
     # Table name aligned to your FK: public.transgene_alleles
@@ -94,6 +97,7 @@ def upsert_alleles(cx, df_ac):
             },
         )
 
+
 def ensure_transgenes_exist(cx, base_codes: List[str]):
     exec_sql(cx, "alter table public.transgenes add column if not exists name text")
     upsert_t = text(
@@ -105,6 +109,7 @@ def ensure_transgenes_exist(cx, base_codes: List[str]):
     )
     for tbc in base_codes:
         cx.execute(upsert_t, {"tbc": blank(tbc)})
+
 
 def insert_fish(cx, df_fish, default_batch: Optional[str]):
     # Required: name
@@ -163,6 +168,7 @@ def insert_fish(cx, df_fish, default_batch: Optional[str]):
             },
         )
 
+
 def insert_links_by_name(cx, df_links):
     sql = """
         insert into public.fish_transgene_alleles(fish_id, transgene_base_code, allele_number, zygosity)
@@ -182,6 +188,7 @@ def insert_links_by_name(cx, df_links):
                 "zyg": blank(r.get("zygosity")),
             },
         )
+
 
 def assign_missing_tanks(cx):
     ensure_tank_helpers(cx)

@@ -42,12 +42,15 @@ def require_app_access(title: Optional[str] = "🔐 Private app") -> None:
     else:
         st.stop()
 
+
 # ---------------- Read-only helpers ----------------
+
 
 def _truthy(v: object) -> bool:
     if isinstance(v, str):
         return v.strip().lower() in {"1", "true", "yes", "on"}
     return bool(v)
+
 
 def is_read_only() -> bool:
     # Prefer Secrets; fall back to env
@@ -55,9 +58,11 @@ def is_read_only() -> bool:
         return _truthy(st.secrets.get("READ_ONLY"))
     return _truthy(os.getenv("READ_ONLY", ""))
 
+
 def read_only_banner() -> None:
     if is_read_only():
         st.info("🔒 Read-only mode is ON — write actions are disabled.", icon="🔒")
+
 
 def guard_writes() -> bool:
     """
@@ -71,6 +76,7 @@ def guard_writes() -> bool:
         return False
     return True
 
+
 def button_guard(label: str = "Submit") -> Dict[str, Any]:
     """
     Optional helper for st.button:
@@ -80,3 +86,77 @@ def button_guard(label: str = "Submit") -> Dict[str, Any]:
     if is_read_only():
         return {"disabled": True, "help": "Disabled in read-only mode"}
     return {}
+# --- appended: minimal logout button for Streamlit auth ---
+def logout_button(label: str = "Log out") -> None:
+    """
+    Simple logout: flip the auth flag (if used by require_app_access) and rerun.
+    Safe no-op if the flag isn't present.
+    """
+    import streamlit as st
+    if st.button(label, key="logout_btn_main"):
+        # Common session keys used by simple app-lock patterns
+        for k in list(st.session_state.keys()):
+            if k in ("_auth_ok", "_app_unlocked") or k.startswith("_auth_"):
+                st.session_state.pop(k, None)
+        # Also clear any cached password field (common patterns)
+        st.session_state.pop("app_password_input", None)
+        st.experimental_rerun()
+
+
+def logout_button(location: str = "main", *, label: str = "Log out", key: str | None = None) -> None:
+    """
+    Render a logout button in either the sidebar or main area.
+    - location: "sidebar" or "main"
+    - label: button label text (default "Log out")
+    - key: optional unique key; if omitted we derive one from location
+    """
+    import streamlit as st
+    # Choose placement
+    container = st.sidebar if str(location).lower() == "sidebar" else st
+    # Ensure unique key
+    k = key or f"logout_btn_{str(location).lower()}"
+    if container.button(label, key=k):
+        # Clear common session-state flags used by app-lock
+        for sk in list(st.session_state.keys()):
+            if sk in ("_auth_ok", "_app_unlocked") or sk.startswith("_auth_"):
+                st.session_state.pop(sk, None)
+        st.session_state.pop("app_password_input", None)
+        st.experimental_rerun()
+
+
+def logout_button(location: str = "main", *, label: str = "Log out", key: str | None = None) -> None:
+    """
+    Render a logout button in either the sidebar or main area.
+    - location: "sidebar" or "main"
+    - label: button label text (default "Log out")
+    - key: optional unique key; if omitted we derive one from location + caller page
+    Also: if another call already rendered the same key, this call is a no-op.
+    """
+    import os, inspect
+    import streamlit as st
+
+    # figure out the caller page name to keep keys unique per page
+    try:
+        caller = inspect.stack()[1].filename
+        page = os.path.splitext(os.path.basename(caller))[0]
+    except Exception:
+        page = "unknown"
+
+    derived = f"logout_btn_{str(location).lower()}_{page}"
+    k = key or derived
+
+    # If we've already rendered this button key on this run, skip re-registering
+    sentinel = f"__rendered_{k}"
+    if st.session_state.get(sentinel):
+        return
+
+    container = st.sidebar if str(location).lower() == "sidebar" else st
+    if container.button(label, key=k):
+        for sk in list(st.session_state.keys()):
+            if sk in ("_auth_ok", "_app_unlocked") or sk.startswith("_auth_"):
+                st.session_state.pop(sk, None)
+        st.session_state.pop("app_password_input", None)
+        st.experimental_rerun()
+
+    st.session_state[sentinel] = True
+

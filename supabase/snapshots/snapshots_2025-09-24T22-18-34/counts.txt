@@ -1,8 +1,0 @@
-fish|11
-transgenes|5
-transgene_allele_catalog|0
-fish_transgene_alleles|4
-treatments|8
-fish_treatments|8
-tank_assignments|11
-v_fish_overview_v1|11

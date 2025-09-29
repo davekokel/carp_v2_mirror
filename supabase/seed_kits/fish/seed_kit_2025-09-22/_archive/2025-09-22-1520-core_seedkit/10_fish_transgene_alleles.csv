@@ -1,0 +1,4 @@
+fish_code,transgene_base_code,allele_number
+test_fish_1,tg(myl7:egfp),a
+test_fish_1,tg(kdrl:ras-mcherry),a
+test_fish_2,tg(myl7:egfp),b

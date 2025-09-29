@@ -1,7 +1,7 @@
 from datetime import datetime
 import math
 import re
-from typing import List, Optional, Set
+from typing import List, Set
 
 import pandas as pd
 import streamlit as st
@@ -17,6 +17,7 @@ def clean_df(df: pd.DataFrame) -> pd.DataFrame:
             df[c] = df[c].map(lambda v: None if v is None else str(v).strip())
     return df
 
+
 def parse_date(x):
     if x is None:
         return None
@@ -30,6 +31,7 @@ def parse_date(x):
             pass
     return None
 
+
 def blank(x) -> str:
     if x is None:
         return ""
@@ -42,6 +44,7 @@ def blank(x) -> str:
     s = str(x).strip()
     return "" if s.lower() == "nan" else s
 
+
 def none_if_blank(x):
     s = blank(x)
     return None if s == "" else s
@@ -53,9 +56,11 @@ def canon_cols(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [re.sub(r"\s+", "_", c.strip().lower()) for c in df.columns]
     return df
 
+
 def _fail(msg: str):
     st.error(msg)
     st.stop()
+
 
 def require_headers(
     df: pd.DataFrame,
@@ -76,11 +81,13 @@ def require_headers(
     # if extra:
     #     _fail(f"❌ {label}: unknown column(s): {sorted(extra)}")
 
+
 def assert_unique(df: pd.DataFrame, cols: List[str], label: str):
     dups = df.duplicated(subset=cols, keep=False)
     if dups.any():
         sample = df.loc[dups, cols].head(10).to_dict(orient="records")
         _fail(f"❌ {label}: duplicate keys in {cols}. Sample rows: {sample}")
+
 
 def must_subset(left: pd.Series, right: pd.Series, label: str, keys_name="keys"):
     missing = sorted(set(left.dropna()) - set(right.dropna()))
