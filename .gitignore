@@ -77,3 +77,5 @@ supabase/seed_kits/*/* 2.csv
 .local*.txt
 .only-*.txt
 .remote*.*
+.DS_Store
+**/.DS_Store
