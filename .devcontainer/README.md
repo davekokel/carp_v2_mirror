@@ -17,3 +17,20 @@ Usage
 Notes
 - Dependency installation happens at build time. If you change `requirements.txt`, rebuild the devcontainer to pick up changes.
 - If you need extra system packages, edit `.devcontainer/Dockerfile`.
+
+
+# 2025-09-30
+# Devcontainer
+
+1) Open the repo in VS Code → **Reopen in Container**  
+2) Inside the container:
+   ```bash
+   mkdir -p .streamlit
+   # Fill with your own creds (don’t commit this file)
+   cat > .streamlit/secrets.toml <<'TOML'
+   DB_URL = "postgresql://…"
+   SUPABASE_URL = "https://…"
+   SUPABASE_ANON_KEY = "…"
+   APP_PASSWORD = "letmein"
+   READ_ONLY = "true"
+   TOML
