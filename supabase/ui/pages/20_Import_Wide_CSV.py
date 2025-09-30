@@ -34,6 +34,28 @@ def resolve_db_url() -> str:
     return f"postgresql://{user}:{quote(pw)}@{host}:{port}/{db}?sslmode={ssl}"
 
 
+# --- Pre-flight DB diagnostic (uses same resolver as the loader) -------------
+DSN = resolve_db_url()
+
+# show host:port in the sidebar
+st.sidebar.caption(f"DB target: {DSN.split('@')[-1].split('/')[0]}")
+
+# try a simple psycopg connection before running the loader
+try:
+    import psycopg
+    with psycopg.connect(DSN) as conn, conn.cursor() as cur:
+        cur.execute("""
+            select current_user, current_database(),
+                   inet_server_addr()::text, inet_server_port()
+        """)
+        user, db, host, port = cur.fetchone()
+    st.sidebar.success(f"DB OK: {user} → {db} @ {host}:{port}")
+except Exception as e:
+    st.sidebar.error("DB pre-flight failed")
+    st.sidebar.code(str(e))
+# -----------------------------------------------------------------------------
+
+
 st.set_page_config(page_title="Import (wide CSV)", layout="wide")
 require_app_access("🔐 CARP — Private")
 logout_button("sidebar", key="logout_btn_import")
@@ -43,6 +65,9 @@ st.caption("Uploads a normalized wide CSV and calls the loader script.")
 
 uploaded = st.file_uploader("Choose a CSV", type=["csv"])
 dry_run = st.checkbox("Dry run (no DB writes)", value=False)
+
+
+
 
 
 # --- Template download -------------------------------------------------------

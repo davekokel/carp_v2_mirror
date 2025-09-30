@@ -50,6 +50,20 @@ def _iter_csv(path: Path) -> Iterable[dict]:
         for row in r:
             yield {(k or "").lstrip("\ufeff").strip(): (v or "").strip() for k, v in row.items()}
 
+# ---------- list parsing ----------
+def _split_list(s: Optional[str]) -> list[str]:
+    """Split on ; or , and trim; returns [] on blank."""
+    if not s:
+        return []
+    raw = [x.strip() for x in re.split(r"[;,]", s) if x.strip()]
+    # de-dup preserving order
+    seen, out = set(), []
+    for x in raw:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
 # ---------- SQL (all :named binds) ----------
 SQL_UPSERT_FISH = text("""
 INSERT INTO public.fish (
@@ -94,6 +108,55 @@ VALUES (:fish_id, :code, :allele_number)
 ON CONFLICT DO NOTHING
 """)
 
+# ---------- catalogs + links (minimal upserts) ----------
+SQL_UPSERT_PLASMID = text("""
+insert into public.plasmids(code, name)
+values (:code, :code)
+on conflict (code) do nothing
+""")
+
+SQL_LINK_FISH_PLASMID = text("""
+insert into public.fish_plasmids(fish_id, plasmid_code)
+values (:fish_id, :code)
+on conflict do nothing
+""")
+
+SQL_UPSERT_RNA = text("""
+insert into public.rnas(code, name)
+values (:code, :code)
+on conflict (code) do nothing
+""")
+
+SQL_LINK_FISH_RNA = text("""
+insert into public.fish_rnas(fish_id, rna_code)
+values (:fish_id, :code)
+on conflict do nothing
+""")
+
+SQL_UPSERT_DYE = text("""
+insert into public.dyes(name)
+values (:name)
+on conflict (name) do nothing
+""")
+
+SQL_LINK_FISH_DYE = text("""
+insert into public.fish_dyes(fish_id, dye_name)
+values (:fish_id, :name)
+on conflict do nothing
+""")
+
+SQL_UPSERT_FLUOR = text("""
+insert into public.fluors(name)
+values (:name)
+on conflict (name) do nothing
+""")
+
+SQL_LINK_FISH_FLUOR = text("""
+insert into public.fish_fluors(fish_id, fluor_name)
+values (:fish_id, :name)
+on conflict do nothing
+""")
+
 # ---------- row shaping ----------
 def _row_params(row: dict) -> dict:
     return {
@@ -105,6 +168,11 @@ def _row_params(row: dict) -> dict:
         # CSV may use 'birth_date'; accept that plus other variants
         "dob": _parse_date(row.get("birth_date") or row.get("date_of_birth") or row.get("dob")),
         "description": _nz(row.get("description") or row.get("notes")),
+        "treatments": _split_list(row.get("treatments")),
+        "plasmids": _split_list(row.get("plasmid_codes")),
+        "rnas": _split_list(row.get("rna_codes")),
+        "dyes": _split_list(row.get("dye_names")),
+        "fluors": _split_list(row.get("fluor_names")),
     }
 
 # ---------- allele allocator / resolver ----------
@@ -159,6 +227,44 @@ def _alloc_or_get_alleles(cx, code: str, legacy_label: str | None):
         nums.append(str(n))
 
     return nums
+
+
+# --- treatments (catalog + link) ---
+for tcode in p.get("treatments") or []:
+    # If you have a treatments catalog, upsert it similarly;
+    # or if treatments are free-text events, you could instead
+    # insert into a fish_treatments(fish_id, label, at_time) table.
+    cx.execute(text("""
+        insert into public.treatments(code, name)
+        values (:code, :code)
+        on conflict (code) do nothing
+    """), {"code": tcode})
+    cx.execute(text("""
+        insert into public.fish_treatments(fish_id, treatment_code)
+        values (:fish_id, :code)
+        on conflict do nothing
+    """), {"fish_id": fish_id, "code": tcode})
+
+# --- plasmids ---
+for code in p.get("plasmids") or []:
+    cx.execute(SQL_UPSERT_PLASMID, {"code": code})
+    cx.execute(SQL_LINK_FISH_PLASMID, {"fish_id": fish_id, "code": code})
+
+# --- rnas ---
+for code in p.get("rnas") or []:
+    cx.execute(SQL_UPSERT_RNA, {"code": code})
+    cx.execute(SQL_LINK_FISH_RNA, {"fish_id": fish_id, "code": code})
+
+# --- dyes ---
+for name in p.get("dyes") or []:
+    cx.execute(SQL_UPSERT_DYE, {"name": name})
+    cx.execute(SQL_LINK_FISH_DYE, {"fish_id": fish_id, "name": name})
+
+# --- fluors ---
+for name in p.get("fluors") or []:
+    cx.execute(SQL_UPSERT_FLUOR, {"name": name})
+    cx.execute(SQL_LINK_FISH_FLUOR, {"fish_id": fish_id, "name": name})
+
 
 # ---------- main ----------
 def main():
