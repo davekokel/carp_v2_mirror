@@ -87,7 +87,8 @@ if uploaded is not None:
     # Compute paths WITHOUT repo_root
     SCRIPT_PATH = str(Path(__file__).resolve().parents[3] / "scripts" / "seedkit_load_wide.py")
     PY = str(Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python")
-    DB = os.getenv("DB_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslmode=disable")
+    from lib.config import DB_URL
+    DB = DB_URL or "postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslmode=disable"
 
     # Diagnostics
     sp = Path(SCRIPT_PATH)
