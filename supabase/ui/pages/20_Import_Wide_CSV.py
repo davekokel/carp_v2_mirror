@@ -1,10 +1,38 @@
 from lib.page_bootstrap import secure_page; secure_page()
-
+import io, csv
 import os, subprocess, tempfile, re, streamlit as st
+import sys
+import hashlib, time
 from pathlib import Path
 from lib.authz import require_app_access, logout_button
-import hashlib, time
-from lib.config import DB_URL  # keep this single import at top
+from urllib.parse import quote
+
+# Safe import: prefer lib.config.DB_URL if available; else None
+try:
+    from lib.config import DB_URL
+except Exception:
+    DB_URL = None
+
+# --- DB URL resolver: prefer DB_URL, else compose from PG* secrets ---
+def resolve_db_url() -> str:
+    # 1) If DB_URL is provided (via st.secrets or .env through lib.config), use it.
+    if DB_URL:
+        return DB_URL
+
+    # 2) Otherwise compose from PG* keys (no localhost fallback)
+    host = st.secrets.get("PGHOST")
+    port = st.secrets.get("PGPORT", 5432)
+    user = st.secrets.get("PGUSER", "postgres")
+    db   = st.secrets.get("PGDATABASE", "postgres")
+    pw   = st.secrets.get("PGPASSWORD", "")
+    ssl  = st.secrets.get("PGSSLMODE", "require")
+
+    if not host:
+        st.error("DB_URL is not set and PGHOST is missing in secrets. Set one of them.")
+        st.stop()
+
+    return f"postgresql://{user}:{quote(pw)}@{host}:{port}/{db}?sslmode={ssl}"
+
 
 st.set_page_config(page_title="Import (wide CSV)", layout="wide")
 require_app_access("🔐 CARP — Private")
@@ -16,13 +44,8 @@ st.caption("Uploads a normalized wide CSV and calls the loader script.")
 uploaded = st.file_uploader("Choose a CSV", type=["csv"])
 dry_run = st.checkbox("Dry run (no DB writes)", value=False)
 
-# --- require DB_URL ---
-if not DB_URL:
-    st.error("DB_URL is not set. Add it in Streamlit secrets and rerun.")
-    st.stop()
 
 # --- Template download -------------------------------------------------------
-import io, csv
 def _make_template_csv() -> bytes:
     headers = [
         "fish_name","nickname","birth_date","background_strain","line_building_stage",
@@ -58,9 +81,8 @@ if uploaded is not None:
 
     # Paths
     SCRIPT_PATH = str(Path(__file__).resolve().parents[3] / "scripts" / "seedkit_load_wide.py")
-    PY = str(Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python")
-    DB = DB_URL  # no fallback
-
+    PY = sys.executable  # ensures we use the same env Streamlit is using
+    DB = resolve_db_url()
     # Diagnostics
     sp = Path(SCRIPT_PATH)
     st.caption(f"Loader path: {SCRIPT_PATH} (exists={sp.exists()})")
@@ -71,6 +93,8 @@ if uploaded is not None:
     except Exception as _e:
         st.caption(f"(could not stat loader: {_e})")
 
+    
+    
     # Build command
     cmd = [PY, "-u", SCRIPT_PATH, "--db", DB, "--csv", tmp_path]
     if dry_run:
@@ -114,3 +138,7 @@ if uploaded is not None:
             st.info(f"ℹ️ No new links to add ({dupes} duplicates skipped). Fish upserted: {upserted}.")
     else:
         st.info("ℹ️ Import ran, but I didn’t find the summary line. See log above.")
+
+st.sidebar.caption(f"DB target: {resolve_db_url().split('@')[-1].split('/')[0]}")
+
+
