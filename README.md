@@ -9,6 +9,7 @@ SUPABASE_URL = "https://<PROJECT_REF>.supabase.co"
 SUPABASE_ANON_KEY = "<ANON-KEY>"
 APP_PASSWORD = "letmein"
 READ_ONLY = "true"
+```
 
 ## Deploy to Streamlit Cloud
 
