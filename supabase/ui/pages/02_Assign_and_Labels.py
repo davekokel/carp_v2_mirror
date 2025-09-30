@@ -1,3 +1,4 @@
+from lib.authz import ensure_auth
 from lib.page_bootstrap import secure_page; secure_page()
 # pages/02_Assign_and_Labels.py
 import os
@@ -24,7 +25,7 @@ read_only_banner()
 
 st.title("Assign Tanks & Print Labels")
 
-require_app_password()
+ensure_auth()
 # --- DB engine (env-aware) ---
 env, conn = pick_environment()
 engine = get_engine(conn)

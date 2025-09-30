@@ -80,3 +80,7 @@ supabase/seed_kits/*/* 2.csv
 .DS_Store
 **/.DS_Store
 .env
+
+# local dev
+.venv/
+.streamlit/secrets.toml

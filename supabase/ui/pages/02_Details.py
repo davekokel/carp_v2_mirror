@@ -1,3 +1,4 @@
+from lib.authz import ensure_auth
 from lib.page_bootstrap import secure_page; secure_page()
 # supabase/ui/pages/02_Details.py
 import streamlit as st
@@ -16,7 +17,7 @@ engine = get_engine()
 st.set_page_config(page_title="CARP – Details", layout="wide")
 st.title("CARP Treatments — Detailed Listing")
 
-require_app_password()
+ensure_auth()
 # ---- connection ----
 env, conn = pick_environment()
 engine = get_engine(conn)
