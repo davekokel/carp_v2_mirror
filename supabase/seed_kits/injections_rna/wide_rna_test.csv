@@ -1,0 +1,3 @@
+fish_name,rna_codes,rna_amount,rna_units,rna_note
+FISH_001,sgRNA_A;sgRNA_B,2.5,µg,baseline mix
+FISH_002,sgRNA_A,,,

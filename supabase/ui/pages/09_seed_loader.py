@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, List
 import pandas as pd
 import streamlit as st
-from lib.auth import require_app_password
+from lib.authz import ensure_auth
 from sqlalchemy import text
 from lib.db import get_engine
 from lib.authz import require_app_access, logout_button
@@ -25,7 +25,7 @@ engine = get_engine()
 st.set_page_config(page_title="Seed Loader (ZIP-only, strict fish_name)", layout="wide")
 st.title("Seed Loader — ZIP only (strict fish_name)")
 
-require_app_password()
+ensure_auth()
 st.caption(
     """
 Upload a single **ZIP** of a seed kit folder. Expected files (case-insensitive):
