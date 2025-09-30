@@ -137,8 +137,10 @@ def _alloc_or_get_alleles(cx, code: str, legacy_label: str | None):
               from public.transgene_allele_legacy_map
               where transgene_base_code = :code and legacy_label = :lab
             )
-            select coalesce((select allele_number from maybe),
-                            public.next_allele_number(:code))
+            select coalesce(
+              (select allele_number from maybe)::text,
+              public.next_allele_number(:code)::text
+            )
         """), {"code": code, "lab": lab}).scalar()
 
         # ensure core allele row exists (FK safety) then map legacy label
