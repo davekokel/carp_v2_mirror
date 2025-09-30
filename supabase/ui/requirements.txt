@@ -1,1 +1,4 @@
--r supabase/ui/requirements.txt
+streamlit>=1.36
+python-dotenv>=1.0
+SQLAlchemy>=2.0
+psycopg[binary]>=3.1
