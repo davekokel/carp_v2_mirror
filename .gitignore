@@ -79,3 +79,4 @@ supabase/seed_kits/*/* 2.csv
 .remote*.*
 .DS_Store
 **/.DS_Store
+.env
