@@ -6,15 +6,31 @@ from lib.authz import require_app_access
 st.set_page_config(page_title="carp v2", layout="wide", initial_sidebar_state="expanded")
 
 def dsn_from_secrets():
+    # 1) If a full connection string is provided, use it.
     if st.secrets.get("CONN"):
         return st.secrets["CONN"]
-    host = st.secrets.get("PGHOST", "127.0.0.1")
-    port = st.secrets.get("PGPORT", 54322)
+
+    # 2) Prefer DB_URL if present (lib.config reads st.secrets first, then .env)
+    try:
+        from lib.config import DB_URL
+    except Exception:
+        DB_URL = None
+    if DB_URL:
+        return DB_URL
+
+    # 3) Otherwise compose from PG* keys in secrets (no localhost fallback)
+    host = st.secrets.get("PGHOST")
+    port = st.secrets.get("PGPORT", 5432)
     user = st.secrets.get("PGUSER", "postgres")
-    db = st.secrets.get("PGDATABASE", "postgres")
-    pw = st.secrets.get("PGPASSWORD", "")
-    ssl = st.secrets.get("SSL_MODE", "require")
-    return f"postgres://{user}:{up.quote(pw)}@{host}:{port}/{db}?sslmode={ssl}"
+    db   = st.secrets.get("PGDATABASE", "postgres")
+    pw   = st.secrets.get("PGPASSWORD", "")
+    ssl  = st.secrets.get("PGSSLMODE", "require")
+
+    if not host:
+        st.error("Database host not configured. Provide DB_URL or set PGHOST in secrets.")
+        st.stop()
+
+    return f"postgresql://{user}:{up.quote(pw)}@{host}:{port}/{db}?sslmode={ssl}"
 
 DSN = dsn_from_secrets()
 
