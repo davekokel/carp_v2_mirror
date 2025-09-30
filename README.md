@@ -1,3 +1,15 @@
+### Staging DB (read-only) from Dev Container
+
+Docker can’t reach Supabase’s IPv6-only direct host. Use the **connection pooler** (IPv4) and a **project-qualified** user.
+
+**Example `.streamlit/secrets.toml`:**
+```toml
+DB_URL = "host=aws-1-<region>.pooler.supabase.com port=6543 dbname=postgres user=teammate_ro.<PROJECT_REF> password=<PW> sslmode=require channel_binding=disable"
+SUPABASE_URL = "https://<PROJECT_REF>.supabase.co"
+SUPABASE_ANON_KEY = "<ANON-KEY>"
+APP_PASSWORD = "letmein"
+READ_ONLY = "true"
+
 ## Deploy to Streamlit Cloud
 
 1. Repo: use the mirror repo `davekokel/carp_v2_mirror`.
