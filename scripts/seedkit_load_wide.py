@@ -22,6 +22,11 @@ def _normalize_dsn(url: str) -> str:
 def _str(x: Optional[str]) -> str:
     return (x or "").strip()
 
+def _nz(x: Optional[str]) -> Optional[str]:
+    """Normalize blanks to None (NULL in SQL)."""
+    v = (x or "").strip()
+    return v or None
+
 def _parse_date(s: Optional[str]):
     s = _str(s)
     if not s:
@@ -48,14 +53,16 @@ def _iter_csv(path: Path) -> Iterable[dict]:
 # ---------- SQL (all :named binds) ----------
 SQL_UPSERT_FISH = text("""
 INSERT INTO public.fish (
-  name, fish_code, auto_fish_code,
-  batch_label, line_building_stage, nickname, strain,
-  date_of_birth, description
+  name,
+  batch_label,
+  line_building_stage,
+  nickname,
+  strain,
+  date_of_birth,
+  description
 )
 VALUES (
-  :name, :fish_code, :auto_fish_code,
-  :batch, :stage, :nickname, :strain,
-  :dob, :description
+  :name, :batch, :stage, :nickname, :strain, :dob, :description
 )
 ON CONFLICT (name) DO UPDATE SET
   batch_label         = EXCLUDED.batch_label,
@@ -91,15 +98,13 @@ ON CONFLICT DO NOTHING
 def _row_params(row: dict) -> dict:
     return {
         "name": _str(row.get("name") or row.get("fish_name")),
-        "fish_code": _str(row.get("fish_code")),
-        "auto_fish_code": _str(row.get("auto_fish_code")),
-        "batch": _str(row.get("batch") or row.get("batch_label")),
-        "stage": _str(row.get("stage") or row.get("line_building_stage")),
-        "nickname": _str(row.get("nickname")),
-        "strain": _str(row.get("strain") or row.get("background_strain")),
+        "batch": _nz(row.get("batch") or row.get("batch_label")),
+        "stage": _nz(row.get("stage") or row.get("line_building_stage")),
+        "nickname": _nz(row.get("nickname")),
+        "strain": _nz(row.get("strain") or row.get("background_strain")),
         # CSV may use 'birth_date'; accept that plus other variants
         "dob": _parse_date(row.get("birth_date") or row.get("date_of_birth") or row.get("dob")),
-        "description": _str(row.get("description") or row.get("notes")),
+        "description": _nz(row.get("description") or row.get("notes")),
     }
 
 # ---------- allele allocator / resolver ----------
