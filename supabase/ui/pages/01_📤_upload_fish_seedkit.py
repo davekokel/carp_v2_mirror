@@ -1,4 +1,12 @@
 # 01_📤_upload_fish_seedkit.py
+# 🔒 require password on every page
+try:
+    from supabase.ui.auth_gate import require_app_unlock  # deployed/mirror path
+except Exception:
+    from auth_gate import require_app_unlock  # local path fallback
+
+require_app_unlock()
+
 from __future__ import annotations
 
 import csv

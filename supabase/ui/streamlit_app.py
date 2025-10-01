@@ -1,55 +1,71 @@
-import streamlit as st
-import psycopg
-import urllib.parse as up
-from lib.authz import require_app_access
-
-st.set_page_config(page_title="carp v2", layout="wide", initial_sidebar_state="expanded")
-
-def dsn_from_secrets():
-    # 1) If a full connection string is provided, use it.
-    if st.secrets.get("CONN"):
-        return st.secrets["CONN"]
-
-    # 2) Prefer DB_URL if present (lib.config reads st.secrets first, then .env)
-    try:
-        from lib.config import DB_URL
-    except Exception:
-        DB_URL = None
-    if DB_URL:
-        return DB_URL
-
-    # 3) Otherwise compose from PG* keys in secrets (no localhost fallback)
-    host = st.secrets.get("PGHOST")
-    port = st.secrets.get("PGPORT", 5432)
-    user = st.secrets.get("PGUSER", "postgres")
-    db   = st.secrets.get("PGDATABASE", "postgres")
-    pw   = st.secrets.get("PGPASSWORD", "")
-    ssl  = st.secrets.get("PGSSLMODE", "require")
-
-    if not host:
-        st.error("Database host not configured. Provide DB_URL or set PGHOST in secrets.")
-        st.stop()
-
-    return f"postgresql://{user}:{up.quote(pw)}@{host}:{port}/{db}?sslmode={ssl}"
-
-DSN = dsn_from_secrets()
-
-host = port = user = db = "?"
+# supabase/ui/streamlit_app.py
+# 🔒 require password on every page
 try:
-    with psycopg.connect(DSN) as conn, conn.cursor() as cur:
-        cur.execute("select inet_server_addr()::text, inet_server_port(), current_user, current_database()")
-        host, port, user, db = cur.fetchone()
-    st.sidebar.success(f"DB: {host}:{port} • {user} → {db}")
-except Exception as e:
-    st.sidebar.error("DB connection failed")
-    st.sidebar.write(str(e))
+    from supabase.ui.auth_gate import require_app_unlock  # deployed/mirror path
+except Exception:
+    from auth_gate import require_app_unlock  # local path fallback
 
-require_app_access("🔐 CARP — Private")
+require_app_unlock()
 
-st.success("✅ UI is rendering")
-st.write("ENV:", st.secrets.get("ENV_NAME", "(unset)"))
-st.write("has CONN:", bool(st.secrets.get("CONN")))
+from __future__ import annotations
+import os
+from urllib.parse import urlparse
+import streamlit as st
 
-WRITES_ENABLED = bool(st.secrets.get("WRITES_ENABLED", False))
-if not WRITES_ENABLED:
-    st.warning("Writes are disabled for this environment.")
+PAGE_TITLE = "Cell Observatory — CARP"
+st.set_page_config(page_title=PAGE_TITLE, page_icon="🐟", layout="wide")
+
+st.title("🐟 CARP")
+st.caption("Centralized Aquatic Resource Pipeline")
+
+st.markdown(
+    """
+Welcome! Use the actions below to work with the fish database.  
+For now, start by uploading seedkit CSVs (DB assigns allele numbers automatically).
+"""
+)
+
+# --- Navigation ---
+st.subheader("Go to")
+col1, col2 = st.columns([1,1], gap="large")
+with col1:
+    st.page_link(
+        "pages/01_📤_upload_fish_seedkit.py",
+        label="📤 Upload Fish Seedkit",
+        help="CSV with DB-aligned headers; allele_number is assigned by the DB.",
+    )
+with col2:
+    st.link_button(
+        "📖 Seedkit Upload Docs",
+        url="https://github.com/cell-observatory/carp_v2/blob/main/docs/Upload_Fish_Seedkit.md",
+        help="CSV contract, allocator behavior, and verification SQL.",
+        use_container_width=False,
+    )
+
+st.divider()
+
+# --- Status (masked DB info) ---
+def _mask_url_password(url: str) -> str:
+    try:
+        u = urlparse(url)
+        netloc = u.netloc
+        if "@" in netloc:
+            creds, host = netloc.split("@", 1)
+            if ":" in creds:
+                user = creds.split(":", 1)[0]
+                netloc = f"{user}:***@{host}"
+        return u._replace(netloc=netloc).geturl()
+    except Exception:
+        return "(unavailable)"
+
+with st.expander("Connection/status", expanded=False):
+    env = st.secrets.get("APP_ENV", os.getenv("APP_ENV", "prod"))
+    db_url = st.secrets.get("DB_URL", os.getenv("DATABASE_URL", ""))
+    st.write(f"**Environment:** `{env}`")
+    if db_url:
+        st.write("**DB URL (masked):**")
+        st.code(_mask_url_password(db_url))
+    else:
+        st.warning("No DB URL found. Set `DB_URL` in Streamlit secrets (or `DATABASE_URL` env).")
+
+st.caption("If you need another entry point later (inspection, QC, etc.), we’ll add links here.")
