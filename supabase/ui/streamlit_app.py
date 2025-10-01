@@ -1,19 +1,21 @@
 # supabase/ui/streamlit_app.py
+from __future__ import annotations
+
+import os
+from urllib.parse import urlparse
+import streamlit as st
+
 # 🔒 require password on every page
 try:
     from supabase.ui.auth_gate import require_app_unlock  # deployed/mirror path
 except Exception:
     from auth_gate import require_app_unlock  # local path fallback
 
-require_app_unlock()
-
-from __future__ import annotations
-import os
-from urllib.parse import urlparse
-import streamlit as st
-
 PAGE_TITLE = "Cell Observatory — CARP"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🐟", layout="wide")
+
+# Run the auth gate after Streamlit is initialized
+require_app_unlock()
 
 st.title("🐟 CARP")
 st.caption("Centralized Aquatic Resource Pipeline")
@@ -27,7 +29,7 @@ For now, start by uploading seedkit CSVs (DB assigns allele numbers automaticall
 
 # --- Navigation ---
 st.subheader("Go to")
-col1, col2 = st.columns([1,1], gap="large")
+col1, col2 = st.columns([1, 1], gap="large")
 with col1:
     st.page_link(
         "pages/01_📤_upload_fish_seedkit.py",
