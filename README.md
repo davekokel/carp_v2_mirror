@@ -14,7 +14,7 @@ SET default_transaction_read_only = on;
 SHOW default_transaction_read_only;
 ```
 
-See the full guide with copy‑paste queries in `docs/INSPECTION.md`.
+See the full guide with copy-paste queries in [`docs/INSPECTION.md`](docs/INSPECTION.md).
 
 
 
