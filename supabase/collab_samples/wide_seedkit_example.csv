@@ -1,3 +1,0 @@
-name,batch,strain,birth_date,description,transgene_base_code,legacy_allele_number,plasmids,rnas,rna_amount,rna_units,rna_note,plasmids_injected,plasmid_amount,plasmid_units,plasmid_note
-FISH_DEMO_003,Kit_A,AB,2024-07-20,Seedkit demo,TgX,alleleA,"pZebra_A; pZebra_B","sgRNA_A; sgRNA_B",2.5,µg,baseline mix,"pZebra_A; pZebra_B",10,ng,baseline plasmid mix
-FISH_DEMO_004,Kit_B,TL,2024-07-21,Seedkit demo #2,TgY,,"pZebra_A","sgRNA_A",2.5,µg,,pZebra_A,10,ng,
