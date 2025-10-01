@@ -24,8 +24,7 @@ from urllib.parse import (
 COLUMNS_CANONICAL: List[str] = [
     # public.fish columns (1:1)
     "name",                # UNIQUE in DB (upsert key)
-    "batch_label",
-    "line_building_stage",
+        "line_building_stage",
     "nickname",
     "strain",
     "date_of_birth",       # YYYY-MM-DD
@@ -163,8 +162,7 @@ def make_template_csv() -> bytes:
     writer.writeheader()
     writer.writerow({
         "name": "mem-tdmSG-13m",
-        "batch_label": "seedkit_20251001",
-        "line_building_stage": "founder",
+                "line_building_stage": "founder",
         "nickname": "membrane-tandem-mStayGold",
         "strain": "casper",
         "date_of_birth": "2025-09-20",  # YYYY-MM-DD (example filled)
