@@ -213,15 +213,15 @@ def main():
     ap = argparse.ArgumentParser(description="Load WIDE seedkit CSV into core tables.")
     ap.add_argument("--db", required=True, help="DB URL, e.g. postgresql://user:pw@host:port/db?sslmode=require")
     ap.add_argument("--csv", required=True, help="Path to wide CSV")
-    ap.add_argument("--require-existing-fish", action="store_true", help="Do not create missing fish; error if fish name not found or ambiguous.")
+    ap.add_argument("--require-existing-fish", action="store_true",
+                    help="Do not create missing fish; error if fish name not found or ambiguous.")
     ap.add_argument("--dry-run", action="store_true", help="Run without writing to DB")
     ap.add_argument("--operator", default="seedkit_loader",
                     help="Operator to record on created treatments (default: seedkit_loader)")
-ap.add_argument(
-        "--batch-label",
-        default=None,
-        help="Override batch label for all rows. If not provided, the CSV filename (without extension) is used."
-    )
+    ap.add_argument("--allow-treatments", action="store_true",
+                    help="Enable creation of injected RNA / plasmid treatments from CSV tokens (OFF by default).")
+    ap.add_argument("--batch-label", default=None,
+                    help="Override batch_label for all rows. If omitted, the CSV filename (without extension) is used.")
     args = ap.parse_args()
 
     csv_path = Path(args.csv).expanduser().resolve()
@@ -330,7 +330,7 @@ ap.add_argument(
                 rna_units  = _nz(row.get("rna_units"))
                 rna_note   = _nz(row.get("rna_note"))
 
-                if rna_tokens:
+                if args.allow_treatments and rna_tokens:
                     for rcode in rna_tokens:
                         rid = cx.execute(SQL_UPSERT_RNA_GET_ID, {"code": rcode, "name": rcode}).scalar()
                         if not rid:
@@ -367,7 +367,7 @@ ap.add_argument(
                 plasmid_units  = _nz(row.get("plasmid_units"))
                 plasmid_note   = _nz(row.get("plasmid_note"))
 
-                if plasmid_inj_tokens:
+                if args.allow_treatments and plasmid_inj_tokens:
                     for plc in plasmid_inj_tokens:
                         pid = cx.execute(SQL_UPSERT_PLASMID_GET_ID, {"code": plc, "name": plc}).scalar()
                         if not pid:
@@ -407,7 +407,7 @@ ap.add_argument(
 
     dupes = max(attempted - linked, 0)
     print(f"Upserted {upserted} fish; linked {linked}/{attempted} new allele rows; {dupes} already existed.")
-    print("RNA and plasmid injection treatments created as needed (see DB for details).")
+    print("RNA/plasmid treatment creation: {}.".format("ENABLED (--allow-treatments)" if args.allow_treatments else "DISABLED"))
 
 
 if __name__ == "__main__":
