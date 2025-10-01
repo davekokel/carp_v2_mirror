@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import csv
 import sys
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Iterable
 
 from sqlalchemy import create_engine, text
 
-# ---------- DSN helper ----------
+
+# ---------- helpers ----------
 def _normalize_dsn(url: str) -> str:
     """Prefer psycopg v3 driver for SQLAlchemy."""
     return (
@@ -18,12 +20,10 @@ def _normalize_dsn(url: str) -> str:
         else url
     )
 
-# ---------- parsing helpers ----------
 def _str(x: Optional[str]) -> str:
     return (x or "").strip()
 
 def _nz(x: Optional[str]) -> Optional[str]:
-    """Normalize blanks to None (NULL in SQL)."""
     v = (x or "").strip()
     return v or None
 
@@ -31,7 +31,6 @@ def _parse_date(s: Optional[str]):
     s = _str(s)
     if not s:
         return None
-    # Accept common lab formats; 8/16/24, 2024-08-16, etc.
     for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%Y/%m/%d", "%m/%d/%y"):
         try:
             return datetime.strptime(s, fmt).date()
@@ -39,8 +38,18 @@ def _parse_date(s: Optional[str]):
             pass
     return None
 
+def _to_numeric(s: Optional[str]):
+    """Return Decimal for numeric strings; None otherwise."""
+    from decimal import Decimal, InvalidOperation
+    s = _str(s)
+    if not s:
+        return None
+    try:
+        return Decimal(s)
+    except InvalidOperation:
+        return None
+
 def _iter_csv(path: Path) -> Iterable[dict]:
-    # utf-8-sig consumes BOM; also defensively strip BOM from header names
     with path.open("r", newline="", encoding="utf-8-sig") as f:
         r = csv.DictReader(f)
         try:
@@ -50,34 +59,17 @@ def _iter_csv(path: Path) -> Iterable[dict]:
         for row in r:
             yield {(k or "").lstrip("\ufeff").strip(): (v or "").strip() for k, v in row.items()}
 
-# ---------- list parsing ----------
-def _split_list(s: Optional[str]) -> list[str]:
-    """Split on ; or , and trim; returns [] on blank."""
-    if not s:
-        return []
-    raw = [x.strip() for x in re.split(r"[;,]", s) if x.strip()]
-    # de-dup preserving order
-    seen, out = set(), []
-    for x in raw:
-        if x not in seen:
-            seen.add(x)
-            out.append(x)
-    return out
+def _list_tokens(val: Optional[str]) -> list[str]:
+    """Split comma/semicolon/slash separated values into clean tokens."""
+    return [t.strip() for t in re.split(r"[,;/]", val or "") if t.strip()]
 
-# ---------- SQL (all :named binds) ----------
+
+# ---------- SQL (alleles) ----------
 SQL_UPSERT_FISH = text("""
 INSERT INTO public.fish (
-  name,
-  batch_label,
-  line_building_stage,
-  nickname,
-  strain,
-  date_of_birth,
-  description
+  name, batch_label, line_building_stage, nickname, strain, date_of_birth, description
 )
-VALUES (
-  :name, :batch, :stage, :nickname, :strain, :dob, :description
-)
+VALUES (:name, :batch, :stage, :nickname, :strain, :dob, :description)
 ON CONFLICT (name) DO UPDATE SET
   batch_label         = EXCLUDED.batch_label,
   line_building_stage = EXCLUDED.line_building_stage,
@@ -97,7 +89,7 @@ ON CONFLICT (transgene_base_code) DO UPDATE SET
 
 SQL_UPSERT_ALLELE = text("""
 INSERT INTO public.transgene_alleles (transgene_base_code, allele_number, description)
-VALUES (:code, :allele_number, NULLIF(:desc,''))
+VALUES (:code, :allele_number, NULLIF(:desc, ''))
 ON CONFLICT (transgene_base_code, allele_number) DO UPDATE SET
   description = COALESCE(NULLIF(EXCLUDED.description,''), public.transgene_alleles.description)
 """)
@@ -108,54 +100,65 @@ VALUES (:fish_id, :code, :allele_number)
 ON CONFLICT DO NOTHING
 """)
 
-# ---------- catalogs + links (minimal upserts) ----------
-SQL_UPSERT_PLASMID = text("""
-insert into public.plasmids(code, name)
-values (:code, :code)
-on conflict (code) do nothing
+# ---------- SQL (plasmids id-based) ----------
+SQL_UPSERT_PLASMID_GET_ID = text("""
+with ins as (
+  insert into public.plasmids (plasmid_code, name)
+  values (:code, coalesce(nullif(:name,''), :code))
+  on conflict (plasmid_code) do nothing
+  returning id_uuid
+)
+select id_uuid from ins
+union all
+select id_uuid from public.plasmids where plasmid_code = :code
+limit 1
 """)
 
 SQL_LINK_FISH_PLASMID = text("""
-insert into public.fish_plasmids(fish_id, plasmid_code)
-values (:fish_id, :code)
+insert into public.fish_plasmids (fish_id, plasmid_id)
+values (:fish_id, :plasmid_id)
 on conflict do nothing
 """)
 
-SQL_UPSERT_RNA = text("""
-insert into public.rnas(code, name)
-values (:code, :code)
-on conflict (code) do nothing
+# ---------- RNA SQL ----------
+SQL_UPSERT_RNA_GET_ID = text("""
+with ins as (
+  insert into public.rnas (rna_code, name)
+  values (:code, coalesce(nullif(:name,''), :code))
+  on conflict (rna_code) do nothing
+  returning id_uuid
+)
+select id_uuid from ins
+union all
+select id_uuid from public.rnas where rna_code = :code
+limit 1
 """)
 
-SQL_LINK_FISH_RNA = text("""
-insert into public.fish_rnas(fish_id, rna_code)
-values (:fish_id, :code)
+SQL_CREATE_RNA_TREATMENT = text("""
+insert into public.treatments (treatment_type, performed_at, operator, notes)
+values ('injected_rna', now(), :operator, :note)
+returning id
+""")
+
+SQL_INSERT_RNA_TREATMENT = text("""
+insert into public.injected_rna_treatments (treatment_id, fish_id, rna_id, amount, units, note)
+values (:treatment_id, :fish_id, :rna_id, :amount, :units, :note)
 on conflict do nothing
 """)
 
-SQL_UPSERT_DYE = text("""
-insert into public.dyes(name)
-values (:name)
-on conflict (name) do nothing
+# ---------- PLASMID injection SQL ----------
+SQL_CREATE_PLASMID_TREATMENT = text("""
+insert into public.treatments (treatment_type, performed_at, operator, notes)
+values ('injected_plasmid', now(), :operator, :note)
+returning id
 """)
 
-SQL_LINK_FISH_DYE = text("""
-insert into public.fish_dyes(fish_id, dye_name)
-values (:fish_id, :name)
+SQL_INSERT_PLASMID_TREATMENT = text("""
+insert into public.injected_plasmid_treatments (treatment_id, fish_id, plasmid_id, amount, units, note)
+values (:treatment_id, :fish_id, :plasmid_id, :amount, :units, :note)
 on conflict do nothing
 """)
 
-SQL_UPSERT_FLUOR = text("""
-insert into public.fluors(name)
-values (:name)
-on conflict (name) do nothing
-""")
-
-SQL_LINK_FISH_FLUOR = text("""
-insert into public.fish_fluors(fish_id, fluor_name)
-values (:fish_id, :name)
-on conflict do nothing
-""")
 
 # ---------- row shaping ----------
 def _row_params(row: dict) -> dict:
@@ -165,19 +168,13 @@ def _row_params(row: dict) -> dict:
         "stage": _nz(row.get("stage") or row.get("line_building_stage")),
         "nickname": _nz(row.get("nickname")),
         "strain": _nz(row.get("strain") or row.get("background_strain")),
-        # CSV may use 'birth_date'; accept that plus other variants
         "dob": _parse_date(row.get("birth_date") or row.get("date_of_birth") or row.get("dob")),
         "description": _nz(row.get("description") or row.get("notes")),
-        "treatments": _split_list(row.get("treatments")),
-        "plasmids": _split_list(row.get("plasmid_codes")),
-        "rnas": _split_list(row.get("rna_codes")),
-        "dyes": _split_list(row.get("dye_names")),
-        "fluors": _split_list(row.get("fluor_names")),
     }
+
 
 # ---------- allele allocator / resolver ----------
 def _alloc_or_get_alleles(cx, code: str, legacy_label: str | None):
-    import re
     nums: list[str] = []
     if not code:
         return nums
@@ -186,7 +183,6 @@ def _alloc_or_get_alleles(cx, code: str, legacy_label: str | None):
     if legacy_label:
         tokens = [x.strip() for x in re.split(r"[;,]", legacy_label) if x.strip()]
 
-    # If no legacy label provided: allocate a fresh allele number
     if not tokens:
         n = cx.execute(text("select public.next_allele_number(:code)"), {"code": code}).scalar()
         cx.execute(text("""
@@ -197,7 +193,6 @@ def _alloc_or_get_alleles(cx, code: str, legacy_label: str | None):
         nums.append(str(n))
         return nums
 
-    # Otherwise: resolve each label to an allele number (allocate if first time)
     for lab in tokens:
         n = cx.execute(text("""
             with maybe as (
@@ -211,7 +206,6 @@ def _alloc_or_get_alleles(cx, code: str, legacy_label: str | None):
             )
         """), {"code": code, "lab": lab}).scalar()
 
-        # ensure core allele row exists (FK safety) then map legacy label
         cx.execute(text("""
             insert into public.transgene_alleles(transgene_base_code, allele_number)
             values (:code, :n)
@@ -229,51 +223,17 @@ def _alloc_or_get_alleles(cx, code: str, legacy_label: str | None):
     return nums
 
 
-# --- treatments (catalog + link) ---
-for tcode in p.get("treatments") or []:
-    # If you have a treatments catalog, upsert it similarly;
-    # or if treatments are free-text events, you could instead
-    # insert into a fish_treatments(fish_id, label, at_time) table.
-    cx.execute(text("""
-        insert into public.treatments(code, name)
-        values (:code, :code)
-        on conflict (code) do nothing
-    """), {"code": tcode})
-    cx.execute(text("""
-        insert into public.fish_treatments(fish_id, treatment_code)
-        values (:fish_id, :code)
-        on conflict do nothing
-    """), {"fish_id": fish_id, "code": tcode})
-
-# --- plasmids ---
-for code in p.get("plasmids") or []:
-    cx.execute(SQL_UPSERT_PLASMID, {"code": code})
-    cx.execute(SQL_LINK_FISH_PLASMID, {"fish_id": fish_id, "code": code})
-
-# --- rnas ---
-for code in p.get("rnas") or []:
-    cx.execute(SQL_UPSERT_RNA, {"code": code})
-    cx.execute(SQL_LINK_FISH_RNA, {"fish_id": fish_id, "code": code})
-
-# --- dyes ---
-for name in p.get("dyes") or []:
-    cx.execute(SQL_UPSERT_DYE, {"name": name})
-    cx.execute(SQL_LINK_FISH_DYE, {"fish_id": fish_id, "name": name})
-
-# --- fluors ---
-for name in p.get("fluors") or []:
-    cx.execute(SQL_UPSERT_FLUOR, {"name": name})
-    cx.execute(SQL_LINK_FISH_FLUOR, {"fish_id": fish_id, "name": name})
-
-
 # ---------- main ----------
 def main():
     import argparse
 
     ap = argparse.ArgumentParser(description="Load WIDE seedkit CSV into core tables.")
-    ap.add_argument("--db", required=True, help="DB URL, e.g. postgresql://user:pw@host:port/db?sslmode=disable")
+    ap.add_argument("--db", required=True, help="DB URL, e.g. postgresql://user:pw@host:port/db?sslmode=require")
     ap.add_argument("--csv", required=True, help="Path to wide CSV")
+    ap.add_argument("--require-existing-fish", action="store_true", help="Do not create missing fish; error if fish name not found or ambiguous.")
     ap.add_argument("--dry-run", action="store_true", help="Run without writing to DB")
+    ap.add_argument("--operator", default="seedkit_loader",
+                    help="Operator to record on created treatments (default: seedkit_loader)")
     args = ap.parse_args()
 
     csv_path = Path(args.csv).expanduser().resolve()
@@ -295,7 +255,7 @@ def main():
 
     upserted = 0
     linked = 0
-    attempted = 0
+    attempted = 0  # allele links attempted
 
     with eng.connect() as cx:
         trans = cx.begin()
@@ -305,8 +265,30 @@ def main():
                 if not p["name"]:
                     continue  # require fish name
 
-                fish_id = cx.execute(SQL_UPSERT_FISH, p).scalar()
+                # Resolve / upsert fish
+                fish_ids = cx.execute(
+                    text("select id from public.fish where name = :name"),
+                    {"name": p["name"]},
+                ).scalars().all()
 
+                if args.require_existing_fish:
+                    if not fish_ids:
+                        raise RuntimeError(f"Fish '{p['name']}' not found (rerun without --require-existing-fish to create).")
+                    if len(fish_ids) > 1:
+                        raise RuntimeError(f"Fish '{p['name']}' is ambiguous: {len(fish_ids)} rows in public.fish.")
+                    fish_id = fish_ids[0]
+                else:
+                    if len(fish_ids) == 1:
+                        fish_id = fish_ids[0]
+                    elif len(fish_ids) > 1:
+                        raise RuntimeError(
+                            f"Fish '{p['name']}' is ambiguous: {len(fish_ids)} rows in public.fish "
+                            f"(use --require-existing-fish and disambiguate)."
+                        )
+                    else:
+                        fish_id = cx.execute(SQL_UPSERT_FISH, p).scalar()
+
+                # ----- Alleles -----
                 code   = _str(row.get("transgene_base_code"))
                 legacy = _str(row.get("legacy_allele_number") or row.get("allele_label_legacy"))
                 if code:
@@ -321,6 +303,87 @@ def main():
                         if getattr(res, "rowcount", 0) > 0:
                             linked += 1
 
+                # ----- Plasmids (id-based linking only; not injections) -----
+                plasmid_tokens = _list_tokens(
+                    row.get("plasmids") or row.get("plasmid_codes") or row.get("plasmid_code")
+                )
+                for plc in plasmid_tokens:
+                    pid = cx.execute(SQL_UPSERT_PLASMID_GET_ID, {"code": plc, "name": plc}).scalar()
+                    if pid:
+                        cx.execute(SQL_LINK_FISH_PLASMID, {"fish_id": fish_id, "plasmid_id": pid})
+
+                # ----- Injected RNAs (one treatment per RNA token) -----
+                rna_tokens = _list_tokens(row.get("rnas") or row.get("rna_codes") or row.get("rna_code"))
+                print(f"[loader] fish={p['name']!r} rna_tokens={rna_tokens}")
+
+                rna_amount = _to_numeric(row.get("rna_amount"))
+                rna_units  = _nz(row.get("rna_units"))
+                rna_note   = _nz(row.get("rna_note"))
+
+                if rna_tokens:
+                    for rcode in rna_tokens:
+                        rid = cx.execute(SQL_UPSERT_RNA_GET_ID, {"code": rcode, "name": rcode}).scalar()
+                        if not rid:
+                            continue
+                        treatment_id = cx.execute(
+                            SQL_CREATE_RNA_TREATMENT,
+                            {"operator": args.operator, "note": rna_note},
+                        ).scalar()
+                        print(f"[loader] created RNA treatment_id={treatment_id} for RNA={rcode!r} note={rna_note!r}")
+
+                        cx.execute(
+                            SQL_INSERT_RNA_TREATMENT,
+                            {
+                                "treatment_id": treatment_id,
+                                "fish_id": fish_id,
+                                "rna_id": rid,
+                                "amount": rna_amount,
+                                "units": rna_units,
+                                "note": rna_note,
+                            },
+                        )
+                        print(
+                            f"[loader] RNA detail: fish_id={fish_id} rna_id={rid} "
+                            f"amount={rna_amount} units={rna_units!r} note={rna_note!r}"
+                        )
+
+                # ----- Injected Plasmids (one treatment per plasmid token) -----
+                plasmid_inj_tokens = _list_tokens(
+                    row.get("injected_plasmids")
+                    or row.get("plasmids_injected")
+                    or row.get("plasmid_injection_codes")
+                )
+                plasmid_amount = _to_numeric(row.get("plasmid_amount"))
+                plasmid_units  = _nz(row.get("plasmid_units"))
+                plasmid_note   = _nz(row.get("plasmid_note"))
+
+                if plasmid_inj_tokens:
+                    for plc in plasmid_inj_tokens:
+                        pid = cx.execute(SQL_UPSERT_PLASMID_GET_ID, {"code": plc, "name": plc}).scalar()
+                        if not pid:
+                            continue
+                        ptid = cx.execute(
+                            SQL_CREATE_PLASMID_TREATMENT,
+                            {"operator": args.operator, "note": plasmid_note},
+                        ).scalar()
+                        print(f"[loader] created PLASMID treatment_id={ptid} for plasmid={plc!r} note={plasmid_note!r}")
+
+                        cx.execute(
+                            SQL_INSERT_PLASMID_TREATMENT,
+                            {
+                                "treatment_id": ptid,
+                                "fish_id": fish_id,
+                                "plasmid_id": pid,
+                                "amount": plasmid_amount,
+                                "units": plasmid_units,
+                                "note": plasmid_note,
+                            },
+                        )
+                        print(
+                            f"[loader] plasmid detail: fish_id={fish_id} plasmid_id={pid} "
+                            f"amount={plasmid_amount} units={plasmid_units!r} note={plasmid_note!r}"
+                        )
+
                 upserted += 1
 
             if args.dry_run:
@@ -334,7 +397,12 @@ def main():
 
     dupes = max(attempted - linked, 0)
     print(f"Upserted {upserted} fish; linked {linked}/{attempted} new allele rows; {dupes} already existed.")
+    print("RNA and plasmid injection treatments created as needed (see DB for details).")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"[loader] ERROR: {e}", file=sys.stderr, flush=True)
+        raise
