@@ -1,0 +1,3 @@
+name,batch,nickname,strain,birth_date,description
+FISH_DEMO_001,Batch_X,Dotty,AB,2024-06-15,Example fish only (no links)
+FISH_DEMO_002,Batch_Y,Stripe,TL,2024-08-01,Another example
