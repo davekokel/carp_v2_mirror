@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve repo root from this script's location (works in bash/zsh)
+SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Read DB URL from repo secrets (prefer LOCAL, fallback to DB_URL)
+DB_URL="$(python3 - <<'PY' "$ROOT"
+import tomllib, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+cfg = root / ".streamlit" / "secrets.toml"
+try:
+    with cfg.open("rb") as f:
+        s = tomllib.load(f)
+    print(s.get("DB_URL_LOCAL") or s.get("DB_URL") or "")
+except FileNotFoundError:
+    print("")
+PY
+)"
+
+if [[ -z "${DB_URL:-}" ]]; then
+  echo "DB URL not found in $ROOT/.streamlit/secrets.toml (DB_URL_LOCAL or DB_URL)." >&2
+  exit 1
+fi
+
+# Pass the provided SQL (or run a simple default)
+psql "$DB_URL" -Atc "${*:-select 1;}"
