@@ -1,3 +1,23 @@
+
+## Inspecting STAGING (read-only)
+
+If you just need to look at the live schema/data safely:
+
+```bash
+PGSSLMODE=require psql   -h aws-1-us-west-1.pooler.supabase.com -p 6543   -U postgres.<project-ref> -d postgres
+```
+
+Then in `psql`:
+
+```sql
+SET default_transaction_read_only = on;
+SHOW default_transaction_read_only;
+```
+
+See the full guide with copy‑paste queries in `docs/INSPECTION.md`.
+
+
+
 ### Staging DB (read-only) from Dev Container
 
 Docker can’t reach Supabase’s IPv6-only direct host. Use the **connection pooler** (IPv4) and a **project-qualified** user.
