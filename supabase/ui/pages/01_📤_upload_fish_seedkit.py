@@ -1,13 +1,6 @@
-# 01_📤_upload_fish_seedkit.py
-# 🔒 require password on every page
-try:
-    from supabase.ui.auth_gate import require_app_unlock  # deployed/mirror path
-except Exception:
-    from auth_gate import require_app_unlock  # local path fallback
-
-require_app_unlock()
-
 from __future__ import annotations
+
+# 01_📤_upload_fish_seedkit.py
 
 import csv
 import io
@@ -18,11 +11,30 @@ import tempfile
 import subprocess
 from pathlib import Path
 from typing import List, Tuple
+from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse, quote as urlquote
 
 import pandas as pd
 import streamlit as st
-from urllib.parse import (
-    urlparse, parse_qsl, urlencode, urlunparse, quote as urlquote
+
+# 🔒 auth gate (import paths for local vs mirror)
+try:
+    from supabase.ui.auth_gate import require_app_unlock  # deployed/mirror path
+except Exception:
+    from auth_gate import require_app_unlock  # local path fallback
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Streamlit UI
+# ────────────────────────────────────────────────────────────────────────────────
+
+PAGE_TITLE = "Upload Fish Seedkit (Fish + Linking Only) — DB-aligned"
+st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
+require_app_unlock()
+
+st.title("📤 Upload Fish Seedkit")
+st.caption(
+    "CSV must use **exact DB column names** (see below). "
+    "**No injection treatments are allowed here.** "
+    "Note: `batch_label` is **derived from the CSV filename** automatically."
 )
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -32,7 +44,7 @@ from urllib.parse import (
 COLUMNS_CANONICAL: List[str] = [
     # public.fish columns (1:1)
     "name",                # UNIQUE in DB (upsert key)
-        "line_building_stage",
+    "line_building_stage",
     "nickname",
     "strain",
     "date_of_birth",       # YYYY-MM-DD
@@ -170,7 +182,7 @@ def make_template_csv() -> bytes:
     writer.writeheader()
     writer.writerow({
         "name": "mem-tdmSG-13m",
-                "line_building_stage": "founder",
+        "line_building_stage": "founder",
         "nickname": "membrane-tandem-mStayGold",
         "strain": "casper",
         "date_of_birth": "2025-09-20",  # YYYY-MM-DD (example filled)
@@ -241,29 +253,6 @@ def validate_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str], List[str]]:
     df = df[ordered + trailing] if trailing else df
 
     return df, errors, warnings
-
-# ────────────────────────────────────────────────────────────────────────────────
-# Streamlit UI
-# ────────────────────────────────────────────────────────────────────────────────
-
-PAGE_TITLE = "Upload Fish Seedkit (Fish + Linking Only) — DB-aligned"
-st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
-st.title("📤 Upload Fish Seedkit")
-st.caption(
-    "CSV must use **exact DB column names** (see below). "
-    "**No injection treatments are allowed here.**"
-)
-
-with st.expander("📥 Download CSV template (DB-aligned)", expanded=False):
-    st.download_button(
-        label="Download template (with one example row)",
-        data=make_template_csv(),
-        file_name="seedkit_fish_linking_DB_aligned_template.csv",
-        mime="text/csv",
-        use_container_width=True,
-    )
-    st.markdown("**Canonical headers (order not strict):**")
-    st.code(", ".join(COLUMNS_CANONICAL), language="text")
 
 # Connection preview
 with st.expander("Connection", expanded=False):
@@ -363,5 +352,6 @@ if uploaded is not None:
 st.divider()
 st.caption(
     "This page enforces DB-aligned headers only and intentionally rejects any treatment-related columns. "
-    "Set DB_URL in Streamlit secrets or use DATABASE_URL/PG* env vars. Local hosts use sslmode=disable; remote default to sslmode=require."
+    "Set DB_URL in Streamlit secrets or use DATABASE_URL/PG* env vars. "
+    "Local hosts use sslmode=disable; remote default to sslmode=require."
 )
