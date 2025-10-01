@@ -217,6 +217,11 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="Run without writing to DB")
     ap.add_argument("--operator", default="seedkit_loader",
                     help="Operator to record on created treatments (default: seedkit_loader)")
+ap.add_argument(
+        "--batch-label",
+        default=None,
+        help="Override batch label for all rows. If not provided, the CSV filename (without extension) is used."
+    )
     args = ap.parse_args()
 
     csv_path = Path(args.csv).expanduser().resolve()
@@ -240,6 +245,11 @@ def main():
     linked = 0
     attempted = 0  # allele links attempted
 
+    # Derive batch label once per file (override via flag)
+    default_batch = Path(args.csv).stem  # filename without extension
+    batch_label = args.batch_label or default_batch
+
+
     with eng.connect() as cx:
         trans = cx.begin()
         try:
@@ -247,6 +257,8 @@ def main():
                 p = _row_params(row)
                 if not p["name"]:
                     continue  # require fish name
+                # enforce derived/overridden batch label
+                p["batch"] = batch_label
 
                 # Resolve / upsert fish
                 fish_ids = cx.execute(
