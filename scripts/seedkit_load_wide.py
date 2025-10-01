@@ -175,53 +175,36 @@ def _row_params(row: dict) -> dict:
 
 # ---------- allele allocator / resolver ----------
 def _alloc_or_get_alleles(cx, code: str, legacy_label: str | None):
+    """
+    Resolve canonical allele_number(s) via DB allocator.
+    - CSV never supplies allele_number.
+    - If a legacy label is provided, bind it the first time and always reuse.
+    - If no legacy label is provided, allocate/return the next number for this base_code.
+    Returns a list of string allele_numbers (usually length 1).
+    """
     nums: list[str] = []
+    code = (code or "").strip()
     if not code:
         return nums
 
+    # Support multi-legacy input like "304; 305" if it ever appears
     tokens = []
     if legacy_label:
         tokens = [x.strip() for x in re.split(r"[;,]", legacy_label) if x.strip()]
 
     if not tokens:
-        n = cx.execute(text("select public.next_allele_number(:code)"), {"code": code}).scalar()
-        cx.execute(text("""
-            insert into public.transgene_alleles(transgene_base_code, allele_number)
-            values (:code, :n)
-            on conflict do nothing
-        """), {"code": code, "n": str(n)})
+        n = cx.execute(text("select public.allocate_allele_number(:base_code, :legacy_label)"),
+                       {"base_code": code, "legacy_label": None}).scalar()
         nums.append(str(n))
         return nums
 
     for lab in tokens:
-        n = cx.execute(text("""
-            with maybe as (
-              select allele_number
-              from public.transgene_allele_legacy_map
-              where transgene_base_code = :code and legacy_label = :lab
-            )
-            select coalesce(
-              (select allele_number from maybe)::text,
-              public.next_allele_number(:code)::text
-            )
-        """), {"code": code, "lab": lab}).scalar()
-
-        cx.execute(text("""
-            insert into public.transgene_alleles(transgene_base_code, allele_number)
-            values (:code, :n)
-            on conflict do nothing
-        """), {"code": code, "n": str(n)})
-
-        cx.execute(text("""
-            insert into public.transgene_allele_legacy_map(transgene_base_code, legacy_label, allele_number)
-            values (:code, :lab, :n)
-            on conflict do nothing
-        """), {"code": code, "lab": lab, "n": str(n)})
-
+        n = cx.execute(text("select public.allocate_allele_number(:base_code, :legacy_label)"),
+                       {"base_code": code, "legacy_label": lab}).scalar()
         nums.append(str(n))
 
     return nums
-
+# >>> ALLELE_ALLOCATOR_PATCH:END
 
 # ---------- main ----------
 def main():
@@ -293,7 +276,22 @@ def main():
                 legacy = _str(row.get("legacy_allele_number") or row.get("allele_label_legacy"))
                 if code:
                     cx.execute(SQL_UPSERT_TRANSGENE, {"code": code, "name": code})
-                    for num in _alloc_or_get_alleles(cx, code, legacy):
+
+                    # Reuse existing link for this fish+base_code if present (prevents new numbers)
+                    existing_nums = cx.execute(
+                        text("""
+                            select allele_number
+                            from public.fish_transgene_alleles
+                            where fish_id = :fish_id and transgene_base_code = :code
+                            order by allele_number
+                        """),
+                        {"fish_id": fish_id, "code": code},
+                    ).scalars().all()
+
+                    nums = [str(existing_nums[0])] if existing_nums else _alloc_or_get_alleles(cx, code, legacy)
+
+                    for num in nums:
+                        # ensure allele row exists/described
                         cx.execute(SQL_UPSERT_ALLELE, {"code": code, "allele_number": num, "desc": ""})
                         attempted += 1
                         res = cx.execute(
