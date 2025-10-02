@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import List, Tuple
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse, quote as urlquote
+from sqlalchemy import text, create_engine
 
 import pandas as pd
 import streamlit as st
@@ -31,24 +32,7 @@ st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
 require_app_unlock()
 
 st.title("📤 Upload Fish Seedkit")
-st.caption(
 
-with st.expander("📥 Download CSV template (DB-aligned)", expanded=False):
-    st.download_button(
-        label="Download template (with one example row)",
-        data=make_template_csv(),
-        file_name="seedkit_fish_linking_DB_aligned_template.csv",
-        mime="text/csv",
-        use_container_width=True,
-    )
-    st.markdown("**Canonical headers (order not strict):**")
-    st.code(", ".join(COLUMNS_CANONICAL), language="text")
-
-    "CSV must use **exact DB column names** (see below). "
-
-    "**No injection treatments are allowed here.** "
-    "Note: `batch_label` is **derived from the CSV filename** automatically."
-)
 
 # ────────────────────────────────────────────────────────────────────────────────
 # DB-ALIGNED CANONICAL SCHEMA (order not strict; headers must match exactly)
@@ -91,16 +75,77 @@ TREATMENT_HINTS = {
     "dose",
     "concentration",
     "vehicle",
-    # operator only allowed as CLI flag
-    "operator",
 }
 
 ALLOWED_LINE_STAGES = {"founder", "F0", "F1", "F2", "F3", "unknown"}
 ALLOWED_ZYGOSITY = {"heterozygous", "homozygous", "unknown", ""}
 
+# downlad example
+with st.expander("📥 Download example filled-out CSV", expanded=False):
+    try:
+        example_path = Path("supabase/seed_kits/fish/seed_kit_wide-2025-09-27/2025-10-01-170233-seedkit_transgene_alleles_dqm_wide.csv")
+        st.download_button(
+            label="Download example file",
+            data=example_path.read_bytes(),
+            file_name=example_path.name,
+            mime="text/csv"
+        )
+    except Exception as e:
+        st.warning(f"Couldn't load example file: {e}")
+
 # ────────────────────────────────────────────────────────────────────────────────
 # Helpers: loader path, DB URL building (secrets/env, DSN→URL), sslmode, masking
 # ────────────────────────────────────────────────────────────────────────────────
+@st.cache_resource(show_spinner=False)
+def _engine():
+    return create_engine(build_db_url(), pool_pre_ping=True, future=True, connect_args={"prepare_threshold": None})
+
+def upsert_fish_seed_batches_by_codes(engine, fish_codes, seed_batch_id: str, fish_names=None):
+    codes_norm = [str(c).strip().upper() for c in (fish_codes or []) if str(c).strip()]
+    names_norm = [str(n).strip().upper() for n in (fish_names or []) if str(n).strip()]
+    if not codes_norm and not names_norm:
+        return
+
+    with engine.begin() as cx:
+        cx.execute(
+            text("""
+                INSERT INTO public.seed_batches(seed_batch_id, batch_label)
+                VALUES (:id, :label)
+                ON CONFLICT (seed_batch_id) DO NOTHING
+            """),
+            {"id": seed_batch_id, "label": seed_batch_id},
+        )
+
+        fish_ids = cx.execute(
+            text("""
+                SELECT DISTINCT f.id_uuid
+                FROM public.fish f
+                WHERE
+                  (:use_codes AND UPPER(TRIM(f.fish_code)) = ANY(:codes))
+                  OR
+                  (:use_names AND UPPER(TRIM(f.name)) = ANY(:names))
+            """),
+            {
+                "codes": codes_norm or [],
+                "names": names_norm or [],
+                "use_codes": bool(codes_norm),
+                "use_names": bool(names_norm),
+            },
+        ).scalars().all()
+
+        if not fish_ids:
+            return
+
+        cx.execute(
+            text("""
+                INSERT INTO public.fish_seed_batches (fish_id, seed_batch_id, updated_at)
+                VALUES (:fish_id, :seed_batch_id, now())
+                ON CONFLICT (fish_id) DO UPDATE
+                  SET seed_batch_id = EXCLUDED.seed_batch_id,
+                      updated_at    = EXCLUDED.updated_at
+            """),
+            [{"fish_id": fid, "seed_batch_id": seed_batch_id} for fid in fish_ids],
+        )
 
 def get_loader_path() -> Path:
     """Default: repo_root/parents[3]/scripts/seedkit_load_wide.py; allow env override."""
@@ -290,7 +335,6 @@ with left:
     )
 with right:
     dry_run = st.checkbox("Dry run (no DB changes)", value=True)
-    operator = st.text_input("Operator (recorded on created/updated rows)", value="streamlit_seedkit")
 
 if uploaded is not None:
     try:
@@ -315,6 +359,8 @@ if uploaded is not None:
 
     st.subheader("Preview")
     st.dataframe(df.head(50), use_container_width=True)
+    # Derive seed_batch_id from uploaded filename (sans extension)
+    seed_batch_id = Path(uploaded.name).stem.strip()
 
     run = st.button("Run loader" if dry_run else "Load to database", type="primary")
     if run:
@@ -338,7 +384,6 @@ if uploaded is not None:
             str(loader_path),
             "--db", db_url,
             "--csv", tmp_csv,
-            "--operator", operator or "streamlit_seedkit",
         ]
         if dry_run:
             cmd.append("--dry-run")
@@ -357,7 +402,47 @@ if uploaded is not None:
 
             if proc.returncode == 0:
                 status.update(label="Done", state="complete")
-                st.success("Dry run OK ✅" if dry_run else "Load complete ✅")
+                if dry_run:
+                    st.success("Dry run OK ✅")
+                else:
+                    try:
+                        uploaded_codes = (df["fish_code"].astype(str).tolist() if "fish_code" in df.columns else [])
+                        uploaded_names = (df["name"].astype(str).tolist() if "name" in df.columns else [])
+                        upsert_fish_seed_batches_by_codes(_engine(), uploaded_codes, seed_batch_id, fish_names=uploaded_names)
+
+                        csv_creators = []
+                        if "created_by" in df.columns:
+                            if "fish_code" in df.columns:
+                                csv_creators = [
+                                    (str(c).strip().upper(), str(cb).strip())
+                                    for c, cb in zip(df["fish_code"], df["created_by"])
+                                    if str(c).strip() and str(cb).strip()
+                                ]
+                            else:
+                                csv_creators = [
+                                    (str(n).strip().upper(), str(cb).strip())
+                                    for n, cb in zip(df["name"], df["created_by"])
+                                    if str(n).strip() and str(cb).strip()
+                                ]
+                        if csv_creators:
+                            params = [{"key": k, "creator": v} for k, v in csv_creators]
+                            with _engine().begin() as cx:
+                                cx.execute(
+                                    text("""
+                                        UPDATE public.fish f
+                                        SET created_by = :creator
+                                        WHERE (f.created_by IS DISTINCT FROM :creator)
+                                        AND (
+                                                UPPER(TRIM(f.fish_code)) = :key
+                                            OR UPPER(TRIM(f.name))      = :key
+                                        )
+                                    """),
+                                    params,  # executemany over all (key, creator) pairs
+                                )
+
+                        st.success("Load complete ✅ — batch labels and created_by updated")
+                    except Exception as e:
+                        st.warning(f"Post-load labeling step hit an issue: {e}")
             else:
                 status.update(label="Failed", state="error")
                 st.error(f"Loader exited with code {proc.returncode}")

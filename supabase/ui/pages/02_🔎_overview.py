@@ -12,6 +12,7 @@ import os
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 from datetime import datetime
 from typing import Any, Dict, List
+from supabase.queries import load_fish_overview
 
 import pandas as pd
 import streamlit as st
@@ -20,7 +21,7 @@ from sqlalchemy import create_engine, text
 PAGE_TITLE = "CARP — Overview"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🔎", layout="wide")
 st.title("🔎 Overview")
-st.caption("Global search across fish, genotype, and treatments (via `public.vw_fish_overview`).")
+st.caption("Global search across fish, genotype, and treatments (via `public.vw_fish_overview_with_label`).")
 
 # ------------------------- DB helpers (reuse style from upload page) -------------------------
 def _ensure_sslmode(url: str) -> str:
@@ -67,78 +68,83 @@ def _engine():
 
 # ------------------------- UI controls -------------------------
 q = st.text_input("Search", placeholder="name, nickname, strain, genotype, RNA/plasmid notes…")
-col_a, col_b, col_c = st.columns([1,1,2])
-with col_a:
-    page_size = st.selectbox("Rows per page", [25, 50, 100], index=1)
-with col_b:
-    page = st.number_input("Page", min_value=1, value=1, step=1)
-offset = (page - 1) * page_size
 
 # Optional quick filters (extend as needed)
 with st.expander("Filters", expanded=False):
     stage = st.selectbox("Line building stage", ["(any)","founder","F0","F1","F2","F3","unknown"], index=0)
     strain = st.text_input("Strain contains")
 
-# ------------------------- Build SQL -------------------------
-where_clauses: List[str] = []
-params: Dict[str, Any] = {}
+# ------------------------- Infinite scroll state -------------------------
+if "overview_offset" not in st.session_state:
+    st.session_state.overview_offset = 0
+if "overview_page_size" not in st.session_state:
+    st.session_state.overview_page_size = 100  # change as needed
 
-if q:
-    params["q"] = f"%{q}%"
-    where_clauses.append(
-        "("
-        " fish_name ILIKE :q OR nickname ILIKE :q OR strain ILIKE :q "
-        " OR genotype_text ILIKE :q OR rna_injections_text ILIKE :q OR plasmid_injections_text ILIKE :q "
-        ")"
-    )
+# optional reset button
+if st.button("🔄 Reset results"):
+    st.session_state.overview_offset = 0
 
-if stage and stage != "(any)":
-    params["stage"] = stage
-    where_clauses.append("line_building_stage = :stage")
+# compute page based on offset
+page = (st.session_state.overview_offset // st.session_state.overview_page_size) + 1
 
-if strain:
-    params["strain_like"] = f"%{strain}%"
-    where_clauses.append("strain ILIKE :strain_like")
-
-where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-
-# count + page query
-SQL_COUNT = text(f"SELECT COUNT(*) FROM public.vw_fish_overview {where_sql}")
-SQL_PAGE = text(
-    f"""
-    SELECT *
-    FROM public.vw_fish_overview
-    {where_sql}
-    ORDER BY fish_name NULLS LAST
-    LIMIT :limit OFFSET :offset
-    """
-)
-
-params_page = dict(params)
-params_page["limit"] = int(page_size)
-params_page["offset"] = int(offset)
-
-# ------------------------- Query + render -------------------------
+# ------------------------- Load data -------------------------
 try:
-    with _engine().connect() as cx:
-        total = cx.execute(SQL_COUNT, params).scalar() or 0
-        rows = pd.read_sql(SQL_PAGE, cx, params=params_page)
+    total, rows = load_fish_overview(
+        _engine(),
+        page_size=st.session_state.overview_page_size,
+        page=page,
+        q=q,
+        stage=stage,
+        strain=strain
+    )
 except Exception as e:
     st.error(f"Query failed: {e}")
     st.stop()
 
-left, right = st.columns([3,1])
-with left:
-    st.write(f"**{total}** matching rows")
-with right:
-    if not rows.empty:
-        csv = rows.to_csv(index=False).encode("utf-8")
-        st.download_button("Download CSV", csv, file_name=f"fish_overview_{datetime.utcnow().date()}.csv", mime="text/csv")
+# ------------------------- Display -------------------------
+# Prefer enriched creator if present
+if "created_by_enriched" in rows.columns:
+    if "created_by" in rows.columns:
+        # Treat empty strings as missing, then prefer enriched
+        cb = rows["created_by"].astype("string")
+        cb = cb.mask(cb.str.strip() == "")
+        rows["created_by"] = cb.combine_first(rows["created_by_enriched"])
+    else:
+        rows["created_by"] = rows["created_by_enriched"]
+# Deduplicate any repeated 'batch_label' columns (e.g., from v.* plus batch_label)
+dup_idx = [i for i, c in enumerate(rows.columns) if c == "batch_label"]
+if len(dup_idx) > 1:
+    coalesced = rows.iloc[:, dup_idx].bfill(axis=1).iloc[:, 0]
+    rows = rows.drop(columns=[rows.columns[i] for i in dup_idx[1:]])
+    rows["batch_label"] = coalesced
+# Optional: filter by batch label when present
+if "batch_label" in rows.columns:
+    s = rows["batch_label"].astype("string")
+    label_opts = sorted(pd.unique(s.dropna()))
+    if label_opts:
+        selected_labels = st.multiselect("Batch label", options=label_opts, key="batch_label_filter")
+        if selected_labels:
+            rows = rows[s.isin(selected_labels)]
+_total_after = len(rows)
+st.caption(f"Showing {min(st.session_state.overview_offset + st.session_state.overview_page_size, _total_after):,} of {_total_after:,} rows")
 
-st.dataframe(rows, use_container_width=True, height=520)
+preferred_order = [
+    "batch_label", "seed_batch_id",
+    "fish_code", "fish_name", "nickname", "line_building_stage", "created_by", "date_of_birth",
+    "transgene_base_code", "allele_number", "transgene_name",
+    "injected_plasmid_name", "injected_rna_name"
+]
+available_cols = [col for col in preferred_order if col in rows.columns]
+display_df = rows[available_cols].copy()
+if "batch_label" not in rows.columns:
+    st.info("`batch_label` isn’t present in the current query results. Showing other columns until it’s wired up in the backend view.")
 
-with st.expander("Connection (masked)", expanded=False):
-    try:
-        st.code(_mask_url_password(build_db_url()))
-    except Exception as e:
-        st.caption(str(e))
+st.dataframe(display_df, use_container_width=True)
+
+# “Load more” button
+if st.session_state.overview_offset + st.session_state.overview_page_size < total:
+    if st.button("⬇️ Load more"):
+        st.session_state.overview_offset += st.session_state.overview_page_size
+        st.rerun()
+
+
