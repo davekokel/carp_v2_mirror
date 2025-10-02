@@ -33,6 +33,18 @@ require_app_unlock()
 st.title("📤 Upload Fish Seedkit")
 st.caption(
     "CSV must use **exact DB column names** (see below). "
+
+with st.expander("📥 Download CSV template (DB-aligned)", expanded=False):
+    st.download_button(
+        label="Download template (with one example row)",
+        data=make_template_csv(),
+        file_name="seedkit_fish_linking_DB_aligned_template.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+    st.markdown("**Canonical headers (order not strict):**")
+    st.code(", ".join(COLUMNS_CANONICAL), language="text")
+
     "**No injection treatments are allowed here.** "
     "Note: `batch_label` is **derived from the CSV filename** automatically."
 )
