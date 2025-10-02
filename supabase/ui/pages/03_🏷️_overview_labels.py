@@ -313,9 +313,9 @@ def render_labels_pdf(df: pd.DataFrame) -> bytes:
     TOP_LIFT = 2     # raise all text upwards
 
     # styles (reduced fonts)
-    style_big   = ParagraphStyle("big",   fontName="Helvetica-Bold", fontSize=9,   leading=10.5)
-    style_body  = ParagraphStyle("body",  fontName="Helvetica",      fontSize=7.5, leading=9)
-    style_small = ParagraphStyle("small", fontName="Helvetica",      fontSize=6,   leading=7.5, textColor=colors.grey)
+    style_big   = ParagraphStyle("big",   fontName="Helvetica-Bold", fontSize=12,   leading=10.5)
+    style_body  = ParagraphStyle("body",  fontName="Helvetica",      fontSize=10, leading=9)
+    style_small = ParagraphStyle("small", fontName="Helvetica",      fontSize=9,   leading=7.5, textColor=colors.black)
     
     # avoid breaking long tokens across lines
     style_big.splitLongWords = 0
@@ -340,7 +340,7 @@ def render_labels_pdf(df: pd.DataFrame) -> bytes:
     def draw_label(rec: dict):
         x0, y0 = MARGIN, MARGIN
         w, h = LABEL_W - 2 * MARGIN, LABEL_H - 2 * MARGIN
-        text_w = w - QR_SIZE - 2
+        text_w = w - QR_SIZE - 6
         x_text = x0
         y      = y0 + h + TOP_LIFT
 
@@ -355,53 +355,67 @@ def render_labels_pdf(df: pd.DataFrame) -> bytes:
         stage       = _s(rec.get("line_building_stage")).strip()
         dob         = _s(rec.get("date_of_birth")).strip()
 
+        # ---- Tank on its own line (left), then Fish code directly under it (left) ----
+        tank_font_name, tank_font_size = "Helvetica-Bold", 12
+        fish_font_name, fish_font_size = "Helvetica", 10
+
+        # 1) TANK line (left-aligned)
+        c.setFont(tank_font_name, tank_font_size)
+        tank_text = _ellipsize(c, tank, tank_font_name, tank_font_size, text_w)
+        tank_baseline = y - tank_font_size
+        c.drawString(x_text, tank_baseline, tank_text)
+
+        # 2) FISH line (left-aligned, directly under tank, tighter lead)
+        extra_leading = 2                          # was 6 — shrink the gap under tank
+        fish_baseline = tank_baseline - fish_font_size - extra_leading
+        c.setFont(fish_font_name, fish_font_size)
+        c.drawString(x_text, fish_baseline, fish_code)
+
+        # Move y down just a little before name/nickname
+        y = fish_baseline - 5                      # was -10 or more — tighten further
+
         if nickname and nickname.lower() == fish_name.lower():
             nickname = ""
 
-        # top row: tank (left) + fish_code (right), no overlap
-        tank_font_name, tank_font_size = "Helvetica-Bold", 9
-        fish_font_name, fish_font_size = "Helvetica", 7.5
-        baseline_y = y - 9
-        GAP = 6
-
-        fish_w = c.stringWidth(fish_code, fish_font_name, fish_font_size)
-        max_tank_w = max(text_w - fish_w - GAP, 0)
-        tank_text  = _ellipsize(c, tank, tank_font_name, tank_font_size, max_tank_w)
-
-        c.setFont(tank_font_name, tank_font_size)
-        c.drawString(x_text, baseline_y, tank_text)
-        c.setFont(fish_font_name, fish_font_size)
-        c.drawString(x_text + text_w - fish_w, baseline_y, fish_code)
-        y -= 12
-
-        # name above nickname
-        if fish_name:
-            y = draw_par(c, fish_name,  style_body, x_text, y, text_w, vgap=1)
+        # --- after the fish_code block ---
+        # nickname above name (both left-aligned)
         if nickname:
             y = draw_par(c, nickname,   style_body, x_text, y, text_w, vgap=2)
+        if fish_name:
+            y = draw_par(c, fish_name,  style_body, x_text, y, text_w, vgap=2)
 
-        # both pretties
-        # ---- Combined pretties on a single line ----
+        # single pretty (nickname version)
         y = draw_par(c, pretty_nick, style_body, x_text, y, text_w, vgap=2)
 
-        # small details (no batch)
-        small = f"Strain: {strain} · Stage: {stage} · DOB: {dob}"
-        y = draw_par(c, small, style_small, x_text, y, text_w, vgap=0)
+       # Small details (each on its own line)
+        y = draw_par(c, f"Strain: {strain}", style_small, x_text, y, text_w, vgap=1)
+        y = draw_par(c, f"Stage: {stage}",  style_small, x_text, y, text_w, vgap=1)
+        y = draw_par(c, f"DOB: {dob}",      style_small, x_text, y, text_w, vgap=0)
 
-        # ---- Code128 bottom-right (instead of QR) ----
-        from reportlab.graphics.barcode import code128
+        # ---- QR bottom-right ----
+        from reportlab.graphics.barcode import qr
+        from reportlab.graphics.shapes import Drawing
+        from reportlab.graphics import renderPDF
 
-        bar_data = tank or fish_code or "TANK-UNKNOWN"
+        qr_data = tank or fish_code or "TANK-UNKNOWN"
+        qr_widget = qr.QrCodeWidget(qr_data)
+        bx0, by0, bx1, by1 = qr_widget.getBounds()
+        bw, bh = (bx1 - bx0), (by1 - by0)
 
-        # Target the same footprint as QR_SIZE wide-ish and label height ~ QR_SIZE
-        # Tune barWidth to fit your strings; 0.5–0.7 pt works well on 2.4″ labels.
-        bar = code128.Code128(bar_data, barHeight=QR_SIZE * 0.4, barWidth=1.0)
+        # scale to our reserved box
+        sx = QR_SIZE / bw
+        sy = QR_SIZE / bh
+        d = Drawing(QR_SIZE, QR_SIZE)
+        d.add(qr_widget)
+        d.transform = [sx, 0, 0, sy, 0, 0]
 
-        # Right-align in the reserved area
-        bar_w = bar.width
-        draw_x = x0 + w - bar_w  # flush to the right edge of the text area
-        draw_y = y0               # bottom of label content box
-        bar.drawOn(c, draw_x, draw_y)
+        # place at bottom-right of the content box
+        # nudge QR toward the lower-right corner
+        QR_INSET_X = 6   # +right (pt)
+        QR_INSET_Y = -6   # +down (pt; negative moves down in PDF coords)
+        qr_x = min(x0 + w - QR_SIZE + QR_INSET_X, LABEL_W - QR_SIZE)  # keep inside page
+        qr_y = max(y0 + QR_INSET_Y, 0)                                # avoid < 0
+        renderPDF.draw(d, c, qr_x, qr_y)
 
     # empty/diagnostic-safe rendering
     if df is None or df.empty:
