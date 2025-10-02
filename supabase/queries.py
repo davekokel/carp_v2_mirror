@@ -72,7 +72,9 @@ def load_fish_overview(
         total = cx.execute(sql_count, params).scalar() or 0
         df = pd.read_sql(sql_page, cx, params=params_page)
 
-    return total, dffrom typing import Optional
+    return total, df
+
+from typing import Optional
 from sqlalchemy import text
 
 def list_fish_minimal(conn, q: Optional[str] = None, limit: int = 200):
