@@ -122,3 +122,16 @@ def list_treatments_minimal(conn, q: Optional[str] = None, limit: int = 200):
         limit :limit
     """)
     return conn.execute(sql, {"q": qnorm, "limit": limit}).mappings().all()
+def list_treatments_minimal(conn, q: Optional[str] = None, limit: int = 200):
+    from sqlalchemy import text
+    qnorm = (None if (q is not None and q.strip() == "") else q)
+    sql = text("""
+        select distinct on ((treatment_type::text))
+               id_uuid,
+               (treatment_type::text) as treatment_type
+        from treatments
+        where (:q is null or (treatment_type::text) ilike '%' || :q || '%')
+        order by (treatment_type::text) asc, id_uuid asc
+        limit :limit
+    """)
+    return conn.execute(sql, {"q": qnorm, "limit": limit}).mappings().all()
