@@ -11,6 +11,18 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
 
+# Robust import for cloud runners
+try:
+    from supabase.queries import load_fish_overview
+except ModuleNotFoundError:
+    import sys
+    from pathlib import Path
+    # Insert the repo root (the parent of 'supabase') into sys.path
+    ROOT = Path(__file__).resolve().parents[2]  # .../carp_v2_mirror
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from supabase.queries import load_fish_overview
+
 # 🔒 auth (mirror/local)
 try:
     from supabase.ui.auth_gate import require_app_unlock
