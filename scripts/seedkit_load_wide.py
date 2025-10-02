@@ -12,6 +12,138 @@ from sqlalchemy import create_engine, text
 
 
 # ---------- helpers ----------
+
+def upsert_transgene_links(engine, df, default_zygosity="unknown"):
+    if df is None or df.empty:
+        return
+
+    # Normalize expected columns
+    have_base = "transgene_base_code" in df.columns
+    have_num  = "allele_number" in df.columns
+    have_legacy = "allele_label_legacy" in df.columns
+    have_code = "fish_code" in df.columns
+    have_name = "name" in df.columns
+    have_zyg  = "zygosity" in df.columns
+
+    if not have_base or not (have_num or have_legacy) or not (have_code or have_name):
+        return  # nothing to do
+
+    # Build candidate rows (fish key, base, number?, legacy?, zygosity)
+    rows = []
+    for _, r in df.iterrows():
+        base = str(r["transgene_base_code"]).strip() if have_base else ""
+        if not base:
+            continue
+        key = str(r["fish_code"]).strip() if have_code else str(r["name"]).strip()
+        if not key:
+            continue
+        zyg = str(r["zygosity"]).strip() if have_zyg else ""
+        zyg = zyg or default_zygosity
+
+        num = None
+        if have_num and str(r["allele_number"]).strip() != "":
+            try:
+                num = int(str(r["allele_number"]).strip())
+            except Exception:
+                num = None
+        legacy = str(r["allele_label_legacy"]).strip() if have_legacy else ""
+        rows.append((key.upper(), base, num, legacy, zyg))
+
+    if not rows:
+        return
+
+    with engine.begin() as cx:
+        # 1) Resolve fish IDs from fish_code or name (case/trim insensitive)
+        fish_map = dict(
+            cx.execute(
+                text("""
+                    WITH keys AS (SELECT UNNEST(:keys::text[]) AS k)
+                    SELECT
+                      UPPER(TRIM(f.fish_code)) AS k, f.id_uuid
+                    FROM public.fish f
+                    JOIN keys ON UPPER(TRIM(f.fish_code)) = keys.k
+                    UNION ALL
+                    SELECT
+                      UPPER(TRIM(f.name)) AS k, f.id_uuid
+                    FROM public.fish f
+                    JOIN keys ON UPPER(TRIM(f.name)) = keys.k
+                """),
+                {"keys": [k for k, _, _, _, _ in rows]},
+            ).all()
+        )
+
+        # Partition rows by whether we already have allele_number
+        direct = []   # we have number
+        resolve = []  # need lookup by legacy label
+        for key, base, num, legacy, zyg in rows:
+            fid = fish_map.get(key)
+            if not fid:
+                continue
+            if num is not None:
+                direct.append((fid, base, num, zyg))
+            elif legacy:
+                resolve.append((fid, base, legacy, zyg))
+
+        # 2) Upsert allele definitions for (base, number) combos (idempotent)
+        if direct:
+            cx.execute(
+                text("""
+                    INSERT INTO public.transgene_alleles (transgene_base_code, allele_number)
+                    SELECT x.base, x.num
+                    FROM (SELECT DISTINCT :base AS base, :num AS num) AS t
+                    -- executemany values:
+                """).bindparams(),  # placeholder noop; we use the multi-values form below
+            )
+            cx.execute(
+                text("""
+                    INSERT INTO public.transgene_alleles (transgene_base_code, allele_number)
+                    VALUES (:base, :num)
+                    ON CONFLICT (transgene_base_code, allele_number) DO NOTHING
+                """),
+                [{"base": b, "num": n} for _, b, n, _ in direct],
+            )
+
+        # 3) Resolve legacy labels → allele_number via transgene_alleles.allele_name
+        resolved = []
+        if resolve:
+            look = cx.execute(
+                text("""
+                    SELECT ta.transgene_base_code, ta.allele_name, ta.allele_number
+                    FROM public.transgene_alleles ta
+                    WHERE (ta.transgene_base_code, COALESCE(NULLIF(TRIM(ta.allele_name),''),'~')) IN (
+                        SELECT base, COALESCE(NULLIF(TRIM(lbl),''),'~')
+                        FROM UNNEST(:bases::text[], :labels::text[]) AS t(base, lbl)
+                    )
+                """),
+                {
+                    "bases": [b for _, b, _, _ in resolve],
+                    "labels": [l for _, _, l, _ in resolve],
+                },
+            ).all()
+            # Build quick lookup
+            legacy_map = {(r[0], (r[1] or "").strip()): r[2] for r in look}
+            for fid, base, lbl, zyg in resolve:
+                num = legacy_map.get((base, (lbl or "").strip()))
+                if num is not None:
+                    resolved.append((fid, base, int(num), zyg))
+
+        # Merge direct + resolved
+        link_rows = direct + resolved
+        if not link_rows:
+            return
+
+        # 4) Insert fish ↔ allele links (idempotent)
+        cx.execute(
+            text("""
+                INSERT INTO public.fish_transgene_alleles
+                    (fish_id, transgene_base_code, allele_number, zygosity, created_at)
+                VALUES (:fid, :base, :num, :zyg, now())
+                ON CONFLICT (fish_id, transgene_base_code, allele_number) DO NOTHING
+            """),
+            [{"fid": fid, "base": base, "num": num, "zyg": zyg} for (fid, base, num, zyg) in link_rows],
+        )
+
+
 def _normalize_dsn(url: str) -> str:
     """Prefer psycopg v3 driver for SQLAlchemy."""
     return (

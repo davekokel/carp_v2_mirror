@@ -111,7 +111,26 @@ if "created_by_enriched" in rows.columns:
         rows["created_by"] = cb.combine_first(rows["created_by_enriched"])
     else:
         rows["created_by"] = rows["created_by_enriched"]
+# Prefer filled transgene columns if provided by the view
+for orig, filled in [
+    ("transgene_base_code", "transgene_base_code_filled"),
+    ("allele_number", "allele_number_filled"),
+    ("transgene_name", "transgene_name_filled"),
+]:
+    if filled in rows.columns:
+        if orig in rows.columns:
+            s = rows[orig].astype("string")
+            rows[orig] = s.mask(s.str.strip() == "").combine_first(rows[filled])
+        else:
+            rows[orig] = rows[filled]
 # Deduplicate any repeated 'batch_label' columns (e.g., from v.* plus batch_label)
+# Deduplicate 'transgene_*' columns if they appear twice (from v.* plus filled)
+for col in ["transgene_base_code", "allele_number", "transgene_name"]:
+    dups = [i for i, c in enumerate(rows.columns) if c == col]
+    if len(dups) > 1:
+        coalesced = rows.iloc[:, dups].bfill(axis=1).iloc[:, 0]
+        rows = rows.drop(columns=[rows.columns[i] for i in dups[1:]])
+        rows[col] = coalesced
 dup_idx = [i for i, c in enumerate(rows.columns) if c == "batch_label"]
 if len(dup_idx) > 1:
     coalesced = rows.iloc[:, dup_idx].bfill(axis=1).iloc[:, 0]
@@ -129,10 +148,11 @@ _total_after = len(rows)
 st.caption(f"Showing {min(st.session_state.overview_offset + st.session_state.overview_page_size, _total_after):,} of {_total_after:,} rows")
 
 preferred_order = [
-    "batch_label", "seed_batch_id",
+    "batch_label",
     "fish_code", "fish_name", "nickname", "line_building_stage", "created_by", "date_of_birth",
-    "transgene_base_code", "allele_number", "transgene_name",
-    "injected_plasmid_name", "injected_rna_name"
+    "transgene_base_code_filled", "allele_number_filled", "allele_code_filled", "allele_name_filled",
+    "transgene_pretty_filled", "transgene_pretty_nickname",  # ← add these if you want both
+    "injected_plasmid_name", "injected_rna_name",
 ]
 available_cols = [col for col in preferred_order if col in rows.columns]
 display_df = rows[available_cols].copy()
