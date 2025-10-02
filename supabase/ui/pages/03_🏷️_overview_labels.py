@@ -1,31 +1,33 @@
 from __future__ import annotations
 
-# 03_🏷️_overview_labels.py
-
-import os
-from io import BytesIO
-from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
-from typing import Any, Dict, List, Tuple
-
-import pandas as pd
-import streamlit as st
-from sqlalchemy import create_engine, text
-
-# Robust import for cloud runners
-# Ensure repo root (parent of 'supabase') is first on sys.path before importing local package
-import sys
-from pathlib import Path
-ROOT = Path(__file__).resolve().parents[3]  # .../carp_v2_mirror
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-from supabase.queries import load_fish_overview
-
-# 🔒 auth (mirror/local)
+# 🔒 require password on every page
 try:
     from supabase.ui.auth_gate import require_app_unlock
 except Exception:
     from auth_gate import require_app_unlock
 require_app_unlock()
+
+import os
+from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
+from datetime import datetime
+from typing import Any, Dict, List
+
+# --- Robust import for cloud runners — prefer local 'supabase' package ---
+import sys
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[3]  # .../carp_v2_mirror
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import importlib
+import supabase.queries as _queries
+importlib.reload(_queries)  # ensure we pick up latest code on warm restarts
+from supabase.queries import load_fish_overview
+# -------------------------------------------------------------------------
+
+import pandas as pd
+import streamlit as st
+from sqlalchemy import create_engine, text
 
 PAGE_TITLE = "CARP — Overview → PDF Labels"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🏷️", layout="wide")
@@ -141,31 +143,52 @@ def load_overview_page(
 ) -> tuple[int, pd.DataFrame]:
     offset = (page - 1) * page_size
     where, params = [], {}
+
+    # Search only columns that exist in the view (qualify as v.)
     if q:
         params["q"] = f"%{q}%"
         where.append(
             "("
-            " fish_name ILIKE :q OR nickname ILIKE :q OR strain ILIKE :q "
-            " OR transgene_base_code_filled ILIKE :q "
-            " OR allele_code_filled ILIKE :q OR allele_name_filled ILIKE :q "
-            " OR fish_code ILIKE :q "
+            " v.fish_code ILIKE :q"
+            " OR v.fish_name ILIKE :q"
+            " OR v.nickname ILIKE :q"
+            " OR v.transgene_base_code_filled ILIKE :q"
+            " OR v.allele_code_filled ILIKE :q"
+            " OR v.allele_name_filled ILIKE :q"
+            " OR v.transgene_pretty_filled ILIKE :q"
+            " OR v.transgene_pretty_nickname ILIKE :q"
             ")"
         )
+
     if stage and stage != "(any)":
         params["stage"] = stage
-        where.append("line_building_stage = :stage")
+        where.append("v.line_building_stage = :stage")
+
+    # Strain filter via fish join (qualify as f.)
     if strain_sub:
         params["strain_like"] = f"%{strain_sub}%"
-        where.append("strain ILIKE :strain_like")
-    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
-    sql_count = text(f"SELECT COUNT(*) FROM public.vw_fish_overview_with_label{where_sql}")
-    sql_page = text(f"""
-        SELECT *
-        FROM public.vw_fish_overview_with_label
+        where.append("f.strain ILIKE :strain_like")
+
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    sql_count = text(f"""
+        SELECT COUNT(*)
+        FROM public.vw_fish_overview_with_label v
+        LEFT JOIN public.fish f
+          ON UPPER(TRIM(f.fish_code)) = UPPER(TRIM(v.fish_code))
         {where_sql}
-        ORDER BY fish_code NULLS LAST
+    """)
+
+    sql_page = text(f"""
+        SELECT v.*
+        FROM public.vw_fish_overview_with_label v
+        LEFT JOIN public.fish f
+          ON UPPER(TRIM(f.fish_code)) = UPPER(TRIM(v.fish_code))
+        {where_sql}
+        ORDER BY v.fish_code NULLS LAST
         LIMIT :limit OFFSET :offset
     """)
+
     params_page = dict(params, limit=page_size, offset=offset)
     with engine.connect() as cx:
         total = cx.execute(sql_count, params).scalar() or 0
