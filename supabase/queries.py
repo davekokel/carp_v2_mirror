@@ -110,3 +110,15 @@ def insert_fish_treatment_minimal(conn, *, fish_id: str, treatment_id: str, appl
         "batch_label": batch_label,
         "created_by": created_by,
     }).scalar_one()
+# -- hotfix: cast enum to text for searching/sorting
+def list_treatments_minimal(conn, q: Optional[str] = None, limit: int = 200):
+    from sqlalchemy import text
+    qnorm = (None if (q is not None and q.strip() == "") else q)
+    sql = text("""
+        select id_uuid, (treatment_code::text) as treatment_code
+        from treatments
+        where (:q is null or (treatment_code::text) ilike '%' || :q || '%')
+        order by (treatment_code::text) asc
+        limit :limit
+    """)
+    return conn.execute(sql, {"q": qnorm, "limit": limit}).mappings().all()
