@@ -72,4 +72,39 @@ def load_fish_overview(
         total = cx.execute(sql_count, params).scalar() or 0
         df = pd.read_sql(sql_page, cx, params=params_page)
 
-    return total, df
+    return total, dffrom typing import Optional
+from sqlalchemy import text
+
+def list_fish_minimal(conn, q: Optional[str] = None, limit: int = 200):
+    sql = text("""
+        select id_uuid, fish_code
+        from public.fish
+        where (:q is null or fish_code ilike '%' || :q || '%')
+        order by fish_code asc
+        limit :limit
+    """)
+    return conn.execute(sql, {"q": q, "limit": limit}).mappings().all()
+
+def list_treatments_minimal(conn, q: Optional[str] = None, limit: int = 200):
+    sql = text("""
+        select id_uuid, treatment_code
+        from treatments
+        where (:q is null or treatment_code ilike '%' || :q || '%')
+        order by treatment_code asc
+        limit :limit
+    """)
+    return conn.execute(sql, {"q": q, "limit": limit}).mappings().all()
+
+def insert_fish_treatment_minimal(conn, *, fish_id: str, treatment_id: str, applied_at: str, batch_label: Optional[str], created_by: Optional[str]):
+    sql = text("""
+        insert into fish_treatments (fish_id, treatment_id, applied_at, batch_label, created_by)
+        values (:fish_id::uuid, :treatment_id::uuid, :applied_at::timestamptz, :batch_label, :created_by)
+        returning id_uuid
+    """)
+    return conn.execute(sql, {
+        "fish_id": fish_id,
+        "treatment_id": treatment_id,
+        "applied_at": applied_at,
+        "batch_label": batch_label,
+        "created_by": created_by,
+    }).scalar_one()
