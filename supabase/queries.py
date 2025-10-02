@@ -16,36 +16,58 @@ def load_fish_overview(
     where_clauses = []
     params: Dict[str, Any] = {}
 
-    if q:
-        params["q"] = f"%{q}%"
-        where_clauses.append(
-            "("
-            " fish_name ILIKE :q OR nickname ILIKE :q OR strain ILIKE :q "
-            " OR genotype_text ILIKE :q OR rna_injections_text ILIKE :q OR plasmid_injections_text ILIKE :q "
-            ")"
-        )
+    # Build WHERE
+where_clauses = []
+params: Dict[str, Any] = {}
 
-    if stage and stage != "(any)":
-        params["stage"] = stage
-        where_clauses.append("line_building_stage = :stage")
-
-    if strain:
-        params["strain_like"] = f"%{strain}%"
-        where_clauses.append("strain ILIKE :strain_like")
-
-    where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-
-    sql_count = text(f"SELECT COUNT(*) FROM public.vw_fish_overview_with_label {where_sql}")
-    sql_page = text(
-        f"""
-        SELECT
-        *
-        FROM public.vw_fish_overview_with_label
-        {where_sql}
-        ORDER BY fish_code NULLS LAST
-        LIMIT :limit OFFSET :offset
-        """
+# 1) Global search across columns that exist in the view:
+#    v.fish_code, v.fish_name, v.nickname, v.transgene_base_code_filled,
+#    v.allele_code_filled, v.allele_name_filled, v.transgene_pretty_filled, v.transgene_pretty_nickname
+if q:
+    params["q"] = f"%{q}%"
+    where_clauses.append(
+        "("
+        " v.fish_code ILIKE :q"
+        " OR v.fish_name ILIKE :q"
+        " OR v.nickname ILIKE :q"
+        " OR v.transgene_base_code_filled ILIKE :q"
+        " OR v.allele_code_filled ILIKE :q"
+        " OR v.allele_name_filled ILIKE :q"
+        " OR v.transgene_pretty_filled ILIKE :q"
+        " OR v.transgene_pretty_nickname ILIKE :q"
+        ")"
     )
+
+# 2) Stage filter (stage lives in the view)
+if stage and stage != "(any)":
+    params["stage"] = stage
+    where_clauses.append("v.line_building_stage = :stage")
+
+# 3) Strain filter — get it from base table `fish` (not all view variants expose strain)
+if strain:
+    params["strain_like"] = f"%{strain}%"
+    where_clauses.append("f.strain ILIKE :strain_like")
+
+where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+# Use a JOIN to pull strain from fish when needed; also safe if no strain filter is used.
+sql_count = text(f"""
+    SELECT COUNT(*)
+    FROM public.vw_fish_overview_with_label v
+    LEFT JOIN public.fish f
+      ON UPPER(TRIM(f.fish_code)) = UPPER(TRIM(v.fish_code))
+    {where_sql}
+""")
+
+sql_page = text(f"""
+    SELECT v.*
+    FROM public.vw_fish_overview_with_label v
+    LEFT JOIN public.fish f
+      ON UPPER(TRIM(f.fish_code)) = UPPER(TRIM(v.fish_code))
+    {where_sql}
+    ORDER BY v.fish_code NULLS LAST
+    LIMIT :limit OFFSET :offset
+""")
 
     params_page = dict(params)
     params_page["limit"] = page_size
