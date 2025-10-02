@@ -100,7 +100,7 @@ def list_treatments_minimal(conn, q: Optional[str] = None, limit: int = 200):
 def insert_fish_treatment_minimal(conn, *, fish_id: str, treatment_id: str, applied_at: str, batch_label: Optional[str], created_by: Optional[str]):
     sql = text("""
         insert into fish_treatments (fish_id, treatment_id, applied_at, batch_label, created_by)
-        values (:fish_id::uuid, :treatment_id::uuid, :applied_at::timestamptz, :batch_label, :created_by)
+        values (CAST(:fish_id AS uuid), CAST(:treatment_id AS uuid), CAST(:applied_at AS timestamptz), :batch_label, :created_by)
         returning id_uuid
     """)
     return conn.execute(sql, {
