@@ -4,7 +4,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy import text
 
 def load_fish_overview(
-    engine,
+    engine: Engine,
     page: int = 1,
     page_size: int = 50,
     q: Optional[str] = None,
@@ -16,16 +16,15 @@ def load_fish_overview(
     Falls back to public.fish with a minimal column set.
     """
     offset = (page - 1) * page_size
-
     with engine.connect() as cx:
-        # does the view exist?
-        has_view = cx.execute(text("select to_regclass('public.vw_fish_overview_with_label')")).scalar() is not None
+        has_view = cx.execute(
+            text("select to_regclass('public.vw_fish_overview_with_label')")
+        ).scalar() is not None
 
         params: Dict[str, Any] = {}
         where = []
 
         if has_view:
-            # only apply filters that the view is known to expose
             if q:
                 params["q"] = f"%{q}%"
                 where.append("("
@@ -72,12 +71,11 @@ def load_fish_overview(
             return total, df
 
         # Fallback: minimal from public.fish
-        # Build only filters that make sense on fish (q on code/name; stage/strain ignored unless columns exist)
         fish_cols = [r[0] for r in cx.execute(text("""
             select column_name from information_schema.columns
             where table_schema='public' and table_name='fish'
         """)).fetchall()]
-        select_cols = ["id_uuid","fish_code"]
+        select_cols = ["id_uuid", "fish_code"]
         if "name" in fish_cols: select_cols.append("name")
         if "created_at" in fish_cols: select_cols.append("created_at")
         if "created_by" in fish_cols: select_cols.append("created_by")
@@ -93,7 +91,6 @@ def load_fish_overview(
             where.append("strain ILIKE :strain_like")
 
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
-
         sql_count = text(f"SELECT COUNT(*) FROM public.fish {where_sql}")
         sql_page  = text(f"""
             SELECT {", ".join(select_cols)}
@@ -109,5 +106,57 @@ def load_fish_overview(
         total = cx.execute(sql_count, params).scalar() or 0
         df = pd.read_sql(sql_page, cx, params=params_page)
         if "name" in df.columns and "fish_name" not in df.columns:
-            df = df.rename(columns={"name":"fish_name"})
+            df = df.rename(columns={"name": "fish_name"})
         return total, df
+
+
+def list_treatments_minimal(conn, q: Optional[str] = None, limit: int = 200):
+    """
+    Minimal treatments list for pickers.
+    Works whether treatments uses a text code (treatment_type/treatment_code/display_name)
+    and whether or not it has a UUID PK column.
+    """
+    qnorm = (None if (q is not None and q.strip() == "") else q)
+
+    label_col = conn.execute(text("""
+        select column_name
+        from information_schema.columns
+        where table_schema='public' and table_name='treatments'
+          and column_name in ('treatment_type','treatment_code','display_name')
+        order by case column_name
+          when 'treatment_type' then 1
+          when 'treatment_code' then 2
+          when 'display_name'   then 3
+          else 9 end
+        limit 1
+    """)).scalar()
+
+    if not label_col:
+        return []
+
+    uuid_col = conn.execute(text("""
+        select column_name
+        from information_schema.columns
+        where table_schema='public' and table_name='treatments'
+          and data_type = 'uuid'
+        limit 1
+    """)).scalar()
+
+    if uuid_col:
+        sql = text(f"""
+            select {uuid_col} as id_uuid, ({label_col}::text) as treatment_type
+            from public.treatments
+            where (:q is null or ({label_col}::text) ilike '%'||:q||'%')
+            order by ({label_col}::text) asc
+            limit :limit
+        """)
+    else:
+        sql = text(f"""
+            select NULL::uuid as id_uuid, ({label_col}::text) as treatment_type
+            from public.treatments
+            where (:q is null or ({label_col}::text) ilike '%'||:q||'%')
+            order by ({label_col}::text) asc
+            limit :limit
+        """)
+
+    return conn.execute(sql, {"q": qnorm, "limit": limit}).mappings().all()
