@@ -1,8 +1,6 @@
 DO $MAIN$
 DECLARE
   have_all boolean;
-  have_code boolean;
-  have_type boolean;
 BEGIN
   SELECT (
     SELECT count(*) FROM pg_class c
@@ -15,20 +13,27 @@ BEGIN
     RETURN;
   END IF;
 
-  SELECT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema='public' AND table_name='treatments' AND column_name='treatment_code'
-  ) INTO have_code;
+  -- add nullable columns to fish_treatments if missing
+  BEGIN
+    ALTER TABLE public.fish_treatments
+      ADD COLUMN IF NOT EXISTS dose numeric,
+      ADD COLUMN IF NOT EXISTS unit text,
+      ADD COLUMN IF NOT EXISTS vehicle text,
+      ADD COLUMN IF NOT EXISTS ended_at timestamptz;
+  EXCEPTION WHEN undefined_table THEN
+    RETURN;
+  END;
 
-  SELECT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema='public' AND table_name='treatments' AND column_name='treatment_type'
-  ) INTO have_type;
-
-  IF have_code AND NOT have_type THEN
-    EXECUTE 'ALTER TABLE public.treatments RENAME COLUMN treatment_code TO treatment_type';
+  -- add simple check constraint (idempotent)
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ft_end_after_start'
+  ) THEN
+    EXECUTE 'ALTER TABLE public.fish_treatments
+             ADD CONSTRAINT ft_end_after_start
+             CHECK (ended_at IS NULL OR ended_at >= applied_at)';
   END IF;
 
+  -- (re)create summary view
   EXECUTE $V$
     CREATE OR REPLACE VIEW public.v_fish_treatment_summary AS
     SELECT
@@ -38,10 +43,10 @@ BEGIN
       t.treatment_type::text AS treatment_name,
       NULL::text            AS route,
       ft.applied_at         AS started_at,
-      NULL::timestamptz     AS ended_at,
-      NULL::numeric         AS dose,
-      NULL::text            AS unit,
-      NULL::text            AS vehicle
+      ft.ended_at,
+      ft.dose,
+      ft.unit,
+      ft.vehicle
     FROM public.fish_treatments ft
     JOIN public.fish f ON f.id_uuid = ft.fish_id
     JOIN public.treatments t ON t.id_uuid = ft.treatment_id;

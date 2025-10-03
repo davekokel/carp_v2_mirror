@@ -497,7 +497,12 @@ DROP SCHEMA IF EXISTS realtime;
 DROP SCHEMA IF EXISTS raw;
 -- *not* dropping schema, since initdb creates it
 DROP SCHEMA IF EXISTS pgbouncer;
-DROP EXTENSION IF EXISTS pg_net;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_net') THEN
+    EXECUTE 'DROP EXTENSION IF EXISTS pg_net';
+  END IF;
+END$$;
 DROP SCHEMA IF EXISTS graphql_public;
 DROP SCHEMA IF EXISTS graphql;
 DROP SCHEMA IF EXISTS extensions;
@@ -541,10 +546,12 @@ CREATE SCHEMA graphql_public;
 --
 -- Name: pg_net; Type: EXTENSION; Schema: -; Owner: -
 --
-
-CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
-
-
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name='pg_net') THEN
+    EXECUTE 'CREATE EXTENSION IF NOT EXISTS pg_net';
+  END IF;
+END$$;
 --
 -- Name: EXTENSION pg_net; Type: COMMENT; Schema: -; Owner: -
 --

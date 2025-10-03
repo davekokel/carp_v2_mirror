@@ -1,4 +1,5 @@
-DO $$
-DECLARE v text;
+DO $mig$
 BEGIN
-  -- Only patch if the view e
+  -- no-op placeholder to preserve migration order
+END
+$mig$;
