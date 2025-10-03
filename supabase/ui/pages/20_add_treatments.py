@@ -30,6 +30,7 @@ st.title("💊 Add Treatments to Existing Fish")
 
 DB_URL = os.environ.get("DB_URL")
 if not DB_URL:
+    st.error("DB_URL is not set in the environment.")
     st.stop()
 
 engine = create_engine(DB_URL)
