@@ -1,3 +1,8 @@
+from typing import Optional, Tuple, Any, Dict
+import pandas as pd
+from sqlalchemy.engine import Engine
+from sqlalchemy import text
+
 def load_fish_overview(
     engine,
     page: int = 1,
