@@ -1,4 +1,3 @@
-# supabase/ui/pages/20_add_treatments.py
 from __future__ import annotations
 
 try:
@@ -34,6 +33,12 @@ if not DB_URL:
     st.stop()
 
 engine = create_engine(DB_URL)
+
+@st.cache_data(ttl=60)
+def _fish_options(q: Optional[str]):
+    with engine.begin() as conn:
+        rows = Q.list_fish_minimal(conn, q=q, limit=200)
+    return [(r["fish_code"], r["id_uuid"]) for r in rows]
 
 @st.cache_data(ttl=60)
 def _treatment_options(q: Optional[str]):
