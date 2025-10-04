@@ -1,472 +1,575 @@
+# supabase/ui/pages/01_📤_upload_fish_seedkit.py
 from __future__ import annotations
 
-# 01_📤_upload_fish_seedkit.py
-
-import csv, io, os, shlex, sys, tempfile, subprocess
+# --- sys.path before local imports ---
+import sys, io
 from pathlib import Path
-from typing import List, Tuple
-from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse, quote as urlquote
+ROOT = Path(__file__).resolve().parents[2]  # …/carp_v2
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-import pandas as pd
-import streamlit as st
-from sqlalchemy import text, create_engine
+# Shared engine + helpers
+from supabase.ui.lib_shared import current_engine, connection_info
 
-# 🔒 auth gate
+# 🔒 auth
 try:
     from supabase.ui.auth_gate import require_app_unlock
 except Exception:
-    from auth_gate import require_app_unlock
-
-PAGE_TITLE = "Upload Fish Seedkit (Fish + Linking Only) — DB-aligned"
-st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
+    def require_app_unlock(): ...
 require_app_unlock()
-st.title("📤 Upload Fish Seedkit")
 
-# Canonical schema headers (no backward-compat: require allele_nickname)
-COLUMNS_CANONICAL: List[str] = [
-    "name",
-    "line_building_stage",
-    "nickname",
-    "strain",
-    "date_of_birth",
-    "description",
-    "transgene_base_code",
-    "allele_nickname",      # ← use this only
-    "zygosity",
-    "created_by",
-]
-REQUIRED_MINIMAL: List[str] = ["name", "strain", "line_building_stage"]
-TREATMENT_HINTS = {
-    "treatment_type","performed_at","injected_plasmids","plasmids_injected",
-    "plasmid_amount","plasmid_units","rna_amount","rna_units","dose","concentration","vehicle",
-}
-ALLOWED_LINE_STAGES = {"founder","F0","F1","F2","F3","unknown"}
-ALLOWED_ZYGOSITY = {"heterozygous","homozygous","unknown",""}
+from datetime import datetime, UTC
+from typing import List, Dict, Any, Optional
 
-@st.cache_resource(show_spinner=False)
-def _engine():
-    return create_engine(build_db_url(), pool_pre_ping=True, future=True, connect_args={"prepare_threshold": None})
+import pandas as pd
+import streamlit as st
+from sqlalchemy import text
 
-def get_loader_path() -> Path:
-    default = Path(__file__).resolve().parents[3] / "scripts" / "seedkit_load_wide.py"
-    env_override = os.getenv("SEEDKIT_WIDE_LOADER", "").strip()
-    if env_override:
-        p = Path(env_override)
-        if p.exists():
-            return p
-    return default
+PAGE_TITLE = "CARP — Upload Fish (CSV only)"
+st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
+st.title("📤 Upload Fish (CSV only)")
 
-def _ensure_sslmode(url: str) -> str:
-    u = urlparse(url)
-    host = (u.hostname or "").lower() if u.hostname else ""
-    q = dict(parse_qsl(u.query, keep_blank_values=True))
-    if host in {"localhost","127.0.0.1","::1"}:
-        q["sslmode"] = "disable"
-    else:
-        q.setdefault("sslmode", "require")
-    return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
+# --------------------------------------------------------------------------------------
+# Engine / DB info
+# --------------------------------------------------------------------------------------
+eng = current_engine()
+dbg = connection_info(eng)
+st.caption(f"DB debug → db={dbg['db']} user={dbg['user']}")
+# --- TEMP DIAG: what does THIS engine think about base_code?
+with eng.begin() as _cx:
+    diag = _cx.execute(text("""
+        select current_database() as db,
+               inet_server_addr()::text as host,
+               inet_server_port()::int  as port
+    """)).mappings().first()
+    nn = _cx.execute(text("""
+        select column_name, is_nullable
+        from information_schema.columns
+        where table_schema='public'
+          and table_name='transgene_allele_registry'
+          and column_name = 'base_code'
+    """)).mappings().all()
 
-def parse_dsn_to_url(dsn: str) -> str:
-    parts = shlex.split(dsn)
-    kv = {}
-    for p in parts:
-        if "=" in p:
-            k, v = p.split("=", 1)
-            kv[k.strip()] = v.strip()
-    host = kv.pop("host", "")
-    port = kv.pop("port", "")
-    dbname = kv.pop("dbname", "")
-    user = kv.pop("user", "")
-    password = kv.pop("password", "")
-    netloc = ""
-    if user:
-        netloc += urlquote(user)
-        if password:
-            netloc += f":{urlquote(password)}"
-        netloc += "@"
-    if host:
-        netloc += host
-    if port:
-        netloc += f":{port}"
-    path = f"/{dbname}" if dbname else ""
-    query = urlencode(kv, doseq=True)
-    return urlunparse(("postgresql", netloc, path, "", query, ""))
+st.caption(f"ENGINE → db={diag['db']} host={diag['host']} port={diag['port']}")
+st.code(f"base_code is_nullable (app engine): {nn}", language="text")
 
-def build_db_url() -> str:
-    raw = (st.secrets.get("DB_URL") or os.getenv("DATABASE_URL") or "").strip()
-    if raw:
-        url = parse_dsn_to_url(raw) if "://" not in raw else raw
-        return _ensure_sslmode(url)
-    required = ["PGHOST","PGPORT","PGDATABASE","PGUSER","PGPASSWORD"]
-    missing = [k for k in required if not os.getenv(k)]
-    if missing:
-        raise RuntimeError("Missing DB env vars: " + ", ".join(missing))
-    url = (
-        "postgresql://"
-        f"{urlquote(os.getenv('PGUSER',''))}:{urlquote(os.getenv('PGPASSWORD',''))}"
-        f"@{os.getenv('PGHOST')}:{os.getenv('PGPORT')}/{os.getenv('PGDATABASE')}"
+# --------------------------------------------------------------------------------------
+# Self-heal helpers (tables/views)
+# --------------------------------------------------------------------------------------
+def _has_column(conn, table: str, col: str) -> bool:
+    return bool(conn.execute(
+        text("""
+          select exists(
+            select 1 from information_schema.columns
+            where table_schema='public' and table_name=:t and column_name=:c
+          )
+        """),
+        {"t": table, "c": col},
+    ).scalar())
+
+
+def ensure_core_objects(conn) -> None:
+    """
+    Self-heal: pgcrypto, fish table, link table, base view v_fish_overview (EXISTS guard).
+    """
+    conn.execute(text("create extension if not exists pgcrypto"))
+    conn.execute(text("""
+    do $$
+    begin
+      if to_regclass('public.fish') is null then
+        create table public.fish(
+          id uuid primary key default gen_random_uuid(),
+          fish_code text unique,
+          name text,
+          created_at timestamptz not null default now(),
+          created_by text,
+          date_birth date
+        );
+      end if;
+
+      if not exists (
+        select 1 from information_schema.columns
+        where table_schema='public' and table_name='fish'
+          and column_name in ('date_birth','date_of_birth')
+      ) then
+        alter table public.fish add column date_birth date;
+      end if;
+
+      if to_regclass('public.fish_transgene_alleles') is null then
+        create table public.fish_transgene_alleles(
+          fish_id uuid not null references public.fish(id) on delete cascade,
+          transgene_base_code text not null,
+          allele_number int not null,
+          zygosity text,
+          allele_nickname text,
+          primary key (fish_id, transgene_base_code, allele_number)
+        );
+      else
+        if not exists (
+          select 1 from information_schema.columns
+          where table_schema='public' and table_name='fish_transgene_alleles'
+            and column_name='allele_nickname'
+        ) then
+          alter table public.fish_transgene_alleles add column allele_nickname text;
+        end if;
+      end if;
+
+      if to_regclass('public.v_fish_overview') is null then
+        create view public.v_fish_overview as
+        select
+          f.id,
+          f.fish_code,
+          f.name,
+          (
+            select array_to_string(array_agg(x.base), ', ')
+            from (
+              select distinct t.transgene_base_code as base
+              from public.fish_transgene_alleles t
+              where t.fish_id = f.id
+              order by base
+            ) x
+          ) as transgene_base_code_filled,
+          (
+            select array_to_string(array_agg(x.an), ', ')
+            from (
+              select distinct (t.allele_number::text) as an
+              from public.fish_transgene_alleles t
+              where t.fish_id = f.id
+              order by an
+            ) x
+          ) as allele_code_filled,
+          null::text as allele_name_filled,
+          f.created_at,
+          f.created_by
+        from public.fish f
+        where exists (select 1 from public.fish_transgene_alleles t where t.fish_id = f.id)
+        order by f.created_at desc;
+      end if;
+    end$$;
+    """))
+
+def ensure_registry_and_counters(conn) -> None:
+    """
+    Ensure nickname registry and per-base counters exist, with uniqueness.
+    """
+    conn.execute(text("""
+    do $$
+    begin
+      if to_regclass('public.transgene_allele_registry') is null then
+        create table public.transgene_allele_registry(
+          id uuid primary key default gen_random_uuid(),
+          transgene_base_code text not null,
+          allele_number integer not null,
+          allele_nickname text not null,
+          created_at timestamptz not null default now(),
+          created_by text null
+        );
+      end if;
+
+      if not exists (select 1 from pg_class where relname='uq_tar_base_number' and relkind='i') then
+        create unique index uq_tar_base_number
+          on public.transgene_allele_registry (transgene_base_code, allele_number);
+      end if;
+      if not exists (select 1 from pg_class where relname='uq_tar_base_nickname' and relkind='i') then
+        create unique index uq_tar_base_nickname
+          on public.transgene_allele_registry (transgene_base_code, allele_nickname);
+      end if;
+
+      if to_regclass('public.transgene_allele_counters') is null then
+        create table public.transgene_allele_counters (
+          transgene_base_code text primary key,
+          next_number integer not null default 1
+        );
+      end if;
+    end$$;
+    """))
+
+# --------------------------------------------------------------------------------------
+# Allocation (inline, no function dependency)
+# --------------------------------------------------------------------------------------
+def inline_allocate_number(conn, base: str, nick: str, by: Optional[str]) -> Optional[int]:
+    """
+    Allocate a stable allele_number for (base, nickname) with per-base counters + registry.
+    Atomic and idempotent under unique indexes.
+    """
+    base = (base or "").strip()
+    nick = (nick or "").strip()
+    if not base or not nick:
+        return None
+
+    # existing mapping?
+    n = conn.execute(
+        text("""
+          select allele_number
+          from public.transgene_allele_registry
+          where transgene_base_code = :base and allele_nickname = :nick
+          limit 1
+        """),
+        {"base": base, "nick": nick},
+    ).scalar()
+    if n is not None:
+        return int(n)
+
+    # ensure a counter row for this base; then atomically consume next_number
+    conn.execute(
+        text("""
+          insert into public.transgene_allele_counters (transgene_base_code)
+          values (:base)
+          on conflict (transgene_base_code) do nothing
+        """),
+        {"base": base},
     )
-    return _ensure_sslmode(url)
+    n = conn.execute(
+        text("""
+          update public.transgene_allele_counters
+          set next_number = next_number + 1
+          where transgene_base_code = :base
+          returning next_number - 1
+        """),
+        {"base": base},
+    ).scalar()
+    if n == 0:  # first ever allocation => make it 1
+        n = 1
 
-def _mask_url_password(url: str) -> str:
-    u = urlparse(url)
-    netloc = u.netloc
-    if "@" in netloc:
-        creds, host = netloc.split("@", 1)
-        if ":" in creds:
-            user = creds.split(":", 1)[0]
-            netloc = f"{user}:***@{host}"
-    return u._replace(netloc=netloc).geturl()
+    # write registry entry; tolerate racing insert
+    has_created_by = _has_column(conn, "transgene_allele_registry", "created_by")
 
-def _norm_header_list(cols: List[str]) -> List[str]:
-    return [(c or "").strip() for c in cols]
-
-def validate_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str], List[str]]:
-    errors: List[str] = []
-    warnings: List[str] = []
-
-    for c in df.columns:
-        if pd.api.types.is_string_dtype(df[c]):
-            df[c] = df[c].astype(str).str.strip()
-
-    cols = _norm_header_list(list(df.columns))
-
-    # Required minimal
-    missing = [c for c in REQUIRED_MINIMAL if c not in cols]
-    if missing:
-        errors.append("Missing required columns: " + ", ".join(f"`{c}`" for c in missing))
-
-    # No treatment columns
-    bad_treatment = [c for c in cols if c in TREATMENT_HINTS]
-    if bad_treatment:
-        errors.append("Treatment-related columns are not allowed here: " + ", ".join(f"`{c}`" for c in sorted(bad_treatment)))
-
-    # Backward compat intentionally dropped: require allele_nickname when transgene_base_code present
-    if "transgene_base_code" in cols and "allele_nickname" not in cols:
-        errors.append("`allele_nickname` is required when `transgene_base_code` is present (no backward compatibility).")
-
-    # Content checks
-    if "name" in df.columns:
-        names = df["name"].astype(str).str.strip()
-        if names.eq("").any():
-            errors.append("Some rows have an empty `name`.")
-        dups = names[names.duplicated(keep=False)]
-        if not dups.empty:
-            examples = sorted(set(dups.tolist()))[:5]
-            warnings.append(f"Duplicate `name` values (rows will upsert): {examples}")
-
-    if "line_building_stage" in df.columns:
-        bad = ~df["line_building_stage"].astype(str).str.strip().isin(ALLOWED_LINE_STAGES)
-        if bad.any():
-            warnings.append("`line_building_stage` recommended: founder, F0, F1, F2, F3, unknown.")
-
-    if "zygosity" in df.columns:
-        badz = ~df["zygosity"].astype(str).str.strip().isin(ALLOWED_ZYGOSITY)
-        if badz.any():
-            warnings.append("`zygosity` should be one of: heterozygous, homozygous, unknown.")
-
-    # If allele_nickname exists, ensure no blanks for rows with a base
-    if {"transgene_base_code", "allele_nickname"}.issubset(cols):
-        mask_base = df["transgene_base_code"].astype(str).str.strip().ne("")
-        mask_name = df["allele_nickname"].astype(str).str.strip().ne("")
-        if (mask_base & ~mask_name).any():
-            errors.append("Rows with `transgene_base_code` must include non-empty `allele_nickname`.")
-
-    # Order preview
-    ordered = [c for c in COLUMNS_CANONICAL if c in df.columns]
-    trailing = [c for c in df.columns if c not in ordered]
-    df = df[ordered + trailing] if trailing else df
-    return df, errors, warnings
-
-def upsert_fish_seed_batches_by_codes(engine, fish_codes, seed_batch_id: str, fish_names=None):
-    codes_norm = [str(c).strip().upper() for c in (fish_codes or []) if str(c).strip()]
-    names_norm = [str(n).strip().upper() for n in (fish_names or []) if str(n).strip()]
-    if not codes_norm and not names_norm:
-        return
-    with engine.begin() as cx:
-        cx.execute(
+    if has_created_by:
+        conn.execute(
             text("""
-                INSERT INTO public.seed_batches(seed_batch_id, batch_label)
-                VALUES (:id, :label)
-                ON CONFLICT (seed_batch_id) DO NOTHING
+            insert into public.transgene_allele_registry
+                (transgene_base_code, allele_number, allele_nickname, created_by)
+            values (:base, :allele, :nick, :by)
+            on conflict (transgene_base_code, allele_nickname) do nothing
             """),
-            {"id": seed_batch_id, "label": seed_batch_id},
+            {"base": base, "allele": int(n), "nick": nick, "by": by},
         )
-        fish_ids = cx.execute(
-            text("""
-                SELECT DISTINCT f.id_uuid
-                FROM public.fish f
-                WHERE
-                  (:use_codes AND UPPER(TRIM(f.fish_code)) = ANY(:codes))
-                  OR
-                  (:use_names AND UPPER(TRIM(f.name)) = ANY(:names))
-            """),
-            {"codes": codes_norm or [], "names": names_norm or [],
-             "use_codes": bool(codes_norm), "use_names": bool(names_norm)},
-        ).scalars().all()
-        if not fish_ids:
-            return
-        cx.execute(
-            text("""
-                INSERT INTO public.fish_seed_batches (fish_id, seed_batch_id, updated_at)
-                VALUES (:fish_id, :seed_batch_id, now())
-                ON CONFLICT (fish_id) DO UPDATE
-                  SET seed_batch_id = EXCLUDED.seed_batch_id,
-                      updated_at    = EXCLUDED.updated_at
-            """),
-            [{"fish_id": fid, "seed_batch_id": seed_batch_id} for fid in fish_ids],
-        )
-
-def overwrite_created_by_from_csv(engine, df: pd.DataFrame) -> None:
-    if "created_by" not in df.columns:
-        return
-    if "fish_code" in df.columns:
-        pairs = [
-            (str(c).strip().upper(), str(cb).strip())
-            for c, cb in zip(df["fish_code"], df["created_by"])
-            if str(c).strip() and str(cb).strip()
-        ]
     else:
-        pairs = [
-            (str(n).strip().upper(), str(cb).strip())
-            for n, cb in zip(df["name"], df["created_by"])
-            if str(n).strip() and str(cb).strip()
-        ]
-    if not pairs:
-        return
-    params = [{"key": k, "creator": v} for k, v in pairs]
-    with engine.begin() as cx:
-        cx.execute(
+        conn.execute(
             text("""
-                UPDATE public.fish f
-                SET created_by = :creator
-                WHERE (f.created_by IS DISTINCT FROM :creator)
-                  AND (
-                        UPPER(TRIM(f.fish_code)) = :key
-                     OR UPPER(TRIM(f.name))      = :key
-                  )
+            insert into public.transgene_allele_registry
+                (transgene_base_code, allele_number, allele_nickname)
+            values (:base, :allele, :nick)
+            on conflict (transgene_base_code, allele_nickname) do nothing
             """),
-            params,
+            {"base": base, "allele": int(n), "nick": nick},
         )
 
-def upsert_canonical_from_csv(engine, df: pd.DataFrame, code_prefix: str = "abc") -> tuple[int,int]:
+    # return the value from the registry (source of truth)
+    n2 = conn.execute(
+        text("""
+          select allele_number
+          from public.transgene_allele_registry
+          where transgene_base_code = :base and allele_nickname = :nick
+          limit 1
+        """),
+        {"base": base, "nick": nick},
+    ).scalar()
+    return int(n2) if n2 is not None else None
+
+# --------------------------------------------------------------------------------------
+# CSV normalizer
+# --------------------------------------------------------------------------------------
+def normalize_input(df: pd.DataFrame) -> pd.DataFrame:
     """
-    CSV → canonical:
-      allele_name   := df['allele_nickname'] (human label)
-      allele_number := 1..N per base (sorted by allele_name, case-insensitive)
-      allele_code   := f"{code_prefix}-{allele_number}"
-      writes transgene_alleles and fish_transgene_alleles (FK-safe: auto-detect fish PK)
-      DEFAULT ZYGOSITY: 'unknown'
+    Normalize CSV columns to our contract.
+    Required: fish_code, transgene_base_code, allele_nickname or allele_number (legacy).
+    Optional: name, created_by, date_birth/date_of_birth, zygosity.
     """
-    if "transgene_base_code" not in df.columns or "allele_nickname" not in df.columns:
-        return (0, 0)
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+    df = df.map(lambda x: x.strip() if isinstance(x, str) else x)
 
-    base = df["transgene_base_code"].astype(str).str.strip()
-    name_series = df["allele_nickname"].astype(str).str.strip()  # no fallback (no backward-compat)
+    def pick(names: List[str]) -> pd.Series:
+        for n in names:
+            if n in df.columns:
+                return df[n]
+        return pd.Series([None] * len(df))
 
-    # fish key from CSV
-    if "fish_code" in df.columns:
-        key_series = df["fish_code"]
-    elif "name" in df.columns:
-        key_series = df["name"]
-    else:
-        return (0, 0)
+    out = pd.DataFrame()
+    out["fish_code"]           = pick(["fish_code","code","fish id","id"]).astype("string")
+    out["name"]                = pick(["name","fish_name"]).astype("string")
+    out["created_by"]          = pick(["created_by","user","owner"]).astype("string")
 
-    # DEFAULT zygosity = 'unknown'
-    zyg_series = df.get("zygosity", pd.Series(["unknown"] * len(df))).astype(str).str.strip().replace({"": "unknown"})
-
-    # materialize clean rows
-    rows = []
-    for k, b, nm, z in zip(key_series, base, name_series, zyg_series):
-        k = str(k).strip().upper()
-        b = str(b).strip()
-        nm = str(nm).strip()
-        z = (str(z).strip() or "unknown")
-        if k and b and nm:
-            rows.append((k, b, nm, z))
-    if not rows:
-        return (0, 0)
-
-    # build 1..N per base from distinct names (deterministic by lower(name))
-    by_base: dict[str, set] = {}
-    for _, b, nm, _ in rows:
-        by_base.setdefault(b, set()).add(nm)
-    ordered_map: dict[tuple[str, str], int] = {}
-    for b, labels in by_base.items():
-        for i, nm in enumerate(sorted(labels, key=lambda s: s.lower()), start=1):
-            ordered_map[(b, nm)] = i
-
-    # canonical allele defs
-    allele_defs = [{"base": b, "num": n, "code": f"{code_prefix}-{n}", "name": nm}
-                   for (b, nm), n in ordered_map.items()]
-
-    # fish links (key, base, num, zyg)
-    links = []
-    for k, b, nm, z in rows:
-        n = ordered_map.get((b, nm))
-        if n:
-            links.append({"key": k, "base": b, "num": n, "zyg": z})
-
-    with engine.begin() as cx:
-        # 1) upsert canonical defs
-        cx.execute(
-            text("""
-                INSERT INTO public.transgene_alleles (transgene_base_code, allele_number, allele_code, allele_name)
-                VALUES (:base, :num, :code, :name)
-                ON CONFLICT (transgene_base_code, allele_number) DO UPDATE
-                  SET allele_code = EXCLUDED.allele_code,
-                      allele_name = EXCLUDED.allele_name
-            """),
-            allele_defs,
-        )
-
-        # 2) detect which fish column the FK references ('id' vs 'id_uuid'), fallback to PK if needed
-        fk_target = cx.execute(text("""
-            SELECT att2.attname AS ref_col
-            FROM pg_constraint c
-            JOIN pg_class      cl    ON cl.oid  = c.conrelid  AND cl.relname = 'fish_transgene_alleles'
-            JOIN pg_class      rf    ON rf.oid  = c.confrelid AND rf.relname = 'fish'
-            JOIN pg_attribute  att2  ON att2.attrelid = c.confrelid AND att2.attnum = ANY (c.confkey)
-            WHERE c.contype = 'f'
-            LIMIT 1
-        """)).scalar()
-
-        if not fk_target:
-            # fallback: primary key column on fish
-            fk_target = cx.execute(text("""
-                SELECT kcu.column_name
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON kcu.constraint_name = tc.constraint_name
-                 AND kcu.table_schema    = tc.table_schema
-                 AND kcu.table_name      = tc.table_name
-                WHERE tc.table_schema = 'public'
-                  AND tc.table_name   = 'fish'
-                  AND tc.constraint_type = 'PRIMARY KEY'
-                LIMIT 1
-            """)).scalar() or "id"
-
-        # 3) link fish → canonical using the detected FK target column
-        link_sql = f"""
-            INSERT INTO public.fish_transgene_alleles
-                (fish_id, transgene_base_code, allele_number, zygosity, created_at)
-            SELECT f.{fk_target}, d.base, d.num, d.zyg, now()
-            FROM (SELECT :key AS key, :base AS base, :num AS num, :zyg AS zyg) d
-            JOIN public.fish f
-              ON UPPER(TRIM(f.fish_code)) = d.key
-               OR UPPER(TRIM(f.name))      = d.key
-            ON CONFLICT (fish_id, transgene_base_code, allele_number) DO NOTHING
-        """
-        if links:
-            cx.execute(text(link_sql), links)
-
-    return (len(allele_defs), len(links))
-
-# Example download (update header to allele_nickname)
-with st.expander("📥 Download example filled-out CSV", expanded=False):
-    ex = io.StringIO()
-    writer = csv.DictWriter(ex, fieldnames=[
-        "name","nickname","date_of_birth","strain","line_building_stage","description",
-        "transgene_base_code","allele_nickname","zygosity","created_by"
-    ])
-    writer.writeheader()
-    writer.writerow({
-        "name":"mem-tdmSG-8m","nickname":"mem-8m","date_of_birth":"2025-09-20","strain":"casper",
-        "line_building_stage":"founder","description":"import via page",
-        "transgene_base_code":"pDQM005","allele_nickname":"301","zygosity":"unknown","created_by":"dqm"
-    })
-    writer.writerow({
-        "name":"mem-tdmSG-11m","nickname":"mem-11m","date_of_birth":"2025-09-20","strain":"casper",
-        "line_building_stage":"founder","description":"import via page",
-        "transgene_base_code":"pDQM005","allele_nickname":"302","zygosity":"unknown","created_by":"dqm"
-    })
-    st.download_button("Download example CSV", ex.getvalue().encode("utf-8"),
-                       file_name="fish_seedkit_example.csv", mime="text/csv")
-
-# Controls
-q = st.text_input("Search (preview only)", placeholder="name, nickname, strain…")
-with st.expander("Filters (preview only)", expanded=False):
-    pass
-
-# Upload widget
-left, right = st.columns([2,1])
-with left:
-    uploaded = st.file_uploader("Upload CSV (DB-aligned headers only)", type=["csv"], accept_multiple_files=False)
-with right:
-    dry_run = st.checkbox("Dry run (no DB changes)", value=True)
-
-# Process
-if uploaded is not None:
+    dob_any = pick(["date_birth","date_of_birth","birth_date"])
     try:
-        df = pd.read_csv(uploaded, dtype=str).fillna("")
+        out["date_birth"] = pd.to_datetime(dob_any, errors="coerce").dt.date
+    except Exception:
+        out["date_birth"] = None
+
+    out["transgene_base_code"] = pick(["transgene_base_code"]).astype("string")
+    out["allele_nickname"]     = pick(["allele_nickname"]).astype("string")
+    out["zygosity"]            = pick(["zygosity"]).astype("string")
+
+    # No derivation of allele_number from nickname.
+    if "allele_number" in df.columns:
+        out["allele_number"] = pd.to_numeric(df["allele_number"], errors="coerce").astype("Int64")
+    else:
+        out["allele_number"] = pd.Series([pd.NA] * len(out), dtype="Int64")
+
+    # Autogenerate fish_code if missing
+    mask = out["fish_code"].isna() | (out["fish_code"].astype(str).str.strip() == "")
+    if mask.any():
+        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+        out.loc[mask, "fish_code"] = [f"FSH-{stamp}-{i:03d}" for i in range(1, int(mask.sum())+1)]
+
+    return out
+
+# --------------------------------------------------------------------------------------
+# UI State
+# --------------------------------------------------------------------------------------
+PREVIEW_KEY = "upload_preview_df"
+RESULT_KEY  = "upload_insert_result"
+
+def _reset_preview():
+    st.session_state.pop(PREVIEW_KEY, None)
+    st.session_state.pop(RESULT_KEY, None)
+
+uploaded = st.file_uploader("Upload .csv", type=["csv"], on_change=_reset_preview)
+
+col1, col2 = st.columns([1,1])
+with col1:
+    load_clicked = st.button("Load preview", disabled=uploaded is None)
+with col2:
+    insert_clicked = st.button("Insert into database", disabled=(PREVIEW_KEY not in st.session_state))
+
+# --------------------------------------------------------------------------------------
+# Load Preview
+# --------------------------------------------------------------------------------------
+if load_clicked and uploaded is not None:
+    try:
+        raw = uploaded.read().decode("utf-8")
+        df_in = pd.read_csv(io.StringIO(raw))
+        df_norm = normalize_input(df_in)
+        st.session_state[PREVIEW_KEY] = df_norm
     except Exception as e:
-        st.error(f"Could not read CSV: {e}")
-        st.stop()
+        st.exception(e)
 
-    df, errs, warns = validate_df(df)
-    if errs:
-        st.error("Please fix the following before loading:")
-        for m in errs: st.markdown(f"- ❌ {m}")
-        st.stop()
-    if warns:
-        with st.expander("Warnings (non-blocking)", expanded=False):
-            for m in warns: st.markdown(f"- ⚠️ {m}")
+if PREVIEW_KEY in st.session_state:
+    df_norm = st.session_state[PREVIEW_KEY]
 
-    st.subheader("Preview")
-    st.dataframe(df.head(50), use_container_width=True)
-    seed_batch_id = Path(uploaded.name).stem.strip()
+    # Heads-up if nothing will link (no base+nickname pairs)
+    has_base = ("transgene_base_code" in df_norm.columns) and df_norm["transgene_base_code"].notna().any()
+    has_nick = ("allele_nickname" in df_norm.columns)     and df_norm["allele_nickname"].notna().any()
+    if not (has_base and has_nick):
+        st.warning("No transgene_base_code + allele_nickname pairs detected; nothing will be linked.")
 
-    run = st.button("Run loader" if dry_run else "Load to database", type="primary")
-    if run:
-        try:
-            db_url = build_db_url()
-        except Exception as e:
-            st.error(str(e)); st.stop()
+    st.subheader("Preview (normalized)")
+    preview_cols = [
+        "fish_code","name","created_by","date_birth",
+        "transgene_base_code","allele_nickname","zygosity",
+    ]
+    present = [c for c in preview_cols if c in df_norm.columns]
+    st.dataframe(df_norm[present], width="stretch")
 
-        loader_path = get_loader_path()
-        if not loader_path.exists():
-            st.error(f"Loader script not found at: {loader_path}"); st.stop()
+# --------------------------------------------------------------------------------------
+# Insert
+# --------------------------------------------------------------------------------------
+if insert_clicked and (PREVIEW_KEY in st.session_state):
+    created_ct = 0
+    updated_ct = 0
+    linked_ct  = 0
+    skipped_ct = 0
 
-        with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".csv") as tmp:
-            df.to_csv(tmp.name, index=False); tmp_csv = tmp.name
+    try:
+        with eng.begin() as conn:
+            ensure_core_objects(conn)
+            ensure_registry_and_counters(conn)
 
-        cmd = [sys.executable, str(loader_path), "--db", db_url, "--csv", tmp_csv]
-        if dry_run: cmd.append("--dry-run")
+            df_norm = st.session_state[PREVIEW_KEY]
 
-        masked_cmd = " ".join(cmd).replace(db_url, _mask_url_password(db_url))
-        st.write("**Command**"); st.code(masked_cmd)
+            # Upsert fish rows, collect ids
+            fish_cols = ["fish_code","name","created_by","date_birth"]
+            to_insert = df_norm[fish_cols].copy()
 
-        with st.status("Running loader…", expanded=True) as status:
-            proc = subprocess.run(cmd, capture_output=True, text=True)
-            st.write("**stdout**"); st.code(proc.stdout or "(empty)")
-            st.write("**stderr**"); st.code(proc.stderr or "(empty)")
+            created_rows: List[Dict[str, Any]] = []
+            for _, r in to_insert.iterrows():
+                row = conn.execute(
+                    text("""
+                        insert into public.fish (id, fish_code, name, created_by, date_birth)
+                        values (gen_random_uuid(), :code, :name, :by, :dob)
+                        on conflict (fish_code) do update set
+                          name=excluded.name,
+                          created_by=excluded.created_by,
+                          date_birth=excluded.date_birth
+                        returning id, fish_code
+                    """),
+                    {"code": r.get("fish_code"), "name": r.get("name"), "by": r.get("created_by"), "dob": r.get("date_birth")},
+                ).mappings().first()
+                created_rows.append(dict(row))
+            created_ct = len(created_rows)
 
-            if proc.returncode == 0:
-                status.update(label="Done", state="complete")
-                if dry_run:
-                    st.success("Dry run OK ✅")
-                else:
-                    try:
-                        uploaded_codes=(df["fish_code"].astype(str).tolist() if "fish_code" in df.columns else [])
-                        uploaded_names=(df["name"].astype(str).tolist() if "name" in df.columns else [])
-                        upsert_fish_seed_batches_by_codes(_engine(), uploaded_codes, seed_batch_id, fish_names=uploaded_names)
+            # Link genotype: prefer nickname path, else numeric CSV fallback
+            base_nonempty = df_norm.get("transgene_base_code").astype("string").str.strip().ne("")
+            nick_nonempty = df_norm.get("allele_nickname").astype("string").str.strip().ne("")
+            num_present   = df_norm.get("allele_number").notna() if "allele_number" in df_norm.columns else pd.Series(False, index=df_norm.index)
+            gmask = base_nonempty & (nick_nonempty | num_present)
+            st.caption(
+                "debug: base_nonempty=%d nick_nonempty=%d gmask=%d"
+                % (int(base_nonempty.sum()), int(nick_nonempty.sum()), int(gmask.sum()))
+            )
 
-                        overwrite_created_by_from_csv(_engine(), df)
+            if gmask.any():
+                code_to_id = {c["fish_code"]: c["id"] for c in created_rows}
+                for _, r in df_norm.loc[gmask].iterrows():
+                    fid = code_to_id.get(r["fish_code"]) or conn.execute(
+                        text("select id from public.fish where fish_code=:c limit 1"),
+                        {"c": r["fish_code"]},
+                    ).scalar()
+                    if not fid:
+                        skipped_ct += 1
+                        continue
 
-                        # Canonical: name from CSV (allele_nickname), number = 1..N per base, code = 'abc-<num>'
-                        defs, links = upsert_canonical_from_csv(_engine(), df, code_prefix="abc")
-                        st.info(f"Canonical upserted: {defs} allele defs, {links} fish links")
+                    base = (r.get("transgene_base_code") or "").strip()
+                    nick = (r.get("allele_nickname") or "").strip() or None
+                    by   = (r.get("created_by") or None)
+                    zyg  = (r.get("zygosity") or None)
 
-                        st.success("Load complete ✅ — batch labels, created_by, and canonical transgene fields updated")
-                    except Exception as e:
-                        st.warning(f"Post-load step hit an issue: {e}")
-            else:
-                status.update(label="Failed", state="error")
-                st.error(f"Loader exited with code {proc.returncode}")
+                    # allocate number inline if nickname present; else take numeric from CSV (legacy)
+                    # 1) try registry first (deterministic & cheap)
+                    n: Optional[int] = conn.execute(
+                        text("""
+                        select allele_number
+                        from public.transgene_allele_registry
+                        where transgene_base_code = :base and allele_nickname = :nick
+                        limit 1
+                        """),
+                        {"base": base, "nick": nick},
+                    ).scalar() if nick else None
 
-st.divider()
-st.caption(
-    "CSV must include `allele_nickname` (no backward compatibility). "
-    "Importer writes canonical: allele_name from CSV, allele_number auto 1..N per base, allele_code = 'abc-<number>'. "
-    "Zygosity defaults to 'unknown' when omitted."
-)
+                    if n is not None:
+                        st.caption(f"alloc: registry hit base='{base}' nick='{nick}' -> n={int(n)}")
+
+                    # 2) else try inline allocate (writes registry & bumps per-base counter)
+                    if n is None and nick:
+                        st.caption(f"alloc: inline start base='{base}' nick='{nick}'")
+                        sp = conn.begin_nested()  # SAVEPOINT
+                        try:
+                            n = inline_allocate_number(conn, base, nick, by)
+                            sp.commit()
+                            st.caption(f"alloc: inline done base='{base}' nick='{nick}' -> n={n}")
+                        except Exception as e:
+                            sp.rollback()
+                            st.caption(f"alloc: inline ERROR base='{base}' nick='{nick}' err={e}")
+                            n = None
+
+                    # 3) else fallback to numeric CSV (legacy)
+                    if n is None:
+                        try:
+                            n = int(r.get("allele_number"))
+                            st.caption(f"alloc: csv numeric base='{base}' -> n={n}")
+                        except Exception:
+                            n = None
+
+                    # 4) still nothing? skip with explicit context
+                    if n is None:
+                        # show what registry actually has for this base to help diagnose
+                        try:
+                            rows = conn.execute(
+                                text("""
+                                select allele_nickname, allele_number
+                                from public.transgene_allele_registry
+                                where transgene_base_code = :base
+                                order by allele_nickname
+                                limit 10
+                                """),
+                                {"base": base},
+                            ).mappings().all()
+                            sample = ", ".join(f"{row['allele_nickname']}→{row['allele_number']}" for row in rows)
+                            st.caption(f"alloc: registry sample for base='{base}' [{sample}]")
+                        except Exception:
+                            pass
+                        st.caption(f"debug skip: base='{base}' nick='{nick}' (no number)")
+                        skipped_ct += 1
+                        continue
+
+                    # FK: ensure (base, number) exists in transgene_alleles
+                    conn.execute(
+                        text("""
+                          insert into public.transgene_alleles (transgene_base_code, allele_number)
+                          values (:base, :allele)
+                          on conflict (transgene_base_code, allele_number) do nothing
+                        """),
+                        {"base": base, "allele": int(n)},
+                    )
+
+                    # insert link (include nickname when available)
+                    has_nn = conn.execute(text("""
+                        select exists(
+                          select 1
+                          from information_schema.columns
+                          where table_schema='public'
+                            and table_name='fish_transgene_alleles'
+                            and column_name='allele_nickname'
+                        )
+                    """)).scalar()
+
+                    params_link = {"fid": str(fid), "base": base, "allele": int(n), "zyg": zyg}
+                    if has_nn:
+                        params_link["nn"] = nick
+                        conn.execute(
+                            text("""
+                              insert into public.fish_transgene_alleles
+                                (fish_id, transgene_base_code, allele_number, zygosity, allele_nickname)
+                              values (:fid, :base, :allele, :zyg, :nn)
+                              on conflict do nothing
+                            """),
+                            params_link,
+                        )
+                    else:
+                        conn.execute(
+                            text("""
+                              insert into public.fish_transgene_alleles
+                                (fish_id, transgene_base_code, allele_number, zygosity)
+                              values (:fid, :base, :allele, :zyg)
+                              on conflict do nothing
+                            """),
+                            params_link,
+                        )
+                    linked_ct += 1
+
+        # write result once
+        st.session_state["upload_insert_result"] = {
+            "created": int(created_ct),
+            "updated": int(updated_ct),
+            "with_alleles": int(linked_ct),
+            "skipped_no_allele": int(skipped_ct),
+            "skipped": int(skipped_ct),
+        }
+
+    except Exception as e:
+        st.exception(e)
+
+# --------------------------------------------------------------------------------------
+# Result + Overview slice
+# --------------------------------------------------------------------------------------
+res = st.session_state.get("upload_insert_result")
+if res:
+    created = int(res.get("created", 0))
+    updated = int(res.get("updated", 0))
+    with_alleles = int(res.get("with_alleles", 0))
+    skipped = int(res.get("skipped_no_allele", res.get("skipped", 0)))
+
+    st.success(
+        f"Inserted {created} new, updated {updated}; "
+        f"linked genotype for {with_alleles} rows; skipped {skipped} without allele."
+    )
+
+    st.markdown("#### Recent rows (from `v_fish_overview`)")
+    try:
+        recent = pd.read_sql(
+            """
+            select id, fish_code, name,
+                   transgene_base_code_filled, allele_code_filled, allele_name_filled,
+                   created_at, created_by
+            from public.v_fish_overview
+            order by created_at desc
+            limit 50
+            """,
+            eng,
+        )
+        if "id" in recent.columns:
+            recent["id"] = recent["id"].astype(str)
+        st.dataframe(recent, width="stretch")
+    except Exception as e:
+        st.warning(f"Could not read v_fish_overview yet: {e}")

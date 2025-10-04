@@ -1,556 +1,146 @@
+# supabase/ui/pages/02_🔎_overview.py
 from __future__ import annotations
 
-# 🔒 require password on every page
-try:
-    from supabase.ui.auth_gate import require_app_unlock
-except Exception:
-    from auth_gate import require_app_unlock
-require_app_unlock()
-
-import os
-from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
-from datetime import datetime
-from typing import Any, Dict, List
-
-# --- Robust import for cloud runners — prefer local 'supabase' package ---
+# --- sys.path before local imports ---
 import sys
 from pathlib import Path
-ROOT = Path(__file__).resolve().parents[3]  # .../carp_v2_mirror
+ROOT = Path(__file__).resolve().parents[2]  # …/carp_v2
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import importlib
-import supabase.queries as _queries
-importlib.reload(_queries)  # ensure we pick up latest code on warm restarts
-from supabase.queries import load_fish_overview
-# -------------------------------------------------------------------------
-
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from typing import Dict, Any, List
 
-PAGE_TITLE = "CARP — Overview → PDF Labels"
-st.set_page_config(page_title=PAGE_TITLE, page_icon="🏷️", layout="wide")
-st.title("🏷️ Overview → PDF Labels")
-st.caption("Search, select rows, auto-assign tanks if needed, and generate **PDF labels** (2.4″×1.5″, QR included).")
+# Shared engine (centralized on Home)
+from supabase.ui.lib_shared import current_engine, connection_info
 
-# ------------------------- small helpers -------------------------
-def _ellipsize(c, text: str, font_name: str, font_size: float, max_width: float, ellipsis: str = "…") -> str:
-    """Trim string to fit max_width using drawString metrics; returns possibly-ellipsized text."""
-    text = (text or "").strip()
-    if not text:
-        return ""
-    w = c.stringWidth(text, font_name, font_size)
-    if w <= max_width:
-        return text
-    e_w = c.stringWidth(ellipsis, font_name, font_size)
-    avail = max(max_width - e_w, 0)
-    if avail <= 0:
-        return ellipsis
-    lo, hi = 0, len(text)
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if c.stringWidth(text[:mid], font_name, font_size) <= avail:
-            lo = mid + 1
-        else:
-            hi = mid
-    trimmed = text[: max(lo - 1, 0)]
-    return (trimmed + ellipsis) if trimmed else ellipsis
-
-def _s(v) -> str:
-    """Safe stringify: dates → ISO, None → '', everything else → str()"""
-    if v is None:
-        return ""
-    try:
-        import datetime as _dt
-        if isinstance(v, (_dt.date, _dt.datetime)):
-            return v.isoformat()
-    except Exception:
-        pass
-    return str(v)
-
-def _ensure_sslmode(url: str) -> str:
-    u = urlparse(url)
-    host = (u.hostname or "").lower() if u.hostname else ""
-    q = dict(parse_qsl(u.query, keep_blank_values=True))
-    if host in {"localhost", "127.0.0.1", "::1"}:
-        q["sslmode"] = "disable"
-    else:
-        q.setdefault("sslmode", "require")
-    return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
-
-def build_db_url() -> str:
-    raw = (st.secrets.get("DB_URL") or os.getenv("DATABASE_URL") or "").strip()
-    if raw:
-        return _ensure_sslmode(raw if "://" in raw else raw)
-    required = ["PGHOST","PGPORT","PGDATABASE","PGUSER","PGPASSWORD"]
-    missing = [k for k in required if not os.getenv(k)]
-    if missing:
-        raise RuntimeError("Missing DB env vars: " + ", ".join(missing))
-    return _ensure_sslmode(
-        f"postgresql://{os.getenv('PGUSER')}:{os.getenv('PGPASSWORD')}"
-        f"@{os.getenv('PGHOST')}:{os.getenv('PGPORT')}/{os.getenv('PGDATABASE')}"
-    )
-
-@st.cache_resource(show_spinner=False)
-def _engine():
-    return create_engine(build_db_url(), pool_pre_ping=True, future=True, connect_args={"prepare_threshold": None})
-
-def _detect_tank_fk(engine) -> Tuple[str, str]:
-    """
-    Returns (fk_col_on_fish, cast_str) where cast_str is like '::uuid' or '::bigint' or ''.
-    """
-    with engine.connect() as cx:
-        row = cx.execute(text("""
-            SELECT att2.attname AS ref_col,
-                   format_type(att2.atttypid, att2.atttypmod) AS ref_type
-            FROM pg_constraint c
-            JOIN pg_class      cl   ON cl.oid  = c.conrelid  AND cl.relname = 'tank_assignments'
-            JOIN pg_attribute  att  ON att.attrelid = c.conrelid AND att.attnum = ANY (c.conkey)
-            JOIN pg_class      rf   ON rf.oid  = c.confrelid AND rf.relname = 'fish'
-            JOIN pg_attribute  att2 ON att2.attrelid = c.confrelid AND att2.attnum = ANY (c.confkey)
-            WHERE c.contype = 'f'
-              AND att.attname = 'fish_id'
-            LIMIT 1
-        """)).mappings().first()
-    if not row:
-        with engine.connect() as cx:
-            row = cx.execute(text("""
-                SELECT kcu.column_name AS ref_col,
-                       (SELECT data_type FROM information_schema.columns
-                         WHERE table_schema='public' AND table_name='fish' AND column_name=kcu.column_name) AS ref_type
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON kcu.constraint_name = tc.constraint_name
-                 AND kcu.table_schema    = tc.table_schema
-                 AND kcu.table_name      = tc.table_name
-                WHERE tc.table_schema='public' AND tc.table_name='fish' AND tc.constraint_type='PRIMARY KEY'
-                LIMIT 1
-            """)).mappings().first()
-    ref_col  = (row or {}).get("ref_col", "id")
-    ref_type = ((row or {}).get("ref_type") or "").lower()
-    if "uuid" in ref_type:
-        cast_str = "::uuid"
-    elif "bigint" in ref_type or "int" in ref_type:
-        cast_str = "::bigint" if "bigint" in ref_type else "::int"
-    else:
-        cast_str = ""
-    return ref_col, cast_str
-
-# ------------------------- data loader -------------------------
-def load_overview_page(
-    engine, page: int, page_size: int, q: str | None = None, stage: str | None = None, strain_sub: str | None = None
-) -> tuple[int, pd.DataFrame]:
-    offset = (page - 1) * page_size
-    where, params = [], {}
-
-    # Search only columns that exist in the view (qualify as v.)
-    if q:
-        params["q"] = f"%{q}%"
-        where.append(
-            "("
-            " v.fish_code ILIKE :q"
-            " OR v.fish_name ILIKE :q"
-            " OR v.nickname ILIKE :q"
-            " OR v.transgene_base_code_filled ILIKE :q"
-            " OR v.allele_code_filled ILIKE :q"
-            " OR v.allele_name_filled ILIKE :q"
-            " OR v.transgene_pretty_filled ILIKE :q"
-            " OR v.transgene_pretty_nickname ILIKE :q"
-            ")"
-        )
-
-    if stage and stage != "(any)":
-        params["stage"] = stage
-        where.append("v.line_building_stage = :stage")
-
-    # Strain filter via fish join (qualify as f.)
-    if strain_sub:
-        params["strain_like"] = f"%{strain_sub}%"
-        where.append("f.strain ILIKE :strain_like")
-
-    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
-
-    sql_count = text(f"""
-        SELECT COUNT(*)
-        FROM public.vw_fish_overview_with_label v
-        LEFT JOIN public.fish f
-          ON UPPER(TRIM(f.fish_code)) = UPPER(TRIM(v.fish_code))
-        {where_sql}
-    """)
-
-    sql_page = text(f"""
-        SELECT v.*
-        FROM public.vw_fish_overview_with_label v
-        LEFT JOIN public.fish f
-          ON UPPER(TRIM(f.fish_code)) = UPPER(TRIM(v.fish_code))
-        {where_sql}
-        ORDER BY v.fish_code NULLS LAST
-        LIMIT :limit OFFSET :offset
-    """)
-
-    params_page = dict(params, limit=page_size, offset=offset)
-    with engine.connect() as cx:
-        total = cx.execute(sql_count, params).scalar() or 0
-        df = pd.read_sql(sql_page, cx, params=params_page)
-    return total, df
-
-# ------------------------- controls -------------------------
-q = st.text_input("Global search", placeholder="code, name, strain, allele nickname/code/base…")
-with st.expander("Filters", expanded=False):
-    c1, c2, c3 = st.columns([1,1,2])
-    with c1:
-        stage = st.selectbox("Line building stage", ["(any)","founder","F0","F1","F2","F3","unknown"], index=0)
-    with c2:
-        strain = st.text_input("Strain contains")
-    with c3:
-        batch_filter = st.text_input("Batch label contains")
-
-assign_mode = st.radio(
-    "Tank assignment mode",
-    ["Assign if missing (default)", "Force new tank", "Reprint existing only"],
-    index=0,
-    help="Choose how to handle tanks before printing labels."
-)
-
-if "labels_offset" not in st.session_state:
-    st.session_state.labels_offset = 0
-if "labels_page_size" not in st.session_state:
-    st.session_state.labels_page_size = 100
-
-if st.button("🔄 Reset results"):
-    st.session_state.labels_offset = 0
-page = (st.session_state.labels_offset // st.session_state.labels_page_size) + 1
-
-# ------------------------- load -------------------------
+# 🔒 auth
 try:
-    total, rows = load_overview_page(
-        _engine(), page=page, page_size=st.session_state.labels_page_size, q=q, stage=stage, strain_sub=strain
+    from supabase.ui.auth_gate import require_app_unlock
+except Exception:
+    def require_app_unlock(): ...
+require_app_unlock()
+
+PAGE_TITLE = "CARP — Overview Labels"
+st.set_page_config(page_title=PAGE_TITLE, page_icon="🔎", layout="wide")
+st.title("🔎 Overview Labels")
+
+# ---- Use centralized engine; show DB info
+eng = current_engine()
+dbg = connection_info(eng)
+st.caption(f"DB debug → db={dbg['db']} user={dbg['user']}")
+
+# ---- Force-refresh (clear caches + editor state) ----
+colR1, colR2 = st.columns([1, 4])
+with colR1:
+    if st.button("🔁 Refresh data"):
+        try:
+            st.cache_data.clear()
+        except Exception:
+            pass
+        try:
+            st.cache_resource.clear()
+        except Exception:
+            pass
+        # Clear common editor keys so stale state doesn't bleed through
+        for k in list(st.session_state.keys()):
+            if k in ("overview_grid", "overview_grid_v2", "parent_picker", "parent_picker_nc"):
+                st.session_state.pop(k, None)
+        st.rerun()
+
+# ---- Filters / search
+with st.expander("Filters", expanded=True):
+    # v_fish_overview already excludes no-genotype rows; toggle kept for safety (no-op now)
+    hide_no_genotype = st.checkbox("Hide rows with no genotype links", value=True)
+    q = st.text_input("Search (code, name, genotype, created_by)", value="").strip()
+    limit = st.number_input("Row limit", min_value=50, max_value=10000, value=1000, step=50)
+
+# ---- SQL loader (no caching: always reflect DB)
+def _load_overview(engine, q: str, hide_no_genotype: bool, limit: int) -> pd.DataFrame:
+    # clamp limit to a sane integer
+    try:
+        lim = int(limit)
+    except Exception:
+        lim = 1000
+    lim = max(1, min(lim, 10000))
+
+    where: List[str] = []
+    params: Dict[str, Any] = {}
+
+    # This is effectively a no-op because v_fish_overview excludes orphans,
+    # but kept for future safety if the view changes.
+    if hide_no_genotype:
+        where.append("""
+          (coalesce(transgene_base_code_filled,'') <> ''
+           or coalesce(allele_code_filled,'') <> '')
+        """)
+
+    if q:
+        params["p"] = f"%{q}%"
+        where.append("""
+          (
+            fish_code ilike :p
+            or coalesce(name,'') ilike :p
+            or coalesce(transgene_base_code_filled,'') ilike :p
+            or coalesce(allele_code_filled,'') ilike :p
+            or coalesce(created_by,'') ilike :p
+          )
+        """)
+
+    where_sql = (" where " + " and ".join(where)) if where else ""
+    sql_txt = text(f"""
+        select
+          id,
+          fish_code,
+          name,
+          transgene_base_code_filled,
+          allele_code_filled,
+          allele_name_filled,
+          created_by,
+          created_at
+        from public.v_fish_overview
+        {where_sql}
+        order by created_at desc
+        limit {lim}
+    """)
+    return pd.read_sql(sql_txt, engine, params=params)
+
+# ---- Load + render
+df = _load_overview(eng, q=q, hide_no_genotype=hide_no_genotype, limit=limit)
+
+if df.empty:
+    st.info("No rows match the current filters.")
+else:
+    # Nice types for display
+    if "id" in df.columns:
+        df["id"] = df["id"].astype(str)
+    # Reorder a bit for readability
+    preferred = [
+        "fish_code", "name",
+        "transgene_base_code_filled", "allele_code_filled", "allele_name_filled",
+        "created_by", "created_at", "id",
+    ]
+    cols = [c for c in preferred if c in df.columns] + [c for c in df.columns if c not in preferred]
+    df = df[cols]
+
+    st.data_editor(
+        df,
+        key="overview_grid_v2",
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "fish_code": st.column_config.TextColumn("Fish code"),
+            "name": st.column_config.TextColumn("Name"),
+            "transgene_base_code_filled": st.column_config.TextColumn("Transgene base codes"),
+            "allele_code_filled": st.column_config.TextColumn("Allele numbers"),
+            "allele_name_filled": st.column_config.TextColumn("Allele names"),
+            "created_by": st.column_config.TextColumn("Created by"),
+            "created_at": st.column_config.DatetimeColumn("Created"),
+            "id": st.column_config.TextColumn("ID"),
+        },
+        disabled=True,   # viewer mode
     )
-except Exception as e:
-    st.error(f"Query failed: {e}")
-    st.stop()
 
-if batch_filter and "batch_label" in rows.columns:
-    rows = rows[rows["batch_label"].astype(str).str.contains(batch_filter, case=False, na=False)]
-
-st.caption(f"Showing {min(st.session_state.labels_offset + st.session_state.labels_page_size, total):,} of {total:,} rows")
-
-# ------------------------- selection table -------------------------
-display_cols = [
-    "batch_label",
-    "fish_code", "fish_name", "nickname", "strain",
-    "line_building_stage", "created_by", "date_of_birth",
-    "transgene_base_code_filled",
-    "allele_number_filled", "allele_code_filled", "allele_name_filled",
-    "transgene_pretty_filled", "transgene_pretty_nickname",
-]
-available_cols = [c for c in display_cols if c in rows.columns]
-df_show = rows[available_cols].copy()
-df_show.insert(0, "_select", False)
-
-edited = st.data_editor(
-    df_show,
-    use_container_width=True,
-    num_rows="fixed",
-    hide_index=True,
-    column_config={
-        "_select": st.column_config.CheckboxColumn("Select"),
-        "transgene_pretty_filled": st.column_config.TextColumn("Pretty (code)"),
-        "transgene_pretty_nickname": st.column_config.TextColumn("Pretty (nickname)"),
-    }
-)
-
-selected = edited[edited["_select"] == True].copy() if "_select" in edited.columns else pd.DataFrame()
-st.caption(f"Selected: {len(selected)}")
-
-# ------------------------- tank assignment SQL templates -------------------------
-ASSIGN_IF_MISSING_TMPL = """
-WITH ids AS (SELECT UNNEST(:ids){cast} AS fish_id)
-INSERT INTO public.tank_assignments(fish_id, tank_label, status)
-SELECT i.fish_id, public.next_tank_code('TANK-'), 'inactive'::tank_status
-FROM ids i
-LEFT JOIN public.tank_assignments t ON t.fish_id = i.fish_id
-WHERE t.fish_id IS NULL;
-"""
-
-ASSIGN_FORCE_NEW_TMPL = """
-WITH ids AS (SELECT UNNEST(:ids){cast} AS fish_id)
-UPDATE public.tank_assignments ta
-SET tank_label = public.next_tank_code('TANK-'), updated_at = now()
-WHERE ta.fish_id IN (SELECT fish_id FROM ids);
-
-INSERT INTO public.tank_assignments(fish_id, tank_label, status)
-SELECT i.fish_id, public.next_tank_code('TANK-'), 'inactive'::tank_status
-FROM ids i
-LEFT JOIN public.tank_assignments t ON t.fish_id = i.fish_id
-WHERE t.fish_id IS NULL;
-"""
-
-# Fetch printable by fish_code (avoids type issues)
-FETCH_PRINTABLE_BY_CODE = text("""
-SELECT
-  f.id_uuid AS fish_id,
-  f.fish_code,
-  v.fish_name         AS fish_name,
-  v.nickname          AS nickname,
-  v.transgene_base_code_filled   AS base,
-  v.allele_number_filled         AS allele_num,
-  v.allele_code_filled           AS allele_code,
-  v.allele_name_filled           AS allele_name,
-  v.transgene_pretty_filled      AS pretty_code,
-  v.transgene_pretty_nickname    AS pretty_nick,
-  f.strain,
-  f.line_building_stage,
-  f.date_of_birth,
-  COALESCE(v.batch_label, '(no batch)') AS batch_label,
-  ta.tank_label AS tank
-FROM public.fish f
-JOIN public.vw_fish_overview_with_label v
-  ON UPPER(TRIM(v.fish_code)) = UPPER(TRIM(f.fish_code))
-LEFT JOIN public.tank_assignments ta
-  ON ta.fish_id = f.id_uuid OR ta.fish_id = f.id
-WHERE UPPER(TRIM(f.fish_code)) = ANY(:codes);
-""")
-
-# ------------------------- pdf generator -------------------------
-def render_labels_pdf(df: pd.DataFrame) -> bytes:
-    """
-    One label per page, 2.4" x 1.5", margins 6pt, QR ~0.70", lifted close to top.
-    Lines: [TANK left + Fish right], Fish name, Nickname, Pretty (nick), Pretty (code), Small details (Strain · Stage · DOB), QR bottom-right.
-    Always returns bytes; on error, returns a diagnostic PDF page.
-    """
-    try:
-        from reportlab.lib.units import inch
-        from reportlab.pdfgen import canvas
-        from reportlab.lib import colors
-        from reportlab.platypus import Paragraph
-        from reportlab.lib.styles import ParagraphStyle
-        from reportlab.graphics.barcode import qr
-        from reportlab.graphics.shapes import Drawing
-        from reportlab.graphics import renderPDF
-    except Exception as e:
-        # best-effort empty PDF with error note
-        buf = BytesIO()
-        from reportlab.pdfgen import canvas as _c
-        c = _c.Canvas(buf, pagesize=(172, 108))  # fallback tiny page
-        c.setFont("Helvetica", 8)
-        c.drawString(10, 90, f"PDF engine error: {e}")
-        c.showPage(); c.save()
-        return buf.getvalue()
-
-    LABEL_W, LABEL_H = 2.4 * inch, 1.5 * inch
-    MARGIN = 8        # tighter margins
-    QR_SIZE = 0.70 * inch
-    TOP_LIFT = 2     # raise all text upwards
-
-    # styles (reduced fonts)
-    style_big   = ParagraphStyle("big",   fontName="Helvetica-Bold", fontSize=12,   leading=10.5)
-    style_body  = ParagraphStyle("body",  fontName="Helvetica",      fontSize=10, leading=9)
-    style_small = ParagraphStyle("small", fontName="Helvetica",      fontSize=9,   leading=7.5, textColor=colors.black)
-    
-    # avoid breaking long tokens across lines
-    style_big.splitLongWords = 0
-    style_body.splitLongWords = 0
-    style_small.splitLongWords = 0
-
-    def draw_par(c, txt: str, style: ParagraphStyle, x: float, y: float, max_w: float, max_h: float = 1000, vgap: float = 2) -> float:
-        """Wrap and draw a Paragraph; returns new y (moved up by drawn height+vgap)."""
-        txt = (txt or "").strip()
-        if not txt:
-            return y
-        p = Paragraph(txt, style)
-        w, h = p.wrap(max_w, max_h)
-        if h <= 0:
-            return y
-        p.drawOn(c, x, y - h)
-        return y - h - vgap
-
-    buf = BytesIO()
-    c = canvas.Canvas(buf, pagesize=(LABEL_W, LABEL_H))
-
-    def draw_label(rec: dict):
-        x0, y0 = MARGIN, MARGIN
-        w, h = LABEL_W - 2 * MARGIN, LABEL_H - 2 * MARGIN
-        text_w = w - QR_SIZE - 6
-        x_text = x0
-        y      = y0 + h + TOP_LIFT
-
-        # normalize
-        tank        = _s(rec.get("tank")).strip()
-        fish_code   = _s(rec.get("fish_code")).strip()
-        fish_name   = _s(rec.get("fish_name")).strip()
-        nickname    = _s(rec.get("nickname")).strip()
-        pretty_nick = _s(rec.get("pretty_nick")).strip()
-        pretty_code = _s(rec.get("pretty_code")).strip()
-        strain      = _s(rec.get("strain")).strip()
-        stage       = _s(rec.get("line_building_stage")).strip()
-        dob         = _s(rec.get("date_of_birth")).strip()
-
-        # ---- Tank on its own line (left), then Fish code directly under it (left) ----
-        tank_font_name, tank_font_size = "Helvetica-Bold", 12
-        fish_font_name, fish_font_size = "Helvetica", 10
-
-        # 1) TANK line (left-aligned)
-        c.setFont(tank_font_name, tank_font_size)
-        tank_text = _ellipsize(c, tank, tank_font_name, tank_font_size, text_w)
-        tank_baseline = y - tank_font_size
-        c.drawString(x_text, tank_baseline, tank_text)
-
-        # 2) FISH line (left-aligned, directly under tank, tighter lead)
-        extra_leading = 2                          # was 6 — shrink the gap under tank
-        fish_baseline = tank_baseline - fish_font_size - extra_leading
-        c.setFont(fish_font_name, fish_font_size)
-        c.drawString(x_text, fish_baseline, fish_code)
-
-        # Move y down just a little before name/nickname
-        y = fish_baseline - 5                      # was -10 or more — tighten further
-
-        if nickname and nickname.lower() == fish_name.lower():
-            nickname = ""
-
-        # --- after the fish_code block ---
-        # nickname above name (both left-aligned)
-        if nickname:
-            y = draw_par(c, nickname,   style_body, x_text, y, text_w, vgap=2)
-        if fish_name:
-            y = draw_par(c, fish_name,  style_body, x_text, y, text_w, vgap=2)
-
-        # single pretty (nickname version)
-        y = draw_par(c, pretty_nick, style_body, x_text, y, text_w, vgap=2)
-
-       # Small details (each on its own line)
-        y = draw_par(c, f"Strain: {strain}", style_small, x_text, y, text_w, vgap=1)
-        y = draw_par(c, f"Stage: {stage}",  style_small, x_text, y, text_w, vgap=1)
-        y = draw_par(c, f"DOB: {dob}",      style_small, x_text, y, text_w, vgap=0)
-
-        # ---- QR bottom-right ----
-        from reportlab.graphics.barcode import qr
-        from reportlab.graphics.shapes import Drawing
-        from reportlab.graphics import renderPDF
-
-        qr_data = tank or fish_code or "TANK-UNKNOWN"
-        qr_widget = qr.QrCodeWidget(qr_data)
-        bx0, by0, bx1, by1 = qr_widget.getBounds()
-        bw, bh = (bx1 - bx0), (by1 - by0)
-
-        # scale to our reserved box
-        sx = QR_SIZE / bw
-        sy = QR_SIZE / bh
-        d = Drawing(QR_SIZE, QR_SIZE)
-        d.add(qr_widget)
-        d.transform = [sx, 0, 0, sy, 0, 0]
-
-        # place at bottom-right of the content box
-        # nudge QR toward the lower-right corner
-        QR_INSET_X = 6   # +right (pt)
-        QR_INSET_Y = -6   # +down (pt; negative moves down in PDF coords)
-        qr_x = min(x0 + w - QR_SIZE + QR_INSET_X, LABEL_W - QR_SIZE)  # keep inside page
-        qr_y = max(y0 + QR_INSET_Y, 0)                                # avoid < 0
-        renderPDF.draw(d, c, qr_x, qr_y)
-
-    # empty/diagnostic-safe rendering
-    if df is None or df.empty:
-        c.showPage(); c.save()
-        return buf.getvalue()
-
-    try:
-        for rec in df.to_dict(orient="records"):
-            draw_label(rec)
-            c.showPage()
-    except Exception as e:
-        # draw a diagnostic page if something fails
-        from traceback import format_exc
-        c.setFont("Helvetica", 8)
-        c.drawString(10, LABEL_H - 12, "Label rendering error:")
-        for i, line in enumerate(format_exc().splitlines()[:20], start=1):
-            c.drawString(10, LABEL_H - 12 - i*10, line[:90])
-        c.showPage()
-    finally:
-        c.save()
-        return buf.getvalue()
-
-# ------------------------- actions -------------------------
-st.divider()
-st.subheader("Generate PDF")
-
-col_a, col_b = st.columns([1,1])
-with col_a:
-    gen = st.button("🖨️ Generate PDF labels", type="primary", disabled=selected.empty)
-with col_b:
-    clear = st.button("Clear selection", disabled=selected.empty)
-
-if clear and not selected.empty:
-    st.experimental_rerun()
-
-if gen:
-    # selected fish codes
-    codes = [str(x).strip().upper() for x in selected.get("fish_code", pd.Series([])).tolist() if str(x).strip()]
-    if not codes:
-        st.warning("No fish selected."); st.stop()
-
-    # FK target for tank_assignments
-    fk_col, cast_str = _detect_tank_fk(_engine())
-
-    # Resolve fish IDs of the correct column/type
-    with _engine().connect() as cx:
-        ids = cx.execute(
-            text(f"SELECT {fk_col}::text FROM public.fish WHERE UPPER(TRIM(fish_code)) = ANY(:codes)"),
-            {"codes": codes}
-        ).scalars().all()
-    if not ids:
-        st.warning("Selected rows did not resolve to fish ids."); st.stop()
-
-    # Build assignment SQL with the correct cast
-    ASSIGN_SQL_IF_MISSING = text(ASSIGN_IF_MISSING_TMPL.format(cast=cast_str))
-    ASSIGN_SQL_FORCE_NEW  = text(ASSIGN_FORCE_NEW_TMPL.format(cast=cast_str))
-
-    # Assign tanks
-    try:
-        with _engine().begin() as cx:
-            if assign_mode.startswith("Assign if missing"):
-                cx.execute(ASSIGN_SQL_IF_MISSING, {"ids": ids})
-            elif assign_mode.startswith("Force new tank"):
-                cx.execute(ASSIGN_SQL_FORCE_NEW, {"ids": ids})
-            else:
-                # reprint-only → ensure tanks exist
-                missing = cx.execute(text(f"""
-                    WITH ids AS (SELECT UNNEST(:ids){cast_str} AS fish_id)
-                    SELECT COUNT(*)
-                    FROM ids i
-                    LEFT JOIN public.tank_assignments t ON t.fish_id = i.fish_id
-                    WHERE t.fish_id IS NULL
-                """), {"ids": ids}).scalar() or 0
-                if missing > 0:
-                    st.error(f"{missing} selected fish do not have tanks yet — switch mode to 'Assign if missing' or 'Force new tank'.")
-                    st.stop()
-    except Exception as e:
-        st.error(f"Tank assignment failed: {e}")
-        st.stop()
-
-    # Fetch printable rows by fish_code
-    with _engine().connect() as cx:
-        printable = pd.read_sql(FETCH_PRINTABLE_BY_CODE, cx, params={"codes": codes})
-
-    if printable.empty or printable["tank"].fillna("").eq("").any():
-        st.error("Some selected fish still have no tank; cannot print. Please try again.")
-        st.stop()
-
-    # Render PDF
-    pdf_bytes = render_labels_pdf(printable)
-    if not isinstance(pdf_bytes, (bytes, bytearray)) or len(pdf_bytes) == 0:
-        st.error("PDF generation returned no data.")
-    else:
-        st.success(f"Generated {len(printable)} labels.")
-        st.download_button(
-            "⬇️ Download labels.pdf",
-            data=pdf_bytes,
-            file_name="labels.pdf",
-            mime="application/pdf"
-        )
-
-# paging
-if st.session_state.labels_offset + st.session_state.labels_page_size < total:
-    if st.button("⬇️ Load more"):
-        st.session_state.labels_offset += st.session_state.labels_page_size
-        st.experimental_rerun()
+st.caption("This page reads from public.v_fish_overview only (no LEFT JOINs), so it matches the canonical cohort set.")
