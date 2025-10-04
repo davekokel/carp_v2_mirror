@@ -1,34 +1,26 @@
-# supabase/ui/pages/03_🐟_Wide_Upload.py
 from __future__ import annotations
-
+# supabase/ui/pages/03_🐟_Wide_Upload.py
 import os as _os
 _os.environ.setdefault('PSYCOPG_FORCE_SIMPLE', '1')
-
 import io
 import re
 import zipfile
 from pathlib import Path
 from typing import Optional
-
 import pandas as pd
 import streamlit as st
-
 # NOTE: we only need get_conn here; drop get_engine/fetch_df imports to avoid ImportError
 from lib.db import get_conn  # psycopg3/2 connection factory
-
 # ---------- Paths to SQL files ----------
 PAGE_DIR = Path(__file__).parent
 SQL_DIR = (PAGE_DIR.parent / "lib" / "seedloader").resolve()  # ../lib/seedloader
 VALIDATE = SQL_DIR / "validate_wide.sql"
 LOAD     = SQL_DIR / "load_wide.sql"
-
 st.title("🐟 Wide Upload (ZIP or CSV) — no crosswalk")
-
 # --- bootstrap: ensure raw schema/table exist (idempotent) ---
 def _bootstrap_raw():
     ddl = """
     create schema if not exists raw;
-
     create table if not exists raw.wide_fish_upload(
       seed_batch_id        text not null,
       fish_name            text not null,
@@ -51,13 +43,11 @@ def _bootstrap_raw():
     with get_conn() as conn, conn.cursor() as cur:
         for _stmt in (s.strip() for s in ddl.split(';') if s.strip()):
             cur.execute(_stmt)
-
 def _bootstrap_public_dicts():
     ddl = """
     create table if not exists public.transgenes(
       transgene_base_code text primary key
     );
-
     create table if not exists public.transgene_alleles(
       transgene_base_code text not null references public.transgenes(transgene_base_code),
       allele_number       integer not null,
@@ -421,7 +411,7 @@ order by b.fish_name;
             if df_prev.empty:
                 st.info("No resolvable allele links (check base/allele_number columns).")
             else:
-                st.dataframe(df_prev, use_container_width=True)
+                st.dataframe(df_prev, width="stretch")
 
             # Clean stage
             with get_conn() as conn, conn.cursor() as cur:
@@ -525,7 +515,7 @@ if st.button("Upload, validate, load, and show report"):
             st.write(f"Logged **{logged}** fish into `load_log_fish` for this batch.")
             st.caption(f"Source: {src} • Inferred batch_id: `{batch_id}`")
             st.write(f"**Report:** {fish_count} fish, {link_count} allele links")
-            st.dataframe(pd.DataFrame(rows, columns=cols), use_container_width=True)
+            st.dataframe(pd.DataFrame(rows, columns=cols), width="stretch")
             st.session_state["last_batch_id"] = batch_id
 
         except Exception as e:
@@ -572,7 +562,7 @@ if st.button("Upload, validate, load, and show report"):
                 rows = cur.fetchall()
                 cols = [d.name for d in cur.description]
 
-            st.dataframe(pd.DataFrame(rows, columns=cols), use_container_width=True)
+            st.dataframe(pd.DataFrame(rows, columns=cols), width="stretch")
 
         except Exception as e:
             st.error(f"Load failed: {e}")
@@ -619,6 +609,6 @@ try:
             df_recent = pd.DataFrame(rows, columns=cols)
             if "created_at" in df_recent.columns:
                 df_recent = df_recent.drop(columns=["created_at"])
-            st.dataframe(df_recent, use_container_width=True)
+            st.dataframe(df_recent, width="stretch")
 except Exception as e:
     st.info(f"Batch summary unavailable: {e}")

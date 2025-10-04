@@ -1,18 +1,15 @@
-# supabase/ui/health.py
 from __future__ import annotations
+# supabase/ui/health.py
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-
 def _fetch_df(engine: Engine, sql: str) -> pd.DataFrame:
     with engine.connect() as cx:
         return pd.read_sql(text(sql), cx)
-
 def compute_invariants(engine: Engine) -> dict:
     """Return a dict of DataFrames (and small stats) for quick health checks."""
     results: dict[str, pd.DataFrame | int | str] = {}
-
     # A) Row counts across key tables
     results["counts"] = _fetch_df(engine, """
       select 'fish'        as table, count(*)::bigint as n from public.fish
@@ -22,14 +19,12 @@ def compute_invariants(engine: Engine) -> dict:
       union all select 'tanks',      count(*)         from public.tanks
       order by 1;
     """)
-
     # B) Blank fish names
     results["blank_names"] = _fetch_df(engine, """
       select count(*)::bigint as blank_names
       from public.fish
       where nullif(trim(name),'') is null;
     """)
-
     # C) Fish rows with no allele links
     results["fish_missing_links"] = _fetch_df(engine, """
       select count(*)::bigint as fish_missing_links
@@ -38,7 +33,6 @@ def compute_invariants(engine: Engine) -> dict:
         on l.fish_id = f.id
       where l.fish_id is null;
     """)
-
     # D) Duplicate allele numbers per transgene (should be unique per base_code)
     results["dup_alleles_per_transgene"] = _fetch_df(engine, """
       with d as (
@@ -49,7 +43,6 @@ def compute_invariants(engine: Engine) -> dict:
       )
       select count(*)::bigint as dup_pairs from d;
     """)
-
     # E) Overview view exists & sample rows (optional preview)
     try:
         results["overview_preview"] = _fetch_df(engine, """
@@ -61,9 +54,7 @@ def compute_invariants(engine: Engine) -> dict:
     except Exception as _:
         # View may not exist yet; that’s fine.
         pass
-
     return results
-
 def render_health_panel(engine: Engine) -> None:
     checks = compute_invariants(engine)
 

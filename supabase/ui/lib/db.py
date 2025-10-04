@@ -1,172 +1,39 @@
-# supabase/ui/lib/db.py
 from __future__ import annotations
-
+# supabase/ui/lib/db.py
 import os
-from typing import Optional, Union, Mapping, Any
-
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine, Connection
-from urllib.parse import quote_plus
-
-# optional psycopg3 import for raw connection use
-try:
-    import psycopg  # psycopg v3
-except Exception:
-    psycopg = None  # imported lazily in get_conn()
-
-# ---------- secrets helpers ----------
-
-def _get_secret(name: str, default: Optional[str] = None) -> Optional[str]:
-    """Read a value from Streamlit secrets if available; else env vars."""
-    try:
-        import streamlit as st  # type: ignore
-        return st.secrets.get(name, default)
-    except Exception:
-        return os.getenv(name, default)
-
-# ---------- DSN builders ----------
-
-def _dsn_for_sqlalchemy() -> Optional[str]:
-    """
-    Build a SQLAlchemy URL.
-    Prefers CONN/CONN_*; else builds postgresql+psycopg:// from PG* parts.
-    """
-    for key in ("CONN", "CONN_POOL", "CONN_DIRECT", "CONN_STAGING", "CONN_LOCAL"):
-        dsn = _get_secret(key)
-        if dsn and str(dsn).strip():
-            return str(dsn).strip()
-
-    host = _get_secret("PGHOST")
-    user = _get_secret("PGUSER")
-    pwd  = _get_secret("PGPASSWORD")
-    db   = _get_secret("PGDATABASE", "postgres")
-    port = str(_get_secret("PGPORT", "5432"))
-    ssl  = _get_secret("SSL_MODE", "require")
-
-    if host and user and pwd:
-        return f"postgresql+psycopg://{user}:{pwd}@{host}:{port}/{db}?sslmode={ssl}"
-    return None
-
-def _dsn_for_psycopg() -> Optional[str]:
-    """
-    Build a DSN suitable for psycopg.connect().
-    Prefers postgres:// / postgresql:// if provided, else builds from PG*.
-    """
-    for key in ("CONN", "CONN_POOL", "CONN_DIRECT", "CONN_STAGING", "CONN_LOCAL"):
-        dsn = _get_secret(key)
-        if dsn and str(dsn).strip():
-            dsn = str(dsn).strip()
-            if dsn.startswith(("postgres://", "postgresql://")):
-                return dsn
-
-    host = _get_secret("PGHOST")
-    user = _get_secret("PGUSER")
-    pwd  = _get_secret("PGPASSWORD")
-    db   = _get_secret("PGDATABASE", "postgres")
-    port = str(_get_secret("PGPORT", "5432"))
-    ssl  = _get_secret("SSL_MODE", "require")
-
-    if host and user and pwd:
-        return f"postgres://{user}:{pwd}@{host}:{port}/{db}?sslmode={ssl}"
-    return None
-
-# ---------- Engine factory (SQLAlchemy) ----------
-
-def get_engine(dsn: Optional[str] = None) -> Engine:
-    """
-    Build a SQLAlchemy Engine.
-
-    Preference order:
-      1) explicit DSN arg
-      2) DSN from secrets (CONN/CONN_POOL/etc.)
-      3) PG* parts
-    """
-    url = dsn or _dsn_for_sqlalchemy()
-    if not url:
-        raise KeyError(
-            "Database config missing. Provide CONN/CONN_* or PG* secrets/env."
-        )
-
-    # PGBouncer-friendly; harmless for direct connections
-    return create_engine(
-        url,
-        pool_pre_ping=True,
-        future=True,
-        connect_args={"prepare_threshold": None},
+import hashlib
+from urllib.parse import urlparse
+import streamlit as st
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
+# We allow a page to set its own DB URL (e.g., a LOCAL/STAGING chooser)
+# Pages set this once via set_page_db_url(url); all other pages fall back to DB_URL env.
+_PAGE_DB_ENV = "ACTIVE_DB_URL"
+def set_page_db_url(url: str | None) -> None:
+    """Record a page-scoped DB URL (stored in process env)."""
+    if url:
+        os.environ[_PAGE_DB_ENV] = url
+def resolve_db_url() -> str:
+    """Resolve the effective DB URL with sensible fallbacks."""
+    return (
+        os.environ.get(_PAGE_DB_ENV)
+        or os.environ.get("DB_URL")
+        or "postgresql://postgres:postgres@localhost:5432/carp_v2?sslmode=disable"
     )
-
-# ---------- Convenience helpers (SQLAlchemy) ----------
-
-def quick_db_check(engine: Engine) -> str:
-    try:
-        with engine.connect() as cx:
-            v = cx.execute(text("select version()")).scalar() or ""
-            who = cx.execute(text("select current_user")).scalar()
-            return f"OK: {who} @ {str(v).split()[0]}"
-    except Exception as e:
-        return f"DB check failed: {e}"
-
-def fetch_df(conn: Union[Engine, Connection], sql: str, params: Optional[Mapping[str, Any]] = None):
-    """Read a SELECT into a pandas DataFrame."""
-    import pandas as pd
-    return pd.read_sql(text(sql), conn, params=params or {})
-
-def exec_sql(conn: Union[Engine, Connection], sql: str, params: Optional[Mapping[str, Any]] = None):
-    """Execute arbitrary SQL (Engine or Connection)."""
-    if isinstance(conn, Engine):
-        with conn.begin() as cx:
-            cx.execute(text(sql), params or {})
-    else:
-        conn.execute(text(sql), params or {})
-
-# ---------- Raw psycopg3 connection for Streamlit pages ----------
-
-def get_conn():
-    """
-    Return a psycopg3 connection (autocommit ON).
-    Matches pages that import: `from lib.db import get_conn`.
-    """
-    if psycopg is None:
-        raise ImportError("psycopg is not installed; install psycopg[binary]>=3.2")
-    dsn = _dsn_for_psycopg()
-    if not dsn:
-        raise KeyError("No postgres DSN for psycopg. Ensure CONN or PG* secrets are set.")
-    cx = psycopg.connect(dsn)
-    cx.autocommit = True
-    return cx
-
-
-
-def _dsn_from_secrets() -> Optional[str]:
-    """
-    Build a DSN string from secrets/env.
-    Preference order:
-      1) Direct DSN keys (CONN, CONN_POOL, CONN_DIRECT, CONN_STAGING, CONN_LOCAL)
-      2) PG* parts (PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE) + SSL_MODE
-    """
-    for key in ("CONN", "CONN_POOL", "CONN_DIRECT", "CONN_STAGING", "CONN_LOCAL"):
-        dsn = _get_secret(key)
-        if dsn and str(dsn).strip():
-            return str(dsn).strip()
-
-    host = _get_secret("PGHOST")
-    user = _get_secret("PGUSER")
-    pwd  = _get_secret("PGPASSWORD")
-    db   = _get_secret("PGDATABASE", "postgres")
-    port = str(_get_secret("PGPORT", "5432"))
-    ssl  = (_get_secret("SSL_MODE", "require") or "require").strip()
-
-    if host and user and pwd:
-        return f"postgresql+psycopg://{user}:{quote_plus(str(pwd))}@{host}:{port}/{db}?sslmode={ssl}"
-    return None
-
-    host = _get_secret("PGHOST")
-    user = _get_secret("PGUSER")
-    pwd  = _get_secret("PGPASSWORD")
-    db   = _get_secret("PGDATABASE", "postgres")
-    port = str(_get_secret("PGPORT", "5432"))
-    ssl  = (_get_secret("SSL_MODE", "require") or "require").strip()
-
-    if host and user and pwd:
-        return f"postgresql+psycopg://{user}:{quote_plus(str(pwd))}@{host}:{port}/{db}?sslmode={ssl}"
-    return None
+def env_badge(url: str | None = None) -> tuple[str, str, str]:
+    """Return (env_label, host, short_key) for display."""
+    u = url or resolve_db_url()
+    host = urlparse(u).hostname or ""
+    env = "LOCAL" if host in {"localhost", "127.0.0.1", "::1"} else "STAGING"
+    key = hashlib.md5(u.encode()).hexdigest()[:8]
+    return env, host, key
+@st.cache_resource(show_spinner=False)
+def _engine_for_url(url: str) -> Engine:
+    return create_engine(url)
+def get_engine() -> Engine:
+    """Get a cached SQLAlchemy engine for the current resolved URL."""
+    return _engine_for_url(resolve_db_url())
+def show_env_badge(url: str | None = None) -> None:
+    """Convenience: render the Env/Host/Key caption in the page."""
+    env, host, key = env_badge(url)
+    st.caption(f"Env: {env} • Host: {host} • Key: `{key}`")

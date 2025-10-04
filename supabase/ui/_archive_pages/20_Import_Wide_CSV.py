@@ -105,7 +105,7 @@ if uploaded is not None:
     st.write(f"Staged: `{tmp_path}`")
 
     # Paths
-    SCRIPT_PATH = str(Path(__file__).resolve().parents[3] / "scripts" / "seedkit_load_wide.py")
+    SCRIPT_PATH = str(Path(__file__).resolve().parents[2] / "scripts" / "seedkit_load_wide.py")
     PY = sys.executable  # ensures we use the same env Streamlit is using
     DB = resolve_db_url()
     # Diagnostics

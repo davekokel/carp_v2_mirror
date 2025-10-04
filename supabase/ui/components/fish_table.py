@@ -22,7 +22,7 @@ def render_select_table(df: pd.DataFrame, key: str = "fish_table"):
     edited = st.data_editor(
         df[view_cols],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         disabled=[c for c in view_cols if c != "select"],
         column_config={"select": st.column_config.CheckboxColumn("✓")},
         key=key,

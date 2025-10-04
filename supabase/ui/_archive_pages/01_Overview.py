@@ -208,7 +208,7 @@ else:
         "last_treatment_on",
     ]
     show_cols = [c for c in show_cols if c in df.columns]
-    st.dataframe(df[show_cols], hide_index=True, use_container_width=True)
+    st.dataframe(df[show_cols], hide_index=True, width="stretch")
 
     st.download_button(
         "Download CSV",
@@ -222,6 +222,6 @@ st.subheader("Fish overview (first 50 from v_fish_overview_v1, if available)")
 try:
     with _engine.connect() as cx:
         df2 = fetch_df(cx, "select * from public.v_fish_overview_v1 order by fish_name nulls last limit 50")
-    st.dataframe(df2, use_container_width=True)
+    st.dataframe(df2, width="stretch")
 except Exception as e:
     st.info(f"Rollup view not available yet: {e}")

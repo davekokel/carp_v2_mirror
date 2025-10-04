@@ -1,162 +1,128 @@
-from typing import Optional, Tuple, Any, Dict
-import pandas as pd
-from sqlalchemy.engine import Engine
+# supabase/queries.py
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
 from sqlalchemy import text
 
-def load_fish_overview(
-    engine: Engine,
-    page: int = 1,
-    page_size: int = 50,
+
+def fish_overview_minimal(
+    conn,
     q: Optional[str] = None,
-    stage: Optional[str] = None,
-    strain: Optional[str] = None,
-) -> Tuple[int, pd.DataFrame]:
+    limit: int = 1000,
+    require_links: bool = True,
+) -> List[Dict[str, Any]]:
     """
-    Overview loader that works even when vw_fish_overview_with_label is absent.
-    Falls back to public.fish with a minimal column set.
+    Minimal list of fish for pickers, sourced from the canonical base view.
+
+    Returns rows with:
+      - id (uuid)
+      - fish_code (text)
+      - name (text)
+      - created_at (timestamptz)
+      - created_by (text)
+      - transgene_base_code_filled (text)
+      - allele_code_filled (text)
+
+    Behavior:
+      - Prefer public.v_fish_overview (canonical; only linked fish).
+      - If the view doesn't exist (early local env), fallback to public.fish.
+      - If require_links=True, enforce EXISTS (…) even on the view (belt & suspenders).
     """
-    offset = (page - 1) * page_size
-    with engine.connect() as cx:
-        has_view = cx.execute(
-            text("select to_regclass('public.vw_fish_overview_with_label')")
-        ).scalar() is not None
+    # clamp limit
+    try:
+        lim = int(limit)
+    except Exception:
+        lim = 1000
+    lim = max(1, min(lim, 10000))
 
-        params: Dict[str, Any] = {}
-        where = []
+    # does the canonical view exist?
+    has_view = conn.execute(
+        text("select to_regclass('public.v_fish_overview') is not null")
+    ).scalar()
 
-        if has_view:
-            if q:
-                params["q"] = f"%{q}%"
-                where.append("("
-                             " v.fish_code ILIKE :q"
-                             " OR v.fish_name ILIKE :q"
-                             " OR v.nickname ILIKE :q"
-                             " OR v.transgene_base_code_filled ILIKE :q"
-                             " OR v.allele_code_filled ILIKE :q"
-                             " OR v.allele_name_filled ILIKE :q"
-                             " OR v.transgene_pretty_filled ILIKE :q"
-                             " OR v.transgene_pretty_nickname ILIKE :q"
-                             ")")
-            if stage and stage != "(any)":
-                params["stage"] = stage
-                where.append("v.line_building_stage = :stage")
-            if strain:
-                params["strain_like"] = f"%{strain}%"
-                where.append("f.strain ILIKE :strain_like")
+    params: Dict[str, Any] = {"lim": lim}
+    where = []
 
-            where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    if q and q.strip():
+        params["p"] = f"%{q.strip()}%"
+        where.append(
+            "(fish_code ilike :p or coalesce(name,'') ilike :p or "
+            " coalesce(transgene_base_code_filled,'') ilike :p or "
+            " coalesce(allele_code_filled,'') ilike :p)"
+        )
 
-            sql_count = text(f"""
-                SELECT COUNT(*)
-                FROM public.vw_fish_overview_with_label v
-                LEFT JOIN public.fish f
-                  ON UPPER(TRIM(f.fish_code)) = UPPER(TRIM(v.fish_code))
-                {where_sql}
-            """)
-            sql_page = text(f"""
-                SELECT v.*
-                FROM public.vw_fish_overview_with_label v
-                LEFT JOIN public.fish f
-                  ON UPPER(TRIM(f.fish_code)) = UPPER(TRIM(v.fish_code))
-                {where_sql}
-                ORDER BY v.fish_code NULLS LAST
-                LIMIT :limit OFFSET :offset
-            """)
-            params_page = dict(params)
-            params_page["limit"] = page_size
-            params_page["offset"] = offset
-
-            total = cx.execute(sql_count, params).scalar() or 0
-            df = pd.read_sql(sql_page, cx, params=params_page)
-            return total, df
-
-        # Fallback: minimal from public.fish
-        fish_cols = [r[0] for r in cx.execute(text("""
-            select column_name from information_schema.columns
-            where table_schema='public' and table_name='fish'
-        """)).fetchall()]
-        select_cols = ["id_uuid", "fish_code"]
-        if "name" in fish_cols: select_cols.append("name")
-        if "created_at" in fish_cols: select_cols.append("created_at")
-        if "created_by" in fish_cols: select_cols.append("created_by")
-
-        if q:
-            params["q"] = f"%{q}%"
-            where.append("(fish_code ILIKE :q OR COALESCE(name,'') ILIKE :q)")
-        if stage and "line_building_stage" in fish_cols:
-            params["stage"] = stage
-            where.append("line_building_stage = :stage")
-        if strain and "strain" in fish_cols:
-            params["strain_like"] = f"%{strain}%"
-            where.append("strain ILIKE :strain_like")
-
-        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
-        sql_count = text(f"SELECT COUNT(*) FROM public.fish {where_sql}")
-        sql_page  = text(f"""
-            SELECT {", ".join(select_cols)}
-            FROM public.fish
-            {where_sql}
-            ORDER BY COALESCE(created_at, now()) DESC
-            LIMIT :limit OFFSET :offset
-        """)
-        params_page = dict(params)
-        params_page["limit"] = page_size
-        params_page["offset"] = offset
-
-        total = cx.execute(sql_count, params).scalar() or 0
-        df = pd.read_sql(sql_page, cx, params=params_page)
-        if "name" in df.columns and "fish_name" not in df.columns:
-            df = df.rename(columns={"name": "fish_name"})
-        return total, df
-
-
-def list_treatments_minimal(conn, q: Optional[str] = None, limit: int = 200):
-    """
-    Minimal treatments list for pickers.
-    Works whether treatments uses a text code (treatment_type/treatment_code/display_name)
-    and whether or not it has a UUID PK column.
-    """
-    qnorm = (None if (q is not None and q.strip() == "") else q)
-
-    label_col = conn.execute(text("""
-        select column_name
-        from information_schema.columns
-        where table_schema='public' and table_name='treatments'
-          and column_name in ('treatment_type','treatment_code','display_name')
-        order by case column_name
-          when 'treatment_type' then 1
-          when 'treatment_code' then 2
-          when 'display_name'   then 3
-          else 9 end
-        limit 1
-    """)).scalar()
-
-    if not label_col:
-        return []
-
-    uuid_col = conn.execute(text("""
-        select column_name
-        from information_schema.columns
-        where table_schema='public' and table_name='treatments'
-          and data_type = 'uuid'
-        limit 1
-    """)).scalar()
-
-    if uuid_col:
+    if has_view:
+        where_sql = (" where " + " and ".join(where)) if where else ""
+        # defensive EXISTS even though the view is already tightened
+        if require_links:
+            extra = (
+                " and exists (select 1 from public.fish_transgene_alleles t where t.fish_id = v.id)"
+                if where_sql else
+                " where exists (select 1 from public.fish_transgene_alleles t where t.fish_id = v.id)"
+            )
+        else:
+            extra = ""
         sql = text(f"""
-            select {uuid_col} as id_uuid, ({label_col}::text) as treatment_type
-            from public.treatments
-            where (:q is null or ({label_col}::text) ilike '%'||:q||'%')
-            order by ({label_col}::text) asc
-            limit :limit
+            select
+              v.id,
+              v.fish_code,
+              v.name,
+              v.created_at,
+              v.created_by,
+              v.transgene_base_code_filled,
+              v.allele_code_filled
+            from public.v_fish_overview v
+            {where_sql}{extra}
+            order by v.created_at desc
+            limit :lim
         """)
-    else:
-        sql = text(f"""
-            select NULL::uuid as id_uuid, ({label_col}::text) as treatment_type
-            from public.treatments
-            where (:q is null or ({label_col}::text) ilike '%'||:q||'%')
-            order by ({label_col}::text) asc
-            limit :limit
-        """)
+        rows = conn.execute(sql, params).mappings().all()
+        return list(rows)
 
-    return conn.execute(sql, {"q": qnorm, "limit": limit}).mappings().all()
+    # Fallback: raw fish table (older/local envs). Optionally enforce links.
+    where_fb: List[str] = []
+    if q and q.strip():
+        where_fb.append("(fish_code ilike :p or coalesce(name,'') ilike :p)")
+    if require_links:
+        where_fb.append(
+            "exists (select 1 from public.fish_transgene_alleles t where t.fish_id = f.id)"
+        )
+    where_fb_sql = (" where " + " and ".join(where_fb)) if where_fb else ""
+    sql_fb = text(f"""
+        select
+          f.id,
+          f.fish_code,
+          coalesce(f.name,'')::text as name,
+          f.created_at,
+          f.created_by,
+          null::text as transgene_base_code_filled,
+          null::text as allele_code_filled
+        from public.fish f
+        {where_fb_sql}
+        order by f.created_at desc
+        limit :lim
+    """)
+    rows = conn.execute(sql_fb, params).mappings().all()
+    return list(rows)
+
+
+# Backwards compatibility: old name delegates to the canonical loader
+def list_fish_minimal(conn, q: Optional[str] = None, limit: int = 200):
+    return fish_overview_minimal(conn, q=q, limit=limit, require_links=True)
+
+
+def alleles_for_fish(conn, fish_id: str) -> List[Dict[str, Any]]:
+    """
+    Utility to fetch genotype links for a single fish.
+    Returns: [{transgene_base_code, allele_number, zygosity}]
+    """
+    rows = conn.execute(
+        text("""
+            select transgene_base_code, allele_number, zygosity
+            from public.fish_transgene_alleles
+            where fish_id = :fid
+            order by transgene_base_code, allele_number
+        """),
+        {"fid": str(fish_id)},
+    ).mappings().all()
+    return list(rows)

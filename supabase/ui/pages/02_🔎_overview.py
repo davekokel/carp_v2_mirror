@@ -1,7 +1,7 @@
 # supabase/ui/pages/02_🔎_overview.py
 from __future__ import annotations
 
-# --- sys.path before local imports ---
+# --- path shim (works regardless of CWD) ---
 import sys
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]  # …/carp_v2
@@ -13,68 +13,40 @@ import streamlit as st
 from sqlalchemy import text
 from typing import Dict, Any, List
 
-# Shared engine (centralized on Home)
-from supabase.ui.lib_shared import current_engine, connection_info
-
-# 🔒 auth
-try:
-    from supabase.ui.auth_gate import require_app_unlock
-except Exception:
-    def require_app_unlock(): ...
-require_app_unlock()
+# centralized engine
+from supabase.ui.lib.app_ctx import get_engine, engine_info
 
 PAGE_TITLE = "CARP — Overview"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🔎", layout="wide")
 st.title("🔎 Overview")
 
-# ---- Use centralized engine; show DB info
-eng = current_engine()
-dbg = connection_info(eng)
-st.caption(f"DB debug → db={dbg['db']} user={dbg['user']}")
+eng = get_engine()
+dbg = engine_info(eng)
+st.caption(f"DB debug → db={dbg['db']} user={dbg['usr']} host={dbg['host']}:{dbg['port']}")
 
-# ---- Force-refresh (clear caches + editor state) ----
-colR1, colR2 = st.columns([1, 4])
-with colR1:
-    if st.button("🔁 Refresh data"):
-        try:
-            st.cache_data.clear()
-        except Exception:
-            pass
-        try:
-            st.cache_resource.clear()
-        except Exception:
-            pass
-        for k in list(st.session_state.keys()):
-            if k in ("overview_grid", "overview_grid_v2"):
-                st.session_state.pop(k, None)
+# ---- Controls ----
+colR, colQ = st.columns([1, 3])
+with colR:
+    if st.button("🔁 Refresh"):
+        try: st.cache_data.clear()
+        except Exception: pass
+        try: st.cache_resource.clear()
+        except Exception: pass
         st.rerun()
+with colQ:
+    q = st.text_input(
+        "Search (code, name, genotype, created_by, batch, nickname)", value=""
+    ).strip()
+limit = st.number_input("Row limit", min_value=50, max_value=10000, value=1000, step=50)
 
-# ---- Filters / search
-with st.expander("Filters", expanded=True):
-    q = st.text_input("Search (code, name, genotype, created_by, batch, nickname)", value="").strip()
-    limit = st.number_input("Row limit", min_value=50, max_value=10000, value=1000, step=50)
-
-# ---- Load + render (final) ----
-def _load_overview(engine, q: str, limit: int) -> pd.DataFrame:
-    # clamp limit
+# ---- Loader (centralized, robust to legacy shapes) ----
+def load_overview(engine, q: str, limit: int) -> pd.DataFrame:
     try:
-        lim = int(limit)
+        lim = max(1, min(int(limit), 10000))
     except Exception:
         lim = 1000
-    lim = max(1, min(lim, 10000))
 
-    # detect if the label view has 'date_birth'
-    with engine.begin() as cx:
-        has_dob = cx.execute(text("""
-            select exists (
-              select 1
-              from information_schema.columns
-              where table_schema='public'
-                and table_name='vw_fish_overview_with_label'
-                and column_name='date_birth'
-            )
-        """)).scalar()
-
+    # build WHERE across base + extras (use base for core fields)
     params: Dict[str, Any] = {}
     where: List[str] = []
     if q:
@@ -94,9 +66,58 @@ def _load_overview(engine, q: str, limit: int) -> pd.DataFrame:
         """)
     where_sql = (" where " + " and ".join(where)) if where else ""
 
-    dob_expr = "w.date_birth" if has_dob else "null::date as date_birth"
+    # detect if label view has date_birth
+    # detect optional columns on the label view
+    with engine.begin() as cx:
+        has_dob = cx.execute(text("""
+            select exists (
+            select 1
+            from information_schema.columns
+            where table_schema='public'
+                and table_name='vw_fish_overview_with_label'
+                and column_name='date_birth'
+            )
+        """)).scalar()
 
-    sql_txt = text(f"""
+        has_lp  = cx.execute(text("""
+            select exists (
+            select 1 from information_schema.columns
+            where table_schema='public' and table_name='vw_fish_overview_with_label'
+                and column_name='last_plasmid_injection_at'
+            )
+        """)).scalar()
+
+        has_pit = cx.execute(text("""
+            select exists (
+            select 1 from information_schema.columns
+            where table_schema='public' and table_name='vw_fish_overview_with_label'
+                and column_name='plasmid_injections_text'
+            )
+        """)).scalar()
+
+        has_lr  = cx.execute(text("""
+            select exists (
+            select 1 from information_schema.columns
+            where table_schema='public' and table_name='vw_fish_overview_with_label'
+                and column_name='last_rna_injection_at'
+            )
+        """)).scalar()
+
+        has_rit = cx.execute(text("""
+            select exists (
+            select 1 from information_schema.columns
+            where table_schema='public' and table_name='vw_fish_overview_with_label'
+                and column_name='rna_injections_text'
+            )
+        """)).scalar()
+
+    dob_expr  = "w.date_birth" if has_dob else "null::date as date_birth"
+    lp_expr   = "w.last_plasmid_injection_at" if has_lp else "null::timestamptz as last_plasmid_injection_at"
+    pit_expr  = "w.plasmid_injections_text"   if has_pit else "null::text as plasmid_injections_text"
+    lr_expr   = "w.last_rna_injection_at"     if has_lr else "null::timestamptz as last_rna_injection_at"
+    rit_expr  = "w.rna_injections_text"       if has_rit else "null::text as rna_injections_text"
+
+    sql = f"""
       select
         b.id,
         b.fish_code,
@@ -116,24 +137,23 @@ def _load_overview(engine, q: str, limit: int) -> pd.DataFrame:
         w.nickname,
         w.line_building_stage,
         {dob_expr},
-        w.last_plasmid_injection_at,
-        w.plasmid_injections_text,
-        w.last_rna_injection_at,
-        w.rna_injections_text
+        {lp_expr},
+        {pit_expr},
+        {lr_expr},
+        {rit_expr}
       from public.v_fish_overview b
       left join public.vw_fish_overview_with_label w
         on w.fish_code = b.fish_code
       {where_sql}
       order by b.created_at desc
       limit {lim}
-    """)
-    return pd.read_sql(sql_txt, engine, params=params)
+    """
+    return pd.read_sql(text(sql), engine, params=params)
 
-# actually load + render
-df = _load_overview(eng, q=q, limit=limit)
+df = load_overview(eng, q=q, limit=limit)
 
 if df.empty:
-    st.info("No rows match the current filters. (Cohorts appear here after genotype is linked.)")
+    st.info("No rows match the current filters. (Cohorts appear after genotype is linked.)")
 else:
     if "id" in df.columns:
         df["id"] = df["id"].astype(str)
@@ -178,8 +198,3 @@ else:
         },
         disabled=True,
     )
-
-st.caption(
-    "This page uses base `v_fish_overview` for core fields (id, name, genotype) "
-    "and LEFT JOINs `vw_fish_overview_with_label` for extras (batch, nickname, stage, DOB, injections)."
-)
