@@ -1,0 +1,3 @@
+BEGIN;
+CREATE SEQUENCE IF NOT EXISTS public.fish_code_seq START 1;
+COMMIT;
