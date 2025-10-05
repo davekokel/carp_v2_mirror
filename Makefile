@@ -108,3 +108,5 @@ run-local:
 	pip install -r supabase/ui/requirements.txt >/dev/null; \
 	mkdir -p .streamlit; printf 'APP_LOCKED = false\n' > .streamlit/secrets.toml; \
 	streamlit run supabase/ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+
+-include mk/local.mk
