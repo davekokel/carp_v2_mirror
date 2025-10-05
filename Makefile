@@ -16,10 +16,6 @@ BASH            ?= /opt/homebrew/bin/bash
 reset:
 	@supabase db reset --local --yes
 
-smoke:
-	@psql -Atc "select 'tables',count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE' \
-	union all select 'views',count(*) from information_schema.views where table_schema='public' order by 1"
-
 check:
 	@$(BASH) ./scripts/check_sequences.sh
 
@@ -95,6 +91,10 @@ PYTHON ?= python3
 
 guard-migrations:
 	@$(PYTHON) scripts/guard_migration.py supabase/migrations
+
+# --- local dev helpers ---
+DB_URL_LOCAL := $(shell scripts/dburl_local.sh)
+
 
 # --- local dev helpers ---
 DB_URL_LOCAL := $(shell scripts/dburl_local.sh)
