@@ -64,16 +64,16 @@ parity:
 # Wipe Homebrew data, apply latest baseline, start app pointed at Homebrew
 local-cleanseed:
 	# wipe data (keeps roles/extensions)
-	@psql "$(LOCAL_DB_URL)" -v ON_ERROR_STOP=1 <<'SQL'
-BEGIN;
-DO $$
-DECLARE stmt text;
-BEGIN
-  SELECT 'TRUNCATE TABLE '||string_agg(format('%I.%I',schemaname,tablename),', ')||' RESTART IDENTITY CASCADE'
-  INTO stmt FROM pg_tables WHERE schemaname='public';
-  IF stmt IS NOT NULL THEN EXECUTE stmt; END IF;
-END$$;
-COMMIT;
+	@psql "$(LOCAL_DB_URL)" -v ON_ERROR_STOP=1 <<-'SQL'
+	BEGIN;
+	DO $$
+	DECLARE stmt text;
+	BEGIN
+	  SELECT 'TRUNCATE TABLE '||string_agg(format('%I.%I',schemaname,tablename),', ')||' RESTART IDENTITY CASCADE'
+	  INTO stmt FROM pg_tables WHERE schemaname='public';
+	  IF stmt IS NOT NULL THEN EXECUTE stmt; END IF;
+	END$$;
+	COMMIT;
 SQL
 	# apply baseline (last *_baseline_schema.sql)
 	@psql "$(LOCAL_DB_URL)" -v ON_ERROR_STOP=1 -f $$(ls -1 supabase/migrations/*_baseline_schema.sql | tail -n1)
