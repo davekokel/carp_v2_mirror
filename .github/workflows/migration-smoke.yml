@@ -1,0 +1,52 @@
+name: Migration Smoke
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  replay-migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Apply migrations (repo order)
+        env:
+          DB_URL: postgresql://postgres:postgres@127.0.0.1:54329/postgres?sslmode=disable
+        run: |
+          for f in supabase/migrations/*.sql; do
+            echo ">> $f"
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Smoke queries
+        env:
+          DB_URL: postgresql://postgres:postgres@127.0.0.1:54329/postgres?sslmode=disable
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          -- core tables exist
+          SELECT to_regclass('public.fish') IS NOT NULL AS has_fish;
+          SELECT to_regclass('public.fish_transgene_alleles') IS NOT NULL AS has_links;
+
+          -- fish_code trigger installed & format enforced
+          INSERT INTO public.fish (name, created_by) VALUES ('probe','ci') RETURNING fish_code;
+          DELETE FROM public.fish WHERE name='probe';
+          SQL
