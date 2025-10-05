@@ -105,3 +105,59 @@ def fish_overview_minimal(conn_or_engine: Any, q: Optional[str] = None, limit: i
         df = df.head(limit)
 
     return df.to_dict(orient="records")
+
+# --- compat shim (fixed): fish_overview_minimal --------------------------------
+# Re-define to avoid pandas boolean-ambiguous 'or' between Series.
+from typing import Any, Dict, List, Optional
+import pandas as pd
+
+def fish_overview_minimal(conn_or_engine: Any, q: Optional[str] = None, limit: int = 1000, require_links: bool = True) -> List[Dict[str, Any]]:
+    """
+    Back-compat for older UI code expecting Q.fish_overview_minimal(conn, q, limit, require_links).
+    Delegates to load_fish_overview(engine), applies simple text filter, trims columns,
+    and returns list-of-dicts. `require_links` is accepted but not enforced (no-op).
+    """
+    eng = _resolve_engine(conn_or_engine)
+    df = load_fish_overview(eng).copy()
+
+    # Ensure expected columns exist (tolerant)
+    for c in ["batch_label", "seed_batch_id", "fish_code", "name", "nickname", "created_by", "date_birth", "created_at", "id_uuid", "id"]:
+        if c not in df.columns:
+            df[c] = None
+
+    # Derive batch_display safely
+    s1 = df["batch_label"] if "batch_label" in df.columns else None
+    s2 = df["seed_batch_id"] if "seed_batch_id" in df.columns else None
+    if s1 is not None and s2 is not None:
+        df["batch_display"] = s1.fillna(s2)
+    elif s1 is not None:
+        df["batch_display"] = s1
+    elif s2 is not None:
+        df["batch_display"] = s2
+    else:
+        df["batch_display"] = None
+
+    # Simple q filter
+    if q:
+        ql = str(q).strip().lower()
+        cols = [c for c in ["fish_code","name","nickname","batch_display","created_by"] if c in df.columns]
+        mask = pd.Series(False, index=df.index)
+        for c in cols:
+            mask |= df[c].fillna("").astype(str).str.lower().str.contains(ql, na=False)
+        df = df[mask]
+
+    # Select a minimal, tolerant column set (prefer id_uuid but fallback to id)
+    preferred = ["id_uuid","id","fish_code","name","nickname","batch_display","created_by","date_birth","created_at"]
+    cols = [c for c in preferred if c in df.columns]
+    if cols:
+        df = df[cols]
+
+    # Row limit
+    if isinstance(limit, int) and limit > 0:
+        df = df.head(limit)
+
+    # Normalize id_uuid: if missing but 'id' exists, map it
+    if "id_uuid" in df.columns and df["id_uuid"].isna().all() and "id" in df.columns:
+        df["id_uuid"] = df["id"]
+
+    return df.to_dict(orient="records")
