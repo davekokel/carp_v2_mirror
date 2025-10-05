@@ -91,3 +91,7 @@ docker-baseline:
 	@psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslmode=disable" -v ON_ERROR_STOP=1 \
 	  -f $$(ls -1 supabase/migrations/*_baseline_schema.sql | tail -n1)
 	@echo "✅ Docker baseline applied"
+PYTHON ?= python3
+
+guard-migrations:
+	@$(PYTHON) scripts/guard_migration.py supabase/migrations
