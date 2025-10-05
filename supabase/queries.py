@@ -53,3 +53,55 @@ def load_fish_overview(engine, q: Optional[str] = None, limit: int = 1000) -> pd
     limit %(lim)s
     """
     return pd.read_sql_query(sql, con=engine, params=params)
+# --- compat shim: fish_overview_minimal --------------------------------------
+from typing import Any, Dict, List, Optional
+import pandas as pd
+
+def _resolve_engine(obj):
+    try:
+        # SQLAlchemy Engine
+        from sqlalchemy.engine import Engine, Connection
+        if isinstance(obj, Engine):
+            return obj
+        if isinstance(obj, Connection):
+            return obj.engine
+    except Exception:
+        pass
+    return obj  # hope it's already an Engine
+
+def fish_overview_minimal(conn_or_engine: Any, q: Optional[str] = None, limit: int = 1000, require_links: bool = True) -> List[Dict[str, Any]]:
+    """
+    Back-compat for older UI code expecting Q.fish_overview_minimal(conn, q, limit, require_links).
+    Delegates to load_fish_overview(engine), applies a simple text filter, trims columns,
+    and returns list-of-dicts. `require_links` is accepted but not enforced (no-op).
+    """
+    eng = _resolve_engine(conn_or_engine)
+    df = load_fish_overview(eng)
+
+    # derive batch_display if not present
+    if "batch_display" not in df.columns:
+        if "batch_label" in df.columns and "seed_batch_id" in df.columns:
+            df["batch_display"] = df["batch_label"].fillna(df["seed_batch_id"])
+        else:
+            df["batch_display"] = df.get("batch_label") or df.get("seed_batch_id")
+
+    # simple q filter
+    if q:
+        ql = str(q).strip().lower()
+        cols = [c for c in ["fish_code","name","nickname","batch_display","created_by"] if c in df.columns]
+        mask = pd.Series(False, index=df.index)
+        for c in cols:
+            mask |= df[c].fillna("").astype(str).str.lower().str.contains(ql, na=False)
+        df = df[mask]
+
+    # select a minimal, tolerant column set
+    preferred = ["id_uuid","fish_code","name","nickname","batch_display","created_by","date_birth","created_at"]
+    cols = [c for c in preferred if c in df.columns]
+    if cols:
+        df = df[cols]
+
+    # limit
+    if isinstance(limit, int) and limit > 0:
+        df = df.head(limit)
+
+    return df.to_dict(orient="records")
