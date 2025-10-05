@@ -161,3 +161,80 @@ def fish_overview_minimal(conn_or_engine: Any, q: Optional[str] = None, limit: i
         df["id_uuid"] = df["id"]
 
     return df.to_dict(orient="records")
+
+# --- compat shim tweak: add filled transgene/allele fields and tolerant ids ---
+import pandas as pd
+
+def _first_nonnull(*series) -> pd.Series:
+    # return first non-null across provided Series (or None)
+    base = None
+    for s in series:
+        if s is None: 
+            continue
+        if base is None:
+            base = s
+        else:
+            base = base.where(base.notna(), s)
+    if base is None:
+        # make a Series of Nones if we can't infer length
+        return pd.Series(dtype="object")
+    return base
+
+def fish_overview_minimal(conn_or_engine, q=None, limit: int = 1000, require_links: bool = True):
+    # (redefine with enriched columns expected by older pages)
+    eng = _resolve_engine(conn_or_engine)
+    df = load_fish_overview(eng).copy()
+
+    # Ensure expected columns exist
+    for c in ["id_uuid","id","fish_code","name","nickname","created_by","date_birth","created_at",
+              "batch_label","seed_batch_id","transgene_base_code","allele_number","allele_code",
+              "transgene_base_code_filled","allele_code_filled"]:
+        if c not in df.columns:
+            df[c] = None
+
+    # batch_display safely
+    s1 = df["batch_label"]
+    s2 = df["seed_batch_id"]
+    df["batch_display"] = _first_nonnull(s1, s2)
+
+    # filled transgene base code
+    df["transgene_base_code_filled"] = _first_nonnull(df.get("transgene_base_code_filled"),
+                                                      df.get("transgene_base_code"))
+
+    # filled allele code
+    if "allele_code_filled" not in df or df["allele_code_filled"].isna().all():
+        # start with allele_code if present
+        df["allele_code_filled"] = df.get("allele_code")
+        # build from base + allele_number where missing
+        if "transgene_base_code" in df.columns and "allele_number" in df.columns:
+            mask = df["allele_code_filled"].isna() & df["transgene_base_code"].notna() & df["allele_number"].notna()
+            df.loc[mask, "allele_code_filled"] = (
+                df.loc[mask, "transgene_base_code"].astype(str) + "-" + df.loc[mask, "allele_number"].astype(str)
+            )
+
+    # q filter
+    if q:
+        ql = str(q).strip().lower()
+        cols = [c for c in ["fish_code","name","nickname","batch_display","created_by",
+                             "transgene_base_code_filled","allele_code_filled"] if c in df.columns]
+        mask = pd.Series(False, index=df.index)
+        for c in cols:
+            mask |= df[c].fillna("").astype(str).str.lower().str.contains(ql, na=False)
+        df = df[mask]
+
+    # Make sure id exists (fallback to id_uuid)
+    if "id" not in df.columns or df["id"].isna().all():
+        if "id_uuid" in df.columns:
+            df["id"] = df["id_uuid"]
+
+    # Minimal column set expected by older page
+    preferred = ["id","id_uuid","fish_code","name","nickname","batch_display",
+                 "transgene_base_code_filled","allele_code_filled","created_by","date_birth","created_at"]
+    cols = [c for c in preferred if c in df.columns]
+    if cols:
+        df = df[cols]
+
+    if isinstance(limit, int) and limit > 0:
+        df = df.head(limit)
+
+    return df.to_dict(orient="records")
