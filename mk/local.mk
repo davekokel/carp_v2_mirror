@@ -11,3 +11,15 @@ run-local:
 	pip install -r supabase/ui/requirements.txt >/dev/null; \
 	mkdir -p .streamlit; printf 'APP_LOCKED = false\n' > .streamlit/secrets.toml; \
 	streamlit run supabase/ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+
+.PHONY: cleanseed-local baseline-local
+
+cleanseed-local:
+	@echo "🔨 Truncating all public tables on local DB…"
+	@psql -d "$(DB_URL_LOCAL)" -v ON_ERROR_STOP=1 -f scripts/wipe_local.sql
+	@echo "✅ Truncate complete."
+
+baseline-local:
+	@echo "📦 Applying latest *_baseline_schema.sql to local DB…"
+	@psql -d "$(DB_URL_LOCAL)" -v ON_ERROR_STOP=1 -f $$(ls -1 supabase/migrations/*_baseline_schema.sql | tail -n1)
+	@echo "✅ Baseline applied."
