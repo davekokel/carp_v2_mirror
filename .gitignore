@@ -84,3 +84,17 @@ supabase/seed_kits/*/* 2.csv
 # local dev
 .venv/
 .streamlit/secrets.toml
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+.DS_Store
+*.swp
+*.bak
+*.bak.*
+*.tmp
+*~
+.venv/
+.env
+.env.*
+.streamlit/secrets.toml
