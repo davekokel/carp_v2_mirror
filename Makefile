@@ -62,24 +62,6 @@ parity:
 	@echo "✅ Parity applied: LOCAL (Homebrew) and DOCKER (Supabase) now share the same migrations."
 
 # Wipe Homebrew data, apply latest baseline, start app pointed at Homebrew
-local-cleanseed:
-	# wipe data (keeps roles/extensions)
-	@psql "$(LOCAL_DB_URL)" -v ON_ERROR_STOP=1 <<-'SQL'
-	BEGIN;
-	DO $$
-	DECLARE stmt text;
-	BEGIN
-	  SELECT 'TRUNCATE TABLE '||string_agg(format('%I.%I',schemaname,tablename),', ')||' RESTART IDENTITY CASCADE'
-	  INTO stmt FROM pg_tables WHERE schemaname='public';
-	  IF stmt IS NOT NULL THEN EXECUTE stmt; END IF;
-	END$$;
-	COMMIT;
-SQL
-	# apply baseline (last *_baseline_schema.sql)
-	@psql "$(LOCAL_DB_URL)" -v ON_ERROR_STOP=1 -f $$(ls -1 supabase/migrations/*_baseline_schema.sql | tail -n1)
-	# start app on Homebrew
-	@echo "Starting app on Homebrew…"
-	@DB_URL="$(LOCAL_DB_URL)" APP_FORCE_LOCAL=1 scripts/carp_local_start
 
 # (Optional) baseline-only reset for Docker
 docker-baseline:
