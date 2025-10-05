@@ -43,9 +43,11 @@ def normalize_fish_seedkit(df_in: pd.DataFrame) -> pd.DataFrame:
     # accept either date_birth or date_of_birth; normalize to date_birth
     dob_any = _pick(df, ["date_birth", "date_of_birth", "birth_date"])
     try:
-        out["date_birth"] = pd.to_datetime(dob_any, errors="coerce").dt.date
+        # Allow mixed formats like 8/16/24, 2024-08-16, 11/24/24, etc. (pandas ≥ 2.1)
+        out["date_birth"] = pd.to_datetime(dob_any, format="mixed", errors="coerce").dt.date
     except Exception:
-        out["date_birth"] = None
+        # Fallback for older pandas: no explicit format
+        out["date_birth"] = pd.to_datetime(dob_any, errors="coerce").dt.date
 
     # numeric allele number only if explicitly provided (legacy support)
     if "allele_number" in df.columns:
@@ -53,11 +55,10 @@ def normalize_fish_seedkit(df_in: pd.DataFrame) -> pd.DataFrame:
     else:
         out["allele_number"] = pd.Series([pd.NA] * len(out), dtype="Int64")
 
-    # Autogenerate fish_code if missing
+    # DB will generate fish_code on insert; keep blanks here (validator will warn)
     mask = out["fish_code"].isna() | (out["fish_code"].astype(str).str.strip() == "")
     if mask.any():
-        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-        out.loc[mask, "fish_code"] = [f"FSH-{stamp}-{i:03d}" for i in range(1, int(mask.sum()) + 1)]
+        out.loc[mask, "fish_code"] = ""
 
     # ensure all expected columns exist
     for col in [

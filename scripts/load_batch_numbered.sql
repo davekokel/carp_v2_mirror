@@ -103,7 +103,7 @@ WITH pf AS (
   FROM core_fish_csv
   WHERE COALESCE(trim(fish_code),'') <> ''
 )
-INSERT INTO public.fish (fish_code, name, date_of_birth, line_building_stage, strain)
+INSERT INTO public.fish (name, date_of_birth, line_building_stage, strain)
 SELECT fish_code, name, date_of_birth, line_building_stage, strain
 FROM pf
 ON CONFLICT (fish_code) DO UPDATE

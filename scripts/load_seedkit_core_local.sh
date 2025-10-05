@@ -80,7 +80,7 @@ where coalesce(trim(transgene_base_code),'') <> ''
 on conflict (transgene_base_code, allele_number) do update
   set description = coalesce(excluded.description, public.transgene_alleles.description);
 
-insert into public.fish (fish_code, name, date_of_birth, strain, status)
+insert into public.fish (name, date_of_birth, strain, status)
 select lower(trim(fish_code)), nullif(trim(name),''), date_of_birth, nullif(trim(strain),''), nullif(trim(status),'')
 from raw.core_fish_csv
 where coalesce(trim(fish_code),'') <> ''

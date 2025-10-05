@@ -1,67 +1,163 @@
-# supabase/ui/lib/app_ctx.py
+# supabase/ui/lib/app_ctx.py  — full replacement
 from __future__ import annotations
 
-# path shim so imports work no matter how Streamlit launches
-import sys
-from pathlib import Path
-ROOT = Path(__file__).resolve().parents[2]  # .../carp_v2
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 import os
-from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
+from typing import Dict, Optional, Tuple
 
 import streamlit as st
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-def _ensure_sslmode(url: str) -> str:
-    if not url:
-        return url
-    u = urlparse(url)
-    host = (u.hostname or "").lower() if u.hostname else ""
-    q = dict(parse_qsl(u.query, keep_blank_values=True))
-    if host in {"localhost", "127.0.0.1", "::1"}:
-        q["sslmode"] = "disable"
-    else:
-        q.setdefault("sslmode", "require")
-    return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
+
+# ----------------------------------------------------------------------
+# Module-level cache: a single engine shared by all pages in a run
+# ----------------------------------------------------------------------
+_cached_url: Optional[str] = None
+_cached_engine: Optional[Engine] = None
+
+
+# ----------------------------------------------------------------------
+# Internals
+# ----------------------------------------------------------------------
+def _mask(url: Optional[str]) -> str:
+    """Mask password in a DB URL for safe display."""
+    if not url or "://" not in url:
+        return url or ""
+    scheme, rest = url.split("://", 1)
+    if "@" in rest and ":" in rest.split("@", 1)[0]:
+        creds, hostpart = rest.split("@", 1)
+        user = creds.split(":", 1)[0]
+        return f"{scheme}://{user}:***@{hostpart}"
+    return url
+
+
+def _default_local_url() -> str:
+    """Hard default: Homebrew Postgres on localhost:5432."""
+    return "postgresql://postgres@127.0.0.1:5432/postgres?sslmode=disable"
+
+
+def _normalize_url(url: Optional[str]) -> str:
+    """Return a trimmed, non-empty URL (or default local)."""
+    val = (url or "").strip()
+    return val if val else _default_local_url()
+
 
 def _resolve_db_url() -> str:
-    # Order of precedence: session-set → secrets/env → local default
-    url = st.session_state.get("DB_URL") \
-          or st.secrets.get("DB_URL", "") \
-          or os.getenv("DATABASE_URL") \
-          or os.getenv("DB_URL") \
-          or "postgresql://postgres@localhost:5432/postgres?sslmode=disable"
-    return _ensure_sslmode(url)
+    """
+    Single point of truth for the active DB URL.
+    Order of precedence:
+      1) st.session_state["DB_URL"] (set by Diagnostics buttons)
+      2) os.environ["DB_URL"]
+      3) APP_FORCE_LOCAL -> default local
+      4) default local
+    """
+    url = st.session_state.get("DB_URL")
+    if url:
+        return _normalize_url(url)
 
-@st.cache_resource(show_spinner=False)
-def _engine_for(url: str) -> Engine:
-    if not url:
-        raise RuntimeError("Empty DB URL")
-    return create_engine(url, pool_pre_ping=True, future=True)
+    url = os.environ.get("DB_URL")
+    if url:
+        url = _normalize_url(url)
+        st.session_state["DB_URL"] = url
+        return url
+
+    if os.environ.get("APP_FORCE_LOCAL"):
+        url = _default_local_url()
+        st.session_state["DB_URL"] = url
+        return url
+
+    url = _default_local_url()
+    st.session_state["DB_URL"] = url
+    return url
+
+
+def _maybe_rebuild_engine(url: str) -> Engine:
+    """Create/reuse a SQLAlchemy engine for the given URL."""
+    global _cached_engine, _cached_url
+    if _cached_engine is None or _cached_url != url:
+        # pre_ping=True avoids stale connections on resume; future=True for SQLA 2.0 style
+        _cached_engine = create_engine(url, pool_pre_ping=True, future=True)
+        _cached_url = url
+    return _cached_engine
+
+
+# ----------------------------------------------------------------------
+# Public API
+# ----------------------------------------------------------------------
+def set_db_url(url: str) -> None:
+    """
+    Set and persist the DB URL for all pages in this app session.
+    This also invalidates the cached engine so the next get_engine() reconnects.
+    """
+    global _cached_engine, _cached_url
+    url = _normalize_url(url)
+    st.session_state["DB_URL"] = url
+    os.environ["DB_URL"] = url
+    if _cached_url != url:
+        _cached_engine = None
+        _cached_url = None
+
+
+def clear_engine_cache() -> None:
+    """Explicitly drop the cached engine (forces reconnect on next get_engine())."""
+    global _cached_engine, _cached_url
+    _cached_engine = None
+    _cached_url = None
+
 
 def get_engine() -> Engine:
+    """Return a shared SQLAlchemy engine bound to the current DB URL."""
     url = _resolve_db_url()
-    return _engine_for(url)
+    return _maybe_rebuild_engine(url)
 
-def engine_info(eng: Engine | None = None) -> dict:
-    eng = eng or get_engine()
-    with eng.begin() as cx:
-        row = cx.execute(text("""
-            select current_database() as db,
-                   inet_server_addr()::text as host,
-                   inet_server_port()::int  as port,
-                   current_user as usr
-        """)).mappings().first()
-    return dict(row)
 
-def set_db_url(url: str) -> None:
-    st.session_state["DB_URL"] = _ensure_sslmode(url)
-    _engine_for.clear()  # next get_engine() recreates with new URL
+def engine_info(eng: Optional[Engine] = None) -> Dict[str, str]:
+    """
+    Lightweight diagnostics for headers/badges and debug captions.
+    Returns: {url_masked, db, usr, host, port}
+    """
+    if eng is None:
+        eng = get_engine()
 
-def is_local_url(url: str) -> bool:
-    u = urlparse(url)
-    host = (u.hostname or "").lower() if u.hostname else ""
-    return host in {"localhost", "127.0.0.1", "::1"}
+    url = st.session_state.get("DB_URL", os.environ.get("DB_URL", _default_local_url()))
+    info: Dict[str, str] = {
+        "url_masked": _mask(url),
+        "db": "",
+        "usr": "",
+        "host": "",
+        "port": "",
+    }
+
+    # Parse basics from the SQLAlchemy URL when available
+    try:
+        u = eng.url  # type: ignore[attr-defined]
+        info["usr"] = getattr(u, "username", "") or ""
+        info["host"] = getattr(u, "host", "") or ""
+        info["port"] = str(getattr(u, "port", "") or "")
+        info["db"] = getattr(u, "database", "") or ""
+    except Exception:
+        pass
+
+    # Live probe (best-effort; ignore failures)
+    try:
+        with eng.begin() as cx:
+            row = cx.execute(
+                text(
+                    """
+                    select current_database() as db,
+                           inet_server_addr()::text as addr,
+                           inet_server_port()      as port
+                    """
+                )
+            ).mappings().first()
+        if row:
+            info["db"] = info["db"] or row.get("db", "")
+            # If URL didn't include host/port, prefer server addr/port
+            if not info["host"]:
+                info["host"] = row.get("addr", "") or ""
+            if not info["port"]:
+                info["port"] = str(row.get("port", "") or "")
+    except Exception:
+        pass
+
+    return info

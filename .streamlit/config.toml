@@ -1,5 +1,5 @@
-[theme]
-base = "light"
-
 [server]
-headless = true
+# Don't watch virtualenvs or large dirs under the app tree
+folderWatchBlacklist = [".venv", "supabase/ui/.venv", "node_modules", ".git"]
+# Optional: if needed on macOS to reduce CPU
+# fileWatcherType = "poll"

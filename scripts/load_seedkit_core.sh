@@ -55,7 +55,7 @@ on conflict (transgene_base_code, allele_number) do update
   set description = coalesce(excluded.description, public.transgene_alleles.description);
 
 -- 3) upsert fish (identified by fish_code)
-insert into public.fish (fish_code, name, date_of_birth, status, strain)
+insert into public.fish (name, date_of_birth, status, strain)
 select lower(trim(fish_code)),
        nullif(trim(name),''),
        nullif(trim(date_of_birth),'')::date,

@@ -1,4 +1,4 @@
-# supabase/ui/pages/30_new_cross.py
+# 03_🧬_new_fish_from_cross.py
 from __future__ import annotations
 
 # --- sys.path before local imports ---
@@ -258,7 +258,7 @@ if do_create:
                 # Safe fallback: insert a cohort row with generated code
                 row = conn.execute(
                     text("""
-                      insert into public.fish (id, fish_code, name, created_by, date_birth)
+                      insert into public.fish (id, name, created_by, date_birth)
                       values (gen_random_uuid(), concat('X-', to_char(now(),'YYMMDD-HH24MISS')), null, :by, :dob)
                       returning id, fish_code
                     """),

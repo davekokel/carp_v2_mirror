@@ -146,7 +146,7 @@ def insert_fish(cx, df_fish, default_batch: Optional[str]):
     ins = text(
         """
         insert into public.fish(
-            name, fish_code, batch_label, line_building_stage, nickname, date_of_birth, description, strain, auto_fish_code
+            name, batch_label, line_building_stage, nickname, date_of_birth, description, strain, auto_fish_code
         )
         select :name, NULL, :batch_label, :line_building_stage, :nickname, :date_of_birth, :description, :strain,
                public.next_auto_fish_code()

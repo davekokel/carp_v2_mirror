@@ -1,23 +1,8 @@
 --
--- PostgreSQL database dump
 --
-
-\restrict 9qRLGzygh0ZWCZDODBFtp88Bi7seLEzGe6f6uQRWNh7XyeDcuRnxGzT7s2etf18
 
 -- Dumped from database version 16.10 (Homebrew)
 -- Dumped by pg_dump version 18.0
-
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
 
 --
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
@@ -25,13 +10,11 @@ SET row_security = off;
 
 -- *not* creating schema, since initdb creates it
 
-
 --
 -- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
 --
 
 COMMENT ON SCHEMA public IS '';
-
 
 --
 -- Name: util_mig; Type: SCHEMA; Schema: -; Owner: -
@@ -39,20 +22,17 @@ COMMENT ON SCHEMA public IS '';
 
 CREATE SCHEMA util_mig;
 
-
 --
 -- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
 --
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 
-
 --
 -- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: -
 --
 
 COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
-
 
 --
 -- Name: _table_has(text, text, text); Type: FUNCTION; Schema: public; Owner: -
@@ -66,7 +46,6 @@ CREATE FUNCTION public._table_has(col_table_schema text, col_table_name text, co
     where table_schema=col_table_schema and table_name=col_table_name and column_name=col_name
   )
 $$;
-
 
 --
 -- Name: _to_base36(bigint, integer); Type: FUNCTION; Schema: public; Owner: -
@@ -91,7 +70,6 @@ BEGIN
   IF length(out) < pad THEN out := lpad(out, pad, '0'); END IF;
   RETURN out;
 END $$;
-
 
 --
 -- Name: allocate_allele_number(text, text); Type: FUNCTION; Schema: public; Owner: -
@@ -137,7 +115,6 @@ begin
 end
 $$;
 
-
 --
 -- Name: apply_plasmid_treatment(uuid, uuid, numeric, text, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -159,7 +136,6 @@ CREATE FUNCTION public.apply_plasmid_treatment(p_fish_id uuid, p_plasmid_id uuid
   END
   $$;
 
-
 --
 -- Name: apply_rna_treatment(uuid, uuid, numeric, text, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -180,7 +156,6 @@ CREATE FUNCTION public.apply_rna_treatment(p_fish_id uuid, p_rna_id uuid, p_amou
     ON CONFLICT ON CONSTRAINT uq_irt_natural DO NOTHING;
   END
   $$;
-
 
 --
 -- Name: create_offspring_batch(uuid, uuid, integer, text, date, text); Type: FUNCTION; Schema: public; Owner: -
@@ -246,7 +221,6 @@ CREATE FUNCTION public.create_offspring_batch(p_mother_id uuid, p_father_id uuid
   END
   $_$;
 
-
 --
 -- Name: fish_before_insert_code(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -262,7 +236,6 @@ BEGIN
   END IF;
   RETURN NEW;
 END $_$;
-
 
 --
 -- Name: inherit_transgene_alleles(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
@@ -289,7 +262,6 @@ CREATE FUNCTION public.inherit_transgene_alleles(child_id uuid, mother_id uuid, 
   END
   $$;
 
-
 --
 -- Name: make_fish_code_compact(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -299,7 +271,6 @@ CREATE FUNCTION public.make_fish_code_compact() RETURNS text
     AS $$
   SELECT 'FSH-' || to_char(current_date,'YY') || public._to_base36(nextval('public.fish_code_seq'), 4)
 $$;
-
 
 --
 -- Name: make_fish_code_yy_seq36(timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
@@ -322,7 +293,6 @@ BEGIN
   RETURN 'FSH-' || yy || public._to_base36(k, 4);
 END $$;
 
-
 --
 -- Name: make_tank_code_compact(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -332,7 +302,6 @@ CREATE FUNCTION public.make_tank_code_compact() RETURNS text
     AS $$
   select 'TANK-' || to_char(current_date,'YY') || public._to_base36(nextval('public.tank_code_seq'), 4)
 $$;
-
 
 --
 -- Name: tg_upsert_fish_seed_maps(); Type: FUNCTION; Schema: public; Owner: -
@@ -350,7 +319,6 @@ BEGIN
   RETURN NULL;
 END
 $$;
-
 
 --
 -- Name: to_base36(integer); Type: FUNCTION; Schema: public; Owner: -
@@ -381,7 +349,6 @@ BEGIN
 END;
 $$;
 
-
 --
 -- Name: trg_registry_fill_modern(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -399,7 +366,6 @@ BEGIN
   RETURN NEW;
 END
 $$;
-
 
 --
 -- Name: upsert_transgene_allele_label(text, text); Type: FUNCTION; Schema: public; Owner: -
@@ -457,7 +423,6 @@ BEGIN
   RETURN;
 END$$;
 
-
 --
 -- Name: upsert_transgene_allele_name(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -503,7 +468,6 @@ BEGIN
   RETURN;
 END$$;
 
-
 --
 -- Name: ensure_fk(text, text, text[], text, text, text[], text, text); Type: FUNCTION; Schema: util_mig; Owner: -
 --
@@ -537,7 +501,6 @@ begin
 end
 $$;
 
-
 --
 -- Name: ensure_unique(text, text, text, text[]); Type: FUNCTION; Schema: util_mig; Owner: -
 --
@@ -559,7 +522,6 @@ begin
   end if;
 end
 $$;
-
 
 --
 -- Name: pk_col(text, text); Type: FUNCTION; Schema: util_mig; Owner: -
@@ -591,7 +553,6 @@ begin
 end
 $$;
 
-
 --
 -- Name: table_exists(text, text); Type: FUNCTION; Schema: util_mig; Owner: -
 --
@@ -601,11 +562,6 @@ CREATE FUNCTION util_mig.table_exists(p_schema text, p_table text) RETURNS boole
     AS $$
   select to_regclass(format('%I.%I', p_schema, p_table)) is not null
 $$;
-
-
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
 
 --
 -- Name: fish; Type: TABLE; Schema: public; Owner: -
@@ -624,7 +580,6 @@ CREATE TABLE public.fish (
     CONSTRAINT ck_fish_fish_code_format CHECK ((fish_code ~ '^FSH-[0-9]{2}[0-9A-Z]{4,}$'::text))
 );
 
-
 --
 -- Name: fish_code_audit; Type: TABLE; Schema: public; Owner: -
 --
@@ -640,7 +595,6 @@ CREATE TABLE public.fish_code_audit (
     note text
 );
 
-
 --
 -- Name: fish_code_audit_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
@@ -652,25 +606,15 @@ CREATE SEQUENCE public.fish_code_audit_id_seq
     NO MAXVALUE
     CACHE 1;
 
-
 --
 -- Name: fish_code_audit_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.fish_code_audit_id_seq OWNED BY public.fish_code_audit.id;
 
-
 --
 -- Name: fish_code_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
-
-CREATE SEQUENCE public.fish_code_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
 
 --
 -- Name: fish_seed_batches; Type: TABLE; Schema: public; Owner: -
@@ -681,7 +625,6 @@ CREATE TABLE public.fish_seed_batches (
     seed_batch_id text NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
-
 
 --
 -- Name: fish_transgene_alleles; Type: TABLE; Schema: public; Owner: -
@@ -697,7 +640,6 @@ CREATE TABLE public.fish_transgene_alleles (
     created_by text
 );
 
-
 --
 -- Name: fish_year_counters; Type: TABLE; Schema: public; Owner: -
 --
@@ -706,7 +648,6 @@ CREATE TABLE public.fish_year_counters (
     year integer NOT NULL,
     n bigint DEFAULT 0 NOT NULL
 );
-
 
 --
 -- Name: injected_plasmid_treatments; Type: TABLE; Schema: public; Owner: -
@@ -722,7 +663,6 @@ CREATE TABLE public.injected_plasmid_treatments (
     note text
 );
 
-
 --
 -- Name: injected_rna_treatments; Type: TABLE; Schema: public; Owner: -
 --
@@ -737,7 +677,6 @@ CREATE TABLE public.injected_rna_treatments (
     note text
 );
 
-
 --
 -- Name: load_log_fish; Type: TABLE; Schema: public; Owner: -
 --
@@ -750,7 +689,6 @@ CREATE TABLE public.load_log_fish (
     logged_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-
 --
 -- Name: seed_batches; Type: VIEW; Schema: public; Owner: -
 --
@@ -760,18 +698,9 @@ CREATE VIEW public.seed_batches AS
     NULL::text AS batch_label
   WHERE false;
 
-
 --
 -- Name: tank_code_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
-
-CREATE SEQUENCE public.tank_code_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
 
 --
 -- Name: transgene_allele_counters; Type: TABLE; Schema: public; Owner: -
@@ -781,7 +710,6 @@ CREATE TABLE public.transgene_allele_counters (
     transgene_base_code text NOT NULL,
     next_number integer DEFAULT 1 NOT NULL
 );
-
 
 --
 -- Name: transgene_allele_registry; Type: TABLE; Schema: public; Owner: -
@@ -798,7 +726,6 @@ CREATE TABLE public.transgene_allele_registry (
     legacy_label text
 );
 
-
 --
 -- Name: transgene_alleles; Type: TABLE; Schema: public; Owner: -
 --
@@ -807,7 +734,6 @@ CREATE TABLE public.transgene_alleles (
     transgene_base_code text NOT NULL,
     allele_number integer NOT NULL
 );
-
 
 --
 -- Name: transgenes; Type: TABLE; Schema: public; Owner: -
@@ -818,7 +744,6 @@ CREATE TABLE public.transgenes (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by text
 );
-
 
 --
 -- Name: v_fish_overview; Type: VIEW; Schema: public; Owner: -
@@ -842,7 +767,6 @@ CREATE VIEW public.v_fish_overview AS
     created_at,
     created_by
    FROM public.fish f;
-
 
 --
 -- Name: vw_fish_overview_with_label; Type: VIEW; Schema: public; Owner: -
@@ -913,13 +837,11 @@ CREATE VIEW public.vw_fish_overview_with_label AS
     NULL::text AS rna_injections_text
    FROM prefer p;
 
-
 --
 -- Name: fish_code_audit id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fish_code_audit ALTER COLUMN id SET DEFAULT nextval('public.fish_code_audit_id_seq'::regclass);
-
 
 --
 -- Name: fish_code_audit fish_code_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -928,14 +850,12 @@ ALTER TABLE ONLY public.fish_code_audit ALTER COLUMN id SET DEFAULT nextval('pub
 ALTER TABLE ONLY public.fish_code_audit
     ADD CONSTRAINT fish_code_audit_pkey PRIMARY KEY (id);
 
-
 --
 -- Name: fish fish_fish_code_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fish
     ADD CONSTRAINT fish_fish_code_key UNIQUE (fish_code);
-
 
 --
 -- Name: fish fish_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -944,14 +864,12 @@ ALTER TABLE ONLY public.fish
 ALTER TABLE ONLY public.fish
     ADD CONSTRAINT fish_pkey PRIMARY KEY (id);
 
-
 --
 -- Name: fish_seed_batches fish_seed_batches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fish_seed_batches
     ADD CONSTRAINT fish_seed_batches_pkey PRIMARY KEY (fish_id);
-
 
 --
 -- Name: fish_transgene_alleles fish_transgene_alleles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -960,14 +878,12 @@ ALTER TABLE ONLY public.fish_seed_batches
 ALTER TABLE ONLY public.fish_transgene_alleles
     ADD CONSTRAINT fish_transgene_alleles_pkey PRIMARY KEY (fish_id, transgene_base_code, allele_number);
 
-
 --
 -- Name: fish_year_counters fish_year_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fish_year_counters
     ADD CONSTRAINT fish_year_counters_pkey PRIMARY KEY (year);
-
 
 --
 -- Name: injected_plasmid_treatments injected_plasmid_treatments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -976,14 +892,12 @@ ALTER TABLE ONLY public.fish_year_counters
 ALTER TABLE ONLY public.injected_plasmid_treatments
     ADD CONSTRAINT injected_plasmid_treatments_pkey PRIMARY KEY (id);
 
-
 --
 -- Name: injected_rna_treatments injected_rna_treatments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.injected_rna_treatments
     ADD CONSTRAINT injected_rna_treatments_pkey PRIMARY KEY (id);
-
 
 --
 -- Name: load_log_fish load_log_fish_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -992,14 +906,12 @@ ALTER TABLE ONLY public.injected_rna_treatments
 ALTER TABLE ONLY public.load_log_fish
     ADD CONSTRAINT load_log_fish_pkey PRIMARY KEY (id);
 
-
 --
 -- Name: transgene_allele_counters transgene_allele_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.transgene_allele_counters
     ADD CONSTRAINT transgene_allele_counters_pkey PRIMARY KEY (transgene_base_code);
-
 
 --
 -- Name: transgene_allele_registry transgene_allele_registry_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1008,14 +920,12 @@ ALTER TABLE ONLY public.transgene_allele_counters
 ALTER TABLE ONLY public.transgene_allele_registry
     ADD CONSTRAINT transgene_allele_registry_pkey PRIMARY KEY (id);
 
-
 --
 -- Name: transgene_allele_registry transgene_allele_registry_transgene_base_code_allele_number_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.transgene_allele_registry
     ADD CONSTRAINT transgene_allele_registry_transgene_base_code_allele_number_key UNIQUE (transgene_base_code, allele_number);
-
 
 --
 -- Name: transgene_alleles transgene_alleles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1024,14 +934,12 @@ ALTER TABLE ONLY public.transgene_allele_registry
 ALTER TABLE ONLY public.transgene_alleles
     ADD CONSTRAINT transgene_alleles_pkey PRIMARY KEY (transgene_base_code, allele_number);
 
-
 --
 -- Name: transgenes transgenes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.transgenes
     ADD CONSTRAINT transgenes_pkey PRIMARY KEY (transgene_base_code);
-
 
 --
 -- Name: fish uq_fish_fish_code; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1040,14 +948,12 @@ ALTER TABLE ONLY public.transgenes
 ALTER TABLE ONLY public.fish
     ADD CONSTRAINT uq_fish_fish_code UNIQUE (fish_code);
 
-
 --
 -- Name: load_log_fish uq_load_log_fish_batch_row; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.load_log_fish
     ADD CONSTRAINT uq_load_log_fish_batch_row UNIQUE (seed_batch_id, row_key);
-
 
 --
 -- Name: transgene_allele_registry uq_registry_legacy; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1056,7 +962,6 @@ ALTER TABLE ONLY public.load_log_fish
 ALTER TABLE ONLY public.transgene_allele_registry
     ADD CONSTRAINT uq_registry_legacy UNIQUE (base_code, legacy_label);
 
-
 --
 -- Name: transgene_allele_registry uq_registry_modern; Type: CONSTRAINT; Schema: public; Owner: -
 --
@@ -1064,13 +969,11 @@ ALTER TABLE ONLY public.transgene_allele_registry
 ALTER TABLE ONLY public.transgene_allele_registry
     ADD CONSTRAINT uq_registry_modern UNIQUE (transgene_base_code, allele_nickname);
 
-
 --
 -- Name: idx_load_log_fish_fish_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_load_log_fish_fish_id ON public.load_log_fish USING btree (fish_id);
-
 
 --
 -- Name: ix_injected_rna_treatments_rna; Type: INDEX; Schema: public; Owner: -
@@ -1078,13 +981,11 @@ CREATE INDEX idx_load_log_fish_fish_id ON public.load_log_fish USING btree (fish
 
 CREATE INDEX ix_injected_rna_treatments_rna ON public.injected_rna_treatments USING btree (rna_id);
 
-
 --
 -- Name: ix_registry_base_code; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX ix_registry_base_code ON public.transgene_allele_registry USING btree (base_code);
-
 
 --
 -- Name: uniq_registry_base_legacy; Type: INDEX; Schema: public; Owner: -
@@ -1092,13 +993,11 @@ CREATE INDEX ix_registry_base_code ON public.transgene_allele_registry USING btr
 
 CREATE UNIQUE INDEX uniq_registry_base_legacy ON public.transgene_allele_registry USING btree (base_code, legacy_label) WHERE ((base_code IS NOT NULL) AND (legacy_label IS NOT NULL));
 
-
 --
 -- Name: uniq_registry_modern_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX uniq_registry_modern_key ON public.transgene_allele_registry USING btree (transgene_base_code, allele_nickname) WHERE ((transgene_base_code IS NOT NULL) AND (allele_nickname IS NOT NULL));
-
 
 --
 -- Name: uq_ipt_natural; Type: INDEX; Schema: public; Owner: -
@@ -1106,13 +1005,11 @@ CREATE UNIQUE INDEX uniq_registry_modern_key ON public.transgene_allele_registry
 
 CREATE UNIQUE INDEX uq_ipt_natural ON public.injected_plasmid_treatments USING btree (fish_id, plasmid_id, at_time, amount, units, note);
 
-
 --
 -- Name: uq_irt_natural; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX uq_irt_natural ON public.injected_rna_treatments USING btree (fish_id, rna_id, at_time, amount, units, note);
-
 
 --
 -- Name: uq_rna_txn_dedupe; Type: INDEX; Schema: public; Owner: -
@@ -1120,13 +1017,11 @@ CREATE UNIQUE INDEX uq_irt_natural ON public.injected_rna_treatments USING btree
 
 CREATE UNIQUE INDEX uq_rna_txn_dedupe ON public.injected_rna_treatments USING btree (fish_id, rna_id, COALESCE(at_time, '1969-12-31 16:00:00-08'::timestamp with time zone), COALESCE(amount, (0)::numeric), COALESCE(units, ''::text), COALESCE(note, ''::text));
 
-
 --
 -- Name: uq_tar_base_number; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX uq_tar_base_number ON public.transgene_allele_registry USING btree (transgene_base_code, allele_number);
-
 
 --
 -- Name: fish trg_fish_before_insert_code; Type: TRIGGER; Schema: public; Owner: -
@@ -1134,13 +1029,11 @@ CREATE UNIQUE INDEX uq_tar_base_number ON public.transgene_allele_registry USING
 
 CREATE TRIGGER trg_fish_before_insert_code BEFORE INSERT ON public.fish FOR EACH ROW EXECUTE FUNCTION public.fish_before_insert_code();
 
-
 --
 -- Name: transgene_allele_registry trg_registry_fill_modern; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trg_registry_fill_modern BEFORE INSERT OR UPDATE ON public.transgene_allele_registry FOR EACH ROW EXECUTE FUNCTION public.trg_registry_fill_modern();
-
 
 --
 -- Name: fish_transgene_alleles fish_transgene_alleles_fish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1149,14 +1042,12 @@ CREATE TRIGGER trg_registry_fill_modern BEFORE INSERT OR UPDATE ON public.transg
 ALTER TABLE ONLY public.fish_transgene_alleles
     ADD CONSTRAINT fish_transgene_alleles_fish_id_fkey FOREIGN KEY (fish_id) REFERENCES public.fish(id) ON DELETE CASCADE;
 
-
 --
 -- Name: fish_transgene_alleles fish_transgene_alleles_transgene_base_code_allele_number_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fish_transgene_alleles
     ADD CONSTRAINT fish_transgene_alleles_transgene_base_code_allele_number_fkey FOREIGN KEY (transgene_base_code, allele_number) REFERENCES public.transgene_alleles(transgene_base_code, allele_number) ON DELETE CASCADE;
-
 
 --
 -- Name: fish_seed_batches fk_fsb_fish; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1165,14 +1056,12 @@ ALTER TABLE ONLY public.fish_transgene_alleles
 ALTER TABLE ONLY public.fish_seed_batches
     ADD CONSTRAINT fk_fsb_fish FOREIGN KEY (fish_id) REFERENCES public.fish(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
 
-
 --
 -- Name: injected_plasmid_treatments fk_ipt_fish; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.injected_plasmid_treatments
     ADD CONSTRAINT fk_ipt_fish FOREIGN KEY (fish_id) REFERENCES public.fish(id) ON DELETE CASCADE;
-
 
 --
 -- Name: transgene_alleles fk_transgene_alleles_base; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1181,14 +1070,12 @@ ALTER TABLE ONLY public.injected_plasmid_treatments
 ALTER TABLE ONLY public.transgene_alleles
     ADD CONSTRAINT fk_transgene_alleles_base FOREIGN KEY (transgene_base_code) REFERENCES public.transgenes(transgene_base_code) ON DELETE CASCADE;
 
-
 --
 -- Name: injected_plasmid_treatments injected_plasmid_treatments_fish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.injected_plasmid_treatments
     ADD CONSTRAINT injected_plasmid_treatments_fish_id_fkey FOREIGN KEY (fish_id) REFERENCES public.fish(id) ON DELETE CASCADE;
-
 
 --
 -- Name: injected_rna_treatments injected_rna_treatments_fish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1197,14 +1084,12 @@ ALTER TABLE ONLY public.injected_plasmid_treatments
 ALTER TABLE ONLY public.injected_rna_treatments
     ADD CONSTRAINT injected_rna_treatments_fish_id_fkey FOREIGN KEY (fish_id) REFERENCES public.fish(id) ON DELETE CASCADE;
 
-
 --
 -- Name: injected_rna_treatments irt_fish_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.injected_rna_treatments
     ADD CONSTRAINT irt_fish_fk FOREIGN KEY (fish_id) REFERENCES public.fish(id) ON DELETE CASCADE;
-
 
 --
 -- Name: load_log_fish load_log_fish_fish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1213,10 +1098,5 @@ ALTER TABLE ONLY public.injected_rna_treatments
 ALTER TABLE ONLY public.load_log_fish
     ADD CONSTRAINT load_log_fish_fish_id_fkey FOREIGN KEY (fish_id) REFERENCES public.fish(id) ON DELETE CASCADE;
 
-
 --
--- PostgreSQL database dump complete
 --
-
-\unrestrict 9qRLGzygh0ZWCZDODBFtp88Bi7seLEzGe6f6uQRWNh7XyeDcuRnxGzT7s2etf18
-

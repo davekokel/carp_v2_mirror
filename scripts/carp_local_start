@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PORT=8501
+MODE=start
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --stop) MODE=stop; shift ;;
+    --port) PORT="${2:-8501}"; shift 2 ;;
+    *) echo "Unknown arg: $1" ; exit 1 ;;
+  esac
+done
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_PY="$ROOT/.venv/bin/python"
+if [[ -x "$VENV_PY" ]]; then
+  PY="$VENV_PY"
+else
+  PY="$(command -v python3 || command -v python)"
+fi
+
+export DB_URL="${DB_URL:-postgresql://postgres@localhost:5432/postgres?sslmode=disable}"
+export APP_FORCE_LOCAL="${APP_FORCE_LOCAL:-1}"
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+
+PIDS="$(lsof -ti :"$PORT" -sTCP:LISTEN || true)"
+if [[ -n "$PIDS" ]]; then
+  echo "🔪 Killing processes on :$PORT  ($PIDS)"
+  kill $PIDS || true
+  sleep 0.3
+  LEFT="$(lsof -ti :"$PORT" -sTCP:LISTEN || true)"
+  if [[ -n "$LEFT" ]]; then
+    echo "🔪 Force killing: $LEFT"
+    kill -9 $LEFT || true
+  fi
+fi
+
+if [[ "$MODE" == "stop" ]]; then
+  echo "🛑 Stopped anything on :$PORT"
+  exit 0
+fi
+
+echo "🔒 DB_URL => $DB_URL"
+echo "🚀 Starting Streamlit on :$PORT (python: $PY)"
+exec "$PY" -m streamlit run "$ROOT/supabase/ui/streamlit_app.py" \
+  --server.port "$PORT" \
+  --server.address 0.0.0.0

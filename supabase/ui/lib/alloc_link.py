@@ -126,17 +126,22 @@ def resolve_or_allocate_number(conn, base: str, nickname: Optional[str], created
 
 
 # ---------- FK staging (ensures transgene_alleles pair exists) ----------
-def ensure_transgene_pair(conn, base: str, allele_number: int) -> None:
+def ensure_transgene_pair(conn, base: str, allele_number: int):
+    """Ensure parent transgene base exists, then the allele (idempotent)."""
     conn.execute(
         text("""
-          insert into public.transgene_alleles (transgene_base_code, allele_number)
-          values (:b, :a)
-          on conflict (transgene_base_code, allele_number) do nothing
-        """),
-        {"b": base, "a": int(allele_number)},
+            insert into public.transgenes (transgene_base_code)
+            values (:b)
+            on conflict (transgene_base_code) do nothing
+        """), {"b": base},
     )
-
-
+    conn.execute(
+        text("""
+            insert into public.transgene_alleles (transgene_base_code, allele_number)
+            values (:b, :a)
+            on conflict (transgene_base_code, allele_number) do nothing
+        """), {"b": base, "a": int(allele_number)},
+    )
 # ---------- Link fish to allele (with optional nickname) ----------
 def link_fish_to(
     conn,
