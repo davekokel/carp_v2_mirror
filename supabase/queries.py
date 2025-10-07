@@ -40,9 +40,7 @@ def load_fish_overview(engine, q: Optional[str] = None, limit: int = 1000) -> pd
       v.age_days,
       v.age_weeks,
       v.batch_label,
-      v.last_plasmid_injection_at,
       v.plasmid_injections_text,
-      v.last_rna_injection_at,
       v.rna_injections_text,
       v.created_at,
       v.created_by_enriched         as created_by
@@ -238,3 +236,31 @@ def fish_overview_minimal(conn_or_engine, q=None, limit: int = 1000, require_lin
         df = df.head(limit)
 
     return df.to_dict(orient="records")
+
+import pandas as _pd
+from sqlalchemy import text as _text
+from sqlalchemy.engine import Engine as _Engine
+
+def load_label_rows(engine, q: str | None = None, limit: int = 500):
+    sql = """
+      select *
+      from public.vw_label_rows
+      {where}
+      order by fish_code
+      limit %(lim)s
+    """
+    where = ""
+    params = {"lim": int(limit)}
+    if q and q.strip():
+        where = """
+          where (
+            fish_code ilike %(q)s or
+            name ilike %(q)s or
+            nickname_print ilike %(q)s or
+            genotype_print ilike %(q)s or
+            genetic_background_print ilike %(q)s
+          )
+        """
+        params["q"] = f"%{q.strip()}%"
+    with engine.begin() as cx:
+        return pd.read_sql_query(sql.format(where=where), cx, params=params)

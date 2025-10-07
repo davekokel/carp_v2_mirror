@@ -1,54 +1,36 @@
-# 03_🏷️_request_tank_labels.py
+# 04_🏷️_assign_tank_labels_and_status.py
 from __future__ import annotations
 
 import os
 from io import BytesIO
-from typing import List, Dict, Any, Optional
-from datetime import date
+from typing import Optional, Dict, Any, List
 
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
 # ---------- Auth gate ----------
 try:
     from supabase.ui.auth_gate import require_app_unlock
-except Exception:
+except Exception:  # local dev
     from auth_gate import require_app_unlock
 require_app_unlock()
 
-PAGE_TITLE = "CARP — Overview → PDF Labels"
+PAGE_TITLE = "CARP — Assign Tank Labels (2.4×1.5 in)"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🏷️")
 st.title(PAGE_TITLE)
 
-# ---------- Import helper from lib (robust fallbacks) ----------
-# Expect one of these modules to exist in your repo.
-_render_func = None
-_render_err: Optional[str] = None
-try:
-    # Preferred name we used most recently
-    from supabase.ui.lib.tank_label_maker import render_tank_labels_pdf as _render_func
-except Exception as e1:  # noqa: F841
-    try:
-        from supabase.ui.lib.labels import render_tank_labels_pdf as _render_func
-    except Exception as e2:  # noqa: F841
-        try:
-            from lib.tank_label_maker import render_tank_labels_pdf as _render_func
-        except Exception as e3:  # noqa: F841
-            try:
-                from lib.labels import render_tank_labels_pdf as _render_func
-            except Exception as e4:
-                _render_err = (
-                    "Could not import label helper. Expected one of: "
-                    "supabase.ui.lib.tank_label_maker.render_tank_labels_pdf, "
-                    "supabase.ui.lib.labels.render_tank_labels_pdf, lib.tank_label_maker.render_tank_labels_pdf, "
-                    "or lib.labels.render_tank_labels_pdf"
-                )
+# ---- Quick reset (clears cache + selection grid) ----
+if st.button("↻ Refresh data", key="btn_refresh_labels"):
+    st.cache_data.clear()
+    for k in list(st.session_state.keys()):
+        if k.startswith(("assign_labels_table", "assign_editor", "_labels_df_sig", "_label_rows")):
+            del st.session_state[k]
+    st.rerun()
 
-# ---------- DB engine ----------
+# ---------- DB ----------
 ENGINE: Optional[Engine] = None
-
 def _get_engine() -> Engine:
     global ENGINE
     if ENGINE:
@@ -60,151 +42,160 @@ def _get_engine() -> Engine:
     return ENGINE
 
 # ---------- Queries helper ----------
-# We load via the shared queries module; the page hot-reloads and should pick up edits.
 import importlib
 try:
     import supabase.queries as _queries
     importlib.reload(_queries)
-    from supabase.queries import load_fish_overview
+    from supabase.queries import load_label_rows
 except Exception:
-    # Local fallback for development runners that mount the repo differently
     import queries as _queries  # type: ignore
     importlib.reload(_queries)
-    from queries import load_fish_overview  # type: ignore
+    from queries import load_label_rows  # type: ignore
 
-# ---------- UI controls ----------
-with st.sidebar:
-    st.subheader("Filters")
-    seed_filter = st.text_input("Seed batch ID contains", value="")
-    text_filter = st.text_input("Name / Code contains", value="")
-    show_only_unlabeled = st.checkbox("Show only fish without labels", value=False)
-    st.caption("Use filters, then pick rows below to render labels.")
+# ---------- Label builder ----------
+try:
+    from supabase.ui.lib.labels_roll_2x1_5 import build_pdf as _build_pdf
+except Exception:
+    from lib.labels_roll_2x1_5 import build_pdf as _build_pdf  # local fallback
 
 # ---------- Load data ----------
 @st.cache_data(show_spinner=False)
-def _load_overview_df() -> pd.DataFrame:
-    # Expect load_fish_overview() to return at least these columns; extras are fine:
-    # fish_code, id_uuid, name, nickname, line_building_stage, date_birth, genetic_background,
-    # created_by_enriched, last_plasmid_injection_at, plasmid_injections_text,
-    # last_rna_injection_at, rna_injections_text, batch_label
-    return load_fish_overview(_get_engine())
+def _load_df(q: str, limit: int) -> pd.DataFrame:
+    return load_label_rows(_get_engine(), q=q or None, limit=limit)
 
-df = _load_overview_df().copy()
+with st.sidebar:
+    st.subheader("Filters")
+    q = st.text_input("Search (code / name / nickname / genotype / background)", key="assign_q")
+    lim = st.number_input("Limit", min_value=50, max_value=5000, value=500, step=50)
+    apply = st.button("Apply", key="btn_apply")
 
-# Defensive normalize of expected columns
-for col in [
-    "fish_code","id_uuid","name","nickname","line_building_stage","date_birth",
-    "genetic_background","created_by_enriched","last_plasmid_injection_at",
-    "plasmid_injections_text","last_rna_injection_at","rna_injections_text","batch_label"
-]:
-    if col not in df.columns:
-        df[col] = None
+if apply or "_label_rows" not in st.session_state:
+    st.session_state["_label_rows"] = _load_df(q or "", int(lim))
 
-# Apply filters
-if seed_filter:
-    df = df[df.get("batch_label", "").fillna("").str.contains(seed_filter, case=False, na=False) |
-            df.get("seed_batch_id", pd.Series([""]*len(df))).astype(str).str.contains(seed_filter, case=False, na=False)]
-if text_filter:
-    m = (
-        df.get("fish_code", "").astype(str).str.contains(text_filter, case=False, na=False) |
-        df.get("name", "").astype(str).str.contains(text_filter, case=False, na=False) |
-        df.get("nickname", "").astype(str).str.contains(text_filter, case=False, na=False)
-    )
-    df = df[m]
+df = st.session_state["_label_rows"].copy()
 
-# Optional: only unlabeled — relies on a boolean or null check; if your schema differs, adjust below
-if show_only_unlabeled and "has_label" in df.columns:
-    df = df[df["has_label"].fillna(False) == False]  # noqa: E712
+# Guarantee expected cols (vw_label_rows should already have these)
+expected = [
+    "fish_code","name","genotype_print",
+    "nickname_print","genetic_background_print","line_building_stage_print","date_birth_print",
+    "batch_label","transgene_base_code_filled","allele_code_filled","allele_name_filled",
+    "id_uuid","created_at",
+]
+for c in expected:
+    if c not in df.columns:
+        df[c] = ""
 
-# Display table with a selection widget
+# For display only, mirror overview naming
+df["nickname"]            = df["nickname_print"]
+df["genetic_background"]  = df["genetic_background_print"]
+df["line_building_stage"] = df["line_building_stage_print"]
+df["date_birth"]          = df["date_birth_print"]
+df["genotype_display"]    = df["genotype_print"]
+
+# ---------- Infinite-scroll table with checkboxes ----------
 st.subheader("Fish overview (select rows to print)")
-# Keep the UX simple: a multiselect of fish_code, plus a convenience select-all toggle
-all_codes = df["fish_code"].tolist()
-col1, col2 = st.columns([3,1])
-with col1:
-    sel_codes = st.multiselect("Pick fish_code", options=all_codes, default=all_codes[:0])
-with col2:
-    if st.button("Select all visible"):
-        sel_codes = all_codes
 
-sel_df = df[df["fish_code"].isin(sel_codes)].copy() if sel_codes else df.head(0).copy()
+# Build the grid from FULL df (keep hidden fields for preview/PDF)
+grid_df = df.copy()
 
-# Show a compact view
-if not sel_df.empty:
-    show_cols = [
-        "fish_code","name","nickname","line_building_stage","date_birth","genetic_background",
-        "batch_label","created_by_enriched"
-    ]
-    show_cols = [c for c in show_cols if c in sel_df.columns]
-    st.dataframe(sel_df[show_cols], hide_index=True, width=1200)
+KEY_TABLE = "assign_labels_table"
+SIG_KEY   = "_labels_df_sig"
+current_sig = (len(grid_df), tuple(grid_df.columns))
+
+if (KEY_TABLE not in st.session_state) or (st.session_state.get(SIG_KEY) != current_sig):
+    tbl = grid_df.copy()
+    tbl.insert(0, "✓", False)
+    st.session_state[KEY_TABLE] = tbl
+    st.session_state[SIG_KEY]   = current_sig
 else:
-    st.info("No rows selected.")
+    prev = st.session_state[KEY_TABLE].set_index("fish_code")
+    new  = grid_df.copy().set_index("fish_code")
+    new.insert(0, "✓", False)
+    ix = new.index.intersection(prev.index)
+    if len(ix):
+        new.loc[ix, "✓"] = prev.loc[ix, "✓"].values
+    st.session_state[KEY_TABLE] = new.reset_index()
+
+# Select/Clear buttons
+c1, c2, _ = st.columns([1,1,6])
+with c1:
+    if st.button("Select all visible", key="btn_select_all"):
+        ss = st.session_state[KEY_TABLE].copy()
+        ss["✓"] = True
+        st.session_state[KEY_TABLE] = ss
+with c2:
+    if st.button("Clear selection", key="btn_clear_sel"):
+        ss = st.session_state[KEY_TABLE].copy()
+        ss["✓"] = False
+        st.session_state[KEY_TABLE] = ss
+
+# Only DISPLAY these columns; hidden ones remain in the dataframe
+display_cols = [
+    "✓", "fish_code", "name", "nickname", "line_building_stage",
+    "date_birth", "genetic_background", "genotype_display", "batch_label",
+]
+
+edited = st.data_editor(
+    st.session_state[KEY_TABLE],
+    column_order=[c for c in display_cols if c in st.session_state[KEY_TABLE].columns],
+    use_container_width=True,
+    hide_index=True,
+    num_rows="fixed",
+    key="assign_editor",
+)
+st.session_state[KEY_TABLE] = edited
+
+# Selected rows keep ALL hidden columns
+selected = edited[edited["✓"]].copy()
 
 st.divider()
 
-# ---------- Render labels ----------
-if _render_func is None and _render_err:
-    st.error(_render_err)
-else:
-    st.subheader("Render tank labels → PDF")
-    cols = st.columns(4)
-    with cols[0]:
-        n_cols = st.number_input("Labels per row", min_value=1, max_value=5, value=3, step=1)
-    with cols[1]:
-        margin_mm = st.number_input("Page margin (mm)", min_value=0, max_value=25, value=6, step=1)
-    with cols[2]:
-        cutmarks = st.checkbox("Cut marks", value=True)
-    with cols[3]:
-        title = st.text_input("Header (optional)", value="")
+# ---------- Preview selected (exactly what prints) ----------
+st.subheader("Preview selected fields (exactly what prints)")
+if st.button("Build preview table", key="btn_preview_assign"):
+    if selected.empty:
+        st.info("No rows selected.")
+    else:
+        preview_cols = [
+            "fish_code","name","genotype_print",
+            "nickname_print","genetic_background_print","line_building_stage_print","date_birth_print",
+        ]
+        for c in preview_cols:
+            if c not in selected.columns:
+                selected[c] = ""
+        st.dataframe(selected[preview_cols], use_container_width=True, hide_index=True)
 
-    # Format rows for the helper: keep it simple — pass the DataFrame; helper can pick needed columns
-    make_btn = st.button("Generate PDF", type="primary")
-    if make_btn:
-        if sel_df.empty:
-            st.warning("Select at least one fish to render labels.")
-        else:
-            try:
-                pdf_bytes: bytes = _render_func(
-                    sel_df,
-                    labels_per_row=int(n_cols),
-                    page_margin_mm=int(margin_mm),
-                    draw_cut_marks=bool(cutmarks),
-                    header_text=title or None,
-                )
-                bio = BytesIO(pdf_bytes)
-                st.download_button(
-                    "Download labels PDF",
-                    data=bio,
-                    file_name="tank_labels.pdf",
-                    mime="application/pdf",
-                )
-                st.success("PDF generated.")
-            except Exception as e:
-                st.error(f"Label rendering failed: {e}")
+st.divider()
 
-# ---------- Utility: quick counts from DB (optional, collapsible) ----------
-with st.expander("Debug: recent batches & label link counts"):
-    try:
-        q = text(
-            """
-            with recent as (
-              select seed_batch_id, max(logged_at) as last_seen
-              from public.fish_seed_batches_map
-              group by 1
-              order by last_seen desc
-              limit 20
+# ---------- Generate PDF ----------
+st.subheader("Generate label PDF")
+if st.button("Create PDF", type="primary", key="btn_pdf_assign"):
+    if selected.empty:
+        st.warning("Select at least one fish above.")
+    else:
+        rows: List[Dict[str, Any]] = []
+        for _, r in selected.iterrows():
+            rows.append({
+                "fish_code": r.get("fish_code"),
+                "name": r.get("name"),
+                "genotype": r.get("genotype_print"),
+                "nickname": r.get("nickname_print"),
+                "tg_nick": r.get("genetic_background_print"),
+                "stage": r.get("line_building_stage_print"),
+                "dob": r.get("date_birth_print"),
+                "base_code": r.get("transgene_base_code_filled"),  # optional
+            })
+        try:
+            bio = BytesIO()
+            _build_pdf(rows, bio)
+            bio.seek(0)
+            st.download_button(
+                label="Download labels (2.4×1.5 in)",
+                data=bio,
+                file_name="tank_labels_2.4x1.5.pdf",
+                mime="application/pdf",
+                key="dl_pdf_assign",
             )
-            select r.seed_batch_id, r.last_seen,
-                   count(distinct f.id_uuid) as fish_count
-            from recent r
-            join public.fish_seed_batches_map m on m.seed_batch_id=r.seed_batch_id
-            join public.fish f on f.id_uuid=m.fish_id
-            group by 1,2
-            order by r.last_seen desc
-            """
-        )
-        with _get_engine().begin() as cx:
-            dbg = pd.read_sql(q, cx)
-        st.dataframe(dbg, hide_index=True)
-    except Exception as e:
-        st.caption(f"debug failed: {e}")
+            st.success("PDF ready.")
+        except Exception as e:
+            st.error(f"Label rendering failed: {e}")
