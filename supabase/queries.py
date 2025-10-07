@@ -29,7 +29,7 @@ def load_fish_overview(engine, q: Optional[str] = None, limit: int = 1000) -> pd
     # Derive id from public.fish via fish_code; tolerate if join fails (id may be null)
     sql = f"""
     select
-      f.id as id,
+      f.id_uuid as id,
       v.fish_code,
       v.name,
       v.transgene_base_code_filled  as transgene_base_code,

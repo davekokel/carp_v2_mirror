@@ -1,347 +1,361 @@
-# 03_🧬_new_fish_from_cross.py
+# 02_📤_new_fish_from_csv.py
 from __future__ import annotations
 
-# --- sys.path before local imports ---
-import sys
+import io, os, re
 from pathlib import Path
-ROOT = Path(__file__).resolve().parents[2]  # …/carp_v2
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-# Shared engine / helpers
-from supabase.ui.lib_shared import current_engine, connection_info
-import supabase.queries as Q
-
-# 🔒 auth
-try:
-    from supabase.ui.auth_gate import require_app_unlock
-except Exception:
-    def require_app_unlock(): ...
-require_app_unlock()
-
-from datetime import date, datetime, UTC
-from typing import List, Tuple
+from typing import List, Dict, Any, Optional
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 
-# --------------------------------------------------------------------------------------
-# Page config & engine
-# --------------------------------------------------------------------------------------
-st.set_page_config(page_title="CARP — New Cross → Offspring → Treatments", page_icon="🧬", layout="wide")
-st.title("🧬 New Cross → Offspring → Treatments")
+# ---------- Auth gate ----------
+try:
+    from supabase.ui.auth_gate import require_app_unlock
+except Exception:
+    from auth_gate import require_app_unlock
+require_app_unlock()
 
-eng = current_engine()
-dbg = connection_info(eng)
-st.caption(f"DB debug → db={dbg['db']} user={dbg['user']}")
+PAGE_TITLE = "CARP — New Fish from CSV"
+st.set_page_config(page_title=PAGE_TITLE, page_icon="📤")
 
-# Optional: force-refresh to clear caches / sticky editors
-if st.button("🔁 Refresh data", key="refresh_nc"):
+# ---------- DB engine ----------
+ENGINE: Optional[Engine] = None
+def _get_engine() -> Engine:
+    global ENGINE
+    if ENGINE:
+        return ENGINE
+    url = os.getenv("DB_URL")
+    if not url:
+        raise RuntimeError("DB_URL not set")
+    ENGINE = create_engine(url, future=True)
+    return ENGINE
+
+# ---------- helpers: schema detection ----------
+def _table_has(schema: str, table: str) -> bool:
+    q = text("""
+      select 1 from information_schema.tables
+      where table_schema=:s and table_name=:t limit 1
+    """)
+    with _get_engine().begin() as cx:
+        return cx.execute(q, {"s": schema, "t": table}).first() is not None
+
+def _columns_in(schema: str, table: str) -> List[str]:
+    q = text("""
+      select column_name
+      from information_schema.columns
+      where table_schema=:s and table_name=:t
+      order by ordinal_position
+    """)
+    with _get_engine().begin() as cx:
+        return [r[0] for r in cx.execute(q, {"s": schema, "t": table}).all()]
+
+def _function_exists(schema: str, name: str) -> bool:
+    q = text("""
+      select 1
+      from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname=:s and p.proname=:n
+      limit 1
+    """)
+    with _get_engine().begin() as cx:
+        return cx.execute(q, {"s": schema, "n": name}).first() is not None
+
+# ---------- robust date parser ----------
+try:
+    from dateutil import parser as _p
+except Exception:
+    _p = None
+
+_RX_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_RX_LETTER_PREFIX = re.compile(r"^[A-Za-z](.*)$")
+_RX_8DIGITS = re.compile(r"^\d{8}$")
+
+def parse_date_birth(x):
+    if x is None:
+        return None
+    if isinstance(x, datetime):
+        return x.date()
+    if isinstance(x, date):
+        return x
+    s = str(x).strip()
+    if not s:
+        return None
+    # strip quotes
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
+        s = s[1:-1].strip()
+    # allow dYYYY-MM-DD
+    m = _RX_LETTER_PREFIX.match(s)
+    if m:
+        s = m.group(1).strip()
+    # YYYY-MM-DD
+    if _RX_ISO.match(s):
+        y, m_, d_ = map(int, s.split("-"))
+        return date(y, m_, d_)
+    # YYYYMMDD
+    if _RX_8DIGITS.match(s):
+        y, m_, d_ = int(s[0:4]), int(s[4:6]), int(s[6:8])
+        try:
+            return date(y, m_, d_)
+        except Exception:
+            pass
+    # Excel serials (1899 or 1904 base)
     try:
-        st.cache_data.clear()
+        n = float(s)
+        if 1 <= n < 100000:
+            d1 = date(1899, 12, 30) + timedelta(days=int(n))
+            if 1900 <= d1.year <= 2100:
+                return d1
+            d2 = date(1904, 1, 1) + timedelta(days=int(n))
+            if 1900 <= d2.year <= 2100:
+                return d2
     except Exception:
         pass
-    try:
-        st.cache_resource.clear()
-    except Exception:
-        pass
-    for k in list(st.session_state.keys()):
-        if k in ("nc_parent_grid", "nc_parent_grid_v2"):
-            st.session_state.pop(k, None)
-    st.rerun()
+    # free-form
+    if _p is not None:
+        try:
+            return _p.parse(s, fuzzy=True, dayfirst=False, yearfirst=False).date()
+        except Exception:
+            return None
+    return None
 
-# --------------------------------------------------------------------------------------
-# Helpers
-# --------------------------------------------------------------------------------------
-def load_parents(engine) -> pd.DataFrame:
-    with engine.begin() as conn:
-        rows = Q.fish_overview_minimal(conn, q=None, limit=1000, require_links=True)
-    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=[
-        "id","fish_code","name","created_at","created_by",
-        "transgene_base_code_filled","allele_code_filled"
-    ])
-    if "id" in df.columns:
-        df["id"] = df["id"].astype(str)
-    # keep the columns your grid expects
-    return df[[
-        "id","fish_code","name",
-        "transgene_base_code_filled","allele_code_filled","created_at"
-    ]]
+# ---------- UI ----------
+st.title(PAGE_TITLE)
+st.caption("Upload CSV with: name, date_birth, genetic_background. fish_code is generated by the DB. Optional link columns: transgene_base_code, allele_nickname, zygosity.")
 
-def _alleles_for_fish(conn, fish_id: str) -> list[tuple[str,int]]:
-    rows = Q.alleles_for_fish(conn, fish_id)
-    return [(r["transgene_base_code"], int(r["allele_number"])) for r in rows]
-    
-def ensure_treatment_objects(conn) -> None:
-    conn.execute(text("""
-    do $$
-    begin
-      if to_regclass('public.injected_plasmid_treatments') is null then
-        create table public.injected_plasmid_treatments(
-          id uuid primary key default gen_random_uuid(),
-          fish_id uuid not null references public.fish(id) on delete cascade,
-          plasmid_id uuid not null,
-          amount numeric null,
-          units text null,
-          at_time timestamptz null,
-          note text null
-        );
-      end if;
-
-      if to_regclass('public.injected_rna_treatments') is null then
-        create table public.injected_rna_treatments(
-          id uuid primary key default gen_random_uuid(),
-          fish_id uuid not null references public.fish(id) on delete cascade,
-          rna_id uuid not null,
-          amount numeric null,
-          units text null,
-          at_time timestamptz null,
-          note text null
-        );
-      end if;
-    end$$;
-    """))
-
-# --------------------------------------------------------------------------------------
-# Parent picker (checkbox grid)
-# --------------------------------------------------------------------------------------
-st.subheader("Pick exactly two parents below (check the boxes):")
-
-parents = load_parents(eng)
-
-with eng.begin() as _cx:
-    base_ct  = _cx.execute(text("select count(*) from public.v_fish_overview")).scalar()
-    label_ct = _cx.execute(text("select count(*) from public.vw_fish_overview_with_label")).scalar()
-    fish_ct  = _cx.execute(text("select count(*) from public.fish")).scalar()
-st.caption(f"Diagnostic → v_fish_overview: {base_ct} • vw_with_label: {label_ct} • fish table: {fish_ct}")
-
-if parents.empty:
-    st.info("No eligible parents found. Upload cohorts with genotype first.")
+uploaded = st.file_uploader("CSV file", type=["csv"])
+if not uploaded:
+    st.info("Choose a CSV to preview.")
     st.stop()
 
-grid = parents.copy()
-grid.insert(0, "select", False)
-grid = grid.set_index("id")
+# Seed batch ID only (no batch label)
+default_batch = Path(getattr(uploaded, "name", "")).stem
+seed_batch_id = st.text_input("Seed batch ID", value=default_batch)
 
-edited = st.data_editor(
-    grid,
-    key="nc_parent_grid_v2",
-    width="stretch",
-    hide_index=False,
-    column_config={
-        "select": st.column_config.CheckboxColumn("Select"),
-        "fish_code": st.column_config.TextColumn("Fish code"),
-        "name": st.column_config.TextColumn("Name"),
-        "transgene_base_code_filled": st.column_config.TextColumn("Transgene base codes"),
-        "allele_code_filled": st.column_config.TextColumn("Allele numbers"),
-        "created_at": st.column_config.DatetimeColumn("Created"),
-    },
-    disabled=False,
-)
-
-selected_ids = [str(idx) for idx, sel in edited["select"].items() if sel]
-if len(selected_ids) < 2:
-    st.warning("Select two rows to continue.")
-    st.stop()
-elif len(selected_ids) > 2:
-    st.warning("Please select exactly two rows.")
+# Load CSV (preview + normalized)
+try:
+    df_raw = pd.read_csv(uploaded)
+    df = pd.read_csv(io.BytesIO(uploaded.getvalue()),
+                     converters={"date_birth": parse_date_birth})
+except Exception as e:
+    st.error(f"Failed to read CSV: {e}")
     st.stop()
 
-# Convert IDs to labels
-id_to_label = {
-    r["id"]: f"{r['fish_code']}{' — ' + r['name'] if r['name'] else ''}"
-    for _, r in parents.iterrows()
+# Ignore incoming fish_code — DB generates it
+if "fish_code" in df.columns:
+    df = df.drop(columns=["fish_code"])
+
+# Required minimum
+REQUIRED = ["name", "date_birth", "genetic_background"]
+for col in REQUIRED:
+    if col not in df.columns:
+        df[col] = None
+
+# Resolve link columns
+ALIASES = {
+    "transgene_base_code": ["transgene_base_code", "base_code", "tg_base_code", "transgene_base", "tg_base"],
+    "allele_nickname":     ["allele_nickname", "allele_nick", "allele_name", "allele"],
+    "zygosity":            ["zygosity", "zyg", "allele_zygosity"],
 }
-mother_id, father_id = selected_ids[0], selected_ids[1]
+def _resolve(df: pd.DataFrame, want: str) -> Optional[str]:
+    for cand in ALIASES.get(want, []):
+        if cand in df.columns:
+            return cand
+    return None
 
-# --------------------------------------------------------------------------------------
-# Genotype selection (precise)
-# --------------------------------------------------------------------------------------
-st.markdown("### Genotype to assign to offspring")
+col_tg   = _resolve(df, "transgene_base_code")
+col_nick = _resolve(df, "allele_nickname")
+col_zyg  = _resolve(df, "zygosity")
 
-with eng.begin() as c:
-    mom_pairs = _alleles_for_fish(c, mother_id)
-    dad_pairs = _alleles_for_fish(c, father_id)
+# Make dates readable for preview
+if "date_birth" in df.columns:
+    df["date_birth"] = df["date_birth"].apply(lambda d: d.isoformat() if isinstance(d, date) else ("" if pd.isna(d) else str(d)))
 
-def _labels(pairs: list[Tuple[str,int]]) -> list[str]:
-    return [f"{b} • {a}" for (b, a) in pairs]
+# Tabs
+tab_raw, tab_norm, tab_cols = st.tabs(["Raw CSV", "Normalized", "Columns"])
+with tab_raw:
+    st.dataframe(df_raw.head(200), width="stretch", hide_index=True)
+with tab_norm:
+    candidate_cols = [
+        "name", "date_birth", "genetic_background", "nickname",
+        "line_building_stage", "description", "created_by", "notes",
+        col_tg, col_nick, col_zyg
+    ]
+    cols = [c for c in candidate_cols if c and c in df.columns]
+    st.dataframe(df[cols].head(500) if cols else df.head(500), width="stretch", hide_index=True)
+with tab_cols:
+    missing = [c for c in REQUIRED if c not in df.columns or df[c].isna().all()]
+    ok = [c for c in REQUIRED if c in df.columns and not df[c].isna().all()]
+    st.write("**Required fields**")
+    if ok: st.success(", ".join(ok))
+    if missing: st.error("Missing or empty: " + ", ".join(missing))
+    st.write("**Detected link columns**")
+    st.info(
+        f"transgene_base_code → {col_tg or '—'}, "
+        f"allele_nickname → {col_nick or '—'}, "
+        f"zygosity → {col_zyg or '—'} "
+        "(allele_number is generated by the database)"
+    )
 
-mom_labels_all = _labels(mom_pairs)
-dad_labels_all = _labels(dad_pairs)
+st.divider()
 
-col_m, col_d = st.columns(2)
-sel_mom = col_m.multiselect("From mother", mom_labels_all, default=mom_labels_all, key="nc_sel_mom")
-sel_dad = col_d.multiselect("From father", dad_labels_all, default=dad_labels_all, key="nc_sel_dad")
+ready = all(c in df.columns and not df[c].isna().all() for c in ["name","genetic_background"]) and "date_birth" in df.columns
+if not ready:
+    st.warning("Add the missing fields to enable import.")
+    st.stop()
 
-zyg_inherited = st.selectbox("Zygosity for inherited elements",
-                             ["unknown", "heterozygous", "homozygous"], index=0, key="nc_zyg_inh")
+st.info("DB will auto-generate **fish_code** for each row; any CSV value is ignored.")
 
-# Optional extras (union)
-st.markdown("**Add extra genotype elements (optional)**")
-union_labels = sorted(set(mom_labels_all + dad_labels_all))
-sel_extra = st.multiselect("Add extra (base • allele)", union_labels, default=[], key="nc_sel_extra")
-zyg_extra = st.selectbox("Zygosity for added elements",
-                         ["unknown", "heterozygous", "homozygous"], index=0, key="nc_zyg_extra")
+# ---------- Import ----------
+if st.button("Import"):
+    try:
+        tmp = pd.read_csv(io.BytesIO(uploaded.getvalue()),
+                          converters={"date_birth": parse_date_birth})
+        if "fish_code" in tmp.columns:
+            tmp = tmp.drop(columns=["fish_code"])
 
-def _rev(labels: list[str], base_pairs: list[Tuple[str,int]]) -> list[Tuple[str,int]]:
-    lut = {f"{b} • {a}": (b, a) for (b, a) in base_pairs}
-    return [lut[l] for l in labels if l in lut]
+        # Insert only columns that exist in public.fish
+        fish_cols_in_db = set(_columns_in("public", "fish"))
+        optional_cols = ["nickname", "line_building_stage", "description", "notes", "created_by"]
+        insertable_cols = ["name","date_birth","genetic_background"] + [c for c in optional_cols if c in fish_cols_in_db]
 
-sel_mom_pairs = _rev(sel_mom, mom_pairs)
-sel_dad_pairs = _rev(sel_dad, dad_pairs)
-sel_extra_pairs = _rev(sel_extra, list(set(mom_pairs + dad_pairs)))
+        inserted: List[Dict[str, Any]] = []
+        link_rows: List[Dict[str, Any]] = []
+        id_by_code: Dict[str, str] = {}
 
-# --------------------------------------------------------------------------------------
-# Offspring & Treatments
-# --------------------------------------------------------------------------------------
-st.markdown("### Treatment details (optional)")
+        fish_stmt = text(f"""
+            insert into public.fish({", ".join(insertable_cols)})
+            values ({", ".join([f":{c}" for c in insertable_cols])})
+            returning fish_code, id_uuid, name, date_birth, genetic_background, created_at
+        """)
 
-with st.expander("Plasmid treatments"):
-    apply_plasmid = st.checkbox("Apply plasmid treatment", value=False, key="nc_apply_plasmid")
-    plasmid_id = st.text_input("plasmid_id (UUID)", value="", key="nc_plasmid_id")
-    plasmid_amount = st.number_input("amount", value=0.0, step=0.1, format="%.3f", key="nc_plasmid_amount")
-    plasmid_units = st.text_input("units", value="ng", key="nc_plasmid_units")
-    plasmid_note = st.text_input("note", value="", key="nc_plasmid_note")
+        # NOTE: ensure_transgene_allele( base_code, allele_nickname ) — keep your current 2-arg call
+        ensure_fn = text("""
+            select
+              ret_allele_number   as allele_number,
+              ret_allele_nickname as allele_nickname
+            from public.ensure_transgene_allele(:transgene_base_code, :allele_nickname)
+        """)
 
-with st.expander("RNA treatments"):
-    apply_rna = st.checkbox("Apply RNA treatment", value=False, key="nc_apply_rna")
-    rna_id = st.text_input("rna_id (UUID)", value="", key="nc_rna_id")
-    rna_amount = st.number_input("amount (RNA)", value=0.0, step=0.1, format="%.3f", key="nc_rna_amount")
-    rna_units = st.text_input("units (RNA)", value="ng", key="nc_rna_units")
-    rna_note = st.text_input("note (RNA)", value="", key="nc_rna_note")
+        # Use direct fish_id (no subselect) for both mapping and linking
+        map_stmt = text("""
+            insert into public.fish_seed_batches_map(fish_id, seed_batch_id)
+            values (:fish_id, :seed_batch_id)
+        """)
+        link_stmt = text("""
+            insert into public.fish_transgene_alleles(fish_id, transgene_base_code, allele_number, zygosity)
+            values (:fish_id, :transgene_base_code, :allele_number, :zygosity)
+            on conflict do nothing
+        """)
 
-st.markdown("### Create offspring")
-birth_date = st.date_input("Birth date (optional)", value=date.today(), key="nc_birth")
-created_by = st.text_input("Created by (optional)", value="", key="nc_created_by")
-name_prefix = st.text_input("Offspring name prefix (optional)", value="offspring", key="nc_name_prefix")
+        skipped = 0
 
-do_create = st.button("Create offspring", type="primary", key="nc_create_btn")
+        # One transaction for everything: insert fish, record batch, ensure alleles, link alleles
+        with _get_engine().begin() as cx:
+            for _, r in tmp.iterrows():
+                fish_row = {k: r.get(k) for k in insertable_cols}
+                ins = cx.execute(fish_stmt, fish_row).mappings().one()
+                inserted.append(dict(ins))
+                id_by_code[ins["fish_code"]] = ins["id_uuid"]
 
-created: List[Tuple[str, str]] = []
+                # Record batch mapping if table exists
+                if seed_batch_id and _table_has("public","fish_seed_batches_map"):
+                    cx.execute(map_stmt, {"fish_id": ins["id_uuid"], "seed_batch_id": seed_batch_id})
 
-if do_create:
-    with st.spinner("Creating offspring…"):
-        with eng.begin() as conn:
-            # Try function first (check pg_proc)
-            has_fn = conn.execute(text("""
-            select exists (
-                select 1
-                from pg_proc p
-                join pg_namespace n on n.oid = p.pronamespace
-                where p.proname = 'create_offspring_batch'
-                and n.nspname = 'public'
-            )
-            """)).scalar()
-            if has_fn:
-                res = conn.execute(
-                    text("""
-                        select child_id, fish_code
-                        from public.create_offspring_batch(
-                          :mother_id, :father_id, :count, :created_by, :birth_date, :name_prefix
-                        )
-                    """),
-                    {
-                        "mother_id": str(mother_id),
-                        "father_id": str(father_id),
-                        "count": 1,
-                        "created_by": created_by if created_by else None,
-                        "birth_date": birth_date if birth_date else None,
-                        "name_prefix": name_prefix if name_prefix else None,
-                    },
-                ).fetchone()
-                if res:
-                    child_id, fish_code = str(res[0]), res[1]
-                else:
-                    child_id, fish_code = None, None
-            else:
-                # Safe fallback: insert a cohort row with generated code
-                row = conn.execute(
-                    text("""
-                      insert into public.fish (id, name, created_by, date_birth)
-                      values (gen_random_uuid(), concat('X-', to_char(now(),'YYMMDD-HH24MISS')), null, :by, :dob)
-                      returning id, fish_code
-                    """),
-                    {"by": created_by or None, "dob": birth_date or None},
-                ).mappings().first()
-                child_id, fish_code = str(row["id"]), row["fish_code"]
+                # Prepare a potential allele link row (we’ll resolve fish_id from id_by_code)
+                tg  = (str(r.get(col_tg)).strip()   if col_tg   and pd.notna(r.get(col_tg))   else "")
+                nn  = (str(r.get(col_nick)).strip() if col_nick and pd.notna(r.get(col_nick)) else "")
+                zy  = (str(r.get(col_zyg)).strip()  if col_zyg  and pd.notna(r.get(col_zyg))  else "")
+                if tg:
+                    link_rows.append({
+                        "fish_code": ins["fish_code"],
+                        "transgene_base_code": tg,
+                        "allele_nickname": nn,
+                        "zygosity": zy,
+                    })
 
-            if not child_id:
-                st.error("Failed to create offspring.")
-                st.stop()
+            # Link alleles if function and table exist
+            if link_rows and _function_exists("public","ensure_transgene_allele") and _table_has("public","fish_transgene_alleles"):
+                for lr in link_rows:
+                    got = cx.execute(ensure_fn, {
+                        "transgene_base_code": lr["transgene_base_code"],
+                        "allele_nickname":     lr.get("allele_nickname") or ''
+                    }).mappings().one_or_none()
 
-            created.append((child_id, fish_code))
+                    if not got:
+                        skipped += 1
+                        continue
 
-            # Copy precisely-chosen parental alleles
-            def _insert_pairs(pairs: list[Tuple[str,int]], zyg: str):
-                for base_code, allele_number in pairs:
-                    try:
-                        conn.execute(
-                            text("""
-                                insert into public.fish_transgene_alleles
-                                  (fish_id, transgene_base_code, allele_number, zygosity)
-                                values (:fish_id, :base, :allele, :zyg)
-                                on conflict do nothing
-                            """),
-                            {"fish_id": child_id, "base": base_code, "allele": int(allele_number), "zyg": zyg},
-                        )
-                    except Exception:
-                        pass
+                    fish_code = lr["fish_code"]
+                    fish_id = id_by_code.get(fish_code)
+                    if not fish_id:
+                        skipped += 1
+                        continue
 
-            _insert_pairs(sel_mom_pairs, zyg_inherited)
-            _insert_pairs(sel_dad_pairs, zyg_inherited)
-            _insert_pairs(sel_extra_pairs, zyg_extra)
+                    cx.execute(link_stmt, {
+                        "fish_id":             fish_id,
+                        "transgene_base_code": lr["transgene_base_code"],
+                        "allele_number":       int(got["allele_number"]),
+                        "zygosity":            lr.get("zygosity","")
+                    })
+            elif link_rows:
+                st.warning("Allele link function/table not found; skipped linking.")
 
-
-            # Ensure child has at least one allele (avoid orphan)
-            n_links = conn.execute(
-                text("select count(*) from public.fish_transgene_alleles where fish_id=:fid"),
-                {"fid": child_id},
-            ).scalar()
-            if int(n_links) == 0:
-                conn.execute(text("delete from public.fish where id=:fid"), {"fid": child_id})
-                st.error("Created cohort had no genotype links; it was removed.")
-                st.stop()
-
-            # Optional treatments
-            ensure_treatment_objects(conn)
-            now = datetime.now(UTC)
-            if apply_plasmid and plasmid_id.strip():
-                conn.execute(
-                    text("""
-                        insert into public.injected_plasmid_treatments
-                          (id, fish_id, plasmid_id, amount, units, at_time, note)
-                        values (gen_random_uuid(), :fish_id, :plasmid_id, :amount, :units, :at_time, :note)
-                        on conflict do nothing
-                    """),
-                    {
-                        "fish_id": child_id,
-                        "plasmid_id": plasmid_id.strip(),
-                        "amount": None if plasmid_amount == 0 else plasmid_amount,
-                        "units": plasmid_units.strip() or None,
-                        "at_time": now,
-                        "note": plasmid_note.strip() or None,
-                    },
+        # Display imported rows + genotype summary
+        fish_codes = [r["fish_code"] for r in inserted]
+        if fish_codes:
+            q = text("""
+                with links as (
+                  select f.fish_code,
+                         array_agg(distinct l.transgene_base_code)::text[] as transgene_base_codes,
+                         array_agg(l.allele_number)::int[]                 as allele_numbers,
+                         array_agg(nullif(l.zygosity,''))::text[]          as zygosities
+                  from public.fish f
+                  left join public.fish_transgene_alleles l on l.fish_id = f.id_uuid
+                  where f.fish_code = any(:codes)
+                  group by 1
                 )
-            if apply_rna and rna_id.strip():
-                conn.execute(
-                    text("""
-                        insert into public.injected_rna_treatments
-                          (id, fish_id, rna_id, amount, units, at_time, note)
-                        values (gen_random_uuid(), :fish_id, :rna_id, :amount, :units, :at_time, :note)
-                        on conflict do nothing
-                    """),
-                    {
-                        "fish_id": child_id,
-                        "rna_id": rna_id.strip(),
-                        "amount": None if rna_amount == 0 else rna_amount,
-                        "units": rna_units.strip() or None,
-                        "at_time": now,
-                        "note": rna_note.strip() or None,
-                    },
-                )
+                select f.fish_code, f.name, f.date_birth, f.genetic_background, f.created_at,
+                       coalesce(l.transgene_base_codes, '{}') as transgene_base_codes,
+                       coalesce(l.allele_numbers, '{}')       as allele_numbers,
+                       coalesce(l.zygosities, '{}')            as zygosities,
+                       array_to_string(
+                         array(
+                           select (l2.transgene_base_code || '^' || l2.allele_number::text)
+                           from public.fish_transgene_alleles l2
+                           where l2.fish_id = f.id_uuid
+                           order by l2.transgene_base_code, l2.allele_number
+                         ),
+                         '; '
+                       ) as genotype_text
+                from public.fish f
+                left join links l on l.fish_code = f.fish_code
+                where f.fish_code = any(:codes)
+                order by f.created_at, f.fish_code
+            """)
+            with _get_engine().begin() as cx:
+                show_df = pd.read_sql(q, cx, params={"codes": fish_codes})
+        else:
+            show_df = pd.DataFrame(inserted)
 
-    out_df = pd.DataFrame(created, columns=["child_id", "fish_code"])
-    st.success(f"Created offspring {fish_code} from {id_to_label.get(mother_id, mother_id)} × {id_to_label.get(father_id, father_id)}")
-    st.dataframe(out_df, width="stretch")
-    st.caption("Selected parental genotype elements were applied; extras optional; treatments added if specified.")
+        st.success(f"Imported {len(inserted)} rows. The database assigned fish_code values.")
+        st.subheader("Imported rows")
+        if "date_birth" in show_df.columns:
+            show_df["date_birth"] = show_df["date_birth"].astype(str)
+        st.dataframe(
+            show_df[[
+                "fish_code","name","date_birth","genetic_background",
+                "transgene_base_codes","allele_numbers","zygosities","genotype_text","created_at"
+            ]],
+            width="stretch", hide_index=True
+        )
+
+        if skipped:
+            st.warning(f"Allele linking skipped for {skipped} row(s).")
+
+    except Exception as e:
+        st.error(f"Import failed: {e}")
+
+else:
+    st.stop()

@@ -1,503 +1,361 @@
-# supabase/ui/pages/02_📤_new_fish_from_csv.py
+# 02_📤_new_fish_from_csv.py
 from __future__ import annotations
 
-import sys, io
+import io, os, re
 from pathlib import Path
-from hashlib import sha256
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from typing import List, Dict, Any, Optional
+from datetime import date, datetime, timedelta
 
-from supabase.ui.lib.app_ctx import get_engine, engine_info
-from supabase.ui.lib.csv_normalize import normalize_fish_seedkit, validate_seedkit
-from supabase.ui.lib.alloc_link import resolve_or_allocate_number, ensure_transgene_pair, link_fish_to
+import pandas as pd
+import streamlit as st
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 
+# ---------- Auth gate ----------
 try:
     from supabase.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock(): ...
+    from auth_gate import require_app_unlock
 require_app_unlock()
 
-from typing import List, Dict, Any, Optional
-import pandas as pd
-import streamlit as st
-from sqlalchemy import text
+PAGE_TITLE = "CARP — New Fish from CSV"
+st.set_page_config(page_title=PAGE_TITLE, page_icon="📤")
 
-PAGE_TITLE = "CARP — New fish from CSV"
-st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
-st.title("📤 New fish from CSV")
+# ---------- DB engine ----------
+ENGINE: Optional[Engine] = None
+def _get_engine() -> Engine:
+    global ENGINE
+    if ENGINE:
+        return ENGINE
+    url = os.getenv("DB_URL")
+    if not url:
+        raise RuntimeError("DB_URL not set")
+    ENGINE = create_engine(url, future=True)
+    return ENGINE
 
-eng = get_engine()
-dbg = engine_info(eng)
-st.caption(f"DB debug → db={dbg['db']} user={dbg['usr']} host={dbg['host']}:{dbg['port']}")
+# ---------- helpers: schema detection ----------
+def _table_has(schema: str, table: str) -> bool:
+    q = text("""
+      select 1 from information_schema.tables
+      where table_schema=:s and table_name=:t limit 1
+    """)
+    with _get_engine().begin() as cx:
+        return cx.execute(q, {"s": schema, "t": table}).first() is not None
 
-REQUIRED_TABLES = [
-    ("public", "fish"),
-    ("public", "fish_transgene_alleles"),
-    ("public", "transgene_allele_registry"),
-    ("public", "transgene_allele_counters"),
-]
-REQUIRED_VIEW = ("public", "v_fish_overview")
+def _columns_in(schema: str, table: str) -> List[str]:
+    q = text("""
+      select column_name
+      from information_schema.columns
+      where table_schema=:s and table_name=:t
+      order by ordinal_position
+    """)
+    with _get_engine().begin() as cx:
+        return [r[0] for r in cx.execute(q, {"s": schema, "t": table}).all()]
 
-with eng.begin() as cx:
-    missing: List[str] = []
-    for sch, tbl in REQUIRED_TABLES:
-        ok = cx.execute(text("select to_regclass(:q) is not null"), {"q": f"{sch}.{tbl}"}).scalar()
-        if not ok:
-            missing.append(f"{sch}.{tbl}")
-    ok_view = cx.execute(text("select to_regclass(:q) is not null"), {"q": f"{REQUIRED_VIEW[0]}.{REQUIRED_VIEW[1]}"}).scalar()
-    if not ok_view:
-        missing.append(f"{REQUIRED_VIEW[0]}.{REQUIRED_VIEW[1]}")
+def _function_exists(schema: str, name: str) -> bool:
+    q = text("""
+      select 1
+      from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname=:s and p.proname=:n
+      limit 1
+    """)
+    with _get_engine().begin() as cx:
+        return cx.execute(q, {"s": schema, "n": name}).first() is not None
 
-if missing:
-    st.error("Database schema is incomplete. Missing objects:\n\n- " + "\n- ".join(missing) + "\n\nRun your migrations, then reload this page.")
+# ---------- robust date parser ----------
+try:
+    from dateutil import parser as _p
+except Exception:
+    _p = None
+
+_RX_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_RX_LETTER_PREFIX = re.compile(r"^[A-Za-z](.*)$")
+_RX_8DIGITS = re.compile(r"^\d{8}$")
+
+def parse_date_birth(x):
+    if x is None:
+        return None
+    if isinstance(x, datetime):
+        return x.date()
+    if isinstance(x, date):
+        return x
+    s = str(x).strip()
+    if not s:
+        return None
+    # strip quotes
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
+        s = s[1:-1].strip()
+    # allow dYYYY-MM-DD
+    m = _RX_LETTER_PREFIX.match(s)
+    if m:
+        s = m.group(1).strip()
+    # YYYY-MM-DD
+    if _RX_ISO.match(s):
+        y, m_, d_ = map(int, s.split("-"))
+        return date(y, m_, d_)
+    # YYYYMMDD
+    if _RX_8DIGITS.match(s):
+        y, m_, d_ = int(s[0:4]), int(s[4:6]), int(s[6:8])
+        try:
+            return date(y, m_, d_)
+        except Exception:
+            pass
+    # Excel serials (1899 or 1904 base)
+    try:
+        n = float(s)
+        if 1 <= n < 100000:
+            d1 = date(1899, 12, 30) + timedelta(days=int(n))
+            if 1900 <= d1.year <= 2100:
+                return d1
+            d2 = date(1904, 1, 1) + timedelta(days=int(n))
+            if 1900 <= d2.year <= 2100:
+                return d2
+    except Exception:
+        pass
+    # free-form
+    if _p is not None:
+        try:
+            return _p.parse(s, fuzzy=True, dayfirst=False, yearfirst=False).date()
+        except Exception:
+            return None
+    return None
+
+# ---------- UI ----------
+st.title(PAGE_TITLE)
+st.caption("Upload CSV with: name, date_birth, genetic_background. fish_code is generated by the DB. Optional link columns: transgene_base_code, allele_nickname, zygosity.")
+
+uploaded = st.file_uploader("CSV file", type=["csv"])
+if not uploaded:
+    st.info("Choose a CSV to preview.")
     st.stop()
 
-PREVIEW_KEY = "upload_preview_df"
-RESULT_KEY  = "upload_insert_result"
+# Seed batch ID only (no batch label)
+default_batch = Path(getattr(uploaded, "name", "")).stem
+seed_batch_id = st.text_input("Seed batch ID", value=default_batch)
 
-def _reset_preview():
-    st.session_state.pop(PREVIEW_KEY, None)
-    st.session_state.pop(RESULT_KEY, None)
+# Load CSV (preview + normalized)
+try:
+    df_raw = pd.read_csv(uploaded)
+    df = pd.read_csv(io.BytesIO(uploaded.getvalue()),
+                     converters={"date_birth": parse_date_birth})
+except Exception as e:
+    st.error(f"Failed to read CSV: {e}")
+    st.stop()
 
-uploaded = st.file_uploader("Upload .csv", type=["csv"], on_change=_reset_preview)
+# Ignore incoming fish_code — DB generates it
+if "fish_code" in df.columns:
+    df = df.drop(columns=["fish_code"])
 
-col1, col2, col3 = st.columns([1,1,2])
-with col1:
-    load_clicked = st.button("Load preview", disabled=uploaded is None)
-with col2:
-    insert_clicked = st.button("Insert into database", disabled=(PREVIEW_KEY not in st.session_state))
-with col3:
-    st.caption(
-        "CSV headers: transgene_base_code, allele_nickname or allele_number, name, created_by, date_birth, "
-        "zygosity (optional). Note: fish_code is **ignored**; the database will generate it."
+# Required minimum
+REQUIRED = ["name", "date_birth", "genetic_background"]
+for col in REQUIRED:
+    if col not in df.columns:
+        df[col] = None
+
+# Resolve link columns
+ALIASES = {
+    "transgene_base_code": ["transgene_base_code", "base_code", "tg_base_code", "transgene_base", "tg_base"],
+    "allele_nickname":     ["allele_nickname", "allele_nick", "allele_name", "allele"],
+    "zygosity":            ["zygosity", "zyg", "allele_zygosity"],
+}
+def _resolve(df: pd.DataFrame, want: str) -> Optional[str]:
+    for cand in ALIASES.get(want, []):
+        if cand in df.columns:
+            return cand
+    return None
+
+col_tg   = _resolve(df, "transgene_base_code")
+col_nick = _resolve(df, "allele_nickname")
+col_zyg  = _resolve(df, "zygosity")
+
+# Make dates readable for preview
+if "date_birth" in df.columns:
+    df["date_birth"] = df["date_birth"].apply(lambda d: d.isoformat() if isinstance(d, date) else ("" if pd.isna(d) else str(d)))
+
+# Tabs
+tab_raw, tab_norm, tab_cols = st.tabs(["Raw CSV", "Normalized", "Columns"])
+with tab_raw:
+    st.dataframe(df_raw.head(200), width="stretch", hide_index=True)
+with tab_norm:
+    candidate_cols = [
+        "name", "date_birth", "genetic_background", "nickname",
+        "line_building_stage", "description", "created_by", "notes",
+        col_tg, col_nick, col_zyg
+    ]
+    cols = [c for c in candidate_cols if c and c in df.columns]
+    st.dataframe(df[cols].head(500) if cols else df.head(500), width="stretch", hide_index=True)
+with tab_cols:
+    missing = [c for c in REQUIRED if c not in df.columns or df[c].isna().all()]
+    ok = [c for c in REQUIRED if c in df.columns and not df[c].isna().all()]
+    st.write("**Required fields**")
+    if ok: st.success(", ".join(ok))
+    if missing: st.error("Missing or empty: " + ", ".join(missing))
+    st.write("**Detected link columns**")
+    st.info(
+        f"transgene_base_code → {col_tg or '—'}, "
+        f"allele_nickname → {col_nick or '—'}, "
+        f"zygosity → {col_zyg or '—'} "
+        "(allele_number is generated by the database)"
     )
 
-# ------------------------- Load preview -------------------------
-if load_clicked and uploaded is not None:
+st.divider()
+
+ready = all(c in df.columns and not df[c].isna().all() for c in ["name","genetic_background"]) and "date_birth" in df.columns
+if not ready:
+    st.warning("Add the missing fields to enable import.")
+    st.stop()
+
+st.info("DB will auto-generate **fish_code** for each row; any CSV value is ignored.")
+
+# ---------- Import ----------
+if st.button("Import"):
     try:
-        raw = uploaded.read().decode("utf-8")
-        df_in = pd.read_csv(io.StringIO(raw))
+        tmp = pd.read_csv(io.BytesIO(uploaded.getvalue()),
+                          converters={"date_birth": parse_date_birth})
+        if "fish_code" in tmp.columns:
+            tmp = tmp.drop(columns=["fish_code"])
 
-        # Normalize to canonical schema
-        df_norm = normalize_fish_seedkit(df_in)
+        # Insert only columns that exist in public.fish
+        fish_cols_in_db = set(_columns_in("public", "fish"))
+        optional_cols = ["nickname", "line_building_stage", "description", "notes", "created_by"]
+        insertable_cols = ["name","date_birth","genetic_background"] + [c for c in optional_cols if c in fish_cols_in_db]
 
-        # Ensure fish_code column exists for validation, even if CSV didn't have it
-        if "fish_code" not in df_norm.columns:
-            df_norm["fish_code"] = ""
+        inserted: List[Dict[str, Any]] = []
+        link_rows: List[Dict[str, Any]] = []
+        id_by_code: Dict[str, str] = {}
 
-        # Pass-through optional CSV columns (kept if present)
-        passthrough = ["nickname", "line_building_stage", "description", "notes"]
-        for col in [c for c in passthrough if c in df_in.columns]:
-            df_norm[col] = df_in[col]
+        fish_stmt = text(f"""
+            insert into public.fish({", ".join(insertable_cols)})
+            values ({", ".join([f":{c}" for c in insertable_cols])})
+            returning fish_code, id_uuid, name, date_birth, genetic_background, created_at
+        """)
 
-        # Seed batch id = file basename (no extension)
-        seed_batch_id = Path(uploaded.name).stem
-        df_norm["__seed_batch_id__"] = seed_batch_id
+        # NOTE: ensure_transgene_allele( base_code, allele_nickname ) — keep your current 2-arg call
+        ensure_fn = text("""
+            select
+              ret_allele_number   as allele_number,
+              ret_allele_nickname as allele_nickname
+            from public.ensure_transgene_allele(:transgene_base_code, :allele_nickname)
+        """)
 
-        # Stable row_key from key fields
-        def _row_key(row: pd.Series) -> str:
-            parts = [
-                str(row.get("name") or ""),
-                str(row.get("created_by") or ""),
-                str(row.get("date_birth") or ""),
-                str(row.get("transgene_base_code") or ""),
-                str(row.get("allele_nickname") or row.get("allele_number") or ""),
-                str(row.get("zygosity") or ""),
-            ]
-            return sha256("|".join(parts).encode("utf-8")).hexdigest()
-        df_norm["__row_key__"] = [ _row_key(r) for _, r in df_norm.iterrows() ]
+        # Use direct fish_id (no subselect) for both mapping and linking
+        map_stmt = text("""
+            insert into public.fish_seed_batches_map(fish_id, seed_batch_id)
+            values (:fish_id, :seed_batch_id)
+        """)
+        link_stmt = text("""
+            insert into public.fish_transgene_alleles(fish_id, transgene_base_code, allele_number, zygosity)
+            values (:fish_id, :transgene_base_code, :allele_number, :zygosity)
+            on conflict do nothing
+        """)
 
-        # Validate after augmentation (now safe: fish_code exists)
-        issues = validate_seedkit(df_norm)
-        if issues:
-            st.warning(" • ".join(issues))
+        skipped = 0
 
-        # Store; we still HIDE fish_code in the preview table later
-        st.session_state[PREVIEW_KEY] = {"raw": df_in, "norm": df_norm, "seed": seed_batch_id}
-        st.info(f"Batch detected: **{seed_batch_id}**")
-    except Exception as e:
-        st.exception(e)
+        # One transaction for everything: insert fish, record batch, ensure alleles, link alleles
+        with _get_engine().begin() as cx:
+            for _, r in tmp.iterrows():
+                fish_row = {k: r.get(k) for k in insertable_cols}
+                ins = cx.execute(fish_stmt, fish_row).mappings().one()
+                inserted.append(dict(ins))
+                id_by_code[ins["fish_code"]] = ins["id_uuid"]
 
-# ------------------------- Preview UI -------------------------
-if PREVIEW_KEY in st.session_state:
-    store = st.session_state[PREVIEW_KEY]
-    if isinstance(store, dict):
-        df_in = store.get("raw")
-        df_norm = store.get("norm")
-        seed_batch_id = store.get("seed")
-    else:
-        df_in = None
-        df_norm = store
-        seed_batch_id = "unknown_batch"
+                # Record batch mapping if table exists
+                if seed_batch_id and _table_has("public","fish_seed_batches_map"):
+                    cx.execute(map_stmt, {"fish_id": ins["id_uuid"], "seed_batch_id": seed_batch_id})
 
-    st.subheader("Preview")
-    tab_raw, tab_norm, tab_cols = st.tabs(["Raw CSV", "Normalized", "Columns"])
+                # Prepare a potential allele link row (we’ll resolve fish_id from id_by_code)
+                tg  = (str(r.get(col_tg)).strip()   if col_tg   and pd.notna(r.get(col_tg))   else "")
+                nn  = (str(r.get(col_nick)).strip() if col_nick and pd.notna(r.get(col_nick)) else "")
+                zy  = (str(r.get(col_zyg)).strip()  if col_zyg  and pd.notna(r.get(col_zyg))  else "")
+                if tg:
+                    link_rows.append({
+                        "fish_code": ins["fish_code"],
+                        "transgene_base_code": tg,
+                        "allele_nickname": nn,
+                        "zygosity": zy,
+                    })
 
-    with tab_raw:
-        if df_in is not None:
-            st.caption(f"Raw CSV shape: {df_in.shape[0]} rows × {df_in.shape[1]} cols")
-            st.dataframe(df_in, width='stretch')
-        else:
-            st.info("Raw CSV not available for this preview (loaded via legacy flow).")
+            # Link alleles if function and table exist
+            if link_rows and _function_exists("public","ensure_transgene_allele") and _table_has("public","fish_transgene_alleles"):
+                for lr in link_rows:
+                    got = cx.execute(ensure_fn, {
+                        "transgene_base_code": lr["transgene_base_code"],
+                        "allele_nickname":     lr.get("allele_nickname") or ''
+                    }).mappings().one_or_none()
 
-    with tab_norm:
-        st.caption(
-            f"Normalized shape: {df_norm.shape[0]} rows × {df_norm.shape[1]} cols • batch: {seed_batch_id}  "
-            "• note: fish_code will be generated by the database on insert"
-        )
-        df_norm_preview = df_norm.drop(
-            columns=["fish_code", "allele_number", "__seed_batch_id__", "__row_key__"],
-            errors="ignore",
-        )
-        st.dataframe(df_norm_preview, width='stretch')
+                    if not got:
+                        skipped += 1
+                        continue
 
-    with tab_cols:
-        st.write("Normalized columns:", list(df_norm.columns))
+                    fish_code = lr["fish_code"]
+                    fish_id = id_by_code.get(fish_code)
+                    if not fish_id:
+                        skipped += 1
+                        continue
 
-# ------------------------- Insert -------------------------
-if insert_clicked and (PREVIEW_KEY in st.session_state):
-    created_ct = 0
-    updated_ct = 0
-    linked_ct  = 0
-    skipped_ct = 0
+                    cx.execute(link_stmt, {
+                        "fish_id":             fish_id,
+                        "transgene_base_code": lr["transgene_base_code"],
+                        "allele_number":       int(got["allele_number"]),
+                        "zygosity":            lr.get("zygosity","")
+                    })
+            elif link_rows:
+                st.warning("Allele link function/table not found; skipped linking.")
 
-    try:
-        _store = st.session_state[PREVIEW_KEY]
-        if isinstance(_store, dict):
-            df_norm = _store["norm"]
-            seed_batch_id = _store.get("seed") or "unknown_batch"
-        else:
-            df_norm = _store
-            seed_batch_id = "unknown_batch"
-
-        # Option: replace existing batch first (idempotent per file)
-        replace_batch = st.toggle(
-            "Replace existing rows for this batch_id before insert",
-            value=True,
-            help="Deletes any prior imports with this batch id, then loads fresh.",
-        )
-
-        with eng.begin() as conn:
-            conn.execute(text("set application_name to 'csv_page'"))
-            conn.execute(text("SET CONSTRAINTS ALL DEFERRED"))
-            # Preflight: ensure load_log_fish exists with row_key + UNIQUE; also show where we are connected
-            probe = conn.execute(text("""
-                select current_database() as db, inet_server_addr()::text as server_addr, inet_server_port() as port
-            """)).mappings().first()
-            st.caption(f"Import probe → db={probe['db']} server={probe['server_addr']}:{probe['port']}")
-
-            # Preflight: ensure fish_seed_batches exists + DEFERRABLE FK → fish(id); drop legacy trigger
-            conn.execute(text("""
-                DO $$
-                BEGIN
-                IF to_regclass('public.fish_seed_batches') IS NULL THEN
-                    CREATE TABLE public.fish_seed_batches (
-                    fish_id       uuid PRIMARY KEY,
-                    seed_batch_id text NOT NULL,
-                    updated_at    timestamptz NOT NULL DEFAULT now()
-                    );
-                END IF;
-
-                -- Drop any existing FK by name, then recreate DEFERRABLE INITIALLY DEFERRED
-                IF EXISTS (
-                    SELECT 1
-                    FROM information_schema.table_constraints
-                    WHERE table_schema='public' AND table_name='fish_seed_batches'
-                    AND constraint_type='FOREIGN KEY'
-                ) THEN
-                    EXECUTE (
-                    SELECT 'ALTER TABLE public.fish_seed_batches DROP CONSTRAINT ' || quote_ident(tc.constraint_name)
-                    FROM information_schema.table_constraints tc
-                    WHERE tc.table_schema='public' AND tc.table_name='fish_seed_batches'
-                        AND tc.constraint_type='FOREIGN KEY'
-                    LIMIT 1
-                    );
-                END IF;
-
-                ALTER TABLE public.fish_seed_batches
-                    ADD CONSTRAINT fk_fsb_fish
-                    FOREIGN KEY (fish_id) REFERENCES public.fish(id)
-                    ON DELETE CASCADE
-                    DEFERRABLE INITIALLY DEFERRED;
-
-                -- Remove legacy trigger; we upsert mapping explicitly in app code
-                IF EXISTS (
-                    SELECT 1 FROM pg_trigger
-                    WHERE tgrelid='public.load_log_fish'::regclass
-                    AND tgname='tg_upsert_fish_seed_maps'
-                    AND NOT tgisinternal
-                ) THEN
-                    DROP TRIGGER tg_upsert_fish_seed_maps ON public.load_log_fish;
-                END IF;
-                END$$;
-            """))
-
-            conn.execute(text("""
-                DO $$
-                BEGIN
-                IF to_regclass('public.load_log_fish') IS NULL THEN
-                    CREATE TABLE public.load_log_fish (
-                    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                    fish_id       uuid NOT NULL REFERENCES public.fish(id) ON DELETE CASCADE,
-                    seed_batch_id text NOT NULL,
-                    row_key       text NOT NULL,
-                    logged_at     timestamptz NOT NULL DEFAULT now()
-                    );
-                END IF;
-
-                IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_schema='public' AND table_name='load_log_fish' AND column_name='row_key'
-                ) THEN
-                    ALTER TABLE public.load_log_fish ADD COLUMN row_key text NOT NULL DEFAULT '';
-                    ALTER TABLE public.load_log_fish ALTER COLUMN row_key DROP DEFAULT;
-                END IF;
-
-                IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.table_constraints
-                    WHERE table_schema='public' AND table_name='load_log_fish'
-                    AND constraint_type='UNIQUE' AND constraint_name='uq_load_log_fish_batch_row'
-                ) THEN
-                    ALTER TABLE public.load_log_fish
-                    ADD CONSTRAINT uq_load_log_fish_batch_row UNIQUE (seed_batch_id, row_key);
-                END IF;
-                END$$;
-            """))
-            # Ensure optional fish columns
-            conn.execute(text("""
-                DO $$
-                BEGIN
-                  IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_schema='public' AND table_name='fish' AND column_name='nickname'
-                  ) THEN
-                    ALTER TABLE public.fish ADD COLUMN nickname text;
-                  END IF;
-                  IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_schema='public' AND table_name='fish' AND column_name='line_building_stage'
-                  ) THEN
-                    ALTER TABLE public.fish ADD COLUMN line_building_stage text;
-                  END IF;
-                END$$;
-            """))
-
-            # Optional: clear previous rows for this batch (and its log)
-            if replace_batch:
-                conn.execute(text("""
-                    delete from public.fish
-                    where id in (select fish_id from public.load_log_fish where seed_batch_id = :seed)
-                """), {"seed": seed_batch_id})
-                conn.execute(text("delete from public.load_log_fish where seed_batch_id = :seed"), {"seed": seed_batch_id})
-
-            # Insert fish — DB trigger generates fish_code; include optional cols if present
-            base_cols = ["name","created_by","date_birth"]
-            opt_cols  = [c for c in ["nickname","line_building_stage"] if c in df_norm.columns]
-            to_insert = df_norm[base_cols + opt_cols].copy()
-
-            created_rows: List[Dict[str, Any]] = []
-            new_codes: list[str] = []  # capture codes trigger returned
-            # NOTE: `r` comes from `to_insert`; for metadata like __row_key__, read from df_norm via r.name
-            for _, r in to_insert.iterrows():
-                params = {
-                    "name":  r.get("name"),
-                    "by":    r.get("created_by"),
-                    "dob":   r.get("date_birth"),
-                    "nick":  (r.get("nickname") if "nickname" in opt_cols else None),
-                    "stage": (r.get("line_building_stage") if "line_building_stage" in opt_cols else None),
-                }
-                row = conn.execute(
-                    text(f"""
-                        insert into public.fish (
-                          id, name, created_by, date_birth
-                          {', nickname' if 'nickname' in opt_cols else ''}
-                          {', line_building_stage' if 'line_building_stage' in opt_cols else ''}
-                        )
-                        values (
-                          gen_random_uuid(), :name, :by, :dob
-                          {', :nick' if 'nickname' in opt_cols else ''}
-                          {', :stage' if 'line_building_stage' in opt_cols else ''}
-                        )
-                        returning id, fish_code
-                    """),
-                    params,
-                ).mappings().first()
-                if not row or not row.get("id"):
-                    raise RuntimeError("Fish insert returned no id")
-                created_rows.append(dict(row))
-                new_codes.append(row["fish_code"])
-
-                # Upsert the batch mapping explicitly (no trigger needed)
-                conn.execute(
-                    text("""
-                        insert into public.fish_seed_batches (fish_id, seed_batch_id, updated_at)
-                        values (:fid, :seed, now())
-                        on conflict (fish_id) do update
-                        set seed_batch_id = excluded.seed_batch_id,
-                            updated_at    = excluded.updated_at
-                    """),
-                    {"fid": row["id"], "seed": seed_batch_id},
+        # Display imported rows + genotype summary
+        fish_codes = [r["fish_code"] for r in inserted]
+        if fish_codes:
+            q = text("""
+                with links as (
+                  select f.fish_code,
+                         array_agg(distinct l.transgene_base_code)::text[] as transgene_base_codes,
+                         array_agg(l.allele_number)::int[]                 as allele_numbers,
+                         array_agg(nullif(l.zygosity,''))::text[]          as zygosities
+                  from public.fish f
+                  left join public.fish_transgene_alleles l on l.fish_id = f.id_uuid
+                  where f.fish_code = any(:codes)
+                  group by 1
                 )
+                select f.fish_code, f.name, f.date_birth, f.genetic_background, f.created_at,
+                       coalesce(l.transgene_base_codes, '{}') as transgene_base_codes,
+                       coalesce(l.allele_numbers, '{}')       as allele_numbers,
+                       coalesce(l.zygosities, '{}')            as zygosities,
+                       array_to_string(
+                         array(
+                           select (l2.transgene_base_code || '^' || l2.allele_number::text)
+                           from public.fish_transgene_alleles l2
+                           where l2.fish_id = f.id_uuid
+                           order by l2.transgene_base_code, l2.allele_number
+                         ),
+                         '; '
+                       ) as genotype_text
+                from public.fish f
+                left join links l on l.fish_code = f.fish_code
+                where f.fish_code = any(:codes)
+                order by f.created_at, f.fish_code
+            """)
+            with _get_engine().begin() as cx:
+                show_df = pd.read_sql(q, cx, params={"codes": fish_codes})
+        else:
+            show_df = pd.DataFrame(inserted)
 
-                # Log the load for idempotency and batch provenance
-                conn.execute(
-                    text("""
-                        insert into public.load_log_fish (fish_id, seed_batch_id, row_key)
-                        values (:fid, :seed, :rk)
-                        on conflict (seed_batch_id, row_key) do nothing
-                    """),
-                    {"fid": row["id"], "seed": seed_batch_id, "rk": df_norm.loc[r.name, "__row_key__"]},
-                )
-
-            created_ct = len(created_rows)
-            st.caption(f"new fish_code(s): {', '.join(new_codes)}")
-            # Map row index → inserted id
-            idx_to_id = {i: cr["id"] for i, cr in zip(to_insert.index.tolist(), created_rows)}
-
-            # Link genotype (registry-first; legacy-aware)
-            base_nonempty = df_norm["transgene_base_code"].astype("string").str.strip().ne("")
-            nick_nonempty = df_norm["allele_nickname"].astype("string").str.strip().ne("")
-            has_num       = df_norm["allele_number"].notna()
-            gmask = base_nonempty & (nick_nonempty | has_num)
-            st.caption("debug: base_nonempty=%d nick_nonempty=%d gmask=%d" % (int(base_nonempty.sum()), int(nick_nonempty.sum()), int(gmask.sum())))
-
-            # Seed unique bases up front to satisfy FK on transgene_alleles
-            bases_to_seed = (
-                df_norm.loc[gmask, "transgene_base_code"]
-                .astype("string").str.strip()
-                .dropna().unique().tolist()
-            )
-            for b in bases_to_seed:
-                if b:
-                    conn.execute(
-                        text("""
-                            insert into public.transgenes (transgene_base_code)
-                            values (:b)
-                            on conflict (transgene_base_code) do nothing
-                        """),
-                        {"b": b},
-                    )
-
-            for idx, r in df_norm.loc[gmask].iterrows():
-                fish_id = idx_to_id.get(idx)
-                if not fish_id:
-                    skipped_ct += 1
-                    continue
-
-                base = (r.get("transgene_base_code") or "").strip()
-                nick = (r.get("allele_nickname") or "").strip() or None
-                by   = (r.get("created_by") or None)
-                zyg  = (r.get("zygosity") or None)
-
-                n: Optional[int] = None
-                if nick:
-                    n = resolve_or_allocate_number(conn, base, nick, by)
-                    if n is not None:
-                        st.caption(f"alloc: registry hit base='{base}' nick='{nick}' → n={int(n)}")
-
-                if n is None:
-                    try:
-                        n = int(r.get("allele_number"))
-                        st.caption(f"alloc: csv numeric base='{base}' → n={n}")
-                    except Exception:
-                        n = None
-
-                if n is None:
-                    try:
-                        rows = conn.execute(
-                            text("""
-                            select allele_nickname, allele_number
-                            from public.transgene_allele_registry
-                            where transgene_base_code = :b
-                            order by allele_nickname
-                            limit 10
-                            """),
-                            {"b": base},
-                        ).mappings().all()
-                        sample = ", ".join(f"{row['allele_nickname']}→{row['allele_number']}" for row in rows)
-                    except Exception:
-                        sample = ""
-                    st.caption(f"debug skip: base='{base}' nick='{nick}' (no number) {('['+sample+']') if sample else ''}")
-                    skipped_ct += 1
-                    continue
-
-                ensure_transgene_pair(conn, base, n)
-                link_fish_to(conn, str(fish_id), base, n, zygosity=zyg, nickname=nick)
-                linked_ct += 1
-
-        st.session_state[RESULT_KEY] = {
-            "created": int(created_ct),
-            "updated": int(0),
-            "with_alleles": int(linked_ct),
-            "skipped_no_allele": int(skipped_ct),
-            "skipped": int(skipped_ct),
-            "seed_batch_id": seed_batch_id,
-        }
-
-    except Exception as e:
-        st.exception(e)
-
-# ------------------------- Result & recent slice -------------------------
-res = st.session_state.get(RESULT_KEY)
-if res:
-    st.success(
-        f"Batch **{res.get('seed_batch_id','?')}** — "
-        f"Inserted {res.get('created',0)} new, updated {res.get('updated',0)}; "
-        f"linked genotype for {res.get('with_alleles',0)} rows; "
-        f"skipped {res.get('skipped_no_allele',res.get('skipped',0))} without allele."
-    )
-
-    st.markdown("#### Recent rows (from `vw_fish_overview_with_label`)")
-    try:
-        recent = pd.read_sql(
-            """
-            select *
-            from public.vw_fish_overview_with_label
-            where batch_label = %(seed)s
-            limit 50
-            """,
-            eng,
-            params={"seed": seed_batch_id},
+        st.success(f"Imported {len(inserted)} rows. The database assigned fish_code values.")
+        st.subheader("Imported rows")
+        if "date_birth" in show_df.columns:
+            show_df["date_birth"] = show_df["date_birth"].astype(str)
+        st.dataframe(
+            show_df[[
+                "fish_code","name","date_birth","genetic_background",
+                "transgene_base_codes","allele_numbers","zygosities","genotype_text","created_at"
+            ]],
+            width="stretch", hide_index=True
         )
 
-        # sort in pandas if created_at exists
-        if "created_at" in recent.columns:
-            recent = recent.sort_values(["created_at", "fish_code"], ascending=[False, True])
-        else:
-            recent = recent.sort_values(["fish_code"], ascending=[True])
+        if skipped:
+            st.warning(f"Allele linking skipped for {skipped} row(s).")
 
-        # cast UUID-like columns to strings for Arrow display
-        for c in ("id", "fish_id"):
-            if c in recent.columns:
-                recent[c] = recent[c].astype("string")
-
-        preview_like = [
-            "fish_code","name","created_by","date_birth",
-            "transgene_base_code_filled","allele_code_filled","allele_name_filled",
-            "genotype_display",
-            "nickname","line_building_stage",
-        ]
-        view_generated = [
-            "age_weeks","age_days","batch_label",
-            "zygosity_text","link_nicknames_text",
-            "last_plasmid_injection_at","plasmid_injections_text",
-            "last_rna_injection_at","rna_injections_text",
-            "created_at","id",
-        ]
-
-        r = recent.copy().replace("", pd.NA).replace("None", pd.NA)
-        nonempty_cols = [c for c in r.columns if r[c].notna().any()]
-
-        ordered = [c for c in preview_like if c in nonempty_cols] + [c for c in view_generated if c in nonempty_cols]
-        ordered += [c for c in nonempty_cols if c not in ordered]
-        if not ordered:
-            ordered = list(recent.columns)
-
-        st.dataframe(recent[ordered], width="stretch")
-
-        hidden = [c for c in recent.columns if c not in ordered]
-        if hidden:
-            st.caption(f"({len(hidden)} empty columns hidden: {', '.join(hidden[:6])}{'…' if len(hidden)>6 else ''})")
     except Exception as e:
-        st.warning(f"Could not read vw_fish_overview_with_label yet: {e}")
+        st.error(f"Import failed: {e}")
+
+else:
+    st.stop()
