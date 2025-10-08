@@ -1,1 +1,2 @@
 -r supabase/ui/requirements.txt
+openpyxl>=3.1.2
