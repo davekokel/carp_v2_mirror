@@ -199,7 +199,7 @@ def _list_tokens(val: Optional[str]) -> list[str]:
 # ---------- SQL (alleles) ----------
 SQL_UPSERT_FISH = text("""
 INSERT INTO public.fish (
-  name, batch_label, line_building_stage, nickname, strain, date_of_birth, description
+  name, batch_label, line_building_stage, nickname, strain, date_birth, description
 )
 VALUES (:name, :batch, :stage, :nickname, :strain, :dob, :description)
 ON CONFLICT (name) DO UPDATE SET
@@ -207,7 +207,7 @@ ON CONFLICT (name) DO UPDATE SET
   line_building_stage = EXCLUDED.line_building_stage,
   nickname            = EXCLUDED.nickname,
   strain              = EXCLUDED.strain,
-  date_of_birth       = EXCLUDED.date_of_birth,
+  date_birth       = EXCLUDED.date_birth,
   description         = EXCLUDED.description
 RETURNING id
 """)
@@ -300,7 +300,7 @@ def _row_params(row: dict) -> dict:
         "stage": _nz(row.get("stage") or row.get("line_building_stage")),
         "nickname": _nz(row.get("nickname")),
         "strain": _nz(row.get("strain") or row.get("background_strain")),
-        "dob": _parse_date(row.get("birth_date") or row.get("date_of_birth") or row.get("dob")),
+        "dob": _parse_date(row.get("birth_date") or row.get("date_birth") or row.get("dob")),
         "description": _nz(row.get("description") or row.get("notes")),
     }
 
