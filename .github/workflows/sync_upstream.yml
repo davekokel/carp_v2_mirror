@@ -1,0 +1,31 @@
+name: Sync upstream → PR
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add upstream
+        run: |
+          git remote add upstream https://github.com/cell-observatory/carp_v2.git || true
+          git fetch upstream
+      - name: Create sync branch
+        run: |
+          git checkout -B upstream-sync
+          git reset --hard upstream/main
+          git push -f origin upstream-sync
+      - name: Open PR into main
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: upstream-sync
+          title: "Upstream sync"
+          body: "Automatically syncing from upstream/main → mirror/main via PR."
+          base: main
+          labels: upstream-sync
