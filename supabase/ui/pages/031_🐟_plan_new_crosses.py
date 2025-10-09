@@ -1,4 +1,4 @@
-# supabase/ui/pages/033_🐟_setup_planned_crosses.py
+# supabase/ui/pages/031_🐟_plan_new_crosses.py
 from __future__ import annotations
 import os
 from typing import Any, Dict, List
@@ -7,8 +7,8 @@ import streamlit as st
 from sqlalchemy import create_engine, text
 
 # ---- page config ----
-st.set_page_config(page_title="🐟 Set up planned crosses", page_icon="🐟", layout="wide")
-st.title("🐟 Set up planned crosses")
+st.set_page_config(page_title="🐟 Plan new crosses", page_icon="🐟", layout="wide")
+st.title("🐟 Plan new crosses")
 
 # ---- optional unlock ----
 try:
@@ -88,15 +88,15 @@ edited = st.data_editor(
     hide_index=True,
     column_order=["✓ Select","clutch_code","name","nickname","mom_code","dad_code","n_treatments","created_by","created_at"],
     column_config={
-        "✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False),
-        "clutch_code": st.column_config.TextColumn("clutch_code", disabled=True),
-        "name":        st.column_config.TextColumn("name", disabled=True),
-        "nickname":    st.column_config.TextColumn("nickname", disabled=True),
-        "mom_code":    st.column_config.TextColumn("mom_code", disabled=True),
-        "dad_code":    st.column_config.TextColumn("dad_code", disabled=True),
-        "n_treatments":st.column_config.NumberColumn("n_treatments", disabled=True),
-        "created_by":  st.column_config.TextColumn("created_by", disabled=True),
-        "created_at":  st.column_config.DatetimeColumn("created_at", disabled=True),
+        "✓ Select":   st.column_config.CheckboxColumn("✓ Select", default=False),
+        "clutch_code":st.column_config.TextColumn("clutch_code", disabled=True),
+        "name":       st.column_config.TextColumn("name", disabled=True),
+        "nickname":   st.column_config.TextColumn("nickname", disabled=True),
+        "mom_code":   st.column_config.TextColumn("mom_code", disabled=True),
+        "dad_code":   st.column_config.TextColumn("dad_code", disabled=True),
+        "n_treatments": st.column_config.NumberColumn("n_treatments", disabled=True),
+        "created_by": st.column_config.TextColumn("created_by", disabled=True),
+        "created_at": st.column_config.DatetimeColumn("created_at", disabled=True),
     },
     key="planned_clutches_editor",
 )
@@ -105,10 +105,8 @@ if picked.empty:
     st.warning("Select at least one planned clutch to set up crosses.")
     st.stop()
 
-# ---- Assign crossing tanks & date ----
-st.subheader("Assign crossing tanks & date")
-cross_date = st.date_input("Cross date", value=pd.Timestamp.today().date())
-st.caption(pd.to_datetime(cross_date).strftime("%A, %Y/%m/%d"))
+# ---- Assign crossing tanks (no dates here; scheduling is on the next page) ----
+st.subheader("Assign crossing tanks")
 
 # 1) Fetch live tanks for all parents in one query
 with _get_engine().begin() as cx:
@@ -148,7 +146,7 @@ for _, r in picked.iterrows():
               select
                 cm.label as mother_tank, coalesce(cm.status,'') as mother_status,
                 cf.label as father_tank, coalesce(cf.status,'') as father_status,
-                pc.cross_date, pc.created_at
+                pc.created_at
               from public.planned_crosses pc
               left join public.containers cm on cm.id_uuid = pc.mother_tank_id
               left join public.containers cf on cf.id_uuid = pc.father_tank_id
@@ -160,18 +158,15 @@ for _, r in picked.iterrows():
         if prev.empty:
             st.info("No active previous tanks found for this clutch.")
         else:
-            prev_show = prev.copy()
-            prev_show["cross_date"] = pd.to_datetime(prev_show["cross_date"]).dt.strftime("%A, %Y/%m/%d")
             st.dataframe(
-                prev_show[["mother_tank","mother_status","father_tank","father_status","cross_date","created_at"]],
+                prev[["mother_tank","mother_status","father_tank","father_status","created_at"]],
                 use_container_width=True, hide_index=True
             )
 
         # Mother table (checkbox)
         if not mom_list:
             st.warning(f"No live mother tanks for {r['mom_code']}. Use the Assign Fish to Tanks page to activate one.")
-            mom_pick = None
-            mom_map  = {}
+            mom_pick = None; mom_map = {}
         else:
             mom_df = pd.DataFrame(mom_list)
             mom_df.insert(0, "✓ Mother", False)
@@ -193,8 +188,7 @@ for _, r in picked.iterrows():
         # Father table (checkbox)
         if not dad_list:
             st.warning(f"No live father tanks for {r['dad_code']}. Use the Assign Fish to Tanks page to activate one.")
-            dad_pick = None
-            dad_map  = {}
+            dad_pick = None; dad_map = {}
         else:
             dad_df = pd.DataFrame(dad_list)
             dad_df.insert(0, "✓ Father", False)
@@ -227,7 +221,7 @@ for _, r in picked.iterrows():
             "_dad_map":    dad_map,
         })
 
-# ---- Save planned crosses (require picks; no 'create new' here) ----
+# ---- Save planned crosses (require picks; no 'create new' and NO dates here) ----
 save_btn = st.button("Save planned crosses", type="primary", use_container_width=True)
 if save_btn:
     if not assignments:
@@ -238,9 +232,9 @@ if save_btn:
         with _get_engine().begin() as cx:
             ins_cross = text("""
               insert into public.planned_crosses
-                (clutch_id, mom_code, dad_code, mother_tank_id, father_tank_id, cross_date, note, created_by)
+                (clutch_id, mom_code, dad_code, mother_tank_id, father_tank_id, note, created_by)
               values
-                (:clutch_id, :mom, :dad, :m_id, :f_id, :xdate, :note, :by)
+                (:clutch_id, :mom, :dad, :m_id, :f_id, :note, :by)
             """)
             for a in assignments:
                 if not a["m_label"] or not a["f_label"]:
@@ -255,7 +249,6 @@ if save_btn:
                     "clutch_id": a["clutch_id"],
                     "mom": a["mom_code"], "dad": a["dad_code"],
                     "m_id": m_id, "f_id": f_id,
-                    "xdate": pd.to_datetime(cross_date).date(),
                     "note": a["note"],
                     "by": user_by,
                 })
@@ -266,18 +259,17 @@ if save_btn:
         if errors:
             st.error("Some crosses were not saved:\n- " + "\n- ".join(errors))
 
-# ---- Recently saved planned crosses (mother/father tanks; pretty date) ----
+# ---- Recently saved planned crosses (mother/father tanks) ----
 with _get_engine().begin() as cx:
     df_recent = pd.read_sql(text("""
       select
-        pc.id_uuid::text as cross_id,
+        coalesce(pc.cross_code, pc.id_uuid::text) as cross_code,
         cp.clutch_code,
         cp.planned_name,
         pc.mom_code,
         pc.dad_code,
         cm.label as mother_tank,
         cf.label as father_tank,
-        pc.cross_date,
         pc.created_at
       from public.planned_crosses pc
       join public.clutch_plans cp on cp.id_uuid = pc.clutch_id
@@ -291,10 +283,8 @@ st.subheader("Recently saved planned crosses")
 if df_recent.empty:
     st.info("No planned crosses yet.")
 else:
-    dfx = df_recent.copy()
-    dfx["cross_date"] = pd.to_datetime(dfx["cross_date"]).dt.strftime("%A, %Y/%m/%d")
     st.dataframe(
-        dfx[["cross_id","clutch_code","planned_name","mom_code","dad_code","mother_tank","father_tank","cross_date","created_at"]],
+        df_recent[["cross_code","clutch_code","planned_name","mom_code","dad_code","mother_tank","father_tank","created_at"]],
         use_container_width=True,
         hide_index=True
     )
