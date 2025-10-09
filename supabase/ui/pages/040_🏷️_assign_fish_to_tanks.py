@@ -9,11 +9,17 @@ require_app_unlock()
 import os, json, uuid, re
 from datetime import datetime
 from typing import Dict, List, Optional
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-st.set_page_config(page_title="Assign Inventory Tanks & Status", page_icon="🏷️")
+# --- reuse the shared search backend ---
+import importlib
+import supabase.queries as Q
+importlib.reload(Q)
+
+st.set_page_config(page_title="Assign Inventory Tanks & Status", page_icon="🏷️", layout="wide")
 st.title("🏷️ Assign Inventory Tanks & Status")
 
 if "last_created_container_ids" not in st.session_state:
@@ -27,24 +33,57 @@ def _db_url() -> str:
 
 ENGINE = create_engine(_db_url(), pool_pre_ping=True)
 
+def _get_engine():
+    return ENGINE
+
+#-----------------------------------------------------------------------------------------------------------------
+def _load_standard_for_codes(codes: List[str]) -> pd.DataFrame:
+    if not codes:
+        return pd.DataFrame(columns=[
+            "fish_code","name","nickname","genotype","genetic_background","stage",
+            "date_birth","age_days","created_at","created_by","batch_display",
+            "treatments_rollup","n_living_tanks"
+        ])
+    sql = """
+      select *
+      from public.vw_fish_standard
+      where fish_code = ANY(:codes)
+    """
+    with ENGINE.begin() as cx:
+        df = pd.read_sql(text(sql), cx, params={"codes": codes})
+    order = {c:i for i,c in enumerate(codes)}
+    df["__ord"] = df["fish_code"].map(order).fillna(len(order)).astype(int)
+    df = df.sort_values("__ord").drop(columns="__ord")
+    return df
+
+# Search-powered picker (multi-term; quotes; -negation; auto-stage)
+def _fetch_picker_rows(q: str, stages: List[str] | None = None, limit: int = 1000) -> pd.DataFrame:
+    rows = Q.load_fish_overview(_get_engine(), q=q, stages=stages or [], limit=limit)
+    df = pd.DataFrame(rows)
+
+    # normalize from label view
+    if "genotype" not in df.columns and "genotype_print" in df.columns:
+        df = df.rename(columns={"genotype_print": "genotype"})
+    if "genetic_background" not in df.columns and "genetic_background_print" in df.columns:
+        df = df.rename(columns={"genetic_background_print": "genetic_background"})
+    if "stage" not in df.columns:
+        if "line_building_stage" in df.columns:
+            df = df.rename(columns={"line_building_stage": "stage"})
+        elif "line_building_stage_print" in df.columns:
+            df = df.rename(columns={"line_building_stage_print": "stage"})
+        else:
+            df["stage"] = None
+
+    for c in ["fish_code","nickname","name","genotype","genetic_background","stage","created_at"]:
+        if c not in df.columns:
+            df[c] = None
+
+    # newest first feels nicer when picking
+    df = df[["fish_code","nickname","name","genotype","genetic_background","stage","created_at"]].sort_values("created_at", ascending=False)
+    return df
+
 def _sanitize_label(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip())
-
-def _load_fish(search: str = "") -> pd.DataFrame:
-    q = """
-      select f.id, f.fish_code, coalesce(f.nickname,'') as nickname, coalesce(f.name,'') as name,
-             coalesce(v.genotype_text,'') as genotype_text, f.created_at
-      from public.fish f
-      left join public.v_fish_overview v on v.fish_code = f.fish_code
-      where 1=1
-    """
-    params: Dict[str, str] = {}
-    if search.strip():
-        q += " and (f.fish_code ilike :q or f.nickname ilike :q or f.name ilike :q) "
-        params["q"] = f"%{search.strip()}%"
-    q += " order by f.created_at desc limit 500"
-    with ENGINE.begin() as c:
-        return pd.read_sql(text(q), c, params=params)
 
 def _load_inventory_tanks() -> pd.DataFrame:
     q = text("""
@@ -134,23 +173,83 @@ user_default = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
 created_by = st.text_input("Created by", value=user_default)
 
 #----------------------------------------------------------------------------------------------------------------------------
-
+# Step 1 — Pick fish (NOW USING the multi-term search)
 st.header("Step 1 — Pick fish")
-q = st.text_input("Search fish (code, nickname, name)")
-fish_df = _load_fish(q)
+
+# --- Quick toggle filter for fish with no living tanks ---
+ctrl1, ctrl2 = st.columns([1,1])
+with ctrl1:
+    if st.button("Show fish with no tanks", use_container_width=True):
+        st.session_state["_filter_no_tanks"] = True
+with ctrl2:
+    if st.button("Clear 'no tanks' filter", use_container_width=True):
+        st.session_state["_filter_no_tanks"] = False
+
+c1, c2, c3 = st.columns([2,1,1])
+with c1:
+    q = st.text_input("Search fish (code / name / nickname / genotype / background)", "")
+with c2:
+    stage_choices = [s.upper() for s in ("FOUNDER","F0","F1","F2","F3","F4")]
+    stage_pill = st.multiselect("Stage", stage_choices, default=[])
+with c3:
+    limit_val = st.number_input("Limit", min_value=1, max_value=5000, value=500, step=100)
+
+fish_df = _fetch_picker_rows(q, stages=stage_pill, limit=int(limit_val))
+
 if fish_df.empty:
-    st.info("No fish found. Try clearing the search box.")
+    st.info("No fish found. Try broadening your search (tips: quotes, multiple terms, -negation).")
     st.stop()
 
-fish_df = fish_df.copy()
-fish_df["id"] = fish_df["id"].astype(str)
+codes = fish_df["fish_code"].astype(str).tolist()
+std = _load_standard_for_codes(codes)
 
-base_df = fish_df[["id","fish_code","nickname","name","genotype_text"]].copy()
+# Apply 'no tanks' filter to the standard view before building the table
+if st.session_state.get("_filter_no_tanks"):
+    std = std.loc[std["n_living_tanks"].fillna(0).astype(int) == 0].copy()
+    st.caption(f"{len(std)} fish with no living tanks")
+
+with ENGINE.begin() as cx:
+    ids = pd.read_sql(
+        text("select id, fish_code from public.fish where fish_code = any(:codes)"),
+        cx,
+        params={"codes": codes},
+    )
+id_map = dict(zip(ids["fish_code"].astype(str), ids["id"].astype(str)))
+std["id"] = std["fish_code"].map(id_map)
+# guarantee a valid string id for the editor index
+std = std[std["id"].notnull()].copy()
+std["id"] = std["id"].astype(str)
+
+cols = [
+    "id","fish_code","name","nickname","genotype","genetic_background","stage",
+    "date_birth","age_days","created_at","created_by","batch_display",
+    "treatments_rollup","n_living_tanks"
+]
+for c in cols:
+    if c not in std.columns:
+        std[c] = None
+
+base_df = std[cols].copy()
 base_df["✓ Select"] = False
 base_df = base_df.rename(columns={
-    "fish_code":"Fish code","nickname":"Nickname","name":"Name","genotype_text":"Genotype"
+    "fish_code":"Fish code",
+    "name":"Name",
+    "nickname":"Nickname",
+    "genotype":"Genotype",
+    "genetic_background":"Genetic background",
+    "stage":"Stage",
+    "date_birth":"Date birth",
+    "age_days":"Age (days)",
+    "created_at":"Created at",
+    "created_by":"Created by",
+    "batch_display":"Batch",
+    "treatments_rollup":"Treatments",
+    "n_living_tanks":"# living tanks",
 })
-base_df = base_df[["id","✓ Select","Fish code","Nickname","Name","Genotype"]].set_index("id")
+base_df = base_df[[
+    "id","✓ Select","Fish code","Name","Nickname","Genotype","Genetic background","Stage",
+    "Date birth","Age (days)","Created at","Created by","Batch","Treatments","# living tanks"
+]].set_index("id")
 
 def _needs_reset(session_df: pd.DataFrame | None, fresh_df: pd.DataFrame) -> bool:
     if session_df is None:
@@ -160,34 +259,53 @@ def _needs_reset(session_df: pd.DataFrame | None, fresh_df: pd.DataFrame) -> boo
 if _needs_reset(st.session_state.get("fish_picker_df"), base_df):
     st.session_state.fish_picker_df = base_df.copy()
 
-c1, c2 = st.columns([1,1])
-with c1:
+csa, csb = st.columns([1,1])
+with csa:
     if st.button("Select all"):
         st.session_state.fish_picker_df.loc[:, "✓ Select"] = True
-with c2:
+with csb:
     if st.button("Clear all"):
         st.session_state.fish_picker_df.loc[:, "✓ Select"] = False
+
+standard_order = [
+    "✓ Select",
+    "Fish code", "Name", "Nickname",
+    "Genotype", "Genetic background", "Stage",
+    "Date birth", "Age (days)", "Created at", "Created by",
+    "Batch", "Treatments", "# living tanks",
+]
 
 sel_df = st.data_editor(
     st.session_state.fish_picker_df,
     use_container_width=True,
     hide_index=True,
-    column_order=["✓ Select","Fish code","Nickname","Name","Genotype"],
+    column_order=standard_order,
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False),
-        "Fish code": st.column_config.TextColumn(disabled=True),
-        "Nickname": st.column_config.TextColumn(disabled=True),
-        "Name": st.column_config.TextColumn(disabled=True),
-        "Genotype": st.column_config.TextColumn(disabled=True),
+        "Fish code": st.column_config.TextColumn("Fish code", disabled=True),
+        "Name": st.column_config.TextColumn("Name", disabled=True),
+        "Nickname": st.column_config.TextColumn("Nickname", disabled=True),
+        "Genotype": st.column_config.TextColumn("Genotype", disabled=True),
+        "Genetic background": st.column_config.TextColumn("Genetic background", disabled=True),
+        "Stage": st.column_config.TextColumn("Stage", disabled=True),
+        "Date birth": st.column_config.DateColumn("Date birth", disabled=True, format="YYYY-MM-DD"),
+        "Age (days)": st.column_config.NumberColumn("Age (days)", disabled=True),
+        "Created at": st.column_config.DatetimeColumn("Created at", disabled=True, format="YYYY-MM-DD HH:mm:ss"),
+        "Created by": st.column_config.TextColumn("Created by", disabled=True),
+        "Batch": st.column_config.TextColumn("Batch", disabled=True),
+        "Treatments": st.column_config.TextColumn("Treatments", disabled=True),
+        "# living tanks": st.column_config.NumberColumn("# living tanks", disabled=True),
     },
     key="fish_picker_editor",
 )
+
 st.session_state.fish_picker_df = sel_df.copy()
 selected = sel_df[sel_df["✓ Select"]].copy()
 if selected.empty:
     st.warning("Select at least one fish to continue.")
     st.stop()
 
+#----------------------------------------------------------------------------------------------------------------------------
 st.header("Step 2 — New tanks (bulk)")
 colv, coln, coll = st.columns([1,1,2])
 with colv:
@@ -217,7 +335,6 @@ for fid, r in selected.iterrows():
         ))
 
 #----------------------------------------------------------------------------------------------------------------------------
-
 st.header("Step 3 — Create tanks, assign, and label")
 enqueue = st.checkbox("Enqueue labels for all created tanks", value=True)
 note = st.text_input("Optional membership note", value="")
@@ -286,14 +403,12 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 
-# ----- geometry (same as your label_rolls) -----
 PT_PER_IN = 72.0
 LABEL_W   = 2.4 * PT_PER_IN
 LABEL_H   = 1.5 * PT_PER_IN
 PAD_L, PAD_R, PAD_T, PAD_B = 10.0, 10.0, 8.0, 8.0
 QR_SIZE, QR_GAP = 40.0, 6.0
 
-# Optional mono font for genotype / fish code (best-effort)
 try:
     pdfmetrics.registerFont(TTFont("LabelMono", "/Library/Fonts/SourceCodePro-Regular.ttf"))
     MONO_FONT_NAME = "LabelMono"
@@ -320,7 +435,6 @@ def _ellipsize(txt: str, max_w: float, font_name: str, font_size: float) -> str:
     cut = max(0, lo - 1)
     return (txt[:cut] + ell) if cut > 0 else ell
 
-# QR (same placement/scale logic)
 def _draw_qr(c: _canvas.Canvas, payload: str, x: float, y: float, size: float) -> None:
     try:
         from reportlab.graphics.barcode import qr
@@ -338,7 +452,6 @@ def _draw_qr(c: _canvas.Canvas, payload: str, x: float, y: float, size: float) -
     except Exception:
         pass
 
-# Stable fallback for tank code if you want it later
 _ALPH32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 def _tank_code_for(fish_code: str, when=None) -> str:
     from datetime import datetime
@@ -347,7 +460,6 @@ def _tank_code_for(fish_code: str, when=None) -> str:
     h = 2166136261
     for ch in (fish_code or ""):
         h ^= ord(ch); h = (h * 16777619) & 0xFFFFFFFF
-    # simple 4-char crockford
     n = abs(h); out = []
     while n: n, r = divmod(n, 32); out.append(_ALPH32[r])
     base = "".join(reversed(out))[:4].rjust(4,"0")
@@ -423,6 +535,19 @@ def _rows_for_print(df_run: pd.DataFrame, copy_meta: bool) -> List[Dict]:
         rows.append({"label": label, **meta})
     return rows
 
+from io import BytesIO
+from reportlab.pdfgen import canvas as _canvas
+
+def _build_labels_pdf(rows: List[Dict]) -> bytes:
+    buf = BytesIO()
+    c = _canvas.Canvas(buf, pagesize=(LABEL_W, LABEL_H))
+    for r in rows:
+        _render_full_label(c, r)
+        c.showPage()
+    c.save()
+    buf.seek(0)
+    return buf.read()
+
 def _render_full_label(c: _canvas.Canvas, r: Dict) -> None:
     x0, y0 = PAD_L, PAD_B
     w  = LABEL_W - PAD_L - PAD_R
@@ -434,20 +559,21 @@ def _render_full_label(c: _canvas.Canvas, r: Dict) -> None:
     mono = MONO_FONT_NAME or "Helvetica"
 
     lines = [
-        ("nick", "Helvetica-Oblique", 9.0,  _safe(r.get("nickname")), 0.00),       # NICKNAME now black
-        ("name", "Helvetica-Bold",   10.5,  _safe(r.get("name")),     0.00),       # NAME
-        ("tank", "Helvetica-Bold",   11.0,  combined,                 0.00),       # BIG human label
-        ("fish", mono,                9.5,  "",                       0.00),       # (blank fish line)
-        ("geno", mono,                9.2,  _safe(r.get("genotype")), 0.00),       # GENOTYPE
-        ("bg",   "Helvetica",         8.2,  _safe(r.get("background")),0.00),      # BACKGROUND
-        ("stg",  "Helvetica",         8.2,  _safe(r.get("stage")),    0.00),       # STAGE
-        ("dob",  "Helvetica",         8.2,  _safe(r.get("dob")),      0.00),       # DATE
+        ("nick", "Helvetica-Oblique", 9.0,  _safe(r.get("nickname")), 0.00),
+        ("name", "Helvetica-Bold",   10.5,  _safe(r.get("name")),     0.00),
+        ("tank", "Helvetica-Bold",   11.0,  combined,                 0.00),
+        ("fish", mono,                9.5,  "",                       0.00),
+        ("geno", mono,                9.2,  _safe(r.get("genotype")), 0.00),
+        ("bg",   "Helvetica",         8.2,  _safe(r.get("background")),0.00),
+        ("stg",  "Helvetica",         8.2,  _safe(r.get("stage")),    0.00),
+        ("dob",  "Helvetica",         8.2,  _safe(r.get("dob")),      0.00),
     ]
 
     lane_h = h / len(lines)
     MIN_FS = 7.0
     TOP_PAD_FRAC = 0.82
 
+    from reportlab.pdfbase.pdfmetrics import stringWidth
     for i, (key, fn, fs, txt, gray) in enumerate(lines):
         lane_top = y0 + h - i * lane_h
         fs_lane = min(fs, max(MIN_FS, lane_h - 1.0))
@@ -465,17 +591,8 @@ def _render_full_label(c: _canvas.Canvas, r: Dict) -> None:
     if payload:
         _draw_qr(c, payload, qr_x, qr_y, QR_SIZE)
 
-def _build_labels_pdf(rows: List[Dict]) -> bytes:
-    buf = BytesIO()
-    c = _canvas.Canvas(buf, pagesize=(LABEL_W, LABEL_H))
-    for r in rows:
-        _render_full_label(c, r)
-        c.showPage()
-    c.save()
-    buf.seek(0)
-    return buf.read()
-
 # ---- fetch created tanks + summary + render ----
+
 run_ids: List[str] = st.session_state.get("last_created_container_ids", [])
 df_run = _fetch_created_tanks_with_fish(run_ids)
 

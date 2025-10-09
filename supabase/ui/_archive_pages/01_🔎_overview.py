@@ -28,39 +28,67 @@ def _get_engine():
     return ENGINE
 
 def _query_overview(q: str, stages: List[str], limit: int) -> pd.DataFrame:
+    # Build a stable "search haystack" from the label view
     sql = """
     with base as (
       select
         fish_code,
         name,
         nickname,
-        line_building_stage,
+        coalesce(line_building_stage, line_building_stage_print) as stage_text,
         date_birth,
-        genetic_background,
+        coalesce(genetic_background, genetic_background_print) as background_text,
+        genotype_print as genotype_text,
         created_at,
-        genotype_text,
         age_days
-      from public.v_fish_overview
+      from public.vw_fish_overview_with_label
     )
     select * from base
     """
     where, params = [], {}
-    if q:
-        where.append("""(
-          fish_code ilike :q OR
-          coalesce(nickname,'') ilike :q OR
-          coalesce(name,'') ilike :q OR
-          coalesce(genotype_text,'') ilike :q OR
-          coalesce(genetic_background,'') ilike :q
-        )""")
-        params["q"] = f"%{q}%"
-    if stages:
-        where.append("coalesce(line_building_stage,'') = ANY(:stages)")
-        params["stages"] = stages
+
+    # Tokenize query (AND semantics, quotes, -negation)
+    import shlex
+    tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
+
+    # Auto-detect stage tokens (F0/F1/F2/founder) from the free-text box
+    STAGE_VALUES = {"FOUNDER","F0","F1","F2","F3","F4"}
+    auto_stages, normal = [], []
+    for t in tokens:
+        neg = t.startswith("-")
+        core = t[1:] if neg else t
+        if not neg and core.upper() in STAGE_VALUES:
+            auto_stages.append(core.upper())
+        else:
+            normal.append(t)
+
+    # Build haystack once
+    haystack = "concat_ws(' ', coalesce(fish_code,''), coalesce(name,''), coalesce(nickname,''), coalesce(genotype_text,''), coalesce(background_text,''), coalesce(stage_text,''))"
+
+    # Text terms → AND across haystack
+    for i, tok in enumerate(normal):
+        key = f"t{i}"
+        if tok.startswith("-"):
+            params[key] = f"%{tok[1:]}%"
+            where.append(f"NOT ({haystack} ILIKE :{key})")
+        else:
+            params[key] = f"%{tok}%"
+            where.append(f"({haystack} ILIKE :{key})")
+
+    # Merge stage filters from pill + auto-detected tokens
+    stage_filters = [s.upper() for s in stages] if stages else []
+    for s in auto_stages:
+        if s not in stage_filters:
+            stage_filters.append(s)
+    if stage_filters:
+        where.append("upper(stage_text) = ANY(:stages)")
+        params["stages"] = stage_filters
+
     if where:
         sql += "\nWHERE " + "\n  AND ".join(where)
     sql += "\nORDER BY created_at DESC\nLIMIT :lim"
     params["lim"] = int(limit)
+
     with _get_engine().begin() as cx:
         return pd.read_sql(text(sql), cx, params=params)
 
@@ -73,10 +101,10 @@ def main():
         with c2:
             try:
                 stages_df = pd.read_sql(
-                    text("select distinct line_building_stage from public.v_fish_overview order by 1"),
+                    text("select distinct upper(coalesce(line_building_stage, line_building_stage_print)) as s from public.vw_fish_overview_with_label where coalesce(line_building_stage, line_building_stage_print) is not null order by 1"),
                     _get_engine()
                 )
-                stage_choices = [s for s in stages_df["line_building_stage"].dropna().astype(str).tolist() if s]
+                stage_choices = [s for s in stages_df["s"].astype(str).tolist() if s]
             except Exception:
                 stage_choices = []
             stages = st.multiselect("Stage", stage_choices, default=[])
