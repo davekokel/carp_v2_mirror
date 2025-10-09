@@ -432,7 +432,7 @@ def _build_report_pdf(dfrep: pd.DataFrame) -> bytes:
         y -= 0.16*inch
     c.showPage(); c.save(); buf.seek(0); return buf.getvalue()
 
-# ---------------- Crossing tank Labels PDF (2.4 × 1.5; one field per line)
+# Crossing tank Labels PDF (2.4 × 1.5; one field per line)
 PT = 72.0; W, H = 2.4*PT, 1.5*PT
 PAD_L, PAD_R, PAD_T, PAD_B = 10, 10, 8, 8
 HDR_FS, DATE_FS, BODY_FS, ARROW_FS, STEP = 11.0, 9.0, 8.6, 12.0, 10.2
@@ -451,34 +451,102 @@ def _label_pdf(rows: List[Dict[str, Any]]) -> bytes:
         dad_label   = _clip(t.get("father_tank") or "", max_chars_label)
         mom_geno    = _clip(_tgify(t.get("mom_geno") or ""), max_chars_geno)
         dad_geno    = _clip(_tgify(t.get("dad_geno") or ""), max_chars_geno)
-        clutch_code = t.get("clutch_code") or ""
         clutch_geno = _clip(t.get("clutch_geno") or "", max_chars_geno)
 
         y = H - PAD_T - HDR_FS
         c.setFont("Helvetica-Bold", HDR_FS); c.drawString(PAD_L, y, f"CROSS {cross_code}")
         y -= STEP; c.setFont("Helvetica", DATE_FS); c.drawString(PAD_L, y, cross_date)
-        y -= STEP; c.setFont(MONO, BODY_FS); c.drawString(PAD_L, y, f"Mom {mom_label}")
-        y -= STEP; c.setFont("Helvetica", BODY_FS); c.drawString(PAD_L, y, mom_geno)
-        y -= STEP; c.setFont(MONO, BODY_FS); c.drawString(PAD_L, y, f"Dad {dad_label}")
-        y -= STEP; c.setFont("Helvetica", BODY_FS); c.drawString(PAD_L, y, dad_geno)
+        y -= STEP; c.setFont(MONO, BODY_FS);       c.drawString(PAD_L, y, f"Mom {mom_label}")
+        y -= STEP; c.setFont("Helvetica", BODY_FS);c.drawString(PAD_L, y, mom_geno)
+        y -= STEP; c.setFont(MONO, BODY_FS);       c.drawString(PAD_L, y, f"Dad {dad_label}")
+        y -= STEP; c.setFont("Helvetica", BODY_FS);c.drawString(PAD_L, y, dad_geno)
         y -= STEP; c.setFont("Helvetica-Bold", ARROW_FS); c.drawCentredString(W/2.0, y+2, "↓")
-        y -= STEP; c.setFont("Helvetica", BODY_FS); c.drawString(PAD_L, y, str(clutch_code))
-        y -= STEP; c.drawString(PAD_L, y, clutch_geno)
+
+        # Instance code (preferred) or fallback to plan code
+        y -= STEP
+        inst = (t.get("clutch_instance_code") or "").strip()
+        fallback = (t.get("clutch_code") or "").strip()
+        c.setFont("Helvetica", BODY_FS); c.drawString(PAD_L, y, inst if inst else fallback)
+
+        y -= STEP; c.setFont("Helvetica", BODY_FS); c.drawString(PAD_L, y, clutch_geno)
         c.showPage()
     c.save(); buf.seek(0); return buf.getvalue()
 
-# assemble crossing label rows
+# assemble crossing label rows (ensure clutch instance; print its code)
+label_rows = []
+user_name = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
+
+def _ensure_cross_for_planned(planned_cross_id: str, created_by: str) -> str:
+    # returns crosses.id_uuid (text); used by _ensure_clutch_for_planned
+    sql_load = text("""
+      select mom_code, dad_code, cross_date
+      from public.planned_crosses
+      where id_uuid = cast(:pid as uuid) limit 1
+    """)
+    with ENGINE.begin() as cx:
+        row = cx.execute(sql_load, {"pid": planned_cross_id}).mappings().first()
+    if not row:
+        raise RuntimeError(f"planned_cross not found: {planned_cross_id}")
+    mom_code, dad_code = row["mom_code"], row["dad_code"]
+    planned_for = pd.to_datetime(row["cross_date"]).date() if row["cross_date"] else None
+    with ENGINE.begin() as cx:
+        found = cx.execute(text("""
+          select id_uuid::text from public.crosses
+          where mother_code=:m and father_code=:f and planned_for is not distinct from :d
+          order by created_at desc limit 1
+        """), {"m": mom_code, "f": dad_code, "d": planned_for}).scalar()
+    if found: return str(found)
+    with ENGINE.begin() as cx:
+        return cx.execute(text("""
+          insert into public.crosses (mother_code, father_code, planned_for, created_by)
+          values (:m,:f,:d,:by) returning id_uuid::text
+        """), {"m": mom_code, "f": dad_code, "d": planned_for, "by": created_by}).scalar()
+
+def _ensure_clutch_for_planned(planned_cross_id: str, date_birth: date, created_by: str) -> dict:
+    # requires clutches(planned_cross_id uuid, cross_id uuid, date_birth date)
+    if not _table_has_columns("clutches","planned_cross_id","cross_id","date_birth"):
+        raise RuntimeError("public.clutches requires planned_cross_id, cross_id, date_birth.")
+    cross_fk = _ensure_cross_for_planned(planned_cross_id, created_by=created_by)
+    with ENGINE.begin() as cx:
+        cid = cx.execute(text("""
+          select id_uuid::text from public.clutches
+          where planned_cross_id = cast(:pid as uuid) and date_birth = :bd
+          limit 1
+        """), {"pid": planned_cross_id, "bd": pd.to_datetime(date_birth).date()}).scalar()
+    if not cid:
+        with ENGINE.begin() as cx:
+            cid = cx.execute(text("""
+              insert into public.clutches (planned_cross_id, cross_id, date_birth, created_by)
+              values (cast(:pid as uuid), cast(:cid as uuid), :bd, :by)
+              returning id_uuid::text
+            """), {"pid": planned_cross_id, "cid": cross_fk,
+                   "bd": pd.to_datetime(date_birth).date(), "by": created_by}).scalar()
+    # nice, short instance code for labels
+    yy = f"{date_birth.year%100:02d}"
+    clutch_instance_code = f"CLUTCH-{yy}{cid[:4].upper()}"
+    return {"id": cid, "code": clutch_instance_code}
+
 label_rows = []
 for _, r in sel_for_print.iterrows():
+    cross_dt = pd.to_datetime(r.get("cross_date")).date() if r.get("cross_date") else pd.Timestamp.today().date()
+    planned_id = str(r.get("cross_id") or "")  # required for ensure()
+    # ensure/create the clutch instance for this run/date
+    try:
+        ensured = _ensure_clutch_for_planned(planned_id, cross_dt, created_by=user_name)
+        clutch_instance_code = ensured["code"]  # ← THIS is what we’ll print on the crossing label
+    except Exception as e:
+        # if anything fails, fall back to plan code (still prints something)
+        clutch_instance_code = str(r.get("clutch_code") or "")
+
     clutch_geno = _clutch_geno_from_planned_name(str(r.get("planned_name") or ""))
     label_rows.append({
         "cross_code":    str(r.get("cross_code") or "")[:12],
-        "cross_date":    pd.to_datetime(r.get("cross_date")).date() if r.get("cross_date") else pd.Timestamp.today().date(),
+        "cross_date":    cross_dt,
         "mother_tank":   str(r.get("mother_tank") or ""),
         "father_tank":   str(r.get("father_tank") or ""),
         "mom_geno":      geno_by_fish.get(str(r.get("mom_code") or ""), ""),
         "dad_geno":      geno_by_fish.get(str(r.get("dad_code") or ""), ""),
-        "clutch_code":   str(r.get("clutch_code") or ""),
+        "clutch_instance_code": clutch_instance_code,   # ← NEW field
         "clutch_geno":   clutch_geno,
     })
 
@@ -543,36 +611,87 @@ def _ensure_clutch_for_planned(planned_cross_id: str, date_birth: date, created_
     return {"id": cid, "cross_id": cross_fk, "clutch_code": code}
 
 def _render_petri_labels_pdf(label_rows: list[dict]) -> bytes:
+    """
+    Petri labels 2.4in x 0.75in, one field per line (NO 'CROSS …' line):
+      1: <clutch_code>                  (bold)
+      2: <nickname/title>               (bold, slightly smaller)
+      3: <mom × dad>
+      4: <birthday>                     (YYYY-MM-DD)
+      5: <genotype>                     (summarized/ellipsized)
+      6: <treatments • user>            (optional, summarized)  [we pass '' for now]
+    """
     from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import inch
     from reportlab.pdfbase.pdfmetrics import stringWidth
-    W, H = 2.4*inch, 0.75*inch; PAD_L, PAD_R, PAD_T = 6, 6, 4; MAXW = W-PAD_L-PAD_R
-    FS1, FS2, FS_B, STEP = 8.8, 8.0, 7.4, 7.6   # FS2 smaller (2nd line)
-    def _fit(s, font, size, maxw):
-        s=(s or "").strip()
-        if not s or stringWidth(s,font,size)<=maxw: return s
-        ell="…"; lo,hi=0,len(s)
-        while lo<hi:
-            mid=(lo+hi)//2
-            if stringWidth(s[:mid]+ell,font,size)<=maxw: lo=mid+1
-            else: hi=mid
-        cut=max(0,lo-1); return (s[:cut]+ell) if cut>0 else ell
-    buf=BytesIO(); c=canvas.Canvas(buf, pagesize=(W,H))
+    import io
+
+    # Geometry and typography tuned to ALWAYS fit 6 lines on 0.75"
+    W, H = 2.4 * inch, 0.75 * inch
+    PAD_L, PAD_R, PAD_T = 6, 6, 4
+    MAXW = W - PAD_L - PAD_R
+
+    FS1 = 8.4   # line 1: clutch_code (smaller than before)
+    FS2 = 7.6   # line 2: title (smaller)
+    FS_B = 6.9  # lines 3–6 (body)
+    STEP = 7.2  # vertical step
+
+    def _fit(s: str, font: str, size: float, maxw: float) -> str:
+        s = (s or "").strip()
+        if not s or stringWidth(s, font, size) <= maxw:
+            return s
+        ell = "…"; lo, hi = 0, len(s)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if stringWidth(s[:mid] + ell, font, size) <= maxw:
+                lo = mid + 1
+            else:
+                hi = mid
+        cut = max(0, lo - 1)
+        return (s[:cut] + ell) if cut > 0 else ell
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(W, H))
+
     for r in label_rows:
-        line1=_fit(f"CROSS {r['cross_code']}", "Helvetica-Bold", FS1, MAXW)
-        line2=_fit(r["clutch_code"],           "Helvetica-Bold", FS2, MAXW)  # smaller
-        line3=_fit(r["title"],                 "Helvetica",      FS_B, MAXW)
-        line4=_fit(f"{r['mom']} × {r['dad']}".strip(" ×"), "Helvetica", FS_B, MAXW)
-        line5=_fit(r["birthday"],              "Helvetica",      FS_B, MAXW)
-        line6=_fit(r["genotype"],              "Helvetica",      FS_B, MAXW)
-        y=H-PAD_T-FS1; c.setFont("Helvetica-Bold",FS1); c.drawString(PAD_L,y,line1)
-        y-=STEP;       c.setFont("Helvetica-Bold",FS2); c.drawString(PAD_L,y,line2)
-        y-=STEP;       c.setFont("Helvetica",     FS_B); c.drawString(PAD_L,y,line3)
-        y-=STEP;       c.setFont("Helvetica",     FS_B); c.drawString(PAD_L,y,line4)
-        y-=STEP;       c.setFont("Helvetica",     FS_B); c.drawString(PAD_L,y,line5)
-        y-=STEP;       c.setFont("Helvetica",     FS_B); c.drawString(PAD_L,y,line6)
+        clutch_code = str(r.get("clutch_code") or "")
+        title       = str(r.get("title") or r.get("nickname") or "")
+        parents     = (str(r.get("mom") or "") + " × " + str(r.get("dad") or "")).strip(" ×")
+        birthday    = str(r.get("birthday") or "")
+        genotype    = str(r.get("genotype") or "")
+        tail        = str(r.get("tail") or "")  # keep if you later add treatments/user
+
+        y = H - PAD_T - FS1
+
+        # 1) clutch_code
+        c.setFont("Helvetica-Bold", FS1)
+        c.drawString(PAD_L, y, _fit(clutch_code, "Helvetica-Bold", FS1, MAXW))
+
+        # 2) title
+        y -= STEP
+        c.setFont("Helvetica-Bold", FS2)
+        c.drawString(PAD_L, y, _fit(title, "Helvetica-Bold", FS2, MAXW))
+
+        # 3) parents
+        y -= STEP
+        c.setFont("Helvetica", FS_B)
+        c.drawString(PAD_L, y, _fit(parents, "Helvetica", FS_B, MAXW))
+
+        # 4) birthday
+        y -= STEP
+        c.drawString(PAD_L, y, _fit(birthday, "Helvetica", FS_B, MAXW))
+
+        # 5) genotype
+        y -= STEP
+        c.drawString(PAD_L, y, _fit(genotype, "Helvetica", FS_B, MAXW))
+
+        # 6) tail (optional)
+        y -= STEP
+        c.drawString(PAD_L, y, _fit(tail, "Helvetica", FS_B, MAXW))
+
         c.showPage()
-    c.save(); buf.seek(0); return buf.getvalue()
+
+    c.save(); buf.seek(0)
+    return buf.getvalue()
 
 user_name = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
 if st.button("➕ Create clutches + ⬇️ Petri labels (PDF)", type="primary", use_container_width=True):
@@ -582,22 +701,35 @@ if st.button("➕ Create clutches + ⬇️ Petri labels (PDF)", type="primary", 
         petri_rows=[]
         for _, r in sel_for_print.iterrows():
             planned_id = str(r.get("cross_id") or "")
-            if not planned_id: continue
+            if not planned_id: 
+                continue
             bd = pd.to_datetime(r["cross_date"]).date()
             try:
                 ensured = _ensure_clutch_for_planned(planned_id, bd, created_by=user_name)
             except Exception as e:
                 st.error(f"Ensure clutch failed: {e}")
                 continue
+
+            # Build 6-line payload: NO CROSS line here
             petri_rows.append({
-                "cross_code":  str(r.get("cross_code") or "")[:12],
                 "clutch_code": ensured["clutch_code"],
                 "title":       str(r.get("planned_name") or ""),
                 "mom":         str(r.get("mom_code") or ""),
                 "dad":         str(r.get("dad_code") or ""),
                 "birthday":    bd.strftime("%Y-%m-%d"),
                 "genotype":    _clutch_geno_from_planned_name(str(r.get("planned_name") or "")),
+                "tail":        "",  # keep for future "treatments • user"
             })
+
+        if petri_rows:
+            try:
+                petri_pdf = _render_petri_labels_pdf(petri_rows)
+                st.download_button("⬇️ Petri labels (PDF)", data=petri_pdf,
+                                   file_name=f"petri_labels_{report_date}.pdf",
+                                   mime="application/pdf", use_container_width=True)
+                st.success(f"Created {len(petri_rows)} clutch record(s).")
+            except Exception as e:
+                st.error(f"Render Petri labels failed: {e}")
         if petri_rows:
             try:
                 petri_pdf = _render_petri_labels_pdf(petri_rows)
