@@ -358,7 +358,7 @@ for row in assign_rows:
 if preview_rows:
     prev_df = pd.DataFrame(preview_rows)
     st.dataframe(prev_df, use_container_width=True, hide_index=True)
-    st.caption(f"Total new tanks: {total_new}  •  One active + assigned per fish, others created as planned.")
+    st.caption(f"Total new tanks: {total_new}  •  All tanks created as active; first tank assigned per fish.")
 
 save_btn = st.button("Create tanks and assign", type="primary", use_container_width=True, disabled=not (created_by and assign_rows))
 
@@ -372,8 +372,7 @@ if save_btn:
         labels = [tmpl] if n == 1 else [f"{tmpl} #{i}" for i in range(1, n+1)]
         tank_ids: List[str] = []
         for i, lbl in enumerate(labels, start=1):
-            status = "active" if i == 1 else "planned"
-            tid = _ensure_inventory_tank_v(lbl, created_by, status, vol)
+            tid = _ensure_inventory_tank_v(lbl, created_by, "active", vol)  # always active
             tank_ids.append(tid)
         _assign_fish_to_tank(fish_id, tank_ids[0], created_by, note.strip() or None)
         created_ids.extend(tank_ids)
