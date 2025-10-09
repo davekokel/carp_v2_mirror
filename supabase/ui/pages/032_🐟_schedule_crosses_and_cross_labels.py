@@ -1,6 +1,4 @@
 # supabase/ui/pages/032_🐟_schedule_crosses_and_cross_labels.py
-# Unique setups (clutch × mother × father) → history → schedule next cross → date-based report & labels
-
 from __future__ import annotations
 
 try:
@@ -9,7 +7,7 @@ except Exception:
     def require_app_unlock(): ...
 require_app_unlock()
 
-import os
+import os, re
 from datetime import date, timedelta
 from io import BytesIO
 from typing import Dict, Any, List
@@ -24,56 +22,88 @@ st.title("🐟 Crossing history, schedule & labels")
 
 ENGINE = create_engine(os.environ["DB_URL"], pool_pre_ping=True)
 
-# ---------------- Helpers (genotype formatting) ----------------
-import re
+# ---------------- tiny DB helpers (needed by petri creation) ----------------
+def _table_has_columns(table: str, *cols: str) -> bool:
+    sql = text("""
+      select array_agg(column_name)::text[]
+      from information_schema.columns
+      where table_schema='public' and table_name=:t
+    """)
+    with ENGINE.begin() as cx:
+        got = cx.execute(sql, {"t": table}).scalar() or []
+    return all(c in got for c in list(cols))
+
+def _first_existing_column(table: str, candidates: list[str]) -> str | None:
+    sql = text("""
+      select column_name
+      from information_schema.columns
+      where table_schema='public' and table_name=:t and column_name = any(:cands)
+      order by array_position(:cands, column_name)
+      limit 1
+    """)
+    with ENGINE.begin() as cx:
+        row = cx.execute(sql, {"t": table, "cands": candidates}).fetchone()
+    return row[0] if row else None
+
+# ---------------- Genotype helpers ----------------
 def _split_rollup(s: str) -> list[str]:
     if not s: return []
     parts = re.split(r"[;,\|]+", str(s))
     return [p.strip() for p in parts if p and p.strip()]
 
-def _tgify(elems: list[str]) -> str:
-    """
-    Convert e.g. pDQM005-301 / pDQM005^301 -> Tg(pDQM005)301; ...
-    """
+def _tg_tokens(tokens: list[str]) -> list[str]:
     out = []
-    for e in elems or []:
+    for e in tokens or []:
         m = re.match(r"^\s*([A-Za-z0-9\-]+)\s*(?:[\-\^])\s*(\d+)\s*$", e or "")
-        if m: out.append(f"Tg({m.group(1)}){m.group(2)}")
-        elif e: out.append(e)
-    return "; ".join(out)
+        out.append(f"Tg({m.group(1)}){m.group(2)}" if m else e)
+    return out
+
+def _tgify(s: str) -> str:
+    return "; ".join(_tg_tokens(_split_rollup(s or "")))
+
+def _summarize_list(elems: list[str], max_total: int = 48, sep: str = "; ") -> str:
+    if not elems: return ""
+    out, used = [], 0
+    for i, p in enumerate(elems):
+        tok = (sep if out else "") + p
+        if used + len(tok) <= max_total:
+            out.append(p); used += len(tok)
+        else:
+            rem = len(elems) - i
+            return (sep.join(out) + (f" (+{rem})" if rem > 0 else "")).strip()
+    return sep.join(out)
 
 def _clutch_geno_from_planned_name(name: str) -> str:
     if not name: return ""
     parts = name.split(">", 1)
-    return _tgify(_split_rollup(parts[1])) if len(parts) == 2 else ""
+    if len(parts) != 2: return ""
+    tokens = _tg_tokens(_split_rollup(parts[1]))
+    return _summarize_list(tokens, max_total=46, sep="; ")
 
 # ---------------- Loaders ----------------
 def _load_unique_setups(q: str, limit: int = 1000) -> pd.DataFrame:
-    """
-    Show unique (clutch_id, mother_tank_id, father_tank_id) with summary.
-    """
     sql = text("""
       with base as (
         select
           pc.clutch_id,
           pc.mother_tank_id,
           pc.father_tank_id,
-          count(*)         as n_runs,
-          max(pc.cross_date) as last_cross_date,
-          max(pc.created_at) as last_created_at
+          count(*)            as n_runs,
+          max(pc.cross_date)  as last_cross_date,
+          max(pc.created_at)  as last_created_at
         from public.planned_crosses pc
         group by pc.clutch_id, pc.mother_tank_id, pc.father_tank_id
       )
       select
-        b.clutch_id::text                       as clutch_id,
+        b.clutch_id::text as clutch_id,
         cp.clutch_code,
         cp.planned_name,
         pc.mom_code,
         pc.dad_code,
-        b.mother_tank_id::text                  as mother_tank_id,
-        cm.label                                 as mother_tank,
-        b.father_tank_id::text                  as father_tank_id,
-        cf.label                                 as father_tank,
+        b.mother_tank_id::text as mother_tank_id,
+        cm.label               as mother_tank,
+        b.father_tank_id::text as father_tank_id,
+        cf.label               as father_tank,
         b.n_runs,
         b.last_cross_date,
         b.last_created_at
@@ -108,13 +138,13 @@ def _load_unique_setups(q: str, limit: int = 1000) -> pd.DataFrame:
 def _load_history(clutch_id: str, mother_tank_id: str, father_tank_id: str) -> pd.DataFrame:
     sql = text("""
       select
-        coalesce(pc.cross_code, pc.id_uuid::text)    as cross_code,
+        coalesce(pc.cross_code, pc.id_uuid::text) as cross_code,
         pc.cross_date,
         pc.note,
         pc.created_by,
         pc.created_at,
-        pc.mother_tank_id::text                      as mother_tank_id,
-        pc.father_tank_id::text                      as father_tank_id,
+        pc.mother_tank_id::text as mother_tank_id,
+        pc.father_tank_id::text as father_tank_id,
         pc.mom_code,
         pc.dad_code,
         cp.clutch_code,
@@ -149,15 +179,16 @@ def _schedule_next_run(clutch_id: str, mom_code: str, dad_code: str,
 def _load_crosses_for_date(d: date, q: str, limit: int = 2000) -> pd.DataFrame:
     sql = text("""
       select
-        coalesce(pc.cross_code, pc.id_uuid::text) as cross_code,
+        pc.id_uuid::text                           as cross_id,
+        coalesce(pc.cross_code, pc.id_uuid::text)  as cross_code,
         pc.cross_date,
         pc.note,
         pc.created_by,
         pc.created_at,
         pc.mother_tank_id::text as mother_tank_id,
-        cm.label                 as mother_tank,     -- NEW
+        cm.label                 as mother_tank,
         pc.father_tank_id::text as father_tank_id,
-        cf.label                 as father_tank,     -- NEW
+        cf.label                 as father_tank,
         pc.mom_code,
         pc.dad_code,
         cp.clutch_code,
@@ -273,7 +304,6 @@ if st.button("➕ Schedule", type="primary", use_container_width=True):
         created_by     = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
     )
     st.success("Scheduled the next run.")
-    # refresh history block
     hist = _load_history(sel_combo["clutch_id"], sel_combo["mother_tank_id"], sel_combo["father_tank_id"])
     if not hist.empty:
         try:
@@ -296,11 +326,11 @@ if df_rundate.empty:
     st.info("No crosses on that date.")
     st.stop()
 
-# Select rows to print — include both tank LABELS and IDs so they survive the editor round-trip
+# Select rows to print (keep cross_id so we can create clutches too)
 rv = df_rundate.copy()
 rv.insert(0, "✓ Select", False)
 col_order = [
-    "✓ Select","cross_code","clutch_code","planned_name",
+    "✓ Select","cross_id","cross_code","clutch_code","planned_name",
     "mom_code","mother_tank","mother_tank_id",
     "dad_code","father_tank","father_tank_id",
     "cross_date","note"
@@ -311,15 +341,16 @@ rved = st.data_editor(
     column_order=col_order,
     column_config={
         "✓ Select":       st.column_config.CheckboxColumn("✓ Select", default=False),
+        "cross_id":       st.column_config.TextColumn("cross_id", disabled=True),
         "cross_code":     st.column_config.TextColumn("cross_code", disabled=True),
         "clutch_code":    st.column_config.TextColumn("clutch_code", disabled=True),
         "planned_name":   st.column_config.TextColumn("planned_name", disabled=True),
         "mom_code":       st.column_config.TextColumn("mom_code", disabled=True),
-        "mother_tank":    st.column_config.TextColumn("mother_tank", disabled=True),     # LABEL
-        "mother_tank_id": st.column_config.TextColumn("mother_tank_id", disabled=True),  # ID
+        "mother_tank":    st.column_config.TextColumn("mother_tank", disabled=True),
+        "mother_tank_id": st.column_config.TextColumn("mother_tank_id", disabled=True),
         "dad_code":       st.column_config.TextColumn("dad_code", disabled=True),
-        "father_tank":    st.column_config.TextColumn("father_tank", disabled=True),     # LABEL
-        "father_tank_id": st.column_config.TextColumn("father_tank_id", disabled=True),  # ID
+        "father_tank":    st.column_config.TextColumn("father_tank", disabled=True),
+        "father_tank_id": st.column_config.TextColumn("father_tank_id", disabled=True),
         "cross_date":     st.column_config.TextColumn("cross_date", disabled=True),
         "note":           st.column_config.TextColumn("note"),
     },
@@ -330,7 +361,7 @@ if sel_for_print.empty:
     st.info("Select runs above to print a report or labels.")
     st.stop()
 
-# ----- fetch genotypes for selected rows -----
+# mom/dad genotypes for selected rows
 mom_codes = sorted(set(sel_for_print["mom_code"].dropna().astype(str)))
 dad_codes = sorted(set(sel_for_print["dad_code"].dropna().astype(str)))
 need_codes = sorted(set(mom_codes + dad_codes))
@@ -342,10 +373,10 @@ if need_codes:
             from public.vw_fish_standard
             where fish_code = any(:codes)
         """), cx, params={"codes": need_codes})
-    for _, r in df_g.iterrows():
-        geno_by_fish[str(r["fish_code"])] = _tgify(_split_rollup(r.get("genotype") or ""))
+    for _, rr in df_g.iterrows():
+        geno_by_fish[str(rr["fish_code"])] = rr.get("genotype") or ""
 
-# Build report preview — use tank LABELS
+# -------- report preview
 st.subheader("Crossing report (preview)")
 rep = sel_for_print.copy()
 rep["Cross date"] = pd.to_datetime(rep["cross_date"]).dt.strftime("%A, %Y/%m/%d")
@@ -357,50 +388,37 @@ rep_show = rep[[
 ]]
 st.dataframe(rep_show, use_container_width=True, hide_index=True)
 
-# ----- Build PDFs -----
+# ----- Build PDFs (report + crossing labels)
 from reportlab.pdfgen import canvas as _canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from io import BytesIO
 
-# mono font (ok if registration fails)
 try:
     pdfmetrics.registerFont(TTFont("LabelMono", "/Library/Fonts/SourceCodePro-Regular.ttf"))
     MONO = "LabelMono"
 except Exception:
     MONO = "Courier"
 
-# ---------------- Report PDF (letter) ----------------
 def _build_report_pdf(dfrep: pd.DataFrame) -> bytes:
     buf = BytesIO()
     c = _canvas.Canvas(buf, pagesize=letter)
     width, height = letter
     x0, y = 0.7*inch, height - 0.8*inch
-
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(x0, y, "Crossing Report")
-    y -= 0.25*inch
+    c.setFont("Helvetica-Bold", 14); c.drawString(x0, y, "Crossing Report"); y -= 0.25*inch
     c.setFont("Helvetica", 9)
-
     headers = ["Clutch", "Name", "Mom tank", "Dad tank", "Date", "Note"]
     colw    = [1.1*inch, 2.6*inch, 2.3*inch, 2.3*inch, 1.2*inch, 1.3*inch]
-
-    # header row
     c.setFont("Helvetica-Bold", 9); x = x0
-    for h, w in zip(headers, colw):
-        c.drawString(x, y, h); x += w
+    for h, w in zip(headers, colw): c.drawString(x, y, h); x += w
     y -= 0.18*inch; c.setFont("Helvetica", 9)
-
-    # rows
     for _, r in dfrep.iterrows():
         if y < 0.8*inch:
             c.showPage(); y = height - 0.8*inch; c.setFont("Helvetica", 9)
             c.setFont("Helvetica-Bold", 9); x = x0
             for h, w in zip(headers, colw): c.drawString(x, y, h); x += w
             y -= 0.18*inch; c.setFont("Helvetica", 9)
-
         x = x0
         cells  = [
             str(r.get("clutch_code", ""))[:85],
@@ -410,103 +428,54 @@ def _build_report_pdf(dfrep: pd.DataFrame) -> bytes:
             pd.to_datetime(r.get("cross_date")).strftime("%A, %Y/%m/%d"),
             str(r.get("note",""))[:85]
         ]
-        for cell, w in zip(cells, colw):
-            c.drawString(x, y, cell); x += w
+        for cell, w in zip(cells, colw): c.drawString(x, y, cell); x += w
         y -= 0.16*inch
+    c.showPage(); c.save(); buf.seek(0); return buf.getvalue()
 
-    c.showPage(); c.save(); buf.seek(0)
-    return buf.read()
-
-# ---------------- Labels PDF (2.4 × 1.5) ----------------
-PT = 72.0
-W, H = 2.4*PT, 1.5*PT
+# ---------------- Crossing tank Labels PDF (2.4 × 1.5; one field per line)
+PT = 72.0; W, H = 2.4*PT, 1.5*PT
 PAD_L, PAD_R, PAD_T, PAD_B = 10, 10, 8, 8
-
-HDR_FS   = 11.0     # CROSS line
-DATE_FS  = 9.0      # date line
-BODY_FS  = 8.6      # body lines
-ARROW_FS = 12.0
-STEP     = 10.2     # vertical step
+HDR_FS, DATE_FS, BODY_FS, ARROW_FS, STEP = 11.0, 9.0, 8.6, 12.0, 10.2
 
 def _clip(s: str, n: int) -> str:
     s = (s or "").strip()
     return s if len(s) <= n else (s[:max(0, n-1)] + "…")
 
 def _label_pdf(rows: List[Dict[str, Any]]) -> bytes:
-    buf = BytesIO()
-    c = _canvas.Canvas(buf, pagesize=(W, H))
-    max_chars_label = 34   # rough safe width at BODY_FS
-    max_chars_geno  = 60
-
+    buf = BytesIO(); c = _canvas.Canvas(buf, pagesize=(W, H))
+    max_chars_label, max_chars_geno = 34, 60
     for t in rows:
-        # collect fields
         cross_code  = (t.get("cross_code") or "")[:12]
         cross_date  = pd.to_datetime(t.get("cross_date")).strftime("%a, %Y/%m/%d")
-        mom_label   = _clip(t.get("mother_tank") or "", max_chars_label)   # tank LABEL
+        mom_label   = _clip(t.get("mother_tank") or "", max_chars_label)
         dad_label   = _clip(t.get("father_tank") or "", max_chars_label)
-        mom_geno    = _clip(t.get("mom_geno") or "", max_chars_geno)
-        dad_geno    = _clip(t.get("dad_geno") or "", max_chars_geno)
+        mom_geno    = _clip(_tgify(t.get("mom_geno") or ""), max_chars_geno)
+        dad_geno    = _clip(_tgify(t.get("dad_geno") or ""), max_chars_geno)
         clutch_code = t.get("clutch_code") or ""
         clutch_geno = _clip(t.get("clutch_geno") or "", max_chars_geno)
 
-        # 1) CROSS line
         y = H - PAD_T - HDR_FS
-        c.setFont("Helvetica-Bold", HDR_FS)
-        c.drawString(PAD_L, y, f"CROSS {cross_code}")
-
-        # 2) DATE
-        y -= STEP
-        c.setFont("Helvetica", DATE_FS)
-        c.drawString(PAD_L, y, cross_date)
-
-        # 3) Mom tank label
-        y -= STEP
-        c.setFont(MONO, BODY_FS)   # mono for readability of tank codes
-        c.drawString(PAD_L, y, f"Mom {mom_label}")
-
-        # 4) Mom genotype
-        y -= STEP
-        c.setFont("Helvetica", BODY_FS)
-        c.drawString(PAD_L, y, mom_geno)
-
-        # 5) Dad tank label
-        y -= STEP
-        c.setFont(MONO, BODY_FS)
-        c.drawString(PAD_L, y, f"Dad {dad_label}")
-
-        # 6) Dad genotype
-        y -= STEP
-        c.setFont("Helvetica", BODY_FS)
-        c.drawString(PAD_L, y, dad_geno)
-
-        # 7) arrow
-        y -= STEP
-        c.setFont("Helvetica-Bold", ARROW_FS)
-        c.drawCentredString(W/2.0, y+2, "↓")
-
-        # 8) clutch code
-        y -= STEP
-        c.setFont("Helvetica", BODY_FS)
-        c.drawString(PAD_L, y, str(clutch_code))
-
-        # 9) clutch genotype
-        y -= STEP
-        c.drawString(PAD_L, y, clutch_geno)
-
+        c.setFont("Helvetica-Bold", HDR_FS); c.drawString(PAD_L, y, f"CROSS {cross_code}")
+        y -= STEP; c.setFont("Helvetica", DATE_FS); c.drawString(PAD_L, y, cross_date)
+        y -= STEP; c.setFont(MONO, BODY_FS); c.drawString(PAD_L, y, f"Mom {mom_label}")
+        y -= STEP; c.setFont("Helvetica", BODY_FS); c.drawString(PAD_L, y, mom_geno)
+        y -= STEP; c.setFont(MONO, BODY_FS); c.drawString(PAD_L, y, f"Dad {dad_label}")
+        y -= STEP; c.setFont("Helvetica", BODY_FS); c.drawString(PAD_L, y, dad_geno)
+        y -= STEP; c.setFont("Helvetica-Bold", ARROW_FS); c.drawCentredString(W/2.0, y+2, "↓")
+        y -= STEP; c.setFont("Helvetica", BODY_FS); c.drawString(PAD_L, y, str(clutch_code))
+        y -= STEP; c.drawString(PAD_L, y, clutch_geno)
         c.showPage()
+    c.save(); buf.seek(0); return buf.getvalue()
 
-    c.save(); buf.seek(0)
-    return buf.read()
-
-# assemble label rows (uses tank LABELS)
+# assemble crossing label rows
 label_rows = []
 for _, r in sel_for_print.iterrows():
     clutch_geno = _clutch_geno_from_planned_name(str(r.get("planned_name") or ""))
     label_rows.append({
         "cross_code":    str(r.get("cross_code") or "")[:12],
         "cross_date":    pd.to_datetime(r.get("cross_date")).date() if r.get("cross_date") else pd.Timestamp.today().date(),
-        "mother_tank":   str(r.get("mother_tank") or ""),   # LABEL (human tank code)
-        "father_tank":   str(r.get("father_tank") or ""),   # LABEL
+        "mother_tank":   str(r.get("mother_tank") or ""),
+        "father_tank":   str(r.get("father_tank") or ""),
         "mom_geno":      geno_by_fish.get(str(r.get("mom_code") or ""), ""),
         "dad_geno":      geno_by_fish.get(str(r.get("dad_code") or ""), ""),
         "clutch_code":   str(r.get("clutch_code") or ""),
@@ -516,10 +485,125 @@ for _, r in sel_for_print.iterrows():
 # build PDFs
 rep_pdf = _build_report_pdf(sel_for_print)
 lab_pdf = _label_pdf(label_rows)
-
 st.download_button("📄 Download crossing report (PDF)", data=rep_pdf,
                    file_name=f"crossing_report_{pd.Timestamp.today().strftime('%Y%m%d')}.pdf",
                    mime="application/pdf", use_container_width=True)
 st.download_button("🏷️ Download crossing tank labels (PDF)", data=lab_pdf,
                    file_name=f"crossing_tank_labels_{pd.Timestamp.today().strftime('%Y%m%d')}.pdf",
                    mime="application/pdf", use_container_width=True)
+
+# ---------------- Ensure clutch instances + paired labels (optional) ----------------
+st.subheader("Create clutches + Petri dish labels (optional)")
+st.caption("Creates one clutch per selected cross (date = report date), prints Petri labels, and pairs codes.")
+
+def _ensure_cross_for_planned(planned_cross_id: str, created_by: str) -> str:
+    sql_load = text("""
+      select mom_code, dad_code, cross_date
+      from public.planned_crosses
+      where id_uuid = cast(:pid as uuid) limit 1
+    """)
+    with ENGINE.begin() as cx:
+        row = cx.execute(sql_load, {"pid": planned_cross_id}).mappings().first()
+    if not row: raise RuntimeError(f"planned_cross not found: {planned_cross_id}")
+    mom_code, dad_code = row["mom_code"], row["dad_code"]
+    planned_for = pd.to_datetime(row["cross_date"]).date() if row["cross_date"] else None
+    with ENGINE.begin() as cx:
+        found = cx.execute(text("""
+          select id_uuid::text from public.crosses
+          where mother_code=:m and father_code=:f and planned_for is not distinct from :d
+          order by created_at desc limit 1
+        """), {"m": mom_code, "f": dad_code, "d": planned_for}).scalar()
+    if found: return str(found)
+    with ENGINE.begin() as cx:
+        return cx.execute(text("""
+          insert into public.crosses (mother_code, father_code, planned_for, created_by)
+          values (:m,:f,:d,:by) returning id_uuid::text
+        """), {"m": mom_code, "f": dad_code, "d": planned_for, "by": (os.environ.get("USER") or "unknown")}).scalar()
+
+def _ensure_clutch_for_planned(planned_cross_id: str, date_birth: date, created_by: str) -> dict:
+    # requires clutches(planned_cross_id uuid, cross_id uuid, date_birth date)
+    if not _table_has_columns("clutches","planned_cross_id","cross_id","date_birth"):
+        raise RuntimeError("public.clutches requires planned_cross_id, cross_id, date_birth.")
+    cross_fk = _ensure_cross_for_planned(planned_cross_id, created_by=created_by)
+    with ENGINE.begin() as cx:
+        cid = cx.execute(text("""
+          select id_uuid::text from public.clutches
+          where planned_cross_id = cast(:pid as uuid) and date_birth = :bd limit 1
+        """), {"pid": planned_cross_id, "bd": pd.to_datetime(date_birth).date()}).scalar()
+    if not cid:
+        with ENGINE.begin() as cx:
+            cid = cx.execute(text("""
+              insert into public.clutches (planned_cross_id, cross_id, date_birth, created_by)
+              values (cast(:pid as uuid), cast(:cid as uuid), :bd, :by)
+              returning id_uuid::text
+            """), {"pid": planned_cross_id, "cid": cross_fk,
+                   "bd": pd.to_datetime(date_birth).date(), "by": created_by}).scalar()
+    # clutch code based on id + date
+    yy = f"{date_birth.year%100:02d}"; code = f"CLUTCH-{yy}{cid[:4].upper()}"
+    return {"id": cid, "cross_id": cross_fk, "clutch_code": code}
+
+def _render_petri_labels_pdf(label_rows: list[dict]) -> bytes:
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import inch
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    W, H = 2.4*inch, 0.75*inch; PAD_L, PAD_R, PAD_T = 6, 6, 4; MAXW = W-PAD_L-PAD_R
+    FS1, FS2, FS_B, STEP = 8.8, 8.0, 7.4, 7.6   # FS2 smaller (2nd line)
+    def _fit(s, font, size, maxw):
+        s=(s or "").strip()
+        if not s or stringWidth(s,font,size)<=maxw: return s
+        ell="…"; lo,hi=0,len(s)
+        while lo<hi:
+            mid=(lo+hi)//2
+            if stringWidth(s[:mid]+ell,font,size)<=maxw: lo=mid+1
+            else: hi=mid
+        cut=max(0,lo-1); return (s[:cut]+ell) if cut>0 else ell
+    buf=BytesIO(); c=canvas.Canvas(buf, pagesize=(W,H))
+    for r in label_rows:
+        line1=_fit(f"CROSS {r['cross_code']}", "Helvetica-Bold", FS1, MAXW)
+        line2=_fit(r["clutch_code"],           "Helvetica-Bold", FS2, MAXW)  # smaller
+        line3=_fit(r["title"],                 "Helvetica",      FS_B, MAXW)
+        line4=_fit(f"{r['mom']} × {r['dad']}".strip(" ×"), "Helvetica", FS_B, MAXW)
+        line5=_fit(r["birthday"],              "Helvetica",      FS_B, MAXW)
+        line6=_fit(r["genotype"],              "Helvetica",      FS_B, MAXW)
+        y=H-PAD_T-FS1; c.setFont("Helvetica-Bold",FS1); c.drawString(PAD_L,y,line1)
+        y-=STEP;       c.setFont("Helvetica-Bold",FS2); c.drawString(PAD_L,y,line2)
+        y-=STEP;       c.setFont("Helvetica",     FS_B); c.drawString(PAD_L,y,line3)
+        y-=STEP;       c.setFont("Helvetica",     FS_B); c.drawString(PAD_L,y,line4)
+        y-=STEP;       c.setFont("Helvetica",     FS_B); c.drawString(PAD_L,y,line5)
+        y-=STEP;       c.setFont("Helvetica",     FS_B); c.drawString(PAD_L,y,line6)
+        c.showPage()
+    c.save(); buf.seek(0); return buf.getvalue()
+
+user_name = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
+if st.button("➕ Create clutches + ⬇️ Petri labels (PDF)", type="primary", use_container_width=True):
+    if sel_for_print.empty:
+        st.warning("Select at least one run above.")
+    else:
+        petri_rows=[]
+        for _, r in sel_for_print.iterrows():
+            planned_id = str(r.get("cross_id") or "")
+            if not planned_id: continue
+            bd = pd.to_datetime(r["cross_date"]).date()
+            try:
+                ensured = _ensure_clutch_for_planned(planned_id, bd, created_by=user_name)
+            except Exception as e:
+                st.error(f"Ensure clutch failed: {e}")
+                continue
+            petri_rows.append({
+                "cross_code":  str(r.get("cross_code") or "")[:12],
+                "clutch_code": ensured["clutch_code"],
+                "title":       str(r.get("planned_name") or ""),
+                "mom":         str(r.get("mom_code") or ""),
+                "dad":         str(r.get("dad_code") or ""),
+                "birthday":    bd.strftime("%Y-%m-%d"),
+                "genotype":    _clutch_geno_from_planned_name(str(r.get("planned_name") or "")),
+            })
+        if petri_rows:
+            try:
+                petri_pdf = _render_petri_labels_pdf(petri_rows)
+                st.download_button("⬇️ Petri labels (PDF)", data=petri_pdf,
+                                   file_name=f"petri_labels_{report_date}.pdf",
+                                   mime="application/pdf", use_container_width=True)
+                st.success(f"Created {len(petri_rows)} clutch record(s).")
+            except Exception as e:
+                st.error(f"Render Petri labels failed: {e}")

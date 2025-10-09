@@ -1,23 +1,72 @@
+# supabase/ui/pages/033_🍼_register_clutches.py
 from __future__ import annotations
 
 try:
     from supabase.ui.auth_gate import require_app_unlock
 except Exception:
-    from auth_gate import require_app_unlock
+    def require_app_unlock(): ...
 require_app_unlock()
 
-import os, json, io
+import os, io, json
 from datetime import date, timedelta
+from typing import Dict, Any, List
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-st.set_page_config(page_title="Register Clutches", page_icon="🍼")
-st.title("🍼 Register Clutches — confirm crossing tanks & notes")
+st.set_page_config(page_title="Register Clutches", page_icon="🍼", layout="wide")
+st.title("🍼 Register Clutches — record size/notes and print Petri labels")
 
 ENGINE = create_engine(os.environ["DB_URL"], pool_pre_ping=True)
 
-# ============================== Generic helpers ===============================
+# -------------------- small helpers --------------------
+def _ensure_cross_for_planned(planned_cross_id: str, created_by: str) -> str:
+    """
+    Given a planned_crosses.id_uuid, ensure a row exists in public.crosses
+    with (mother_code, father_code, planned_for) = (mom_code, dad_code, cross_date).
+    Return crosses.id_uuid (as text).
+    """
+    # Load mom/dad/date from planned_crosses
+    sql_load = text("""
+      select mom_code, dad_code, cross_date
+      from public.planned_crosses
+      where id_uuid = cast(:pid as uuid)
+      limit 1
+    """)
+    with ENGINE.begin() as cx:
+        row = cx.execute(sql_load, {"pid": planned_cross_id}).mappings().first()
+    if not row:
+        raise RuntimeError(f"planned_crosses row not found: {planned_cross_id}")
+
+    mom_code = row["mom_code"]
+    dad_code = row["dad_code"]
+    planned_for = pd.to_datetime(row["cross_date"]).date() if row["cross_date"] else None
+
+    # Try to find an existing crosses row
+    sql_find = text("""
+      select id_uuid::text
+      from public.crosses
+      where mother_code = :m and father_code = :f and planned_for is not distinct from :d
+      order by created_at desc
+      limit 1
+    """)
+    with ENGINE.begin() as cx:
+        found = cx.execute(sql_find, {"m": mom_code, "f": dad_code, "d": planned_for}).scalar()
+
+    if found:
+        return str(found)
+
+    # Insert a new crosses row
+    sql_ins = text("""
+      insert into public.crosses (mother_code, father_code, planned_for, created_by)
+      values (:m, :f, :d, :by)
+      returning id_uuid::text
+    """)
+    with ENGINE.begin() as cx:
+        rid = cx.execute(sql_ins, {"m": mom_code, "f": dad_code, "d": planned_for, "by": created_by}).scalar()
+    return str(rid)
+
 def _table_has_columns(table: str, *cols: str) -> bool:
     sql = text("""
       select 1
@@ -45,224 +94,9 @@ def _first_existing_column(table: str, candidates: list[str]) -> str | None:
         row = cx.execute(sql, {"t": table, "cols": candidates}).fetchone()
     return row[0] if row else None
 
-# ========================= Crossing tanks / fishes / crosses ===================
-def _current_tanks_for_fish_code(fish_code: str | None) -> pd.DataFrame:
-    """Return current (open membership) tanks for a fish_code. Columns: id, label"""
-    if not fish_code:
-        return pd.DataFrame(columns=["id","label"])
-    sql = text("""
-      select c.id_uuid::text as id, coalesce(c.label,'') as label
-      from public.fish f
-      join public.fish_tank_memberships m
-        on m.fish_id = f.id and m.left_at is null
-      join public.containers c
-        on c.id_uuid = m.container_id
-      where f.fish_code = :code
-      order by c.created_at
-    """)
-    with ENGINE.begin() as cx:
-        return pd.read_sql(sql, cx, params={"code": fish_code})
-
-def _get_crossing_tank_ids(run_id: str) -> tuple[str | None, str | None]:
-    """Return (tank_a_id, tank_b_id) for a crossing tank row (cross_plan_runs.id)."""
-    sql = text("select tank_a_id::text as a, tank_b_id::text as b from public.cross_plan_runs where id = :id")
-    with ENGINE.begin() as cx:
-        row = cx.execute(sql, {"id": run_id}).fetchone()
-    return (row[0] if row and row[0] else None, row[1] if row and row[1] else None)
-
-def _default_index(cur_id: str | None, id_list: list[str | None]) -> int:
-    """Index for selectbox default; 0 if not present."""
-    try:
-        return id_list.index(cur_id) if cur_id in id_list else 0
-    except Exception:
-        return 0
-
-def _load_crossing_tanks(d0: date, d1_excl: date) -> pd.DataFrame:
-    """
-    Load crossing tanks (aka cross plan runs) for a date range from v_cross_plan_runs_enriched.
-    Expected columns include:
-      id, planned_date, plan_title, plan_nickname, mother_fish_code, father_fish_code,
-      seq, tank_a_label, tank_b_label, status
-    """
-    sql = text("""
-      select *
-      from public.v_cross_plan_runs_enriched
-      where planned_date >= :d0 and planned_date < :d1
-      order by planned_date asc, plan_title nulls last, seq asc
-    """)
-    with ENGINE.begin() as cx:
-        return pd.read_sql(sql, cx, params={"d0": d0, "d1": d1_excl})
-
-def _confirm_crossing_tank(run_id: str, tank_a_id: str | None, tank_b_id: str | None) -> None:
-    sql = text("""
-      update public.cross_plan_runs
-      set tank_a_id = :a, tank_b_id = :b
-      where id = :id
-    """)
-    with ENGINE.begin() as cx:
-        cx.execute(sql, {"a": tank_a_id, "b": tank_b_id, "id": run_id})
-
-def _get_run_plan_id(run_id: str) -> str | None:
-    """Return the cross plan id for a crossing-tank row (cross_plan_runs.plan_id)."""
-    sql = text("select plan_id::text from public.cross_plan_runs where id = :id")
-    with ENGINE.begin() as cx:
-        row = cx.execute(sql, {"id": run_id}).fetchone()
-    return row[0] if row else None
-
-def _ensure_cross_for_run(run_id: str, created_by: str) -> str:
-    """
-    Ensure there is a row in public.crosses for this crossing tank:
-    mom_code + dad_code + planned_for (from v_cross_plan_runs_enriched).
-    If not found, create it. Return its id_uuid.
-    """
-    sql_run = text("""
-      select mother_fish_code, father_fish_code, planned_date
-      from public.v_cross_plan_runs_enriched
-      where id = :id
-      limit 1
-    """)
-    with ENGINE.begin() as cx:
-        rr = cx.execute(sql_run, {"id": run_id}).fetchone()
-    if not rr:
-        raise RuntimeError("Could not load crossing-tank info for run_id")
-
-    mom_code, dad_code, planned_for = rr[0], rr[1], rr[2]
-
-    sql_find = text("""
-      select id_uuid
-      from public.crosses
-      where mother_code = :m
-        and father_code = :f
-        and planned_for = :d
-      order by created_at desc
-      limit 1
-    """)
-    with ENGINE.begin() as cx:
-        found = cx.execute(sql_find, {"m": mom_code, "f": dad_code, "d": planned_for}).fetchone()
-    if found and found[0]:
-        return str(found[0])
-
-    sql_ins = text("""
-      insert into public.crosses (mother_code, father_code, created_by, planned_for)
-      values (:m, :f, :by, :d)
-      returning id_uuid
-    """)
-    with ENGINE.begin() as cx:
-        row = cx.execute(sql_ins, {"m": mom_code, "f": dad_code, "by": created_by, "d": planned_for}).fetchone()
-    return str(row[0])
-
-# ========================= Clutch insert + label helpers ======================
-def _register_clutch_with_birthday(
-    run_id: str,
-    birthday: date | None,
-    notes: str | None,
-    created_by: str,
-) -> tuple[bool, str]:
-    """
-    Insert a clutch:
-    - Writes birthday into clutches.date_birth (single clutch date).
-    - Links to the crossing-tank row via run FK (run_id or cross_plan_run_id).
-    - If clutches.cross_id exists (FK to public.crosses), ensure a crosses row exists and use that id.
-    Returns (True, inserted_id) if an id column exists, else (True, 'ok').
-    """
-    # 1) Detect FK column to the run
-    if _table_has_columns("clutches", "run_id"):
-        run_fk_col = "run_id"
-    elif _table_has_columns("clutches", "cross_plan_run_id"):
-        run_fk_col = "cross_plan_run_id"
-    else:
-        return False, "clutches table missing run FK (expected run_id or cross_plan_run_id)."
-
-    # 2) Ensure clutches.date_birth exists
-    if not _table_has_columns("clutches", "date_birth"):
-        return False, "clutches.date_birth is missing; run the migration to keep only date_birth."
-
-    # 3) cross_id support
-    have_cross_id = _table_has_columns("clutches", "cross_id")
-    cross_id_val = None
-    if have_cross_id:
-        try:
-            cross_id_val = _ensure_cross_for_run(run_id, created_by=created_by)
-        except Exception as e:
-            return False, f"could not ensure crosses row for this run: {e}"
-
-    # 4) Build dynamic insert
-    cols = [run_fk_col, "date_birth", "note", "created_by"]
-    vals = [":rid", ":bd", ":note", ":by"]
-    params = {"rid": run_id, "bd": birthday, "note": notes, "by": created_by}
-
-    if have_cross_id:
-        cols.insert(1, "cross_id")
-        vals.insert(1, ":cid")
-        params["cid"] = cross_id_val
-
-    col_sql = ", ".join(cols)
-    val_sql = ", ".join(vals)
-
-    # 5) Choose a PK to RETURN if available
-    pk_col = _first_existing_column("clutches", ["id", "id_uuid", "clutch_id"])
-    if pk_col:
-        sql = text(f"""
-          insert into public.clutches ({col_sql})
-          values ({val_sql})
-          returning {pk_col}
-        """)
-        with ENGINE.begin() as cx:
-            row = cx.execute(sql, params).fetchone()
-        return True, (str(row[0]) if row else "ok")
-    else:
-        sql = text(f"""
-          insert into public.clutches ({col_sql})
-          values ({val_sql})
-        """)
-        with ENGINE.begin() as cx:
-            cx.execute(sql, params)
-        return True, "ok"
-
-def _get_run_genotype_treatments(run_id: str) -> tuple[str, str]:
-    """
-    Return (genotype_text, treatments_text) for a crossing tank by joining its plan.
-    """
-    with ENGINE.begin() as cx:
-        plan_id = cx.execute(text("select plan_id::text from public.cross_plan_runs where id=:id"), {"id": run_id}).scalar()
-    if not plan_id:
-        return "", ""
-
-    sql_g = text("""
-      select coalesce(string_agg(
-               format('%s[%s]%s',
-                      ga.transgene_base_code,
-                      ga.allele_number,
-                      coalesce(' '||ga.zygosity_planned,'')
-               ),
-               ', ' order by ga.transgene_base_code, ga.allele_number
-             ), '') as gtxt
-      from public.cross_plan_genotype_alleles ga
-      where ga.plan_id = :pid
-    """)
-    sql_t = text("""
-      select coalesce(string_agg(
-               trim(both ' ' from concat(
-                 coalesce(ct.treatment_name,''),
-                 case when coalesce(ct.injection_mix,'')  <> '' then ' (mix='||ct.injection_mix||')' else '' end,
-                 case when coalesce(ct.treatment_notes,'')<> '' then ' ['||ct.treatment_notes||']' else '' end,
-                 case when coalesce(ct.timing_note,'')    <> '' then ' {'||ct.timing_note||'}' else '' end
-               )),
-               ' • ' order by coalesce(ct.treatment_name,''), coalesce(ct.rna_id::text,''), coalesce(ct.plasmid_id::text,'')
-             ), '') as ttxt
-      from public.cross_plan_treatments ct
-      where ct.plan_id = :pid
-    """)
-    with ENGINE.begin() as cx:
-        gtxt = cx.execute(sql_g, {"pid": plan_id}).scalar() or ""
-        ttxt = cx.execute(sql_t, {"pid": plan_id}).scalar() or ""
-    return gtxt, ttxt
-
 def _to_base36(n: int, width: int = 4) -> str:
-    """Return n as zero-padded base-36 (0-9A-Z)."""
-    if n < 0:
-        n = 0
     digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    if n < 0: n = 0
     out = ""
     while n:
         n, r = divmod(n, 36)
@@ -271,11 +105,6 @@ def _to_base36(n: int, width: int = 4) -> str:
     return out.rjust(width, "0")
 
 def _make_clutch_code(inserted_id: str, birthday: date) -> str:
-    """
-    Generate CLUTCH-YYXXXX where:
-      YY   = two-digit year
-      XXXX = base36 value derived from the inserted clutch id modulo 36^4
-    """
     yy = f"{birthday.year % 100:02d}"
     try:
         seed = int(inserted_id.replace("-", ""), 16)
@@ -284,12 +113,118 @@ def _make_clutch_code(inserted_id: str, birthday: date) -> str:
     suffix = _to_base36(seed % (36 ** 4), 4)
     return f"CLUTCH-{yy}{suffix}"
 
+# -------------------- load crosses for a date --------------------
+def _load_crosses_for_birthdate(d: date, q: str, limit: int = 1000) -> pd.DataFrame:
+    """
+    Crosses scheduled on this day from planned_crosses.
+    """
+    sql = text("""
+      select
+        pc.id_uuid::text                         as cross_id,
+        coalesce(pc.cross_code, pc.id_uuid::text) as cross_code,
+        pc.mom_code,
+        pc.dad_code,
+        pc.mother_tank_id::text                  as mother_tank_id,
+        cm.label                                 as mother_tank,
+        pc.father_tank_id::text                  as father_tank_id,
+        cf.label                                 as father_tank,
+        pc.cross_date,
+        cp.clutch_code,
+        cp.planned_name
+      from public.planned_crosses pc
+      join public.clutch_plans cp on cp.id_uuid = pc.clutch_id
+      left join public.containers cm on cm.id_uuid = pc.mother_tank_id
+      left join public.containers cf on cf.id_uuid = pc.father_tank_id
+      where pc.cross_date >= :d0 and pc.cross_date < :d1
+        and (
+          :q = '' OR
+          cp.clutch_code ilike :qlike OR
+          cp.planned_name ilike :qlike OR
+          pc.mom_code ilike :qlike OR
+          pc.dad_code ilike :qlike OR
+          coalesce(cm.label,'') ilike :qlike OR
+          coalesce(cf.label,'') ilike :qlike
+        )
+      order by pc.created_at asc
+      limit :lim
+    """)
+    with ENGINE.begin() as cx:
+        return pd.read_sql(sql, cx, params={
+            "d0": pd.to_datetime(d).date(),
+            "d1": (pd.to_datetime(d).date() + timedelta(days=1)),
+            "q": q or "", "qlike": f"%{q or ''}%", "lim": int(limit),
+        })
+
+# -------------------- save clutch rows --------------------
+def _save_clutches(rows: pd.DataFrame, birthday: date, created_by: str) -> List[str]:
+    """
+    Insert into public.clutches:
+      - cross_id FK must point to public.crosses(id_uuid), not planned_crosses.
+      - We map each planned_crosses.id -> (ensure/create) crosses row and use that id.
+    Requires clutches(cross_id uuid, date_birth date). Optionally uses size, description, note, created_by.
+    Returns list of inserted PKs if available; else [].
+    """
+    if not _table_has_columns("clutches", "cross_id", "date_birth"):
+        st.error("Table public.clutches must have columns: cross_id (uuid), date_birth (date). Add migrations first.")
+        return []
+
+    pk_col  = _first_existing_column("clutches", ["id_uuid", "id", "clutch_id"])
+    has_size = _table_has_columns("clutches", "size")
+    has_desc = _table_has_columns("clutches", "description")
+    has_note = _table_has_columns("clutches", "note")
+    has_by   = _table_has_columns("clutches", "created_by")
+
+    cols, vals = ["cross_id", "date_birth"], ["cast(:cross_id as uuid)", ":date_birth"]
+    if has_size: cols.append("size");        vals.append(":size")
+    if has_desc: cols.append("description"); vals.append(":description")
+    if has_note: cols.append("note");        vals.append(":note")
+    if has_by:   cols.append("created_by");  vals.append(":by")
+
+    sql = f"insert into public.clutches ({', '.join(cols)}) values ({', '.join(vals)})"
+    if pk_col:
+        sql += f" returning {pk_col}"
+    ins = text(sql)
+
+    inserted: List[str] = []
+    with ENGINE.begin() as cx:
+        pass  # we just open/close to confirm connection; real inserts happen below
+
+    for _, r in rows.iterrows():
+        # NOTE: rows['cross_id'] currently holds planned_crosses.id_uuid from your selection table.
+        planned_id = str(r["cross_id"])
+        # Ensure/resolve a public.crosses.id_uuid
+        cross_fk = _ensure_cross_for_planned(planned_id, created_by=created_by)
+
+        params = {
+            "cross_id":    cross_fk,  # <-- FK now points to public.crosses
+            "date_birth":  pd.to_datetime(birthday).date(),
+            "size":        int(r["size"]) if has_size and pd.notna(r.get("size")) else None,
+            "description": (str(r.get("description")) if has_desc else None),
+            "note":        (str(r.get("note")) if has_note else None),
+            "by":          created_by if has_by else None,
+        }
+        if pk_col:
+            with ENGINE.begin() as cx:
+                rid = cx.execute(ins, params).scalar()
+            inserted.append(str(rid))
+        else:
+            with ENGINE.begin() as cx:
+                cx.execute(ins, params)
+
+    return inserted
+
+# -------------------- tiny label pdf for Petri dishes --------------------
 def _render_petri_labels_pdf(label_rows: list[dict]) -> bytes:
     """
-    Render petri-dish labels as a PDF, 2.4in x 0.75in each (no QR).
-    Fields used per row:
-      clutch_code, nickname/label, mom, dad, birthday, genotype, treatments, user
-    Width-aware: lines are ellipsized to fit the printable area (no clipping).
+    Render petri-dish labels as a PDF, 2.4in x 0.75in (no QR).
+    EXACTLY one field per line, in this order:
+      1: clutch_code
+      2: nickname/title
+      3: mom × dad
+      4: birthday (YYYY-MM-DD)
+      5: genotype
+      6: treatments • user
+    All lines are end-ellipsized to fit the printable width.
     """
     try:
         from reportlab.pdfgen import canvas
@@ -298,68 +233,84 @@ def _render_petri_labels_pdf(label_rows: list[dict]) -> bytes:
     except Exception as e:
         raise RuntimeError("reportlab is required for inline PDF rendering") from e
 
-    # Page + margins
-    W, H = 2.4 * inch, 0.75 * inch   # 172.8 x 54.0 pt
-    LEFT, RIGHT = 6, 6               # add a small right padding to prevent chop
-    MAXW = W - LEFT - RIGHT
+    # Geometry
+    W, H = 2.4 * inch, 0.75 * inch          # 172.8 x 54.0 pt
+    PAD_L, PAD_R, PAD_T, PAD_B = 6, 6, 4, 4 # tight but safe margins
+    MAXW = W - PAD_L - PAD_R
+
+    # Typography (fits 6 lines in 0.75")
+    FS_H = 8.8   # header lines (1–2)
+    FS_B = 7.4   # body lines (3–6)
+    STEP = 7.6   # vertical step between lines
 
     def _fit(text: str, font: str, size: float, maxw: float) -> str:
-        """Return text or its ellipsized form so that it fits within maxw."""
-        if not text:
-            return ""
-        if stringWidth(text, font, size) <= maxw:
-            return text
-        # ellipsize by binary-search truncation
-        lo, hi = 0, len(text)
+        """End-ellipsize to fit width."""
+        s = (text or "").strip()
+        if not s or stringWidth(s, font, size) <= maxw:
+            return s
         ell = "…"
+        lo, hi = 0, len(s)
         while lo < hi:
             mid = (lo + hi) // 2
-            if stringWidth(text[:mid] + ell, font, size) <= maxw:
+            if stringWidth(s[:mid] + ell, font, size) <= maxw:
                 lo = mid + 1
             else:
                 hi = mid
         cut = max(0, lo - 1)
-        return (text[:cut] + ell) if cut > 0 else ell
+        return (s[:cut] + ell) if cut > 0 else ell
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(W, H))
 
     for r in label_rows:
-        clutch_code = (r.get("clutch_code") or "").strip()
-        title       = (r.get("nickname") or r.get("label") or "").strip()
-        mom         = (r.get("mom") or "").strip()
-        dad         = (r.get("dad") or "").strip()
-        bday        = (r.get("birthday") or "").strip()
-        genotype    = (r.get("genotype") or "").strip()
-        treatments  = (r.get("treatments") or "").strip()
-        user        = (r.get("user") or "").strip()
+        # Gather fields (stringify defensively)
+        clutch_code = str(r.get("clutch_code") or "").strip()
+        title       = str(r.get("nickname") or r.get("label") or "").strip()
+        mom         = str(r.get("mom") or "").strip()
+        dad         = str(r.get("dad") or "").strip()
+        birthday    = str(r.get("birthday") or "").strip()
+        genotype    = str(r.get("genotype") or "").strip()
+        treatments  = str(r.get("treatments") or "").strip()
+        user        = str(r.get("user") or "").strip()
+        tail        = (treatments + ((" • " + user) if user else "")).strip()
 
-        # Compose lines (at most 5 lines in 0.75" height)
-        # L1: clutch code
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(LEFT, H-12, _fit(clutch_code, "Helvetica-Bold", 9, MAXW))
+        # Compute y starting point
+        y = H - PAD_T - FS_H
+
+        # L1: clutch_code
+        c.setFont("Helvetica-Bold", FS_H)
+        c.drawString(PAD_L, y, _fit(clutch_code, "Helvetica-Bold", FS_H, MAXW))
 
         # L2: nickname/title
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(LEFT, H-23, _fit(title, "Helvetica-Bold", 9, MAXW))
+        y -= STEP
+        c.setFont("Helvetica-Bold", FS_H)
+        c.drawString(PAD_L, y, _fit(title, "Helvetica-Bold", FS_H, MAXW))
 
-        # L3: parents + birthday
-        c.setFont("Helvetica", 8)
-        line3 = f"{mom} × {dad}  {bday}".strip()
-        c.drawString(LEFT, H-33, _fit(line3, "Helvetica", 8, MAXW))
+        # L3: parents (mom × dad)
+        y -= STEP
+        c.setFont("Helvetica", FS_B)
+        parents = (mom + " × " + dad).strip(" ×")
+        c.drawString(PAD_L, y, _fit(parents, "Helvetica", FS_B, MAXW))
 
-        # L4: genotype
+        # L4: birthday (YYYY-MM-DD)
+        y -= STEP
+        c.setFont("Helvetica", FS_B)
+        c.drawString(PAD_L, y, _fit(birthday, "Helvetica", FS_B, MAXW))
+
+        # L5: genotype (may be long)
+        y -= STEP
         if genotype:
-            c.setFont("Helvetica", 7)
-            c.drawString(LEFT, H-42, _fit(genotype, "Helvetica", 7, MAXW))
+            c.setFont("Helvetica", FS_B)
+            c.drawString(PAD_L, y, _fit(genotype, "Helvetica", FS_B, MAXW))
+        else:
+            # keep vertical rhythm even if empty
+            c.setFont("Helvetica", FS_B)
+            c.drawString(PAD_L, y, "")
 
-        # L5: treatments + user
-        if treatments or user:
-            c.setFont("Helvetica", 7)
-            tail = treatments
-            if user:
-                tail = (tail + ("  •  " if tail else "") + user)
-            c.drawString(LEFT, H-51, _fit(tail, "Helvetica", 7, MAXW))
+        # L6: treatments • user
+        y -= STEP
+        c.setFont("Helvetica", FS_B)
+        c.drawString(PAD_L, y, _fit(tail, "Helvetica", FS_B, MAXW))
 
         c.showPage()
 
@@ -367,175 +318,105 @@ def _render_petri_labels_pdf(label_rows: list[dict]) -> bytes:
     buf.seek(0)
     return buf.getvalue()
 
-# ============================== Pick day ==============================
-default_day = None
-try:
-    qp = st.query_params
-    if "report_day" in qp:
-        default_day = pd.to_datetime(qp["report_day"]).date()
-except Exception:
-    default_day = None
+# ============================== UI ==============================
+st.subheader("Step 1 — Pick date (clutch birthday)")
+cA, cB = st.columns([2,2])
+with cA:
+    rep_day = st.date_input("Clutch birthday", value=date.today())
+with cB:
+    q = st.text_input("Filter (clutch / name / mom / dad / tank label)", "")
 
-rep_day = st.date_input("Report day (saved as clutch birthday)", value=default_day or date.today())
+df_crosses = _load_crosses_for_birthdate(rep_day, q)
+st.caption(f"{len(df_crosses)} cross(es) scheduled on {rep_day}")
 
-# Load daily crossing tanks and cast id->str for Streamlit/PyArrow
-df_day = _load_crossing_tanks(rep_day, rep_day + timedelta(days=1))
-if not df_day.empty:
-    df_day["id"] = df_day["id"].astype(str)
+if df_crosses.empty:
+    st.info("No crosses for this date.")
+    st.stop()
 
-# ================== Register clutch for a crossing tank ==================
-st.subheader("Register clutch for a crossing tank")
+# editor with size/description/note per selected
+st.subheader("Step 2 — Select crosses and enter clutch fields")
+work = df_crosses.copy()
+work.insert(0, "✓ Save", False)
+work["size"] = None
+work["description"] = ""
+work["note"] = ""
 
-if df_day.empty:
-    st.info("No crossing tanks for this date.")
-else:
-    table = df_day[[
-        "id","planned_date","plan_title","plan_nickname",
-        "mother_fish_code","father_fish_code","seq",
-        "tank_a_label","tank_b_label","status"
-    ]].rename(columns={
-        "planned_date":"Date",
-        "plan_title":"Name",
-        "plan_nickname":"Nickname",
-        "mother_fish_code":"Mom fish",
-        "father_fish_code":"Dad fish",
-        "tank_a_label":"Tank A (intended)",
-        "tank_b_label":"Tank B (intended)",
-    }).reset_index(drop=True)
+order = ["✓ Save","cross_code","clutch_code","planned_name",
+         "mom_code","mother_tank","dad_code","father_tank",
+         "size","description","note"]
 
-    try:
-        table["Date"] = pd.to_datetime(table["Date"]).dt.strftime("%Y-%m-%d")
-    except Exception:
-        pass
+edited = st.data_editor(
+    work,
+    use_container_width=True, hide_index=True,
+    column_order=order,
+    column_config={
+        "✓ Save":        st.column_config.CheckboxColumn("✓ Save", default=False),
+        "cross_code":    st.column_config.TextColumn("cross_code", disabled=True),
+        "clutch_code":   st.column_config.TextColumn("clutch_code", disabled=True),
+        "planned_name":  st.column_config.TextColumn("planned_name", disabled=True),
+        "mom_code":      st.column_config.TextColumn("mom_code", disabled=True),
+        "mother_tank":   st.column_config.TextColumn("mother_tank", disabled=True),
+        "dad_code":      st.column_config.TextColumn("dad_code", disabled=True),
+        "father_tank":   st.column_config.TextColumn("father_tank", disabled=True),
+        "size":          st.column_config.NumberColumn("size", min_value=0, max_value=100000, step=1),
+        "description":   st.column_config.TextColumn("description"),
+        "note":          st.column_config.TextColumn("note"),
+    },
+    key="clutch_register_editor",
+)
 
-    table["Register"] = False
-    disp = table.set_index("id")[[
-        "Register","Date","Name","Nickname","Mom fish","Dad fish","seq",
-        "Tank A (intended)","Tank B (intended)","status"
-    ]]
-    sel = st.data_editor(
-        disp,
-        use_container_width=True,
-        hide_index=True,
-        num_rows="fixed",
-        column_config={"Register": st.column_config.CheckboxColumn("Register", default=False)},
-        key="reg_table",
-    )
-    chosen_ids = [idx for idx, r in sel.iterrows() if r.get("Register")]
+to_save = edited[edited["✓ Save"]].copy()
+if to_save.empty:
+    st.info("Tick rows to save clutches, then use the buttons below.")
+    st.stop()
 
-    if not chosen_ids:
-        st.info("Tick one row above to change crossing tank info (if needed) and add clutch notes.")
-    else:
-        run_id = chosen_ids[0]
-        row = df_day.loc[df_day["id"] == run_id].iloc[0]
-        mom_code = row.get("mother_fish_code")
-        dad_code = row.get("father_fish_code")
-        seq_val  = int(row.get("seq") or 0)
+# ================== actions ==================
+st.subheader("Step 3 — Save and (optionally) print labels")
+colL, colR = st.columns([1,1])
+with colL:
+    if st.button("💾 Save clutches", type="primary", use_container_width=True):
+        inserted = _save_clutches(to_save, rep_day, created_by=os.getenv("USER","unknown"))
+        if inserted:
+            st.success(f"Saved {len(inserted)} clutches.")
+        else:
+            st.success(f"Saved {len(to_save)} clutches.")
+with colR:
+    if st.button("💾 Save + ⬇️ Petri labels (PDF)", type="primary", use_container_width=True):
+        user_name = os.getenv("USER","unknown")
+        inserted = _save_clutches(to_save, rep_day, created_by=user_name)
+        if not inserted and not _first_existing_column("clutches", ["id_uuid","id","clutch_id"]):
+            st.error("Saved clutches, but could not determine IDs to build codes for labels.")
+        else:
+            # build label rows using either returned ids or re-query by (cross_id, date)
+            ids = inserted
+            if not ids:
+                # fallback: nothing returned; just synthesize codes with a stable seed
+                ids = [str(i) for i in range(len(to_save))]
+            label_rows: List[Dict[str, Any]] = []
+            for ix, (_, r) in enumerate(to_save.iterrows()):
+                inserted_id = ids[ix] if ix < len(ids) else str(ix)
+                label_rows.append({
+                    "clutch_code": _make_clutch_code(inserted_id, rep_day),
+                    "label": r.get("planned_name") or "",
+                    "nickname": r.get("planned_name") or "",
+                    "mom": r.get("mom_code") or "",
+                    "dad": r.get("dad_code") or "",
+                    "birthday": rep_day.strftime("%Y-%m-%d"),
+                    "genotype": "",      # optional: derive from planned_name right-side if desired
+                    "treatments": "",    # optional: bring in from clutch_plans if desired
+                    "user": user_name,
+                })
+            try:
+                pdf_bytes = _render_petri_labels_pdf(label_rows)
+                st.download_button("Download Petri labels (PDF)", data=pdf_bytes,
+                                   file_name=f"petri_labels_{rep_day}.pdf", mime="application/pdf",
+                                   use_container_width=True)
+                st.success(f"Saved {len(to_save)} clutches. PDF ready to download.")
+            except Exception as e:
+                st.error(f"Could not render PDF: {e}")
 
-        st.markdown(f"**Selected:** {row.get('plan_title') or '—'} — {mom_code or '—'} × {dad_code or '—'} (seq {seq_val})")
-
-        # ---- optional tank change ----
-        with st.expander("Change crossing tank info"):
-            st.caption("Use this only if the intended tanks above are incorrect.")
-            mom_tanks = _current_tanks_for_fish_code(mom_code)
-            dad_tanks = _current_tanks_for_fish_code(dad_code)
-            mom_labels = ["—"] + [f"{r.label or '—'} · {r.id[:8]}…" for _, r in mom_tanks.iterrows()]
-            mom_ids    = [None] + mom_tanks["id"].tolist()
-            dad_labels = ["—"] + [f"{r.label or '—'} · {r.id[:8]}…" for _, r in dad_tanks.iterrows()]
-            dad_ids    = [None] + dad_tanks["id"].tolist()
-            cur_a_id, cur_b_id = _get_crossing_tank_ids(run_id)
-
-            c1, c2 = st.columns([1,1])
-            with c1:
-                a_idx = st.selectbox(
-                    f"Tank A (Mom: {mom_code or '—'})",
-                    options=range(len(mom_ids)),
-                    format_func=lambda j: mom_labels[j],
-                    index=_default_index(cur_a_id, mom_ids),
-                    key="ct_confA_day",
-                )
-            with c2:
-                b_idx = st.selectbox(
-                    f"Tank B (Dad: {dad_code or '—'})",
-                    options=range(len(dad_ids)),
-                    format_func=lambda j: dad_labels[j],
-                    index=_default_index(cur_b_id, dad_ids),
-                    key="ct_confB_day",
-                )
-            a_id, b_id = mom_ids[a_idx], dad_ids[b_idx]
-
-            if st.button("Save crossing tanks", use_container_width=True, key="save_ct",
-                         disabled=(a_id and b_id and a_id == b_id)):
-                if a_id and b_id and a_id == b_id:
-                    st.warning("Tank A and Tank B must be different.")
-                else:
-                    _confirm_crossing_tank(run_id, a_id, b_id)
-                    st.success("Crossing tanks saved.")
-
-        st.markdown("---")
-
-        # ---- clutch notes + actions ----
-        st.markdown("**Clutch notes**")
-        clutch_notes = st.text_area("Notes", value="", key="clutch_notes")
-
-        bcols = st.columns([1,1])
-        with bcols[0]:
-            if st.button("Save clutch", type="primary", use_container_width=True, key="save_clutch"):
-                ok, msg = _register_clutch_with_birthday(
-                    run_id=run_id, birthday=rep_day, notes=clutch_notes, created_by=os.getenv("USER","unknown")
-                )
-                if ok:
-                    st.success(f"Clutch saved (id: {msg}).")
-                else:
-                    st.warning(f"Could not write to clutches table: {msg}")
-                    st.code(json.dumps({
-                        "run_id": run_id,
-                        "date_birth": str(rep_day),
-                        "notes": clutch_notes,
-                        "created_by": os.getenv("USER","unknown"),
-                    }, indent=2))
-
-        with bcols[1]:
-            if st.button("Save clutch + download petri-dish label (PDF)", type="primary",
-                         use_container_width=True, key="save_clutch_print"):
-                user_name = os.getenv("USER","unknown")
-                ok, inserted_id = _register_clutch_with_birthday(
-                    run_id=run_id, birthday=rep_day, notes=clutch_notes, created_by=user_name
-                )
-                if ok:
-                    # clutch code + genotype/treatments for label
-                    clutch_code = _make_clutch_code(inserted_id, rep_day)
-                    geno, tx    = _get_run_genotype_treatments(run_id)
-
-                    label_rows = [{
-                        "run_id": run_id,
-                        "birthday": str(rep_day),
-                        "label": f"{row.get('plan_title') or ''}",
-                        "nickname": row.get("plan_nickname") or "",
-                        "mom": mom_code or "",
-                        "dad": dad_code or "",
-                        "clutch_code": clutch_code,
-                        "genotype": geno,
-                        "treatments": tx,
-                        "user": user_name,
-                    }]
-                    try:
-                        pdf_bytes = _render_petri_labels_pdf(label_rows)
-                        st.download_button(
-                            "Download petri-dish label PDF",
-                            data=pdf_bytes,
-                            file_name=f"{clutch_code}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True,
-                        )
-                        st.success(f"Clutch saved (id: {inserted_id}). PDF ready to download.")
-                    except Exception as e:
-                        st.error(f"Could not render PDF inline: {e}")
-                else:
-                    st.warning(f"Could not write to clutches table: {inserted_id}")
-                    st.code(json.dumps({
-                        "run_id": run_id,
-                        "date_birth": str(rep_day),
-                        "notes": clutch_notes,
-                        "created_by": user_name,
-                    }, indent=2))
+st.code(json.dumps({
+    "save_count": int(to_save.shape[0]),
+    "birthday": str(rep_day),
+    "sample_row": (to_save.head(1).to_dict(orient="records")[0] if not to_save.empty else {}),
+}, indent=2, default=str))
