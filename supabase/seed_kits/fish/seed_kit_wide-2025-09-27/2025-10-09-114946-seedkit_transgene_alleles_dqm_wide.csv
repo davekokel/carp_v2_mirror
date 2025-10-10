@@ -1,4 +1,4 @@
-name,nickname,date_birth,strain,line_building_stage,description,transgene_base_code,allele_nickname,zygosity,created_by
+name,nickname,date_birth,genetic_background,line_building_stage,description,transgene_base_code,allele_nickname,zygosity,created_by
 mem-tdmSG-8m,membrane-tandem-mStayGold,8/16/24,casper,founder,"multiple alleles, male founder #8",pDQM005,301,unknown,dqm
 mem-tdmSG-11m,membrane-tandem-mStayGold,8/16/24,casper,founder,"multiple alleles, male founder #11",pDQM005,302,unknown,dqm
 mem-tdmSG-8m-F1,membrane-tandem-mStayGold,11/24/24,casper,F1,"multiple alleles, selected brightest",pDQM005,301,unknown,dqm
