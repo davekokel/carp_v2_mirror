@@ -75,8 +75,8 @@ BEGIN
     WHERE table_schema='public' AND table_name='tanks' AND column_name='id'
   ) THEN
     ALTER TABLE public.cross_plans
-      ADD CONSTRAINT fk_cross_plans_tank_a FOREIGN KEY (tank_a_id) REFERENCES public.tanks(id) ON DELETE RESTRICT,
-      ADD CONSTRAINT fk_cross_plans_tank_b FOREIGN KEY (tank_b_id) REFERENCES public.tanks(id) ON DELETE RESTRICT;
+      ADD CONSTRAINT fk_cross_plans_tank_a FOREIGN KEY (tank_a_id) REFERENCES public.containers(id_uuid) ON DELETE RESTRICT,
+      ADD CONSTRAINT fk_cross_plans_tank_b FOREIGN KEY (tank_b_id) REFERENCES public.containers(id_uuid) ON DELETE RESTRICT;
   END IF;
 END$$;
 

@@ -10,8 +10,8 @@ END$$;
 CREATE TABLE IF NOT EXISTS public.cross_plans (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   plan_date     date NOT NULL,
-  tank_a_id     uuid NOT NULL REFERENCES public.tanks(id) ON DELETE RESTRICT,
-  tank_b_id     uuid NOT NULL REFERENCES public.tanks(id) ON DELETE RESTRICT,
+  tank_a_id     uuid NOT NULL REFERENCES public.containers(id_uuid) ON DELETE RESTRICT,
+  tank_b_id     uuid NOT NULL REFERENCES public.containers(id_uuid) ON DELETE RESTRICT,
   status        cross_plan_status NOT NULL DEFAULT 'planned',
   created_by    text NOT NULL,
   note          text NULL,

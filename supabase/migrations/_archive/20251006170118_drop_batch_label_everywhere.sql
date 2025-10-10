@@ -1,7 +1,8 @@
 BEGIN;
 
 -- 1) Update canonical view to remove batch_label usage (keep seed_batch_id)
-CREATE OR REPLACE VIEW public.v_fish_overview_canonical AS
+DROP VIEW IF EXISTS public.v_fish_overview_canonical CASCADE;
+CREATE VIEW public.v_fish_overview_canonical AS
 SELECT
   f.fish_code,
   f.name,

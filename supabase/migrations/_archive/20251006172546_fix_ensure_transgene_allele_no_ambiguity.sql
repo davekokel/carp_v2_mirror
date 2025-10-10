@@ -1,6 +1,8 @@
 BEGIN;
 
 -- Rename OUT columns to avoid PL/pgSQL variable name clashes with table columns
+DROP FUNCTION IF EXISTS public.ensure_transgene_allele(text, text) CASCADE;
+
 CREATE OR REPLACE FUNCTION public.ensure_transgene_allele(
   p_base text,
   p_nickname text

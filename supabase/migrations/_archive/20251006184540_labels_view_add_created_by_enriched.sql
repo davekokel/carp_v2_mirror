@@ -14,7 +14,7 @@ SELECT
   mb.seed_batch_id AS batch_label,
   NULL::text AS plasmid_injections_text,
   NULL::text AS rna_injections_text,
-  COALESCE(f.created_by, ) AS created_by_enriched
+  f.created_by AS created_by_enriched
 FROM public.v_fish_overview v
 LEFT JOIN public.fish f ON f.fish_code = v.fish_code
 LEFT JOIN LATERAL (
