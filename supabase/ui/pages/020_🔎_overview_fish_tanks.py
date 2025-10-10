@@ -42,14 +42,39 @@ def _stage_choices() -> List[str]:
 def _load_standard_for_codes(codes: List[str]) -> pd.DataFrame:
     if not codes:
         return pd.DataFrame()
-    sql = """
-      select *
-      from public.vw_fish_standard
-      where fish_code = ANY(:codes)
-    """
+
+    sql = text("""
+      with wanted as (
+        select id, fish_code
+        from public.fish
+        where fish_code = any(:codes)
+      ),
+      live_counts as (
+        select m.fish_id, count(*)::int as n_living_tanks
+        from public.fish_tank_memberships m
+        join public.containers c on c.id_uuid = m.container_id
+        where m.left_at is null
+          and c.status in ('active','new_tank')
+          and m.fish_id in (select id from wanted)
+        group by m.fish_id
+      )
+      select
+        s.*,
+        coalesce(lc.n_living_tanks, 0) as n_living_tanks
+      from public.vw_fish_standard s
+      join wanted w on w.fish_code = s.fish_code
+      left join live_counts lc on lc.fish_id = w.id
+    """)
+
     with _get_engine().begin() as cx:
-        df = pd.read_sql(text(sql), cx, params={"codes": codes})
-    order = {c:i for i,c in enumerate(codes)}
+        df = pd.read_sql(sql, cx, params={"codes": codes})
+
+    # Ensure unique column names for Streamlit data_editor (keep our live count)
+    df = df.loc[:, ~df.columns.duplicated(keep="last")]
+    if "n_living_tanks" in df.columns:
+        df["n_living_tanks"] = df["n_living_tanks"].fillna(0).astype(int)
+
+    order = {c: i for i, c in enumerate(codes)}
     df["__ord"] = df["fish_code"].map(order).fillna(len(order)).astype(int)
     df = df.sort_values("__ord").drop(columns="__ord")
     return df
@@ -132,7 +157,7 @@ def main():
 
     codes_in_order = match_df["fish_code"].astype(str).tolist()
 
-    # 2) Hydrate from canonical standard view
+    # 2) Hydrate from canonical standard view (+ live tank counts)
     df = _load_standard_for_codes(codes_in_order)
 
     # 3) Build selector table (checkbox in the first column)
