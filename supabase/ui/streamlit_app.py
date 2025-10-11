@@ -1,40 +1,27 @@
 from __future__ import annotations
-# supabase/ui/streamlit_app.py
-# --- ENV badge (staging/prod/local) ---
-import os, streamlit as st
-APP_ENV = os.getenv("APP_ENV", "local").lower()
-_palette = {"production": "#20a162", "staging": "#ffbf00", "local": "#78909C"}
-_color = _palette.get(APP_ENV, "#78909C")
-st.markdown(
-    f"<div style='padding:8px;border-radius:6px;margin-bottom:8px;"
-    f"background:{_color};color:#fff;font-weight:700;letter-spacing:.3px;'>"
-    f"ENV: {APP_ENV.upper()}</div>",
-    unsafe_allow_html=True,
-)
 
-
-import urllib.parse as _u
-p = _u.urlparse(os.environ.get("DB_URL",""))
-st.caption(
-    f"active source → choice={st.session_state.get('db_choice')}  "
-    f"url_user={p.username or ''} host={p.hostname or ''} port={p.port or ''}  "
-    f"PGUSER={os.getenv('PGUSER','')}  PGPASSWORD_set={bool(os.getenv('PGPASSWORD'))}"
-)
-
-st.caption(f"PG env → host={os.getenv('PGHOST')}  port={os.getenv('PGPORT')}  user={os.getenv('PGUSER')}  sslmode={os.getenv('PGSSLMODE')}")
-
-st.caption(
-    f"resolved DB_URL → {os.environ.get('DB_URL','<none>')!r}  "
-    f"session DB_URL → {st.session_state.get('DB_URL','<none>')!r}"
-)
-
-import os, sys
+# --- boot router (runs before importing streamlit) ---
+import os, sys, runpy
 from pathlib import Path
-from typing import Any, Dict, List
 
-import pandas as pd
+_boot = os.getenv("APP_BOOT", "").lower()
+if _boot in {"ping", "diagnostics"}:
+    ROOT = Path(__file__).resolve().parent  # .../supabase/ui
+    target = {
+        "ping":        ROOT / "pages" / "001_db_ping_min.py",
+        "diagnostics": ROOT / "pages" / "001_🧪_diagnostics_clean.py",
+    }[_boot]
+    runpy.run_path(str(target), run_name="__main__")
+    sys.exit(0)
+
+# now import the rest of your app
+import os, sys, time
+from pathlib import Path
 import streamlit as st
+import pandas as pd
 from sqlalchemy import text
+
+# ...keep the rest of your file exactly as you had it (ENV badge, imports, etc.) ...
 
 # --- Robust import path so this works locally and in cloud runners ---
 ROOT = Path(__file__).resolve().parents[2]  # …/carp_v2
