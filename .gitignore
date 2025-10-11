@@ -17,3 +17,6 @@ __pycache__/
 .streamlit/secrets.toml
 # keep templates in repo
 !templates/
+
+!supabase/migrations/*.sql
+!supabase/migrations/**/*.sql
