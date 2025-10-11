@@ -98,3 +98,10 @@ __pycache__/
 .env
 .env.*
 .streamlit/secrets.toml
+
+# env files
+.env*
+~/Documents/github/carp_v2
+mkdir -p snapshots_prod
+set -a; . ./.env.prod.direct; set +a
+pg_dump postgresql://postgres:red            0.000000ish                    lue            0.000000ish@db.xdwzmqbrbkhmhcjwkopr.supabase.co:5432/postgres?sslmode=require&connect_timeout=5 --schema=public --no-owner --no-privileges | gzip > snapshots_prod/public_20251011_081834.sql.gz.example
