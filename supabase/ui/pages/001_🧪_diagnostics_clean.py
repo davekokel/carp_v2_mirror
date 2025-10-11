@@ -93,29 +93,45 @@ if st.button("Refresh diagnostics", type="primary", width='stretch'):
     try:
         with eng.begin() as cx:
             df = _counts(cx)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width='stretch')
     except Exception as e:
         st.error(f"DB connect failed: {e}")
 
-with st.expander("Danger zone"):
-    st.write("Wipe all data in `public` schema (local only).")
-    ok = st.checkbox("I understand this is destructive.")
-    if st.button("🧨 Wipe local DB", disabled=not ok):
-        if APP_ENV != "local":
-            st.error("Refusing to wipe: not local.")
-        else:
+# ---------------------------------------------------------------------
+# Danger zone
+# ---------------------------------------------------------------------
+with st.expander("⚠️ Danger zone"):
+    if APP_ENV != "local":
+        st.info("Danger zone is disabled outside LOCAL.")
+    else:
+        st.write("Wipe all data in `public` schema (local only).")
+        ok = st.checkbox("I understand this is destructive.")
+        if st.button("🧨 Wipe local DB", disabled=not ok):
             try:
+                # Hard runtime guard: only proceed if server is local
                 with eng.begin() as cx:
+                    is_local = cx.execute(text("""
+                        select case
+                                 when inet_server_addr()::text in ('127.0.0.1','::1') then true
+                                 when current_setting('data_directory', true) like '/opt/homebrew/var/postgresql%' then true
+                                 when current_setting('data_directory', true) like '/var/lib/postgresql/%' then true
+                                 else false
+                               end
+                    """)).scalar()
+                    if not is_local:
+                        raise RuntimeError("Refusing to wipe: current DB is not local.")
                     cx.execute(text("""
                         DO $$
                         DECLARE stmt text;
                         BEGIN
-                          SELECT 'TRUNCATE TABLE ' || string_agg(format('%I.%I', schemaname, tablename), ', ') || ' RESTART IDENTITY CASCADE'
+                          SELECT 'TRUNCATE TABLE ' || string_agg(format('%I.%I', schemaname, tablename), ', ')
+                                 || ' RESTART IDENTITY CASCADE'
                             INTO stmt
-                          FROM pg_tables WHERE schemaname='public';
+                          FROM pg_tables
+                          WHERE schemaname='public';
                           IF stmt IS NOT NULL THEN EXECUTE stmt; END IF;
                         END$$;
                     """))
                 st.success("Local DB wiped.")
             except Exception as e:
-                st.error(f"Wipe failed: {e}")
+                st.error(f"Wipe failed or blocked: {e}")

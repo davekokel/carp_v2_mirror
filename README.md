@@ -1,54 +1,78 @@
+---
 
-## Inspecting STAGING (read-only)
+## 🚀 Quickstart (Staging / Production)
 
-If you just need to look at the live schema/data safely:
+### 🧪 Staging (direct 5432)
+Runs the app against Supabase **staging** with full write access.
 
 ```bash
-PGSSLMODE=require psql   -h aws-1-us-west-1.pooler.supabase.com -p 6543   -U postgres.<project-ref> -d postgres
+make run-staging
 ```
 
-Then in `psql`:
+**Expected on launch**
+- Yellow banner → **STAGING • Cloud**
+- `PG env → host=db.zebzrvjbalhazztvhhcm.supabase.co port=5432`
+- Row counts load under **Diagnostics (Clean)**
 
-```sql
-SET default_transaction_read_only = on;
-SHOW default_transaction_read_only;
+---
+
+### 🔒 Production (read-only)
+Runs the app in **read-only mode** on the production Supabase database using the `app_ro` role.
+
+```bash
+make run-prod-ro
 ```
 
-See the full guide with copy-paste queries in [`docs/INSPECTION.md`](docs/INSPECTION.md).
+**Expected on launch**
+- Red banner → **PRODUCTION — READ-ONLY**
+- `PG env → host=db.xdwzmqbrbkhmhcjwkopr.supabase.co port=5432`
+- Row counts load normally
+- “Danger zone” section shows **“disabled outside LOCAL”**
 
+---
 
+### 🧰 Local development
+Use your local Supabase or Homebrew Postgres.
 
-### Staging DB (read-only) from Dev Container
-
-Docker can’t reach Supabase’s IPv6-only direct host. Use the **connection pooler** (IPv4) and a **project-qualified** user.
-
-**Example `.streamlit/secrets.toml`:**
-```toml
-DB_URL = "host=aws-1-<region>.pooler.supabase.com port=6543 dbname=postgres user=teammate_ro.<PROJECT_REF> password=<PW> sslmode=require channel_binding=disable"
-SUPABASE_URL = "https://<PROJECT_REF>.supabase.co"
-SUPABASE_ANON_KEY = "<ANON-KEY>"
-APP_PASSWORD = "letmein"
-READ_ONLY = "true"
+```bash
+supabase start
+make run-local
 ```
 
-## Deploy to Streamlit Cloud
+(Local launcher optional if you add a `scripts/run_local_clean.sh` that sources `.env.local`.)
 
-1. Repo: use the mirror repo `davekokel/carp_v2_mirror`.
-2. Python: root `runtime.txt` must be `3.11`.
-3. Requirements: root `requirements.txt` must contain exactly:
-   ```
-   -r supabase/ui/requirements.txt
-   ```
-4. App entry point: `supabase/ui/streamlit_app.py`.
-5. Secrets (in Streamlit → App settings → Secrets) are stored in `.streamlit/secrets.toml` 
-   - Use contents of `.streamlit/secrets.sample.toml` as a template
-   - Use contents of `.streamlit/secrets.localsupabase.toml` to connect to locally run Supabase.
+---
 
-6. Generate a hash for a different password via:
-   ```shell
-   python3 - <<'PY'
-   import hashlib, getpass
-   pw = getpass.getpass("Enter app password: ")
-   print(hashlib.sha256(pw.encode()).hexdigest())
-   PY
-   ```
+### 🩺 Health checks
+Run a one-line connectivity test against staging or prod:
+
+```bash
+make health-staging
+make health-prod-ro
+```
+
+Each prints something like:
+```
+OK: host=db.… port=5432 db=postgres user=app_ro → latency≈120 ms
+```
+
+---
+
+### 🧱 Environment files
+| File | Purpose |
+|------|----------|
+| `.env.staging.direct` | Direct connection to Supabase staging (read/write) |
+| `.env.prod.ro` | Direct connection to Supabase production (read-only) |
+| `.env.local` *(optional)* | Local Postgres for dev experiments |
+
+All app launches are **clean-env** (no leaked variables).
+
+---
+
+### ⚠️ Safety rails
+- **Danger zone disabled** outside local
+- **Prod banner** always visible
+- `app_ro` user has only `SELECT` privileges
+- `make health-*` must pass before running migrations
+
+---

@@ -19,3 +19,8 @@ health-prod:
 
 health-prod-ro:
 	@set -a; . ./.env.prod.ro; set +a; psql "$$DB_URL" -Atc "select current_user, current_database(), inet_server_addr()::text, inet_server_port()"
+
+run-staging:
+	@./scripts/run_staging_direct_clean.sh
+run-prod-ro:
+	@./scripts/run_prod_ro_direct_clean.sh

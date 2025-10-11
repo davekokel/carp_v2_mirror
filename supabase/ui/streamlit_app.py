@@ -327,17 +327,30 @@ with c1:
 with c2:
     do_deep = st.toggle("Deep checks", value=False, help="Include view checks and empty-table scan")
 
-# --- Danger zone: wipe current DB's public schema ---
-with st.expander("Danger zone", expanded=False):
-    st.write("This will delete **all data** in the `public` schema of the currently connected DB.")
-    do_wipe = st.checkbox("I understand this is destructive.")
-    if st.button("🧨 Wipe local DB", disabled=not do_wipe):
-        # Only allow wipes when we are clearly on a local DB (Homebrew or Docker)
-        if not (_env.startswith("LOCAL")):
-            st.error("Refusing to wipe: current connection is not local. Switch to Local or Docker, then try again.")
-        else:
+# ---------------------------------------------------------------------
+# Danger zone
+# ---------------------------------------------------------------------
+with st.expander("⚠️ Danger zone"):
+    APP_ENV = os.getenv("APP_ENV", "local").lower()
+    if APP_ENV != "local":
+        st.info("Danger zone is disabled outside LOCAL.")
+    else:
+        st.write("Wipe all data in `public` schema (local only).")
+        ok = st.checkbox("I understand this is destructive.")
+        if st.button("🧨 Wipe local DB", disabled=not ok):
             try:
+                # Hard runtime guard: only proceed if server is local
                 with eng.begin() as cx:
+                    is_local = cx.execute(text("""
+                        select case
+                                 when inet_server_addr()::text in ('127.0.0.1','::1') then true
+                                 when current_setting('data_directory', true) like '/opt/homebrew/var/postgresql%' then true
+                                 when current_setting('data_directory', true) like '/var/lib/postgresql/%' then true
+                                 else false
+                               end
+                    """)).scalar()
+                    if not is_local:
+                        raise RuntimeError("Refusing to wipe: current DB is not local.")
                     cx.execute(text("""
                         DO $$
                         DECLARE stmt text;
@@ -350,11 +363,9 @@ with st.expander("Danger zone", expanded=False):
                           IF stmt IS NOT NULL THEN EXECUTE stmt; END IF;
                         END$$;
                     """))
-                st.success("Local DB wiped. Re-import via **📤 New fish from CSV**.")
-                st.rerun()
+                st.success("Local DB wiped.")
             except Exception as e:
-                st.error(f"DB connect failed while wiping: {e}")
-                st.info("Tips: click **🔁 Reconnect DB Engine**, then try again.")
+                st.error(f"Wipe failed or blocked: {e}")
 
 # -----------------------------------------------------------------------------
 # Helpers
