@@ -237,7 +237,6 @@ def _render_full_label(c: _canvas.Canvas, r: Dict) -> None:
     nickname = _safe(r.get("nickname"))
     name     = _safe(r.get("name"))
     tankline = _safe(r.get("tank_line"))
-    fishcode = _safe(r.get("fish_code"))
     genotype = _safe(r.get("genotype"))
     backgrnd = _safe(r.get("genetic_background"))
     stage    = _safe(r.get("stage"))
@@ -246,8 +245,7 @@ def _render_full_label(c: _canvas.Canvas, r: Dict) -> None:
     lines = [
         ("nick","Helvetica-Oblique", 9.0,  nickname, 0.00),
         ("name","Helvetica-Bold",   10.5,  name,     0.00),
-        ("tank","Helvetica-Bold",   11.0,  tankline, 0.00),
-        ("fish",mono,                9.5,  fishcode, 0.00),
+        ("tank","Helvetica-Bold",   11.0,  (tankline or fishcode), 0.00),
         ("geno",mono,                9.2,  genotype, 0.00),
         ("bg",  "Helvetica",         8.2,  backgrnd, 0.00),
         ("stg", "Helvetica",         8.2,  stage,    0.00),
