@@ -1,2 +1,8 @@
--r supabase/ui/requirements.txt
-openpyxl>=3.1.2
+streamlit>=1.38
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+pandas>=2.2
+reportlab>=4.2
+pillow>=10.4
+requests>=2.32
+python-dateutil>=2.9
