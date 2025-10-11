@@ -13,3 +13,9 @@ run-staging-direct:
 
 health-staging:
 	@./scripts/db_healthcheck.py
+
+health-prod:
+	@set -a; . ./.env.prod.direct; set +a; psql "$$DB_URL" -Atc "select current_user, current_database(), inet_server_addr()::text, inet_server_port()"
+
+health-prod-ro:
+	@set -a; . ./.env.prod.ro; set +a; psql "$$DB_URL" -Atc "select current_user, current_database(), inet_server_addr()::text, inet_server_port()"
