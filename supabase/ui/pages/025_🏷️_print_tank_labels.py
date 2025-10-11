@@ -237,6 +237,7 @@ def _render_full_label(c: _canvas.Canvas, r: Dict) -> None:
     nickname = _safe(r.get("nickname"))
     name     = _safe(r.get("name"))
     tankline = _safe(r.get("tank_line"))
+    fishcode = _safe(r.get("fish_code"))
     genotype = _safe(r.get("genotype"))
     backgrnd = _safe(r.get("genetic_background"))
     stage    = _safe(r.get("stage"))
