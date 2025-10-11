@@ -174,6 +174,10 @@ except Exception as e:
     st.error(f"DB connect failed: {e}")
     st.stop()  # expected keys: db, usr, host, port, url_masked (if available)
 
+from supabase.ui.lib.app_ctx import stamp_app_user
+who = getattr(st.experimental_user, "email", "") if hasattr(st, "experimental_user") else ""
+stamp_app_user(eng, who)
+
 masked = dbg.get("url_masked") or _mask_url(os.environ.get("DB_URL", ""))
 caption = f"DB debug → db={dbg.get('db')} user={dbg.get('usr')} host={dbg.get('host')}:{dbg.get('port')}"
 if masked:

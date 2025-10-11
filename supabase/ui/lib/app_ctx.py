@@ -161,3 +161,9 @@ def engine_info(eng: Optional[Engine] = None) -> Dict[str, str]:
         pass
 
     return info
+
+from sqlalchemy import text as _t
+def stamp_app_user(eng, user: str):
+    if user:
+        with eng.begin() as cx:
+            cx.execute(_t("select set_config('app.user', :u, true)"), {"u": user})
