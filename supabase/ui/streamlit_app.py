@@ -1,5 +1,32 @@
-# supabase/ui/streamlit_app.py
 from __future__ import annotations
+# supabase/ui/streamlit_app.py
+# --- ENV badge (staging/prod/local) ---
+import os, streamlit as st
+APP_ENV = os.getenv("APP_ENV", "local").lower()
+_palette = {"production": "#20a162", "staging": "#ffbf00", "local": "#78909C"}
+_color = _palette.get(APP_ENV, "#78909C")
+st.markdown(
+    f"<div style='padding:8px;border-radius:6px;margin-bottom:8px;"
+    f"background:{_color};color:#fff;font-weight:700;letter-spacing:.3px;'>"
+    f"ENV: {APP_ENV.upper()}</div>",
+    unsafe_allow_html=True,
+)
+
+
+import urllib.parse as _u
+p = _u.urlparse(os.environ.get("DB_URL",""))
+st.caption(
+    f"active source → choice={st.session_state.get('db_choice')}  "
+    f"url_user={p.username or ''} host={p.hostname or ''} port={p.port or ''}  "
+    f"PGUSER={os.getenv('PGUSER','')}  PGPASSWORD_set={bool(os.getenv('PGPASSWORD'))}"
+)
+
+st.caption(f"PG env → host={os.getenv('PGHOST')}  port={os.getenv('PGPORT')}  user={os.getenv('PGUSER')}  sslmode={os.getenv('PGSSLMODE')}")
+
+st.caption(
+    f"resolved DB_URL → {os.environ.get('DB_URL','<none>')!r}  "
+    f"session DB_URL → {st.session_state.get('DB_URL','<none>')!r}"
+)
 
 import os, sys
 from pathlib import Path
@@ -10,7 +37,7 @@ import streamlit as st
 from sqlalchemy import text
 
 # --- Robust import path so this works locally and in cloud runners ---
-ROOT = Path(__file__).resolve().parents[3]  # …/carp_v2
+ROOT = Path(__file__).resolve().parents[2]  # …/carp_v2
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -27,6 +54,54 @@ from supabase.ui.lib.app_ctx import get_engine, engine_info, set_db_url
 PAGE_TITLE = "CARP — Home / Diagnostics"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🧪", layout="wide")
 st.title("🧪 CARP — Diagnostics")
+
+if os.getenv("APP_ENV","local").lower() != "local" and not st.session_state.get("_db_bootstrapped"):
+    import supabase.ui.lib.app_ctx as app_ctx
+    # ensure no stale session URL can override env
+    st.session_state.pop("DB_URL", None)
+    st.session_state["db_choice"] = "env"
+    st.session_state["db_custom"] = ""
+    st.session_state["db_choice_label"] = "ENV/DEFAULT"
+    app_ctx.clear_engine_cache()
+    st.session_state["_db_bootstrapped"] = True
+    st.rerun()
+
+# Auto-bootstrap for non-local environments:
+# ensure session DB_URL cannot override the process environment,
+# clear engine cache, and rerun once.
+if os.getenv("APP_ENV","local").lower() != "local" and not st.session_state.get("_db_bootstrapped"):
+    import supabase.ui.lib.app_ctx as app_ctx
+    st.session_state.pop("DB_URL", None)       # remove any stale 127.0.0.1 URL
+    st.session_state["db_choice"] = "env"
+    st.session_state["db_custom"] = ""
+    st.session_state["db_choice_label"] = "ENV/DEFAULT"
+    app_ctx.clear_engine_cache()
+    st.session_state["_db_bootstrapped"] = True
+    st.rerun()
+
+# ---------------------------------------------------------------------
+# Quick engine reset button
+# ---------------------------------------------------------------------
+import supabase.ui.lib.app_ctx as app_ctx
+
+st.divider()
+if st.button("🔁 Reconnect DB Engine", type="primary", use_container_width=True):
+    app_ctx.clear_engine_cache()
+    st.success("Engine cache cleared — reconnecting using current DB_URL …")
+    st.rerun()
+st.divider()
+
+# --- One-click: force Env/Default, clear session URL, rebuild engine
+c0a, c0b = st.columns([1,2])
+with c0a:
+    if st.button("Use Env (Supabase) now", use_container_width=True):
+        import supabase.ui.lib.app_ctx as app_ctx
+        st.session_state.pop("DB_URL", None)   # remove stale session override
+        st.session_state["db_choice"] = "env"
+        st.session_state["db_custom"] = ""
+        st.session_state["db_choice_label"] = "ENV/DEFAULT"
+        app_ctx.clear_engine_cache()
+        st.rerun()
 
 # -----------------------------------------------------------------------------
 # DB target selector (Local / Env/Default / Custom)
@@ -73,29 +148,42 @@ def _mask_url(url: str) -> str:
         return url
 
 if connect_clicked:
+    import supabase.ui.lib.app_ctx as app_ctx
+
     st.session_state["db_choice"] = choice
+
     if choice == "local":
-        os.environ["DB_URL"] = DEFAULT_LOCAL
-        st.session_state["db_custom"] = DEFAULT_LOCAL
+        url = DEFAULT_LOCAL
+        os.environ["DB_URL"] = url
+        st.session_state["db_custom"] = url
         st.session_state["db_choice_label"] = "LOCAL • Homebrew"
+
     elif choice == "custom":
-        if not custom_url.strip():
+        url = (custom_url or "").strip()
+        if not url:
             st.warning("Enter a custom DB URL to connect.")
-        else:
-            os.environ["DB_URL"] = custom_url.strip()
-            st.session_state["db_custom"] = custom_url.strip()
-            st.session_state["db_choice_label"] = "CUSTOM"
+            st.stop()
+        os.environ["DB_URL"] = url
+        st.session_state["db_custom"] = url
+        st.session_state["db_choice_label"] = "CUSTOM"
+
     else:  # env/default
-        os.environ.pop("DB_URL", None)
+        st.session_state.pop("DB_URL", None)         # clear stale session URL
         st.session_state["db_custom"] = ""
         st.session_state["db_choice_label"] = "ENV/DEFAULT"
+
+    app_ctx.clear_engine_cache()                     # force reconnect
     st.rerun()
 
 # -----------------------------------------------------------------------------
 # DB connection + header diagnostic line
 # -----------------------------------------------------------------------------
-eng = get_engine()
-dbg = engine_info(eng)  # expected keys: db, usr, host, port, url_masked (if available)
+try:
+    eng = get_engine()
+    dbg = engine_info(eng)
+except Exception as e:
+    st.error(f"DB connect failed: {e}")
+    st.stop()  # expected keys: db, usr, host, port, url_masked (if available)
 
 masked = dbg.get("url_masked") or _mask_url(os.environ.get("DB_URL", ""))
 caption = f"DB debug → db={dbg.get('db')} user={dbg.get('usr')} host={dbg.get('host')}:{dbg.get('port')}"
@@ -137,14 +225,17 @@ _masked_url = _mask(_db_url)
 # classify environment
 _env = "Unknown"
 _color = "#999999"
-if _info.get("data_dir","").startswith("/opt/homebrew/var/postgresql"):
-    _env, _color = "LOCAL • Homebrew", "#16a34a"   # green
-elif _info.get("data_dir","").startswith("/var/lib/postgresql"):
-    _env, _color = "LOCAL • Docker", "#0ea5e9"     # sky
-elif "pooler.supabase.com" in _db_url or "supabase.co" in _db_url:
-    _env, _color = "SUPABASE • Cloud", "#f59e0b"   # amber
-
+_supabase = ("pooler.supabase.com" in _db_url) or ("supabase.co" in _db_url) or os.getenv("PGHOST","").endswith(".supabase.co")
+if _supabase:
+    _env, _color = "SUPABASE • Cloud", "#f59e0b"
+elif _info.get("data_dir","").startswith("/opt/homebrew/var/postgresql"):
+    _env, _color = "LOCAL • Homebrew", "#16a34a"
+elif (dbg.get("host") in {"127.0.0.1","localhost"} or str(_info.get("addr")) in {"127.0.0.1","::1","None"} or _info.get("data_dir","").startswith("/var/lib/postgresql")):
+    _env, _color = "LOCAL • Docker", "#0ea5e9"
+else:
+    _env, _color = "REMOTE • Postgres", "#8b5cf6"
 # banner
+
 st.markdown(
     f"""
 <div style="margin:8px 0;padding:10px 14px;border-radius:8px;background:{_color}22;border:1px solid {_color};">
@@ -185,17 +276,21 @@ with c3:
 
 
 # Active connection probe (client + server addr + datadir)
-with eng.begin() as cx:
-    info = cx.execute(text("""
-        select
-          inet_client_addr()::text as client_addr,
-          inet_server_addr()::text as server_addr,
-          inet_server_port()      as port,
-          current_database()      as db,
-          session_user            as usr,
-          current_setting('data_directory') as data_dir,
-          current_setting('listen_addresses') as listen_addrs
-    """)).mappings().first()
+info = {"client_addr":"", "server_addr":"", "port":"", "db":"", "usr":"", "data_dir":"", "listen_addrs":""}
+try:
+    with eng.begin() as cx:
+        info = cx.execute(text("""
+            select
+              inet_client_addr()::text as client_addr,
+              inet_server_addr()::text as server_addr,
+              inet_server_port()      as port,
+              current_database()      as db,
+              session_user            as usr,
+              current_setting('data_directory') as data_dir,
+              current_setting('listen_addresses') as listen_addrs
+        """)).mappings().first() or info
+except Exception as e:
+    st.warning(f"Live probe skipped: {e}")
 
 localish = {"127.0.0.1", "::1", None}  # None → unix socket
 
@@ -235,21 +330,29 @@ with st.expander("Danger zone", expanded=False):
     st.write("This will delete **all data** in the `public` schema of the currently connected DB.")
     do_wipe = st.checkbox("I understand this is destructive.")
     if st.button("🧨 Wipe local DB", disabled=not do_wipe):
-        with eng.begin() as cx:
-            cx.execute(text("""
-                DO $$
-                DECLARE stmt text;
-                BEGIN
-                  SELECT 'TRUNCATE TABLE ' || string_agg(format('%I.%I', schemaname, tablename), ', ')
-                         || ' RESTART IDENTITY CASCADE'
-                    INTO stmt
-                  FROM pg_tables
-                  WHERE schemaname='public';
-                  IF stmt IS NOT NULL THEN EXECUTE stmt; END IF;
-                END$$;
-            """))
-        st.success("Local DB wiped. Re-import via **📤 New fish from CSV**.")
-        st.rerun()
+        # Only allow wipes when we are clearly on a local DB (Homebrew or Docker)
+        if not (_env.startswith("LOCAL")):
+            st.error("Refusing to wipe: current connection is not local. Switch to Local or Docker, then try again.")
+        else:
+            try:
+                with eng.begin() as cx:
+                    cx.execute(text("""
+                        DO $$
+                        DECLARE stmt text;
+                        BEGIN
+                          SELECT 'TRUNCATE TABLE ' || string_agg(format('%I.%I', schemaname, tablename), ', ')
+                                 || ' RESTART IDENTITY CASCADE'
+                            INTO stmt
+                          FROM pg_tables
+                          WHERE schemaname='public';
+                          IF stmt IS NOT NULL THEN EXECUTE stmt; END IF;
+                        END$$;
+                    """))
+                st.success("Local DB wiped. Re-import via **📤 New fish from CSV**.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"DB connect failed while wiping: {e}")
+                st.info("Tips: click **🔁 Reconnect DB Engine**, then try again.")
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -299,11 +402,29 @@ def _empties(conn) -> pd.DataFrame:
 # -----------------------------------------------------------------------------
 # Run diagnostics
 # -----------------------------------------------------------------------------
-with eng.begin() as cxn:
-    df_counts = _counts(cxn)
+import time
+
+def _try_counts_with_retry(eng, attempts: int = 3, sleep_s: float = 0.8):
+    last_err = None
+    for i in range(attempts):
+        try:
+            with eng.begin() as cxn:
+                return _counts(cxn)
+        except Exception as e:
+            last_err = e
+            time.sleep(sleep_s)
+    raise last_err
 
 st.subheader("Row counts (tables & views)")
-st.dataframe(df_counts, width='stretch')
+if do_refresh:
+    try:
+        df_counts = _try_counts_with_retry(eng, attempts=3, sleep_s=0.8)
+        st.dataframe(df_counts, width='stretch')
+    except Exception as e:
+        st.error(f"DB connect failed: {e}")
+        st.info("Tips: click **🔁 Reconnect DB Engine**, then press **Refresh diagnostics** again.")
+else:
+    st.caption("Click **Refresh diagnostics** to probe the current DB.")
 
 if do_deep:
     with st.spinner("Scanning for empty tables…"):
