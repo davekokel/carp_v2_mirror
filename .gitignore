@@ -20,3 +20,4 @@ __pycache__/
 
 !supabase/migrations/*.sql
 !supabase/migrations/**/*.sql
+.DS_Store

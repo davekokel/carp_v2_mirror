@@ -31,7 +31,7 @@ make run-prod-ro
 
 ---
 
-### 🧰 Local development
+### 🧰 Local developmentß
 Use your local Supabase or Homebrew Postgres.
 
 ```bash
