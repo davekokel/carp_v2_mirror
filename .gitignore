@@ -1,107 +1,17 @@
-.env*
-supabase/.temp/
-supabase/migrations/_archive/
-*.bak
-*.bak.*
-*.prev.sql# local DB dumps & machine snapshots
-_snapshots/
-supabase/snapshots/snapshots_local/
-*.dump
-*.sql.gz
-*.tgz
-
-.streamlit/secrets.toml
-# --- Streamlit secrets ---
-**/.streamlit/secrets.toml
-**/secrets.toml
-
-# --- Secrets & local config ---
-.env
-.env.*
-**/.env
-**/.env.*
-**/.streamlit/secrets.toml
-**/secrets.toml
-
-# --- VSCode project files ---
-.vscode/
-
-# build/export artifacts
-export/
-
-**/.env
-**/.env.*
-**/.streamlit/secrets.toml
-**/secrets.toml
-export/
-.vscode/
-
-**/.env
-**/.env.*
-**/.streamlit/secrets.toml
-**/secrets.toml
-export/
-.vscode/
-
-# Supabase
-.branches
-.temp
-
-# dotenvx
-.env.keys
-.env.local
-.env.*.local
-.env.staging
-
-# OS & bytecode
-**/.DS_Store
-**/__pycache__/
-**/*.pyc
-
-# UI env files (local/real secrets never in git)
-supabase/ui/env.*
-
-# UI env files (local/real secrets never in git)
-supabase/ui/env.*
-
-# Finder duplicate patterns (e.g., foo 2.py)
-supabase/ui/* [0-9].py
-supabase/ui/* [0-9][0-9].py
-supabase/ui/* copy*.py
-# Local artifacts
-.pre-commit-cache/
-supabase/seed_kits/*.zip
-supabase/seed_kits/*/* 2.csv
-# Helper scratch files
-.both.txt
-.local*.txt
-.only-*.txt
-.remote*.*
-.DS_Store
-**/.DS_Store
-.env
-
-# local dev
-.venv/
-.streamlit/secrets.toml
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyc
-.DS_Store
-*.swp
-*.bak
-*.bak.*
-*.tmp
-*~
-.venv/
-.env
-.env.*
-.streamlit/secrets.toml
-
 # env files
 .env*
-~/Documents/github/carp_v2
-mkdir -p snapshots_prod
-set -a; . ./.env.prod.direct; set +a
-pg_dump postgresql://postgres:red            0.000000ish                    lue            0.000000ish@db.xdwzmqbrbkhmhcjwkopr.supabase.co:5432/postgres?sslmode=require&connect_timeout=5 --schema=public --no-owner --no-privileges | gzip > snapshots_prod/public_20251011_081834.sql.gz.example
+!.env.example
+!.env.*.example
+
+# local artifacts
+snapshots_*/
+*.sql
+*.sql.gz
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# Streamlit
+.streamlit/secrets.toml
