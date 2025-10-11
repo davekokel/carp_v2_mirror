@@ -33,24 +33,66 @@ with cols[2]:
 
 st.divider()
 
-# Quick links (Streamlit 1.38+: st.page_link)
 st.subheader("Start here")
 
-gl = st.columns(3)
-with gl[0]:
-    st.page_link("pages/001_🧪_diagnostics_clean.py", label="Diagnostics", icon="🧪")
-with gl[1]:
-    st.page_link("pages/020_🔎_overview_fish.py", label="Overview — Fish", icon="🐟")
-with gl[2]:
-    st.page_link("pages/021_🔎_overview_tanks.py", label="Overview — Tanks", icon="🧱")
+from glob import glob
 
-gl2 = st.columns(3)
-with gl2[0]:
-    st.page_link("pages/010_📤_upload_csv_fish.py", label="Upload CSV — Fish", icon="📤")
-with gl2[1]:
-    st.page_link("pages/011_📤_upload_csv_plasmids.py", label="Upload CSV — Plasmids", icon="🧬")
-with gl2[2]:
-    st.page_link("pages/03_🏷️_request_tank_labels.py", label="Print Tank Labels", icon="🏷️")
+PAGES_DIR = Path(__file__).resolve().parents[0] / "pages"
+
+def find_page(*needles: str) -> str | None:
+    if not PAGES_DIR.exists():
+        return None
+    files = [Path(p).name for p in glob(str(PAGES_DIR / "*.py"))]
+    # prefer exact startswith, then substring match
+    for n in needles:
+        for f in files:
+            if f.startswith(n):
+                return f
+    for n in needles:
+        for f in files:
+            if n in f:
+                return f
+    return None
+
+def link_if(found: str | None, label: str, icon: str = ""):
+    if found:
+        st.page_link(f"pages/{found}", label=label, icon=icon)
+    else:
+        st.write(f"· {label} (coming soon)")
+
+c1, c2, c3 = st.columns(3)
+
+with c1:
+    # Diagnostics
+    diag = find_page("001_🧪_diagnostics_clean", "diagnostics_clean", "diagnostics")
+    link_if(diag, "Diagnostics", "🧪")
+
+with c2:
+    # Overview — Fish (fall back to any 'overview' page)
+    ov_fish = find_page("020_🔎_overview_fish", "overview_fish", "overview")
+    link_if(ov_fish, "Overview — Fish", "🐟")
+
+with c3:
+    # Overview — Tanks
+    ov_tanks = find_page("021_🔎_overview_tanks", "overview_tanks", "tanks")
+    link_if(ov_tanks, "Overview — Tanks", "🧱")
+
+c4, c5, c6 = st.columns(3)
+
+with c4:
+    # Upload CSV — Fish
+    up_fish = find_page("010_📤_upload_csv_fish", "upload_csv_fish", "upload_csv")
+    link_if(up_fish, "Upload CSV — Fish", "📤")
+
+with c5:
+    # Upload CSV — Plasmids
+    up_plasmids = find_page("011_📤_upload_csv_plasmids", "upload_csv_plasmids", "plasmids")
+    link_if(up_plasmids, "Upload CSV — Plasmids", "🧬")
+
+with c6:
+    # Print Tank Labels
+    labels = find_page("03_🏷️_request_tank_labels", "request_tank_labels", "labels")
+    link_if(labels, "Print Tank Labels", "🏷️")
 
 st.divider()
 
