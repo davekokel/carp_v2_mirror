@@ -21,6 +21,8 @@ if APP_ENV != "local":
 
 st.set_page_config(page_title="CARP — DB Ping (minimal)", page_icon="🩺")
 st.title("🩺 DB Ping — minimal")
+from supabase.ui.lib.prod_banner import show_prod_banner
+show_prod_banner()
 
 if APP_ENV != "local":
     from urllib.parse import urlparse, parse_qs

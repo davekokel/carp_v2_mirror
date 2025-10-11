@@ -23,6 +23,8 @@ if APP_ENV != "local":
 PAGE_TITLE = "CARP — Diagnostics (Clean)"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🧪", layout="wide")
 st.title("🧪 Diagnostics (Clean)")
+from supabase.ui.lib.prod_banner import show_prod_banner
+show_prod_banner()
 
 # Normalize PG* from DB_URL so captions match reality
 if APP_ENV != "local":

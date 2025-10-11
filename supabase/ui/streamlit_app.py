@@ -54,6 +54,8 @@ from supabase.ui.lib.app_ctx import get_engine, engine_info, set_db_url
 PAGE_TITLE = "CARP — Home / Diagnostics"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🧪", layout="wide")
 st.title("🧪 CARP — Diagnostics")
+from supabase.ui.lib.prod_banner import show_prod_banner
+show_prod_banner()
 
 if os.getenv("APP_ENV","local").lower() != "local" and not st.session_state.get("_db_bootstrapped"):
     import supabase.ui.lib.app_ctx as app_ctx
