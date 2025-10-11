@@ -15,3 +15,5 @@ __pycache__/
 
 # Streamlit
 .streamlit/secrets.toml
+# keep templates in repo
+!templates/
