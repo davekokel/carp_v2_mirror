@@ -146,12 +146,13 @@ st.session_state[sel_key].loc[edited_concepts.index, "✓ Select"] = edited_conc
 selected_codes = edited_concepts.loc[edited_concepts["✓ Select"], "clutch_code"].astype(str).tolist()
 
 # ───────────────────────── Realized instances in window for selected concepts ─────────────────────────
+# ───────────────────────── Realized instances in window for selected concepts ─────────────────────────
 st.markdown("### Realized instances for selection")
 
 if not selected_codes:
     st.info("No realized clutch instances yet.")
 else:
-    # 1) Fetch mom/dad for the selected concepts (use canonical view)
+    # 1) Fetch mom/dad for selected concepts
     with eng.begin() as cx:
         sel_mom_dad = pd.read_sql(
             text("""
@@ -161,7 +162,7 @@ else:
             """),
             cx, params={"codes": selected_codes}
         )
-        # 2) Fetch runs in the window (enriched view, has cross_instance_id)
+        # 2) Fetch runs in the window (has cross_instance_id)
         runs = pd.read_sql(
             text("""
                 select
@@ -181,18 +182,18 @@ else:
     if sel_mom_dad.empty or runs.empty:
         st.info("No realized clutch instances yet.")
     else:
-        # 3) Join runs to the selected concepts by mom+dad
+        # 3) Join runs to the concepts by mom+dad
         det = sel_mom_dad.merge(runs, how="inner", on=["mom_code", "dad_code"])
         det = det.sort_values(["run_created_at", "cross_date"], ascending=[False, False])
 
-        # 4) Show a selectable grid (✓ Add) so user can seed clutch_instances from these runs
+        # 4) Minimal table with ✓ Add to select runs you want to annotate
         cols = [
             "clutch_code", "cross_run_code", "cross_date",
-            "mom_code", "dad_code", "mother_tank_label", "father_tank_label",
-            "run_created_by", "run_created_at", "run_note", "cross_instance_id"
+            "mom_code", "dad_code",
+            "mother_tank_label", "father_tank_label"
         ]
         present = [c for c in cols if c in det.columns]
-        grid = det[present].copy()
+        grid = det[present + (["cross_instance_id"] if "cross_instance_id" in det.columns else [])].copy()
         grid.insert(0, "✓ Add", False)
 
         edited_seed = st.data_editor(
@@ -201,51 +202,60 @@ else:
             use_container_width=True,
             column_order=["✓ Add"] + present,
             column_config={"✓ Add": st.column_config.CheckboxColumn("✓", default=False)},
-            key="ci_seed_editor",
+            key="ci_seed_editor_min",
         )
 
-        # 5) Actions: create clutch instances from selected runs + CSV download for runs
-        c1, c2 = st.columns([1, 3])
-        with c1:
-            create_clicked = st.button("➕ Create clutch instance(s)")
-        with c2:
-            st.download_button(
-                "⬇️ Download runs (CSV)",
-                det[present].to_csv(index=False),
-                "runs.csv",
-                "text/csv"
-            )
+        # 5) Minimal form: red, green, note + single Submit
+        st.markdown("#### Quick annotate selected")
+        form_c1, form_c2, form_c3 = st.columns([1,1,3])
+        with form_c1:
+            red_val = st.checkbox("red", value=False)
+        with form_c2:
+            green_val = st.checkbox("green", value=False)
+        with form_c3:
+            note_val = st.text_input("note", value="", placeholder="optional")
 
-        if create_clicked:
-            rows = edited_seed[edited_seed["✓ Add"] == True]
-            if rows.empty:
+        if st.button("Submit"):
+            sel = edited_seed[edited_seed["✓ Add"] == True]
+            if sel.empty:
                 st.warning("No runs selected.")
             else:
-                created = 0
+                created_or_updated = 0
                 with eng.begin() as cx:
-                    for _, r in rows.iterrows():
+                    for _, r in sel.iterrows():
                         xid = str(r.get("cross_instance_id") or "").strip()
+                        ccode = str(r.get("clutch_code") or "").strip()
+                        rcode = str(r.get("cross_run_code") or "").strip()
                         if not xid:
-                            continue  # nothing to link
-                        # helpful default label: "<CL> / <XR>"
-                        ccode   = str(r.get("clutch_code") or "").strip()
-                        runcode = str(r.get("cross_run_code") or "").strip()
-                        label   = " / ".join([s for s in (ccode, runcode) if s]) or "clutch"
-                        cx.execute(
-                            text("""
-                                insert into public.clutch_instances (cross_instance_id, label, created_at)
-                                select :xid, :label, now()
-                                where not exists (
-                                  select 1 from public.clutch_instances where cross_instance_id = :xid
-                                )
-                            """),
-                            {"xid": xid, "label": label}
-                        )
-                        created += 1
-                st.success(f"Created {created} clutch instance(s).")
+                            # If the view didn’t expose cross_instance_id, we cannot link; skip
+                            continue
+                        label = " / ".join([s for s in (ccode, rcode) if s]) or "clutch"
+
+                        # Insert if missing…
+                        cx.execute(text("""
+                            insert into public.clutch_instances (cross_instance_id, label, created_at)
+                            select :xid, :label, now()
+                            where not exists (
+                              select 1 from public.clutch_instances where cross_instance_id = :xid
+                            )
+                        """), {"xid": xid, "label": label})
+
+                        # …then annotate (red/green/note + stamp)
+                        cx.execute(text("""
+                            update public.clutch_instances
+                               set red_selected   = :red,
+                                   green_selected = :green,
+                                   notes          = nullif(:note, ''),
+                                   annotated_by   = coalesce(current_setting('app.user', true), annotated_by),
+                                   annotated_at   = now()
+                             where cross_instance_id = :xid
+                        """), {"xid": xid, "red": bool(red_val), "green": bool(green_val), "note": note_val})
+                        created_or_updated += 1
+
+                st.success(f"Saved annotations for {created_or_updated} run(s).")
                 st.rerun()
 
-        # optionally keep the selected concepts in session for downstream filters
+        # keep concept codes for optional downstream filters
         st.session_state["_concept_selection"] = selected_codes
 
 # ───────────────────────── Annotation grid (red/green + legacy) ───────────────────
