@@ -1,10 +1,9 @@
 from __future__ import annotations
-import os, sys, uuid
+import os, sys, re, uuid
 from pathlib import Path
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text, bindparam
-import uuid
+from sqlalchemy import create_engine, text
 
 # ── path bootstrap ───────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parents[3]
@@ -17,8 +16,7 @@ st.title("🐣 Annotate Clutch Instances")
 # ── engine / env ────────────────────────────────────────────────────────────────
 DB_URL = os.getenv("DB_URL")
 if not DB_URL:
-    st.error("DB_URL not set")
-    st.stop()
+    st.error("DB_URL not set"); st.stop()
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
 # DB badge (host + role) and capture user string for stamping
@@ -45,12 +43,22 @@ try:
 except Exception:
     pass
 
-# Ensure target table exists (we will write here)
+# Ensure target table exists
 with eng.begin() as cx:
     exists_tbl = cx.execute(text("select to_regclass('public.clutch_instances')")).scalar()
 if not exists_tbl:
     st.error("Table public.clutch_instances not found in this DB.")
     st.stop()
+
+# Helper: build VALUES list of uuid literals safely
+_UUID_RE = re.compile(r"^[0-9a-fA-F-]{32,40}$")
+def uuid_values_clause(ids: list[str]) -> str:
+    vals = []
+    for s in ids or []:
+        s = (s or "").strip()
+        if _UUID_RE.match(s):
+            vals.append(f"('{s}'::uuid)")
+    return ", ".join(vals)
 
 # ── conceptual clutches (no date filters) ───────────────────────────────────────
 st.markdown("## 🔍 Clutches — Conceptual overview")
@@ -116,12 +124,7 @@ st.markdown("### Realized instances for selection")
 with eng.begin() as _cx_dbg:
     _host = (getattr(getattr(eng, "url", None), "host", None) or os.getenv("PGHOST", ""))
     _runs_cnt = pd.read_sql(text("select count(*) as c from public.vw_cross_runs_overview"), _cx_dbg)["c"].iloc[0]
-    _sel_tbl = st.session_state.get("_concept_table")
-    try:
-        _checked = _sel_tbl.loc[_sel_tbl["✓ Select"]==True, "clutch_code"].astype(str).tolist() if isinstance(_sel_tbl, pd.DataFrame) else []
-    except Exception:
-        _checked = []
-st.caption(f"DBG • host={_host} • runs_in_view={_runs_cnt} • checked_in_grid={_checked}")
+st.caption(f"DBG • host={_host} • runs_in_view={_runs_cnt}")
 st.caption(f"selected concepts used: {selected_codes}")
 
 with eng.begin() as cx:
@@ -208,7 +211,7 @@ edited_runs = st.data_editor(
 # --- Existing selections for the checked run(s) ---------------------------------
 st.markdown("#### Existing selections for the checked run(s)")
 
-checked_xids: list[str] = []
+checked_xids = []
 if "cross_instance_id" in edited_runs.columns:
     checked_xids = (
         edited_runs.loc[edited_runs["✓ Add"] == True, "cross_instance_id"]
@@ -218,31 +221,36 @@ if "cross_instance_id" in edited_runs.columns:
 if not checked_xids:
     st.info("Select a run in the table above to view its existing selections.")
 else:
-    stmt = text("""
-        select
-          s.selection_id,
-          s.cross_instance_id,
-          s.selection_created_at,
-          s.selection_annotated_at,
-          s.red_intensity,
-          s.green_intensity,
-          s.notes,
-          s.annotated_by,
-          s.label
-        from public.v_clutch_instance_selections s
-        where s.cross_instance_id in :ids
-        order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
-                 s.selection_created_at desc
-    """).bindparams(bindparam("ids", expanding=True))
+    vals = uuid_values_clause(checked_xids)
+    if not vals:
+        st.info("No valid run ids to show.")
+        table_checked = pd.DataFrame()
+    else:
+        sql_checked = f"""
+            with sel_ids(xid) as (values {vals})
+            select
+              s.selection_id,
+              s.cross_instance_id,
+              s.selection_created_at,
+              s.selection_annotated_at,
+              s.red_intensity,
+              s.green_intensity,
+              s.notes,
+              s.annotated_by,
+              s.label
+            from public.v_clutch_instance_selections s
+            join sel_ids on sel_ids.xid = s.cross_instance_id
+            order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
+                     s.selection_created_at desc
+        """
+        with eng.begin() as cx:
+            res = cx.exec_driver_sql(sql_checked)
+            table_checked = pd.DataFrame(res.mappings().all())
 
-    params_checked = {"ids": [uuid.UUID(x) for x in checked_xids]}
-
-    with eng.begin() as cx:
-        rows = cx.execute(stmt, params_checked).mappings().all()
-    sel_rows = pd.DataFrame(rows)
-
-    run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
-    table_checked = sel_rows.merge(run_meta, how="left", on="cross_instance_id")
+    # Attach run context for display (clutch_code / cross_run_code / birthday)
+    if not table_checked.empty:
+        run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
+        table_checked = table_checked.merge(run_meta, how="left", on="cross_instance_id")
 
     for c in [
         "clutch_code","cross_run_code","birthday",
@@ -330,10 +338,12 @@ if "cross_instance_id" not in det.columns:
     st.caption("View does not expose cross_instance_id, cannot list distinct selection instances.")
 else:
     all_xids = det["cross_instance_id"].dropna().astype(str).unique().tolist()
-    if not all_xids:
+    vals_all = uuid_values_clause(all_xids)
+    if not vals_all:
         st.info("No selection instances yet for the selected runs.")
     else:
-        stmt_all = text("""
+        sql_all = f"""
+            with sel_ids(xid) as (values {vals_all})
             select
               s.selection_id,
               s.cross_instance_id,
@@ -345,19 +355,16 @@ else:
               s.annotated_by,
               s.label
             from public.v_clutch_instance_selections s
-            where s.cross_instance_id in :ids
+            join sel_ids on sel_ids.xid = s.cross_instance_id
             order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
                      s.selection_created_at desc
-        """).bindparams(bindparam("ids", expanding=True))
-
-        params_all = {"ids": [uuid.UUID(x) for x in all_xids]}
-
+        """
         with eng.begin() as cx:
-            rows_all = cx.execute(stmt_all, params_all).mappings().all()
-        sel_all = pd.DataFrame(rows_all)
+            res = cx.exec_driver_sql(sql_all)
+            table_all = pd.DataFrame(res.mappings().all())
 
         run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
-        table_all = sel_all.merge(run_meta, how="left", on="cross_instance_id")
+        table_all = table_all.merge(run_meta, how="left", on="cross_instance_id")
 
         for c in [
             "clutch_code","cross_run_code","birthday",
