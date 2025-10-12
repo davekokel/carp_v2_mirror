@@ -84,6 +84,9 @@ if d1:
     where.append("created_at >= :d1"); params["d1"] = str(d1)
 if d2:
     where.append("created_at <= :d2"); params["d2"] = str(d2)
+runnable_only = st.toggle("Runnable only (both parents have live tanks)", value=False)
+if runnable_only:
+    where.append("(mom_code_tank <> '' and dad_code_tank <> '')")
 where_sql = (" where " + " and ".join(where)) if where else ""
 
 # ───────────────────────── load concepts ─────────────────────────
