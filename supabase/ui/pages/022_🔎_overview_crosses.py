@@ -19,8 +19,8 @@ if not DB_URL:
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
 # ---------- helpers ----------
-def _exists(obj: str) -> bool:
-    sch, tab = obj.split(".", 1)
+def _exists(full: str) -> bool:
+    sch, tab = full.split(".", 1)
     q = text("""
       select exists(
         select 1 from information_schema.tables where table_schema=:s and table_name=:t
@@ -31,76 +31,9 @@ def _exists(obj: str) -> bool:
     with eng.begin() as cx:
         return bool(pd.read_sql(q, cx, params={"s": sch, "t": tab})["ok"].iloc[0])
 
-def _cols_of(full: str) -> list[str]:
-    sch, tab = full.split(".", 1)
-    q = text("""
-      select column_name
-      from information_schema.columns
-      where table_schema=:s and table_name=:t
-    """)
-    with eng.begin() as cx:
-        return pd.read_sql(q, cx, params={"s": sch, "t": tab})["column_name"].tolist()
-
-def _pick(cols: list[str], *names: str, default_sql: str = "null") -> str:
-    """Return the first matching column name from names; otherwise default_sql."""
-    for n in names:
-        if n in cols:
-            return n
-    return default_sql
-
-def _project_concepts(full: str) -> str:
-    """
-    Build a SELECT that aliases whatever columns the source has to the
-    UI’s expected names: clutch_code, name, nickname, mom_code, dad_code,
-    n_treatments, created_by, created_at.
-    """
-    cols = _cols_of(full)
-
-    clutch_code = _pick(cols, "clutch_code", "concept_code", "planned_clutch_code", "clutch", "id", default_sql="'(missing)'::text")
-    name        = _pick(cols, "name", "clutch_name", default_sql="''::text")
-    nickname    = _pick(cols, "nickname", default_sql="''::text")
-    mom         = _pick(cols, "mom_code", "mother_code", default_sql="''::text")
-    dad         = _pick(cols, "dad_code", "father_code", default_sql="''::text")
-    ntreat      = _pick(cols, "n_treatments", default_sql="0::int")
-    created_by  = _pick(cols, "created_by", default_sql="''::text")
-    # choose a sensible date/time for created_at
-    created_at_expr = None
-    for cand in ("created_at","planned_for","inserted_at","created_on","createdtime","date"):
-        if cand in cols:
-            created_at_expr = cand
-            break
-    if not created_at_expr:
-        created_at_expr = "null::timestamptz"
-
-    return f"""
-      select
-        {clutch_code}::text            as clutch_code,
-        coalesce({name}::text,'')      as name,
-        coalesce({nickname}::text,'')  as nickname,
-        coalesce({mom}::text,'')       as mom_code,
-        coalesce({dad}::text,'')       as dad_code,
-        coalesce({ntreat},0)::int      as n_treatments,
-        coalesce({created_by}::text,'') as created_by,
-        {created_at_expr}::timestamptz as created_at
-      from {full}
-    """
-
-def _pick_concept_source() -> tuple[str, str]:
-    """
-    Choose the source that matches 'Plan new crosses' columns; return (name, projected_sql).
-    """
-    for full in [
-        "public.vw_planned_clutches_overview_human",
-        "public.vw_planned_clutches_overview",
-        "public.planned_crosses",
-    ]:
-        if _exists(full):
-            return full, _project_concepts(full)
-    return "", ""
-
 def _pick_instances_source() -> tuple[str, str] | None:
     """
-    Return (source_name, code_col) for instances table/view.
+    Return (source_name, code_col) for instances view/table.
     """
     cands = [
         "public.vw_cross_runs_overview",
@@ -114,7 +47,7 @@ def _pick_instances_source() -> tuple[str, str] | None:
       where table_schema=:s and table_name=:t
     """)
     for full in cands:
-        if not _exists(full):
+        if not _exists(full): 
             continue
         sch, tab = full.split(".", 1)
         with eng.begin() as cx:
@@ -124,10 +57,27 @@ def _pick_instances_source() -> tuple[str, str] | None:
                 return full, c
     return None
 
-SRC_NAME, PROJ_SQL = _pick_concept_source()
-if not SRC_NAME:
-    st.info("No concept source found (vw_planned_clutches_overview_* or planned_crosses).")
+# ---------- concept source (exact to your staging schema) ----------
+if not _exists("public.vw_planned_clutches_overview"):
+    st.info("Expected view public.vw_planned_clutches_overview not found.")
     st.stop()
+
+# Build the projection you want:
+# clutch_code, name (clutch_name), nickname (clutch_nickname), mom_code, dad_code, n_treatments, created_by, created_at
+PROJ_SQL = """
+  select
+    v.clutch_code::text                               as clutch_code,
+    coalesce(v.clutch_name,'')::text                  as name,
+    coalesce(v.clutch_nickname,'')::text              as nickname,
+    coalesce(pc.mom_code,'')::text                    as mom_code,
+    coalesce(pc.dad_code,'')::text                    as dad_code,
+    coalesce(v.n_treatments,0)::int                   as n_treatments,
+    coalesce(v.created_by,'')::text                   as created_by,
+    v.created_at::timestamptz                         as created_at
+  from public.vw_planned_clutches_overview v
+  left join public.planned_crosses pc
+    on pc.cross_code = v.clutch_code
+"""
 
 # ---------- filters ----------
 with st.form("filters"):
@@ -146,9 +96,10 @@ if d1:
     where.append("created_at >= :d1"); params["d1"] = str(d1)
 if d2:
     where.append("created_at <= :d2"); params["d2"] = str(d2)
+
 where_sql = (" where " + " and ".join(where)) if where else ""
 
-# ---------- load concepts with adaptive projection ----------
+# ---------- load concepts ----------
 sql = text(f"""
   select * from (
     {PROJ_SQL}
@@ -159,6 +110,10 @@ sql = text(f"""
 """)
 with eng.begin() as cx:
     df = pd.read_sql(sql, cx, params=params)
+
+# Debug chip: show which sources we used
+inst_src = _pick_instances_source()
+st.caption(f"concepts: vw_planned_clutches_overview  |  instances: {inst_src[0]} ({inst_src[1]})" if inst_src else "concepts: vw_planned_clutches_overview  |  instances: none")
 
 st.caption(f"{len(df)} planned clutch(es)")
 if df.empty:
@@ -171,17 +126,15 @@ if key not in st.session_state:
     t.insert(0, "✓ Select", False)
     st.session_state[key] = t
 
-# sync current filter result (align on clutch_code)
+# keep session aligned on clutch_code
 base = st.session_state[key].set_index("clutch_code")
 now  = df.set_index("clutch_code")
 for i in now.index:
-    if i not in base.index:
-        base.loc[i] = now.loc[i]
-base = base.loc[now.index]  # drop filtered-out
+    if i not in base.index: base.loc[i] = now.loc[i]
+base = base.loc[now.index]  # drop rows not in current filter
 st.session_state[key] = base.reset_index()
 
 view_cols = ["✓ Select","clutch_code","name","nickname","mom_code","dad_code","n_treatments","created_by","created_at"]
-view_cols = [c for c in view_cols if c in st.session_state[key].columns]
 edited = st.data_editor(
     st.session_state[key][view_cols],
     hide_index=True, use_container_width=True,
@@ -201,8 +154,7 @@ edited = st.data_editor(
 # persist checkbox back to session
 st.session_state[key].loc[edited.index, "✓ Select"] = edited["✓ Select"]
 
-sel_codes = edited.loc[edited["✓ Select"] == True, "clutch_code"].astype(str).tolist()
-
+sel_codes = edited.loc[edited["✓ Select"]==True, "clutch_code"].astype(str).tolist()
 if not sel_codes:
     st.info("Select one or more planned clutches to show existing instances.")
     st.stop()
@@ -210,7 +162,6 @@ if not sel_codes:
 st.divider()
 st.subheader("Existing cross instances")
 
-inst_src = _pick_instances_source()
 if not inst_src:
     st.info("No instance view/table found (vw_cross_runs_overview / v_cross_plan_runs_enriched / v_crosses_status / cross_instances).")
 else:
