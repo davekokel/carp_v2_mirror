@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import os, sys
 from pathlib import Path
 import datetime as dt
@@ -6,95 +7,114 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-# ── bootstrap ───────────────────────────────────────────────────────────────────
+# ────────────────────────── Path bootstrap ──────────────────────────
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-st.set_page_config(page_title="Enter Bruker Mount", page_icon="🧫", layout="wide")
-st.title("🧫 Enter Bruker Mount")
+st.set_page_config(page_title="Enter Bruker Mount", page_icon="🧪", layout="wide")
+st.title("🧪 Enter Bruker Mount")
 
-# ── engine / env ────────────────────────────────────────────────────────────────
+# ────────────────────────── DB / engine ─────────────────────────────
 DB_URL = os.getenv("DB_URL")
 if not DB_URL:
-    st.error("DB_URL not set"); st.stop()
+    st.error("DB_URL not set")
+    st.stop()
+
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
-# Stamp user for audit
+# Badge + user stamping
+from sqlalchemy import text as _text
 user = ""
 try:
-    from supabase.ui.lib.app_ctx import stamp_app_user
-    who_ui = getattr(st, "experimental_user", None)
-    email  = getattr(who_ui, "email", "") if who_ui else ""
+    url = getattr(eng, "url", None)
+    host = (getattr(url, "host", None) or os.getenv("PGHOST", "") or "(unknown)")
     with eng.begin() as cx:
-        who  = cx.execute(text("select current_user")).scalar()
-    user = email or (who or "")
-    if user:
-        stamp_app_user(eng, user)
+        role = cx.execute(_text("select current_setting('role', true)")).scalar()
+        who  = cx.execute(_text("select current_user")).scalar()
+    user = who or ""
+    st.caption(f"DB: {host} • role={role or 'default'} • user={user}")
 except Exception:
     pass
 
-# Ensure required tables exist
+try:
+    from supabase.ui.lib.app_ctx import stamp_app_user
+    who_ui = getattr(st, "experimental_user", None)
+    if who_ui and getattr(who_ui, "email", ""):
+        user = who_ui.email
+    stamp_app_user(eng, user)
+except Exception:
+    pass
+
+# ────────────────────────── Helpers ─────────────────────────────────
+def _one_checked(df: pd.DataFrame, check_col: str) -> pd.Series | None:
+    """Return the single checked row or None if not exactly one."""
+    if check_col not in df.columns:
+        return None
+    checked = df.index[df[check_col] == True].tolist()
+    if len(checked) == 1:
+        return df.loc[checked[0]]
+    return None
+
+def _col_exists(cx, schema: str, table: str, col: str) -> bool:
+    return bool(
+        cx.execute(
+            text(
+                "select 1 from information_schema.columns "
+                "where table_schema=:s and table_name=:t and column_name=:c"
+            ),
+            {"s": schema, "t": table, "c": col},
+        ).first()
+    )
+
+# ────────────────────────── Step 1 — Concept ────────────────────────
+st.markdown("### 1) Choose clutch concept")
+
+c1, c2 = st.columns([3, 1])
+with c1:
+    q = st.text_input("Filter concepts (code/name/mom/dad)", "", placeholder="e.g., CL-25 or MGCO or FSH-250001")
+with c2:
+    show_n = st.number_input("Show up to", 50, 2000, 500, step=50)
+
 with eng.begin() as cx:
-    have_ci  = bool(cx.execute(text("select to_regclass('public.clutch_instances')")).scalar())
-    have_bm  = bool(cx.execute(text("select to_regclass('public.bruker_mounts')")).scalar())
-    have_runs= bool(cx.execute(text("select to_regclass('public.vw_cross_runs_overview')")).scalar())
-    have_cc  = bool(cx.execute(text("select to_regclass('public.v_cross_concepts_overview')")).scalar())
-if not (have_ci and have_runs and have_cc):
-    st.error("Required tables/views not found (clutch_instances / vw_cross_runs_overview / v_cross_concepts_overview).")
-    st.stop()
-if not have_bm:
-    st.warning("Table public.bruker_mounts not found. Create it first (migration).")
-    st.stop()
+    # Pull a reasonable window (we'll filter in-app for simplicity/reliability)
+    concepts = pd.read_sql(
+        text("""
+            select
+              conceptual_cross_code as clutch_code,
+              name                  as clutch_name,
+              nickname              as clutch_nickname,
+              mom_code, dad_code,
+              created_at
+            from public.v_cross_concepts_overview
+            order by created_at desc nulls last, clutch_code
+            limit 2000
+        """),
+        cx,
+    )
 
-# ────────────────────────────────────────────────────────────────────────────────
-# 1) Filter + select clutch concept (table + checkboxes)
-# ────────────────────────────────────────────────────────────────────────────────
-st.subheader("1) Choose clutch concept")
+# simple in-app filter
+if q.strip():
+    ql = q.lower()
+    concepts = concepts[
+        concepts.apply(
+            lambda r: any(
+                ql in str(r[c]).lower()
+                for c in ["clutch_code", "clutch_name", "clutch_nickname", "mom_code", "dad_code"]
+            ),
+            axis=1,
+        )
+    ]
+concepts = concepts.head(int(show_n)).reset_index(drop=True)
 
-# Quick filter before the first table
-f_col1, f_col2 = st.columns([2, 1])
-with f_col1:
-    concept_q = st.text_input("Filter concepts (code/name/mom/dad)", value="").strip()
-with f_col2:
-    max_rows = st.number_input("Show up to", min_value=50, max_value=2000, value=500, step=50)
-
-with eng.begin() as cx:
-    concepts = pd.read_sql(text("""
-        select
-          conceptual_cross_code as clutch_code,
-          name                  as clutch_name,
-          nickname              as clutch_nickname,
-          mom_code, dad_code,
-          created_at
-        from public.v_cross_concepts_overview
-        order by created_at desc nulls last, clutch_code
-        limit :lim
-    """), cx, params={"lim": int(max_rows)})
-
-if concept_q:
-    q = concept_q.lower()
-    def _match(row) -> bool:
-        vals = [
-            str(row.get("clutch_code","")),
-            str(row.get("clutch_name","")),
-            str(row.get("mom_code","")),
-            str(row.get("dad_code","")),
-        ]
-        return any(q in v.lower() for v in vals)
-    concepts = concepts[concepts.apply(_match, axis=1)]
-
-if concepts.empty:
-    st.info("No concepts match your filter.")
-    st.stop()
-
-# Session model with ✓ column
-key_concepts = "_bm_concepts_table"
+# selection model (checkbox in grid)
+key_concepts = "_bruker_concept_grid"
 if key_concepts not in st.session_state:
     t = concepts.copy()
-    t.insert(0, "✓ Select", False)
+    t.insert(0, "✓ Concept", False)
     st.session_state[key_concepts] = t
 else:
+    # sync rows with latest data
     base = st.session_state[key_concepts].set_index("clutch_code")
     now  = concepts.set_index("clutch_code")
     for i in now.index:
@@ -103,58 +123,78 @@ else:
     base = base.loc[now.index]
     st.session_state[key_concepts] = base.reset_index()
 
-concept_cols = [
-    "✓ Select", "clutch_code", "clutch_name", "clutch_nickname",
-    "mom_code", "dad_code", "created_at"
-]
-present = [c for c in concept_cols if c in st.session_state[key_concepts].columns]
-edited_concepts = st.data_editor(
-    st.session_state[key_concepts][present],
-    hide_index=True, use_container_width=True,
-    column_order=present,
-    column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
-    key="bm_concepts_editor",
+concept_cols = ["✓ Concept", "clutch_code", "clutch_name", "clutch_nickname", "mom_code", "dad_code", "created_at"]
+concept_cols = [c for c in concept_cols if c in st.session_state[key_concepts].columns]
+concept_edit = st.data_editor(
+    st.session_state[key_concepts][concept_cols],
+    hide_index=True,
+    use_container_width=True,
+    column_order=concept_cols,
+    column_config={"✓ Concept": st.column_config.CheckboxColumn("✓", default=False)},
+    key="bruker_concept_editor",
 )
-# persist ✓
-st.session_state[key_concepts].loc[edited_concepts.index, "✓ Select"] = edited_concepts["✓ Select"]
+# persist checkbox changes
+st.session_state[key_concepts].loc[concept_edit.index, "✓ Concept"] = concept_edit["✓ Concept"]
+concept_row = _one_checked(st.session_state[key_concepts], "✓ Concept")
 
-selected_concepts = edited_concepts.loc[edited_concepts["✓ Select"]==True, "clutch_code"].astype(str).tolist()
-if len(selected_concepts) == 0:
+if concept_row is None:
     st.info("Tick exactly one concept to continue.")
     st.stop()
-if len(selected_concepts) > 1:
-    st.warning("Please tick only one concept.")
-    st.stop()
 
-sel_clutch_code = selected_concepts[0]
-row_concept = concepts.loc[concepts["clutch_code"]==sel_clutch_code].iloc[0]
-mom_code, dad_code = str(row_concept["mom_code"]), str(row_concept["dad_code"])
+concept_code = str(concept_row["clutch_code"])
+mom_code     = str(concept_row["mom_code"])
+dad_code     = str(concept_row["dad_code"])
 
-# ────────────────────────────────────────────────────────────────────────────────
-# 2) Select cross instance (runs table + checkboxes)
-# ────────────────────────────────────────────────────────────────────────────────
-st.subheader("2) Choose cross instance (run) for the concept")
+# ────────────────────────── Step 2 — Run for concept ────────────────
+st.markdown("### 2) Choose cross instance (run) for the concept")
 
 with eng.begin() as cx:
-    runs = pd.read_sql(text("""
-        select
-          cross_instance_id,
-          cross_run_code,
-          cross_date::date as cross_date,
-          mother_tank_label, father_tank_label
-        from public.vw_cross_runs_overview
-        where mom_code=:mom and dad_code=:dad
-        order by cross_date desc nulls last, cross_run_code desc
-    """), cx, params={"mom": mom_code, "dad": dad_code})
+    runs = pd.read_sql(
+        text("""
+            select
+              cross_instance_id,
+              cross_run_code,
+              cross_date::date as cross_date,
+              mother_tank_label,
+              father_tank_label
+            from public.vw_cross_runs_overview
+            where mom_code=:m and dad_code=:d
+            order by cross_date desc, cross_run_code desc
+        """),
+        cx,
+        params={"m": mom_code, "d": dad_code},
+    )
+    # Roll up existing selections per run
+    sel_rollup = pd.read_sql(
+        text("""
+            select
+              cross_instance_id,
+              string_agg(
+                nullif(
+                  trim(
+                    concat_ws(' ',
+                      case when coalesce(red_intensity,'')   <> '' then 'red='   || red_intensity   end,
+                      case when coalesce(green_intensity,'') <> '' then 'green=' || green_intensity end,
+                      case when coalesce(notes,'')           <> '' then 'note='  || notes          end
+                    )
+                  ),
+                  ''
+                ),
+                ' | ' order by created_at
+              ) as selections_rollup
+            from public.clutch_instances
+            group by cross_instance_id
+        """),
+        cx,
+    )
 
-if runs.empty:
-    st.info("No runs for this concept.")
-    st.stop()
+runs = runs.merge(sel_rollup, how="left", on="cross_instance_id")
+runs["selections_rollup"] = runs["selections_rollup"].fillna("")
 
-key_runs = "_bm_runs_table"
+key_runs = "_bruker_run_grid"
 if key_runs not in st.session_state:
     t = runs.copy()
-    t.insert(0, "✓ Select", False)
+    t.insert(0, "✓ Run", False)
     st.session_state[key_runs] = t
 else:
     base = st.session_state[key_runs].set_index("cross_run_code")
@@ -166,169 +206,220 @@ else:
     st.session_state[key_runs] = base.reset_index()
 
 run_cols = [
-    "✓ Select", "cross_run_code", "cross_date",
-    "mother_tank_label", "father_tank_label"
+    "✓ Run",
+    "cross_run_code", "cross_date", "mother_tank_label", "father_tank_label",
+    "selections_rollup",
 ]
-present = [c for c in run_cols if c in st.session_state[key_runs].columns]
-edited_runs = st.data_editor(
-    st.session_state[key_runs][present],
+run_cols = [c for c in run_cols if c in st.session_state[key_runs].columns]
+run_edit = st.data_editor(
+    st.session_state[key_runs][run_cols],
     hide_index=True, use_container_width=True,
-    column_order=present,
-    column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
-    key="bm_runs_editor",
+    column_order=run_cols,
+    column_config={
+        "✓ Run": st.column_config.CheckboxColumn("✓", default=False),
+        "selections_rollup": st.column_config.TextColumn("selections_rollup", disabled=True),
+    },
+    key="bruker_run_editor",
 )
-st.session_state[key_runs].loc[edited_runs.index, "✓ Select"] = edited_runs["✓ Select"]
+st.session_state[key_runs].loc[run_edit.index, "✓ Run"] = run_edit["✓ Run"]
+run_row = _one_checked(st.session_state[key_runs], "✓ Run")
 
-selected_runs = edited_runs.loc[edited_runs["✓ Select"]==True]
-if len(selected_runs) == 0:
+if run_row is None:
     st.info("Tick exactly one run to continue.")
     st.stop()
-if len(selected_runs) > 1:
-    st.warning("Please tick only one run.")
-    st.stop()
 
-sel_run_code = str(selected_runs.iloc[0]["cross_run_code"])
-sel_xid      = str(
-    runs.loc[runs["cross_run_code"]==sel_run_code, "cross_instance_id"].iloc[0]
-)
-sel_run_date = runs.loc[runs["cross_run_code"]==sel_run_code, "cross_date"].iloc[0]
+cross_instance_id = str(run_row["cross_instance_id"])
+cross_run_code    = str(run_row["cross_run_code"])
+cross_date        = str(run_row["cross_date"])
 
-# ────────────────────────────────────────────────────────────────────────────────
-# 3) Select an existing selection (clutch_instances) via table + checkboxes
-# ────────────────────────────────────────────────────────────────────────────────
-st.subheader("3) Choose an annotated selection for this run")
+# ────────────────────────── Step 3 — Selection on that run ──────────
+st.markdown("### 3) Choose selection for the run")
 
 with eng.begin() as cx:
-    selections = pd.read_sql(text("""
-        select
-          id,
-          label,
-          coalesce(annotated_at, created_at) as when_at,
-          coalesce(red_intensity,'')   as red_intensity,
-          coalesce(green_intensity,'') as green_intensity,
-          coalesce(notes,'')           as notes,
-          annotated_by
-        from public.clutch_instances
-        where cross_instance_id = cast(:xid as uuid)
-        order by coalesce(annotated_at, created_at) desc, created_at desc
-    """), cx, params={"xid": sel_xid})
+    selections = pd.read_sql(
+        text("""
+            select
+              id::text as selection_id,
+              cross_instance_id::text as cross_instance_id,
+              created_at            as selection_created_at,
+              annotated_at          as selection_annotated_at,
+              red_intensity, green_intensity, notes,
+              annotated_by, label
+            from public.clutch_instances
+            where cross_instance_id = :xid
+            order by coalesce(annotated_at, created_at) desc, created_at desc
+        """),
+        cx,
+        params={"xid": cross_instance_id},
+    )
 
 if selections.empty:
-    st.info("No selections on this run. Use the annotate page to create one, then return.")
+    st.warning("No selections for this run yet. Use the ‘Annotate Clutch Instances’ page to add one, then return.")
     st.stop()
 
-key_selections = "_bm_sel_table"
-if key_selections not in st.session_state:
+key_sel = "_bruker_selection_grid"
+if key_sel not in st.session_state:
     t = selections.copy()
-    t.insert(0, "✓ Select", False)
-    st.session_state[key_selections] = t
+    t.insert(0, "✓ Selection", False)
+    st.session_state[key_sel] = t
 else:
-    base = st.session_state[key_selections].set_index("id")
-    now  = selections.set_index("id")
+    base = st.session_state[key_sel].set_index("selection_id")
+    now  = selections.set_index("selection_id")
     for i in now.index:
         if i not in base.index:
             base.loc[i] = now.loc[i]
     base = base.loc[now.index]
-    st.session_state[key_selections] = base.reset_index()
+    st.session_state[key_sel] = base.reset_index()
 
 sel_cols = [
-    "✓ Select", "when_at", "label",
-    "red_intensity", "green_intensity", "notes", "annotated_by", "id"
+    "✓ Selection",
+    "label", "selection_created_at", "selection_annotated_at",
+    "red_intensity", "green_intensity", "notes", "annotated_by",
 ]
-present = [c for c in sel_cols if c in st.session_state[key_selections].columns]
-edited_sel = st.data_editor(
-    st.session_state[key_selections][present],
+sel_cols = [c for c in sel_cols if c in st.session_state[key_sel].columns]
+sel_edit = st.data_editor(
+    st.session_state[key_sel][sel_cols],
     hide_index=True, use_container_width=True,
-    column_order=present,
-    column_config={
-        "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-        "id": st.column_config.TextColumn("selection_id", disabled=True),
-    },
-    key="bm_sel_editor",
+    column_order=sel_cols,
+    column_config={"✓ Selection": st.column_config.CheckboxColumn("✓", default=False)},
+    key="bruker_selection_editor",
 )
-st.session_state[key_selections].loc[edited_sel.index, "✓ Select"] = edited_sel["✓ Select"]
+st.session_state[key_sel].loc[sel_edit.index, "✓ Selection"] = sel_edit["✓ Selection"]
+sel_row = _one_checked(st.session_state[key_sel], "✓ Selection")
 
-picked = edited_sel.loc[edited_sel["✓ Select"]==True]
-if len(picked) == 0:
+if sel_row is None:
     st.info("Tick exactly one selection to continue.")
     st.stop()
-if len(picked) > 1:
-    st.warning("Please tick only one selection.")
-    st.stop()
 
-selection_id    = str(picked.iloc[0]["id"])
-selection_label = str(picked.iloc[0]["label"] or "")
+selection_id = str(sel_row["selection_id"])
+selection_label = str(sel_row.get("label") or "")
 
-st.caption(f"Context • concept={sel_clutch_code} • run={sel_run_code} ({sel_run_date}) • selection_label={selection_label}")
+# Context line
+st.caption(
+    f"Context • concept={concept_code} • run={cross_run_code} ({cross_date}) • selection_label={selection_label}"
+)
 
-# ────────────────────────────────────────────────────────────────────────────────
-# 4) Enter mount fields and Save
-# ────────────────────────────────────────────────────────────────────────────────
-st.subheader("4) Mount details")
+# ────────────────────────── Step 4 — Mount details ──────────────────
+st.markdown("### 4) Mount details")
 
-c1, c2, c3 = st.columns([1,1,1])
+c1, c2, c3 = st.columns([1, 1, 1])
 with c1:
-    mount_date = st.date_input("Date", value=dt.date.today())
+    d_val = st.date_input("Date", value=dt.date.today())
 with c2:
-    mount_time = st.time_input("Time mounted", value=dt.datetime.now().time().replace(second=0, microsecond=0))
+    t_val = st.time_input("Time mounted", value=dt.datetime.now().time().replace(microsecond=0))
 with c3:
-    orientation = st.selectbox(
-        "Orientation",
-        ["dorsal","ventral","left","right","front","back","other"],
-        index=0
-    )
+    orientation = st.selectbox("Orientation", ["dorsal", "ventral", "lateral", "other"], index=0)
 
-c4, c5 = st.columns([1,1])
+c4, c5 = st.columns([1, 1])
 with c4:
-    n_top = st.number_input("n_top", min_value=0, value=0, step=1)
+    n_top = int(st.number_input("n_top", min_value=0, value=4, step=1))
 with c5:
-    n_bottom = st.number_input("n_bottom", min_value=0, value=0, step=1)
+    n_bottom = int(st.number_input("n_bottom", min_value=0, value=2, step=1))
 
-if st.button("Save mount", type="primary"):
-    if not selection_id:
-        st.warning("Pick a selection first.")
-    else:
-        try:
-            with eng.begin() as cx:
-                cx.execute(text("""
-                    insert into public.bruker_mounts (
-                      selection_id, mount_date, mount_time, n_top, n_bottom, orientation, created_by
-                    )
-                    values (
-                      cast(:sel as uuid), :d, :t, :nt, :nb, :ori,
-                      coalesce(current_setting('app.user', true), :who)
-                    )
-                """), {
-                    "sel": selection_id,
-                    "d": str(mount_date),
-                    "t": mount_time.strftime("%H:%M:%S"),
-                    "nt": int(n_top),
-                    "nb": int(n_bottom),
-                    "ori": orientation,
-                    "who": user
-                })
-            st.success("Bruker mount saved.")
-        except Exception as e:
-            st.error(f"Failed to save: {e}")
+# Generate mount_code like "BRUKER YYYY-MM-DD # N" (N is 1-based per date)
+def _make_mount_code(cx, mount_date: dt.date) -> str:
+    cnt = cx.execute(
+        text("select count(*) from public.bruker_mounts where mount_date=:d"),
+        {"d": mount_date},
+    ).scalar() or 0
+    return f"BRUKER {mount_date.isoformat()} # {cnt + 1}"
 
-# ────────────────────────────────────────────────────────────────────────────────
-# 5) Recent mounts for the chosen selection (confirmation)
-# ────────────────────────────────────────────────────────────────────────────────
+save = st.button("Save mount", type="primary")
+if save:
+    try:
+        with eng.begin() as cx:
+            # Check if mount_code column exists
+            has_mount_code = _col_exists(cx, "public", "bruker_mounts", "mount_code")
+
+            # Compute mount_code
+            mount_code = _make_mount_code(cx, d_val) if has_mount_code else None
+
+            if has_mount_code:
+                cx.execute(
+                    text("""
+                        insert into public.bruker_mounts (
+                          selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
+                          mount_code, created_at, created_by
+                        )
+                        values (
+                          :sid, :md, :mt, :orient, :nt, :nb,
+                          :mcode, now(), coalesce(current_setting('app.user', true), current_user)
+                        )
+                    """),
+                    {
+                        "sid": selection_id,
+                        "md": d_val,
+                        "mt": t_val,
+                        "orient": orientation,
+                        "nt": n_top,
+                        "nb": n_bottom,
+                        "mcode": mount_code,
+                    },
+                )
+            else:
+                # Fallback (no mount_code column yet)
+                cx.execute(
+                    text("""
+                        insert into public.bruker_mounts (
+                          selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
+                          created_at, created_by
+                        )
+                        values (
+                          :sid, :md, :mt, :orient, :nt, :nb,
+                          now(), coalesce(current_setting('app.user', true), current_user)
+                        )
+                    """),
+                    {
+                        "sid": selection_id,
+                        "md": d_val,
+                        "mt": t_val,
+                        "orient": orientation,
+                        "nt": n_top,
+                        "nb": n_bottom,
+                    },
+                )
+        st.success("Bruker mount saved.")
+        st.rerun()
+    except Exception as e:
+        st.error("Failed to save mount.")
+
+# ────────────────────────── Recent mounts for this selection ────────
 st.markdown("### Recent mounts for this selection")
-with eng.begin() as cx:
-    mounts = pd.read_sql(text("""
-        select
-          id,
-          mount_date, mount_time,
-          n_top, n_bottom, orientation,
-          created_at, created_by
-        from public.bruker_mounts
-        where selection_id = cast(:sel as uuid)
-        order by created_at desc
-        limit 50
-    """), cx, params={"sel": selection_id})
 
-if mounts.empty:
+with eng.begin() as cx:
+    has_mount_code = _col_exists(cx, "public", "bruker_mounts", "mount_code")
+    if has_mount_code:
+        recent = pd.read_sql(
+            text("""
+                select
+                  mount_code,
+                  mount_date, mount_time, n_top, n_bottom, orientation,
+                  created_at, created_by
+                from public.bruker_mounts
+                where selection_id = :sid
+                order by created_at desc
+                limit 50
+            """),
+            cx,
+            params={"sid": selection_id},
+        )
+    else:
+        recent = pd.read_sql(
+            text("""
+                select
+                  mount_date, mount_time, n_top, n_bottom, orientation,
+                  created_at, created_by
+                from public.bruker_mounts
+                where selection_id = :sid
+                order by created_at desc
+                limit 50
+            """),
+            cx,
+            params={"sid": selection_id},
+        )
+
+if recent.empty:
     st.caption("No mounts yet for this selection.")
 else:
-    st.dataframe(mounts, hide_index=True, use_container_width=True)
+    # Hide internal id entirely; show mount_code if present
+    st.dataframe(recent, hide_index=True, use_container_width=True)
