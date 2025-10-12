@@ -31,27 +31,71 @@ def _exists(obj: str) -> bool:
     with eng.begin() as cx:
         return bool(pd.read_sql(q, cx, params={"s": sch, "t": tab})["ok"].iloc[0])
 
+def _cols_of(full: str) -> list[str]:
+    sch, tab = full.split(".", 1)
+    q = text("""
+      select column_name
+      from information_schema.columns
+      where table_schema=:s and table_name=:t
+    """)
+    with eng.begin() as cx:
+        return pd.read_sql(q, cx, params={"s": sch, "t": tab})["column_name"].tolist()
+
+def _pick(cols: list[str], *names: str, default_sql: str = "null") -> str:
+    """Return the first matching column name from names; otherwise default_sql."""
+    for n in names:
+        if n in cols:
+            return n
+    return default_sql
+
+def _project_concepts(full: str) -> str:
+    """
+    Build a SELECT that aliases whatever columns the source has to the
+    UI’s expected names: clutch_code, name, nickname, mom_code, dad_code,
+    n_treatments, created_by, created_at.
+    """
+    cols = _cols_of(full)
+
+    clutch_code = _pick(cols, "clutch_code", "concept_code", "planned_clutch_code", "clutch", "id", default_sql="'(missing)'::text")
+    name        = _pick(cols, "name", "clutch_name", default_sql="''::text")
+    nickname    = _pick(cols, "nickname", default_sql="''::text")
+    mom         = _pick(cols, "mom_code", "mother_code", default_sql="''::text")
+    dad         = _pick(cols, "dad_code", "father_code", default_sql="''::text")
+    ntreat      = _pick(cols, "n_treatments", default_sql="0::int")
+    created_by  = _pick(cols, "created_by", default_sql="''::text")
+    # choose a sensible date/time for created_at
+    created_at_expr = None
+    for cand in ("created_at","planned_for","inserted_at","created_on","createdtime","date"):
+        if cand in cols:
+            created_at_expr = cand
+            break
+    if not created_at_expr:
+        created_at_expr = "null::timestamptz"
+
+    return f"""
+      select
+        {clutch_code}::text            as clutch_code,
+        coalesce({name}::text,'')      as name,
+        coalesce({nickname}::text,'')  as nickname,
+        coalesce({mom}::text,'')       as mom_code,
+        coalesce({dad}::text,'')       as dad_code,
+        coalesce({ntreat},0)::int      as n_treatments,
+        coalesce({created_by}::text,'') as created_by,
+        {created_at_expr}::timestamptz as created_at
+      from {full}
+    """
+
 def _pick_concept_source() -> tuple[str, str]:
     """
-    Choose the source that matches 'Plan new crosses' columns.
-    Returns (source_name, sql).
+    Choose the source that matches 'Plan new crosses' columns; return (name, projected_sql).
     """
-    cands = [
-        ("public.vw_planned_clutches_overview_human",
-         """select clutch_code, name, nickname, mom_code, dad_code, n_treatments, created_by, created_at
-              from public.vw_planned_clutches_overview_human"""),
-        ("public.vw_planned_clutches_overview",
-         """select clutch_code, name, nickname, mom_code, dad_code, n_treatments, created_by, created_at
-              from public.vw_planned_clutches_overview"""),
-        ("public.planned_crosses",
-         """select clutch_code, coalesce(name,'') as name, coalesce(nickname,'') as nickname,
-                   mom_code, dad_code, coalesce(n_treatments,0) as n_treatments,
-                   coalesce(created_by,'') as created_by, created_at
-              from public.planned_crosses"""),
-    ]
-    for name, sql in cands:
-        if _exists(name):
-            return name, sql
+    for full in [
+        "public.vw_planned_clutches_overview_human",
+        "public.vw_planned_clutches_overview",
+        "public.planned_crosses",
+    ]:
+        if _exists(full):
+            return full, _project_concepts(full)
     return "", ""
 
 def _pick_instances_source() -> tuple[str, str] | None:
@@ -80,7 +124,7 @@ def _pick_instances_source() -> tuple[str, str] | None:
                 return full, c
     return None
 
-SRC_NAME, SRC_SQL = _pick_concept_source()
+SRC_NAME, PROJ_SQL = _pick_concept_source()
 if not SRC_NAME:
     st.info("No concept source found (vw_planned_clutches_overview_* or planned_crosses).")
     st.stop()
@@ -88,7 +132,7 @@ if not SRC_NAME:
 # ---------- filters ----------
 with st.form("filters"):
     c1, c2, c3 = st.columns([3, 1, 1])
-    q = c1.text_input("Search (code/name/nickname/mom/dad)")
+    q  = c1.text_input("Search (code/name/nickname/mom/dad)")
     d1 = c2.date_input("From", value=None)
     d2 = c3.date_input("To", value=None)
     submitted = st.form_submit_button("Apply")
@@ -102,11 +146,13 @@ if d1:
     where.append("created_at >= :d1"); params["d1"] = str(d1)
 if d2:
     where.append("created_at <= :d2"); params["d2"] = str(d2)
-
 where_sql = (" where " + " and ".join(where)) if where else ""
 
+# ---------- load concepts with adaptive projection ----------
 sql = text(f"""
-  select * from ({SRC_SQL}) as x
+  select * from (
+    {PROJ_SQL}
+  ) x
   {where_sql}
   order by created_at desc nulls last
   limit 500
