@@ -180,26 +180,68 @@ if not sel_codes:
     st.stop()
 
 # ───────────────────────── instances (per selected concept) ─────────────────────────
+# ───────────────────────── instances (per selected concept) ─────────────────────────
 st.divider()
 st.subheader("Existing cross instances")
 
-if not inst_src:
-    st.info("No instance view/table found (vw_cross_runs_overview / v_cross_plan_runs_enriched / v_crosses_status / cross_instances).")
-else:
-    src_name, code_col = inst_src
-    for code in sel_codes:
-        st.markdown(f"**{code}**")
-        try:
-            with eng.begin() as cx:
-                df_i = pd.read_sql(
-                    text(f"select * from {src_name} where {code_col} = :code order by 1 desc"),
-                    cx, params={"code": code}
-                )
-        except Exception as e:
-            st.warning(f"Failed for {code}: {e}")
-            continue
-        if df_i.empty:
-            st.caption("No instances.")
-            continue
-        st.dataframe(df_i, use_container_width=True, hide_index=True)
-        st.markdown("---")
+def _fetch_instances_for_concept(code: str) -> pd.DataFrame:
+    """
+    Resolve mom_code/dad_code for the concept, then fetch runs from
+    vw_cross_runs_overview that match mom_code AND dad_code.
+    """
+    with eng.begin() as cx:
+        m = pd.read_sql(
+            text("""
+                select mom_code, dad_code
+                from public.v_cross_concepts_overview
+                where conceptual_cross_code = :code
+            """),
+            cx, params={"code": code}
+        )
+        if m.empty:
+            return pd.DataFrame()
+        mom = (m["mom_code"].iloc[0] or "").strip()
+        dad = (m["dad_code"].iloc[0] or "").strip()
+        if not mom or not dad:
+            return pd.DataFrame()
+
+        q = text("""
+          select
+            r.cross_run_code,
+            r.cross_date,
+            r.mom_code,
+            r.dad_code,
+            r.mother_tank_label as mom_tank,
+            r.father_tank_label as dad_tank,
+            r.run_created_by    as created_by,
+            r.run_created_at    as created_at,
+            r.run_note          as note
+          from public.vw_cross_runs_overview r
+          where r.mom_code = :mom and r.dad_code = :dad
+          order by r.run_created_at desc nulls last, r.cross_date desc nulls last
+          limit 1000
+        """)
+        return pd.read_sql(q, cx, params={"mom": mom, "dad": dad})
+
+any_found = False
+for code in sel_codes:
+    st.markdown(f"**{code}**")
+    try:
+        df_i = _fetch_instances_for_concept(code)
+    except Exception as e:
+        st.warning(f"Failed for {code}: {e}")
+        continue
+
+    if df_i.empty:
+        st.caption("No instances.")
+        continue
+
+    any_found = True
+    show = ["cross_run_code","cross_date","mom_code","dad_code",
+            "mom_tank","dad_tank","created_by","created_at","note"]
+    show = [c for c in show if c in df_i.columns]
+    st.dataframe(df_i[show], use_container_width=True, hide_index=True)
+    st.markdown("---")
+
+if not any_found:
+    st.info("No instance rows found for selected concept(s).")
