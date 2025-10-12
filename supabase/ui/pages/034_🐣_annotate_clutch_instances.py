@@ -20,6 +20,19 @@ if not DB_URL:
     st.error("DB_URL not set"); st.stop()
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
+# DB badge (host + role)
+from sqlalchemy import text as _text
+try:
+    url  = getattr(eng, "url", None)
+    host = (getattr(url, "host", None) or os.getenv("PGHOST", "") or "(unknown)")
+    with eng.begin() as cx:
+        role = cx.execute(_text("select current_setting('role', true)")).scalar()
+        user = cx.execute(_text("select current_user")).scalar()
+    chip = f"DB: {host} • role={role or 'default'} • user={user}"
+    st.caption(chip)
+except Exception:
+    pass
+
 # ─── stamp user into session for audit (app.user) ─────────────────────────────────
 try:
     from supabase.ui.lib.app_ctx import stamp_app_user
@@ -182,6 +195,9 @@ with eng.begin() as cx:
     """), cx)
 
 st.caption(f"{len(df)} clutch instance(s)")
+only_mine = st.toggle('Only mine', value=False, help='Show rows you annotated')
+if only_mine:
+    df = df[df['annotated_by'].astype(str).str.len() > 0]
 if df.empty:
     st.info("No clutch instances yet."); st.stop()
 
@@ -363,6 +379,12 @@ if st.button("💾 Save changes", type="primary"):
                 })
                 n += 1
         st.success(f"Updated {n} row(s).")
+# CSV export of current editor snapshot
+try:
+    export_cols = [c for c in t.columns if c != '✓ Select']
+    st.download_button('⬇️ Download annotations (CSV)', t[export_cols].to_csv(index=False), 'clutch_annotations.csv', 'text/csv')
+except Exception:
+    pass
         with eng.begin() as cx:
             df2 = pd.read_sql(text("""
                 select
