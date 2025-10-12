@@ -53,44 +53,44 @@ day = st.date_input("Day", value=dt.date.today())
 # ────────────────────────── query mounts with live annotations ─────────────
 with eng.begin() as cx:
         df = pd.read_sql(
-        text("""
-          select
-            m.mount_date,
-            coalesce(
-              'BRUKER ' || to_char(m.mount_date,'YYYY-MM-DD') || ' #' ||
-              row_number() over (
-                partition by m.mount_date
-                order by m.mount_time nulls last, m.created_at
-              ),
-              'BRUKER ' || to_char(m.mount_date,'YYYY-MM-DD')
-            ) as mount_code,
-            m.mount_time,
-            ci.label as selection_label,
-            r.cross_run_code,
-            c.clutch_name,
-            c.clutch_nickname,
-            coalesce(trim(
-              concat_ws(' ',
-                case when ci.red_intensity <> '' then 'red='||ci.red_intensity end,
-                case when ci.green_intensity <> '' then 'green='||ci.green_intensity end,
-                case when ci.notes <> '' then 'note='||ci.notes end
-              )
-            ), '') as annotations,
-            m.n_top,
-            m.n_bottom,
-            m.orientation,
-            m.created_at,
-            m.created_by
-          from public.bruker_mounts m
-          left join public.clutch_instances ci on ci.id::uuid = m.selection_id
-          left join public.vw_cross_runs_overview r on r.cross_instance_id = ci.cross_instance_id
-          left join public.v_cross_concepts_overview c on c.mom_code = r.mom_code and c.dad_code = r.dad_code
-          where m.mount_date = :d
-          order by m.created_at desc
-        """),
-        cx,
-        params={"d": day},
-    )
+            text("""
+            select
+                m.mount_date,
+                coalesce(
+                'BRUKER ' || to_char(m.mount_date,'YYYY-MM-DD') || ' #' ||
+                row_number() over (
+                    partition by m.mount_date
+                    order by m.mount_time nulls last, m.created_at
+                ),
+                'BRUKER ' || to_char(m.mount_date,'YYYY-MM-DD')
+                ) as mount_code,
+                m.mount_time,
+                ci.label as selection_label,
+                r.cross_run_code,
+                c.clutch_name,
+                c.clutch_nickname,
+                coalesce(trim(
+                concat_ws(' ',
+                    case when ci.red_intensity <> '' then 'red='||ci.red_intensity end,
+                    case when ci.green_intensity <> '' then 'green='||ci.green_intensity end,
+                    case when ci.notes <> '' then 'note='||ci.notes end
+                )
+                ), '') as annotations,
+                m.n_top,
+                m.n_bottom,
+                m.orientation,
+                m.created_at,
+                m.created_by
+            from public.bruker_mounts m
+            left join public.clutch_instances ci on ci.id = m.selection_id
+            left join public.vw_cross_runs_overview r on r.cross_instance_id = ci.cross_instance_id
+            left join public.v_cross_concepts_overview c on c.mom_code = r.mom_code and c.dad_code = r.dad_code
+            where m.mount_date = :d
+            order by m.created_at desc
+            """),
+            cx,
+            params={"d": day},
+        )
 
 if df.empty:
     _banner_warn("No mounts found for the selected day.")
