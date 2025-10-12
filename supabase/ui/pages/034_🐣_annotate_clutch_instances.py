@@ -145,42 +145,107 @@ edited_concepts = st.data_editor(
 st.session_state[sel_key].loc[edited_concepts.index, "✓ Select"] = edited_concepts["✓ Select"]
 selected_codes = edited_concepts.loc[edited_concepts["✓ Select"], "clutch_code"].astype(str).tolist()
 
-# Realized instances in window for selected concepts
+# ───────────────────────── Realized instances in window for selected concepts ─────────────────────────
 st.markdown("### Realized instances for selection")
+
 if not selected_codes:
     st.info("No realized clutch instances yet.")
 else:
+    # 1) Fetch mom/dad for the selected concepts (use canonical view)
     with eng.begin() as cx:
         sel_mom_dad = pd.read_sql(
-            text("select clutch_code, mom_code, dad_code from public.v_cross_concepts_overview where clutch_code = any(:codes)"),
+            text("""
+                select conceptual_cross_code as clutch_code, mom_code, dad_code
+                from public.v_cross_concepts_overview
+                where conceptual_cross_code = any(:codes)
+            """),
             cx, params={"codes": selected_codes}
         )
+        # 2) Fetch runs in the window (enriched view, has cross_instance_id)
         runs = pd.read_sql(
             text("""
-                select cross_run_code, cross_date::date as cross_date,
-                       mom_code, dad_code,
-                       mother_tank_label, father_tank_label,
-                       run_created_by, run_created_at, run_note
+                select
+                  cross_instance_id,
+                  cross_run_code,
+                  cross_date::date as cross_date,
+                  mom_code, dad_code,
+                  mother_tank_label, father_tank_label,
+                  run_created_by, run_created_at, run_note
                 from public.vw_cross_runs_overview
                 where (:d1 is null or cross_date::date >= :d1)
                   and (:d2 is null or cross_date::date <= :d2)
             """),
             cx, params={"d1": str(d_from) if d_from else None, "d2": str(d_to) if d_to else None}
         )
+
     if sel_mom_dad.empty or runs.empty:
         st.info("No realized clutch instances yet.")
     else:
+        # 3) Join runs to the selected concepts by mom+dad
         det = sel_mom_dad.merge(runs, how="inner", on=["mom_code", "dad_code"])
         det = det.sort_values(["run_created_at", "cross_date"], ascending=[False, False])
-        show = [
+
+        # 4) Show a selectable grid (✓ Add) so user can seed clutch_instances from these runs
+        cols = [
             "clutch_code", "cross_run_code", "cross_date",
             "mom_code", "dad_code", "mother_tank_label", "father_tank_label",
-            "run_created_by", "run_created_at", "run_note",
+            "run_created_by", "run_created_at", "run_note", "cross_instance_id"
         ]
-        present_det = [c for c in show if c in det.columns]
-        st.dataframe(det[present_det], hide_index=True, use_container_width=True)
-        st.download_button("⬇️ Download concepts (CSV)", concept_df.to_csv(index=False), "concepts.csv", "text/csv")
-        st.download_button("⬇️ Download runs (CSV)", det[present_det].to_csv(index=False), "runs.csv", "text/csv")
+        present = [c for c in cols if c in det.columns]
+        grid = det[present].copy()
+        grid.insert(0, "✓ Add", False)
+
+        edited_seed = st.data_editor(
+            grid,
+            hide_index=True,
+            use_container_width=True,
+            column_order=["✓ Add"] + present,
+            column_config={"✓ Add": st.column_config.CheckboxColumn("✓", default=False)},
+            key="ci_seed_editor",
+        )
+
+        # 5) Actions: create clutch instances from selected runs + CSV download for runs
+        c1, c2 = st.columns([1, 3])
+        with c1:
+            create_clicked = st.button("➕ Create clutch instance(s)")
+        with c2:
+            st.download_button(
+                "⬇️ Download runs (CSV)",
+                det[present].to_csv(index=False),
+                "runs.csv",
+                "text/csv"
+            )
+
+        if create_clicked:
+            rows = edited_seed[edited_seed["✓ Add"] == True]
+            if rows.empty:
+                st.warning("No runs selected.")
+            else:
+                created = 0
+                with eng.begin() as cx:
+                    for _, r in rows.iterrows():
+                        xid = str(r.get("cross_instance_id") or "").strip()
+                        if not xid:
+                            continue  # nothing to link
+                        # helpful default label: "<CL> / <XR>"
+                        ccode   = str(r.get("clutch_code") or "").strip()
+                        runcode = str(r.get("cross_run_code") or "").strip()
+                        label   = " / ".join([s for s in (ccode, runcode) if s]) or "clutch"
+                        cx.execute(
+                            text("""
+                                insert into public.clutch_instances (cross_instance_id, label, created_at)
+                                select :xid, :label, now()
+                                where not exists (
+                                  select 1 from public.clutch_instances where cross_instance_id = :xid
+                                )
+                            """),
+                            {"xid": xid, "label": label}
+                        )
+                        created += 1
+                st.success(f"Created {created} clutch instance(s).")
+                st.rerun()
+
+        # optionally keep the selected concepts in session for downstream filters
         st.session_state["_concept_selection"] = selected_codes
 
 # ───────────────────────── Annotation grid (red/green + legacy) ───────────────────
