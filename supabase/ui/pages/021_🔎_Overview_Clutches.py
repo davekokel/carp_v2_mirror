@@ -140,14 +140,60 @@ det = sel_mom_dad.merge(runs, how="inner", on=["mom_code","dad_code"]).sort_valu
 )
 st.caption(f"matched by mom+dad: {len(det)}")
 
-if det.empty:
-    st.info("No realized clutch instances for the selected concepts."); st.stop()
+# --- Pull aggregated annotations per run from clutch_instances (by cross_instance_id)
+with eng.begin() as cx:
+    ci_df = pd.read_sql(
+        text("""
+            select
+              cross_instance_id,
+              max(annotated_at)::date as day_annotated,
+              string_agg(
+                trim(
+                  concat(
+                    case when coalesce(red_intensity,'')   <> '' then 'red='   || red_intensity   else null end,
+                    case when coalesce(green_intensity,'') <> '' then ' green='|| green_intensity else null end,
+                    case when coalesce(notes,'')           <> '' then ' note=' || notes          else null end
+                  )
+                ),
+                ' | ' order by created_at
+              ) as annotations
+            from public.clutch_instances
+            group by cross_instance_id
+        """), cx
+    )
 
-# Show runs (read-only: NO annotate here)
-cols = [
-    "clutch_code","cross_run_code","cross_date",
-    "mom_code","dad_code","mother_tank_label","father_tank_label",
-    "run_created_by","run_created_at","run_note"
+# Left-merge aggregated annotations onto the matched runs by cross_instance_id (if that column exists)
+if "cross_instance_id" in det.columns and not ci_df.empty:
+    en = det.merge(ci_df, how="left", on="cross_instance_id")
+else:
+    en = det.copy()
+    if "cross_instance_id" not in en.columns:
+        # placeholder if the view doesn't expose it
+        en["cross_instance_id"] = None
+    en["day_annotated"] = pd.NaT
+    en["annotations"]  = ""
+
+# Compute the requested presentation columns
+en["clutch_genotype"] = en["mom_code"].astype(str) + " × " + en["dad_code"].astype(str)
+# treatments rollup: use run_note from runs (blank if none)
+en["treatments"]      = en.get("run_note", pd.Series([""]*len(en))).fillna("")
+# birthday = cross_date
+en["birthday"]        = en["cross_date"]
+
+# Show only the requested columns in the requested order
+show_cols = [
+    "clutch_code",
+    "cross_run_code",
+    "clutch_genotype",
+    "treatments",
+    "birthday",
+    "day_annotated",
+    "annotations",
 ]
-present_det = [c for c in cols if c in det.columns]
-st.dataframe(det[present_det], use_container_width=True, hide_index=True)
+
+present = [c for c in show_cols if c in en.columns]
+st.dataframe(
+    en[present],
+    use_container_width=True,
+    hide_index=True
+)
