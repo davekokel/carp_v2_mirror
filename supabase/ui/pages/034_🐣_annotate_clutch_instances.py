@@ -201,64 +201,65 @@ edited_runs = st.data_editor(
     key="ci_runs_editor_min",
 )
 
-# --- Existing selections for the checked run(s) (mom/dad scalar binds, per pair) ---
+# --- Existing selections for the checked run(s) (join base table; mom/dad scalar binds) ---
+# --- Existing selections for the checked run(s) (by cross_instance_id) ---
 st.markdown("#### Existing selections for the checked run(s)")
 
-checked_pairs = pd.DataFrame(columns=["mom_code","dad_code"])
-if {"mom_code","dad_code"}.issubset(edited_runs.columns):
-    checked_pairs = (
-        edited_runs.loc[edited_runs["✓ Add"] == True, ["mom_code","dad_code"]]
-        .dropna().astype(str).drop_duplicates()
+checked_xids: list[str] = []
+if "cross_instance_id" in edited_runs.columns:
+    checked_xids = (
+        edited_runs.loc[edited_runs["✓ Add"] == True, "cross_instance_id"]
+        .dropna().astype(str).unique().tolist()
     )
 
-if checked_pairs.empty:
+st.caption(f"DBG • checked_xids={checked_xids}")
+
+if not checked_xids:
     st.info("Select a run in the table above to view its existing selections.")
 else:
-    # Query per pair with simple scalar binds; accumulate in Python
-    rows_list = []
-    stmt = text("""
+    # Build typed placeholders to avoid array-binding/unknown-type issues
+    ph = ",".join([f":x{i}::uuid" for i in range(len(checked_xids))])  # :x0::uuid,:x1::uuid,...
+    sql = text(f"""
         select
-          s.selection_id,
-          s.cross_instance_id,
-          s.selection_created_at,
-          s.selection_annotated_at,
-          s.red_intensity,
-          s.green_intensity,
-          s.notes,
-          s.annotated_by,
-          s.label
-        from public.v_clutch_instance_selections s
-        join public.vw_cross_runs_overview r
-          on r.cross_instance_id = s.cross_instance_id
-        where r.mom_code = :mom and r.dad_code = :dad
-        order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
-                 s.selection_created_at desc
+          ci.id            as selection_id,
+          ci.cross_instance_id,
+          ci.created_at    as selection_created_at,
+          ci.annotated_at  as selection_annotated_at,
+          ci.red_intensity,
+          ci.green_intensity,
+          ci.notes,
+          ci.annotated_by,
+          ci.label
+        from public.clutch_instances ci
+        where ci.cross_instance_id in ({ph})
+        order by coalesce(ci.annotated_at, ci.created_at) desc,
+                 ci.created_at desc
     """)
+    params = {f"x{i}": x for i, x in enumerate(checked_xids)}
+
     with eng.begin() as cx:
-        for m, d in checked_pairs.itertuples(index=False, name=None):
-            rows_list.extend(cx.execute(stmt, {"mom": m, "dad": d}).mappings().all())
-    table_checked = pd.DataFrame(rows_list)
+        sel_rows = pd.read_sql(sql, cx, params=params)
 
-    # Attach run context for display (clutch_code / cross_run_code / birthday)
-    if not table_checked.empty:
-        run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
-        table_checked = table_checked.merge(run_meta, how="left", on="cross_instance_id")
+    # Attach run context to each selection row
+    run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
+    table = sel_rows.merge(run_meta, how="left", on="cross_instance_id")
 
+    # Ensure consistent columns
     for c in [
         "clutch_code","cross_run_code","birthday",
         "selection_created_at","selection_annotated_at",
         "red_intensity","green_intensity","notes","annotated_by","label","selection_id",
     ]:
-        if c not in table_checked.columns:
-            table_checked[c] = ""
+        if c not in table.columns:
+            table[c] = ""
 
     show_cols = [
         "clutch_code","cross_run_code","birthday",
         "selection_created_at","selection_annotated_at",
         "red_intensity","green_intensity","notes","annotated_by","label","selection_id",
     ]
-    present = [c for c in show_cols if c in table_checked.columns]
-    st.dataframe(table_checked[present], hide_index=True, use_container_width=True)
+    present = [c for c in show_cols if c in table.columns]
+    st.dataframe(table[present], hide_index=True, use_container_width=True)
 
 # ---- Quick annotate selected (one per run) -------------------------------------
 st.markdown("#### Quick annotate selected")
@@ -325,37 +326,39 @@ if st.button("Submit"):
         st.rerun()
 
 # ── Selection instances (distinct) for runs of the selected concepts ------------
+# ── Selection instances (distinct) for runs of the selected concepts ------------
 st.markdown("### Selection instances (distinct)")
-if not {"mom_code","dad_code"}.issubset(det.columns):
-    st.caption("View does not expose mom_code/dad_code; cannot list selections.")
+
+if "cross_instance_id" not in det.columns:
+    st.caption("View does not expose cross_instance_id; cannot list selections.")
 else:
-    all_pairs = det[["mom_code","dad_code"]].dropna().astype(str).drop_duplicates()
-    if all_pairs.empty:
+    xids_all = det["cross_instance_id"].dropna().astype(str).unique().tolist()
+    st.caption(f"DBG • all_xids={xids_all}")
+
+    if not xids_all:
         st.info("No selection instances yet for the selected runs.")
     else:
-        rows_list_all = []
-        stmt_all = text("""
+        ph_all = ",".join([f":x{i}::uuid" for i in range(len(xids_all))])
+        sql_all = text(f"""
             select
-              s.selection_id,
-              s.cross_instance_id,
-              s.selection_created_at,
-              s.selection_annotated_at,
-              s.red_intensity,
-              s.green_intensity,
-              s.notes,
-              s.annotated_by,
-              s.label
-            from public.v_clutch_instance_selections s
-            join public.vw_cross_runs_overview r
-              on r.cross_instance_id = s.cross_instance_id
-            where r.mom_code = :mom and r.dad_code = :dad
-            order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
-                     s.selection_created_at desc
+              ci.id           as selection_id,
+              ci.cross_instance_id,
+              ci.created_at   as selection_created_at,
+              ci.annotated_at as selection_annotated_at,
+              ci.red_intensity,
+              ci.green_intensity,
+              ci.notes,
+              ci.annotated_by,
+              ci.label
+            from public.clutch_instances ci
+            where ci.cross_instance_id in ({ph_all})
+            order by coalesce(ci.annotated_at, ci.created_at) desc,
+                     ci.created_at desc
         """)
+        params_all = {f"x{i}": x for i, x in enumerate(xids_all)}
+
         with eng.begin() as cx:
-            for m, d in all_pairs.itertuples(index=False, name=None):
-                rows_list_all.extend(cx.execute(stmt_all, {"mom": m, "dad": d}).mappings().all())
-        table_all = pd.DataFrame(rows_list_all)
+            table_all = pd.read_sql(sql_all, cx, params=params_all)
 
         run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
         if not table_all.empty:
@@ -364,7 +367,7 @@ else:
         for c in [
             "clutch_code","cross_run_code","birthday",
             "selection_created_at","selection_annotated_at",
-            "red_intensity","green_intensity","notes","annotated_by","label","selection_id"
+            "red_intensity","green_intensity","notes","annotated_by","label","selection_id",
         ]:
             if c not in table_all.columns:
                 table_all[c] = ""
