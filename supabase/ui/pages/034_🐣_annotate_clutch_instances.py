@@ -273,10 +273,14 @@ if st.button("Submit"):
                 base_label = " / ".join([s for s in (ccode, rcode) if s]) or "clutch"
 
                 # continue numbering per run
-                existing = cx.execute(sql("""
-                    select count(*) from public.clutch_instances
-                    where cross_instance_id = cast(:xid as uuid)
-                """), {"xid": xid}).scalar() or 0
+                existing = cx.execute(
+                    text("""
+                        select count(*) 
+                        from public.clutch_instances
+                        where cross_instance_id = cast(:xid as uuid)
+                    """),
+                    {"xid": xid}
+                ).scalar_one_or_none() or 0
 
                 suffix = f" [{existing + 1}]" if existing > 0 else ""
                 label  = base_label + suffix
