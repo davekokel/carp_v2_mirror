@@ -239,15 +239,16 @@ with eng.begin() as cx:
     selections = pd.read_sql(
         text("""
             select
-              id_uuid::text          as selection_id,
-              cross_instance_id::text as cross_instance_id,
-              created_at             as selection_created_at,
-              annotated_at           as selection_annotated_at,
+              selection_id::text        as selection_id,
+              cross_instance_id::text   as cross_instance_id,
+              selection_created_at      as selection_created_at,
+              selection_annotated_at    as selection_annotated_at,
               red_intensity, green_intensity, notes,
               annotated_by, label
-            from public.clutch_instances
-            where cross_instance_id = :xid
-            order by coalesce(annotated_at, created_at) desc, created_at desc
+            from public.v_clutch_instance_selections
+            where cross_instance_id = cast(:xid as uuid)
+            order by coalesce(selection_annotated_at, selection_created_at) desc,
+                     selection_created_at desc
         """),
         cx,
         params={"xid": cross_instance_id},
