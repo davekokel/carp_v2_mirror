@@ -19,7 +19,28 @@ import os, sys, time
 from pathlib import Path
 import streamlit as st
 import pandas as pd
+import subprocess
 from sqlalchemy import text
+def _build_meta():
+    """
+    Try to read the current git commit (short SHA), commit time, and branch from the checkout.
+    Fallback to env/secrets if git metadata isn't present.
+    """
+    try:
+        root = Path(__file__).resolve().parents[2]  # repo root
+        sha = subprocess.check_output(["git","rev-parse","--short","HEAD"], cwd=root, text=True).strip()
+        ts  = subprocess.check_output(["git","show","-s","--format=%ci","HEAD"], cwd=root, text=True).strip()
+        br  = subprocess.check_output(["git","rev-parse","--abbrev-ref","HEAD"], cwd=root, text=True).strip()
+        # In some deploys it's a detached HEAD; show env APP_ENV instead
+        if br == "HEAD":
+            br = os.getenv("APP_ENV","").lower() or "detached"
+        return sha, ts, br
+    except Exception:
+        # fallbacks (Secrets or env)
+        sha = (getattr(st, "secrets", {}).get("BUILD_SHA") if hasattr(st,"secrets") else None) or os.getenv("BUILD_SHA","")
+        ts  = (getattr(st, "secrets", {}).get("BUILD_TIME") if hasattr(st,"secrets") else None) or os.getenv("BUILD_TIME","")
+        br  = (getattr(st, "secrets", {}).get("BUILD_BRANCH") if hasattr(st,"secrets") else None) or os.getenv("BUILD_BRANCH","") or os.getenv("APP_ENV","").lower()
+        return sha, ts, br
 
 # ...keep the rest of your file exactly as you had it (ENV badge, imports, etc.) ...
 
@@ -43,9 +64,9 @@ st.set_page_config(page_title=PAGE_TITLE, page_icon="🧪", layout="wide")
 st.title("🧪 CARP — Diagnostics")
 from supabase.ui.lib.prod_banner import show_prod_banner
 show_prod_banner()
-build_sha = os.getenv("BUILD_SHA") or (getattr(st, "secrets", {}).get("BUILD_SHA") if hasattr(st, "secrets") else "")
-if build_sha:
-    st.caption(f"BUILD: {build_sha[:7]}")
+_sha,_ts,_br = _build_meta() or (getattr(st, "secrets", {}).get("BUILD_SHA") if hasattr(st, "secrets") else "")
+if _sha:
+    st.caption(f"BUILD: {_br or 'unknown'}@{_sha[:7]}{f' ({_ts})' if _ts else ''}")
 
 if os.getenv("APP_ENV","local").lower() != "local" and not st.session_state.get("_db_bootstrapped"):
     import supabase.ui.lib.app_ctx as app_ctx
@@ -191,7 +212,27 @@ if label:
 st.caption(caption)
 
 # ---- Environment badge + Quick DB shortcuts --------------------------------
-from sqlalchemy import text as _text  # reuse imported text if available
+from sqlalchemy import text
+def _build_meta():
+    """
+    Try to read the current git commit (short SHA), commit time, and branch from the checkout.
+    Fallback to env/secrets if git metadata isn't present.
+    """
+    try:
+        root = Path(__file__).resolve().parents[2]  # repo root
+        sha = subprocess.check_output(["git","rev-parse","--short","HEAD"], cwd=root, text=True).strip()
+        ts  = subprocess.check_output(["git","show","-s","--format=%ci","HEAD"], cwd=root, text=True).strip()
+        br  = subprocess.check_output(["git","rev-parse","--abbrev-ref","HEAD"], cwd=root, text=True).strip()
+        # In some deploys it's a detached HEAD; show env APP_ENV instead
+        if br == "HEAD":
+            br = os.getenv("APP_ENV","").lower() or "detached"
+        return sha, ts, br
+    except Exception:
+        # fallbacks (Secrets or env)
+        sha = (getattr(st, "secrets", {}).get("BUILD_SHA") if hasattr(st,"secrets") else None) or os.getenv("BUILD_SHA","")
+        ts  = (getattr(st, "secrets", {}).get("BUILD_TIME") if hasattr(st,"secrets") else None) or os.getenv("BUILD_TIME","")
+        br  = (getattr(st, "secrets", {}).get("BUILD_BRANCH") if hasattr(st,"secrets") else None) or os.getenv("BUILD_BRANCH","") or os.getenv("APP_ENV","").lower()
+        return sha, ts, br as _text  # reuse imported text if available
 
 def _mask(u: str | None) -> str:
     if not u: return ""
