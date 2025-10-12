@@ -52,7 +52,7 @@ day = st.date_input("Day", value=dt.date.today())
 
 # ────────────────────────── query mounts with live annotations ─────────────
 with eng.begin() as cx:
-    df = pd.read_sql(
+        df = pd.read_sql(
         text("""
           select
             m.mount_date,
@@ -82,7 +82,7 @@ with eng.begin() as cx:
             m.created_at,
             m.created_by
           from public.bruker_mounts m
-          left join public.clutch_instances ci on ci.id::uuid = m.selection_id
+          left join public.clutch_instances ci on ci.id_uuid::uuid = m.selection_id
           left join public.vw_cross_runs_overview r on r.cross_instance_id = ci.cross_instance_id
           left join public.v_cross_concepts_overview c on c.mom_code = r.mom_code and c.dad_code = r.dad_code
           where m.mount_date = :d
