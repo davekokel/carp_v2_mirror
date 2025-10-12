@@ -239,10 +239,10 @@ with eng.begin() as cx:
     selections = pd.read_sql(
         text("""
             select
-              id::text as selection_id,
+              id_uuid::text          as selection_id,
               cross_instance_id::text as cross_instance_id,
-              created_at            as selection_created_at,
-              annotated_at          as selection_annotated_at,
+              created_at             as selection_created_at,
+              annotated_at           as selection_annotated_at,
               red_intensity, green_intensity, notes,
               annotated_by, label
             from public.clutch_instances
@@ -328,55 +328,49 @@ save = st.button("Save mount", type="primary")
 if save:
     try:
         with eng.begin() as cx:
-            # Check if mount_code column exists
             has_mount_code = _col_exists(cx, "public", "bruker_mounts", "mount_code")
 
-            # Compute mount_code
-            mount_code = _make_mount_code(cx, d_val) if has_mount_code else None
-
             if has_mount_code:
-                cx.execute(
+                recent = pd.read_sql(
                     text("""
-                        insert into public.bruker_mounts (
-                          selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
-                          mount_code, created_at, created_by
-                        )
-                        values (
-                          :sid, :md, :mt, :orient, :nt, :nb,
-                          :mcode, now(), coalesce(current_setting('app.user', true), current_user)
-                        )
+                        select
+                        coalesce(
+                            mount_code,
+                            'BRUKER ' || to_char(mount_date, 'YYYY-MM-DD') || ' #' ||
+                            row_number() over (
+                            partition by mount_date
+                            order by mount_time nulls last, created_at
+                            )
+                        ) as mount_code,
+                        mount_date, mount_time, n_top, n_bottom, orientation,
+                        created_at, created_by
+                        from public.bruker_mounts
+                        where selection_id = :sid
+                        order by created_at desc
+                        limit 50
                     """),
-                    {
-                        "sid": selection_id,
-                        "md": d_val,
-                        "mt": t_val,
-                        "orient": orientation,
-                        "nt": n_top,
-                        "nb": n_bottom,
-                        "mcode": mount_code,
-                    },
+                    cx,
+                    params={"sid": selection_id},
                 )
             else:
-                # Fallback (no mount_code column yet)
-                cx.execute(
+                # No physical mount_code column? Compute a display-only code so the UI is consistent.
+                recent = pd.read_sql(
                     text("""
-                        insert into public.bruker_mounts (
-                          selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
-                          created_at, created_by
-                        )
-                        values (
-                          :sid, :md, :mt, :orient, :nt, :nb,
-                          now(), coalesce(current_setting('app.user', true), current_user)
-                        )
+                        select
+                        'BRUKER ' || to_char(mount_date, 'YYYY-MM-DD') || ' #' ||
+                        row_number() over (
+                            partition by mount_date
+                            order by mount_time nulls last, created_at
+                        ) as mount_code,
+                        mount_date, mount_time, n_top, n_bottom, orientation,
+                        created_at, created_by
+                        from public.bruker_mounts
+                        where selection_id = :sid
+                        order by created_at desc
+                        limit 50
                     """),
-                    {
-                        "sid": selection_id,
-                        "md": d_val,
-                        "mt": t_val,
-                        "orient": orientation,
-                        "nt": n_top,
-                        "nb": n_bottom,
-                    },
+                    cx,
+                    params={"sid": selection_id},
                 )
         st.success("Bruker mount saved.")
         st.rerun()
@@ -387,39 +381,56 @@ if save:
 st.markdown("### Recent mounts for this selection")
 
 with eng.begin() as cx:
-    has_mount_code = _col_exists(cx, "public", "bruker_mounts", "mount_code")
-    if has_mount_code:
-        recent = pd.read_sql(
-            text("""
-                select
-                  mount_code,
-                  mount_date, mount_time, n_top, n_bottom, orientation,
-                  created_at, created_by
-                from public.bruker_mounts
-                where selection_id = :sid
-                order by created_at desc
-                limit 50
-            """),
-            cx,
-            params={"sid": selection_id},
-        )
-    else:
-        recent = pd.read_sql(
-            text("""
-                select
-                  mount_date, mount_time, n_top, n_bottom, orientation,
-                  created_at, created_by
-                from public.bruker_mounts
-                where selection_id = :sid
-                order by created_at desc
-                limit 50
-            """),
-            cx,
-            params={"sid": selection_id},
-        )
+    # Compute a code even if the physical column doesn't exist:
+    # - If mount_code column exists and is non-null, use it.
+    # - Otherwise build "BRUKER YYYY-MM-DD #N" with a stable per-day numbering.
+    recent = pd.read_sql(
+        text("""
+            select
+              coalesce(
+                mount_code,
+                'BRUKER ' || to_char(mount_date, 'YYYY-MM-DD') || ' #' ||
+                row_number() over (
+                  partition by selection_id, mount_date
+                  order by mount_time nulls last, created_at
+                )
+              ) as mount_code,
+              mount_date,
+              mount_time,
+              n_top,
+              n_bottom,
+              orientation,
+              created_at,
+              created_by
+            from public.bruker_mounts
+            where selection_id = :sid
+            order by created_at desc
+            limit 50
+        """),
+        cx,
+        params={"sid": selection_id},
+    )
+
+# Defensive fallback (should never trigger with the SQL above)
+if not recent.empty and "mount_code" not in recent.columns:
+    recent = recent.copy()
+    # This page only ever shows one selection_id at a time, so grouping by date is enough.
+    recent["mount_code"] = (
+        "BRUKER "
+        + recent["mount_date"].astype(str)
+        + " # "
+        + (recent.groupby("mount_date").cumcount() + 1).astype(str)
+    )
 
 if recent.empty:
     st.caption("No mounts yet for this selection.")
 else:
-    # Hide internal id entirely; show mount_code if present
+    # Ensure mount_code is the FIRST column in the rendered table.
+    order = [
+        "mount_code",
+        "mount_date", "mount_time", "n_top", "n_bottom", "orientation",
+        "created_at", "created_by",
+    ]
+    present = [c for c in order if c in recent.columns]
+    recent = recent[present]
     st.dataframe(recent, hide_index=True, use_container_width=True)
