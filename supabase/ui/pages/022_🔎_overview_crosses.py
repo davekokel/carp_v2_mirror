@@ -148,6 +148,7 @@ base = base.loc[now.index]  # drop filtered-out
 st.session_state[key] = base.reset_index(drop=True)
 
 # show grid (lock explicit order; conceptual_cross_code second)
+# show grid (lock explicit order; conceptual_cross_code second)
 view_cols = [
     "✓ Select",
     "conceptual_cross_code",
@@ -156,26 +157,26 @@ view_cols = [
     "mom_code","dad_code","mom_code_tank","dad_code_tank",
     "n_treatments","created_by","created_at",
 ]
-# slice by intersection to avoid KeyError if a column is temporarily missing
 cols_present = [c for c in view_cols if c in st.session_state[key].columns]
+
 edited = st.data_editor(
     st.session_state[key][cols_present],
     hide_index=True,
     use_container_width=True,
     column_order=cols_present,
     column_config={
-        "✓ Select":              st.column_config.CheckboxColumn("✓", default=False),
-        "conceptual_cross_code": st.column_config.TextColumn("conceptual_cross_code", disabled=True),
-        "clutch_code":           st.column_config.TextColumn("clutch_code", disabled=True),
-        "name":                  st.column_config.TextColumn("name", disabled=True),
-        "nickname":              st.column_config.TextColumn("nickname", disabled=True),
-        "mom_code":              st.column_config.TextColumn("mom_code", disabled=True),
-        "dad_code":              st.column_config.TextColumn("dad_code", disabled=True),
-        "mom_code_tank":         st.column_config.TextColumn("mom_code_tank", disabled=True),
-        "dad_code_tank":         st.column_config.TextColumn("dad_code_tank", disabled=True),
-        "n_treatments":          st.column_config.NumberColumn("n_treatments", disabled=True),
-        "created_by":            st.column_config.TextColumn("created_by", disabled=True),
-        "created_at":            st.column_config.DatetimeColumn("created_at", disabled=True),
+        "✓ Select":                st.column_config.CheckboxColumn("✓", default=False),
+        "conceptual_cross_code":   st.column_config.TextColumn("conceptual_cross_code", disabled=True, label="conceptual_cross_code"),
+        "clutch_code":             st.column_config.TextColumn("clutch_code", disabled=True, label="cross"),
+        "name":                    st.column_config.TextColumn("name", disabled=True, label="cross name"),
+        "nickname":                st.column_config.TextColumn("nickname", disabled=True, label="nickname"),
+        "mom_code":                st.column_config.TextColumn("mom_code", disabled=True, label="mom"),
+        "dad_code":                st.column_config.TextColumn("dad_code", disabled=True, label="dad"),
+        "mom_code_tank":           st.column_config.TextColumn("mom_code_tank", disabled=True, label="mom tank"),
+        "dad_code_tank":           st.column_config.TextColumn("dad_code_tank", disabled=True, label="dad tank"),
+        "n_treatments":            st.column_config.NumberColumn("n_treatments", disabled=True, label="n_treatments"),
+        "created_by":              st.column_config.TextColumn("created_by", disabled=True, label="created_by"),
+        "created_at":              st.column_config.DatetimeColumn("created_at", disabled=True, label="created_at"),
     },
     key="crosses_editor",
 )
