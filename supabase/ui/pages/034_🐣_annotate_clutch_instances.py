@@ -191,6 +191,8 @@ else:
             det["annotations_rollup"] = ""
 
         det["birthday"] = det["cross_date"]  # clutch instance birthday = run date
+        det["day_annotated"] = det["day_annotated"].astype("string")
+        det["annotations_rollup"] = det["annotations_rollup"].fillna("").astype("string")
 
         # selection grid (minimal)
         cols = [
@@ -220,8 +222,9 @@ else:
         with c3:
             note_txt = st.text_input("note", value="", placeholder="optional")
 
-        if st.button("Submit"):
-            sel = edited_seed[edited_seed["✓ Add"] == True]
+        if not (red_txt.strip() or green_txt.strip() or note_txt.strip()):
+            st.warning("Provide at least one of red/green/note before submitting.")
+            st.stop()
             if sel.empty:
                 st.warning("No runs selected.")
             else:
@@ -271,3 +274,57 @@ else:
 
                 st.success(f"Created {saved} clutch instance(s).")
                 st.rerun()
+
+# ── Selection instances (distinct rows) for the selected runs ───────────────────
+st.markdown("### Selection instances (distinct)")
+
+# We need cross_instance_id to tie selections back to runs
+if "cross_instance_id" not in det.columns:
+    st.caption("View does not expose cross_instance_id, cannot list distinct selection instances.")
+else:
+    xids = det["cross_instance_id"].dropna().astype(str).unique().tolist()
+
+    if not xids:
+        st.info("No selection instances yet for the selected runs.")
+    else:
+        with eng.begin() as cx:
+            sel = pd.read_sql(
+                text("""
+                    select
+                      s.selection_id,
+                      s.cross_instance_id,
+                      s.selection_created_at,
+                      s.selection_annotated_at,
+                      s.red_intensity,
+                      s.green_intensity,
+                      s.notes,
+                      s.annotated_by,
+                      s.label
+                    from public.v_clutch_instance_selections s
+                    where s.cross_instance_id = any(:ids)
+                    order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
+                             s.selection_created_at desc
+                """),
+                cx,
+                params={"ids": xids},
+            )
+
+        # Attach run context to each selection row
+        run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
+        table = sel.merge(run_meta, how="left", on="cross_instance_id")
+        for c in [
+            "clutch_code","cross_run_code","birthday",
+            "selection_created_at","selection_annotated_at",
+            "red_intensity","green_intensity","notes","annotated_by","label","selection_id"
+        ]:
+            if c not in table.columns:
+                table[c] = ""
+
+        cols = [
+            "clutch_code","cross_run_code","birthday",
+            "selection_created_at","selection_annotated_at",
+            "red_intensity","green_intensity","notes","annotated_by","label",
+            "selection_id",
+        ]
+        present = [c for c in cols if c in table.columns]
+        st.dataframe(table[present], hide_index=True, use_container_width=True)
