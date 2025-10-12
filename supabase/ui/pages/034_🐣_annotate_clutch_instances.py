@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, sys, re, uuid
+import os, sys
 from pathlib import Path
 import pandas as pd
 import streamlit as st
@@ -16,7 +16,8 @@ st.title("🐣 Annotate Clutch Instances")
 # ── engine / env ────────────────────────────────────────────────────────────────
 DB_URL = os.getenv("DB_URL")
 if not DB_URL:
-    st.error("DB_URL not set"); st.stop()
+    st.error("DB_URL not set")
+    st.stop()
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
 # DB badge (host + role) and capture user string for stamping
@@ -38,27 +39,17 @@ try:
     from supabase.ui.lib.app_ctx import stamp_app_user
     who_ui = getattr(st.experimental_user, "email", "") if hasattr(st, "experimental_user") else ""
     if who_ui:
-        user = who_ui
+        user = who_ui  # prefer email if available
     stamp_app_user(eng, user)
 except Exception:
     pass
 
-# Ensure target table exists
+# Ensure target table exists (we will write here)
 with eng.begin() as cx:
     exists_tbl = cx.execute(text("select to_regclass('public.clutch_instances')")).scalar()
 if not exists_tbl:
     st.error("Table public.clutch_instances not found in this DB.")
     st.stop()
-
-# Helper: build VALUES list of uuid literals safely
-_UUID_RE = re.compile(r"^[0-9a-fA-F-]{32,40}$")
-def uuid_values_clause(ids: list[str]) -> str:
-    vals = []
-    for s in ids or []:
-        s = (s or "").strip()
-        if _UUID_RE.match(s):
-            vals.append(f"('{s}'::uuid)")
-    return ", ".join(vals)
 
 # ── conceptual clutches (no date filters) ───────────────────────────────────────
 st.markdown("## 🔍 Clutches — Conceptual overview")
@@ -114,7 +105,9 @@ st.session_state[sel_key].loc[edited_concepts.index, "✓ Select"] = edited_conc
 tbl = st.session_state.get(sel_key)
 selected_codes: list[str] = []
 if isinstance(tbl, pd.DataFrame):
-    selected_codes = tbl.loc[tbl["✓ Select"] == True, "clutch_code"].astype(str).tolist()
+    selected_codes = (
+        tbl.loc[tbl["✓ Select"] == True, "clutch_code"].astype(str).tolist()
+    )
 if not selected_codes:
     st.info("Tick one or more clutches above to show realized instances.")
     st.stop()
@@ -208,33 +201,22 @@ edited_runs = st.data_editor(
     key="ci_runs_editor_min",
 )
 
-# --- Existing selections for the checked run(s) ---------------------------------
+# --- Existing selections for the checked run(s) (mom/dad scalar binds, per pair) ---
 st.markdown("#### Existing selections for the checked run(s)")
 
-# Use mom_code+dad_code pairs from the checked rows (text binds are safest)
 checked_pairs = pd.DataFrame(columns=["mom_code","dad_code"])
 if {"mom_code","dad_code"}.issubset(edited_runs.columns):
     checked_pairs = (
         edited_runs.loc[edited_runs["✓ Add"] == True, ["mom_code","dad_code"]]
-        .dropna()
-        .astype(str)
-        .drop_duplicates()
+        .dropna().astype(str).drop_duplicates()
     )
 
 if checked_pairs.empty:
     st.info("Select a run in the table above to view its existing selections.")
 else:
-    # Build VALUES (:m0,:d0),(:m1,:d1),...
-    vals = []
-    params = {}
-    for i, (m, d) in enumerate(checked_pairs.itertuples(index=False, name=None)):
-        vals.append(f"(:m{i}, :d{i})")
-        params[f"m{i}"] = m
-        params[f"d{i}"] = d
-    values_clause = ", ".join(vals)
-
-    sql_checked = text(f"""
-        with pairs(mom_code, dad_code) as (values {values_clause})
+    # Query per pair with simple scalar binds; accumulate in Python
+    rows_list = []
+    stmt = text("""
         select
           s.selection_id,
           s.cross_instance_id,
@@ -248,19 +230,19 @@ else:
         from public.v_clutch_instance_selections s
         join public.vw_cross_runs_overview r
           on r.cross_instance_id = s.cross_instance_id
-        join pairs p
-          on p.mom_code = r.mom_code and p.dad_code = r.dad_code
+        where r.mom_code = :mom and r.dad_code = :dad
         order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
                  s.selection_created_at desc
     """)
-
     with eng.begin() as cx:
-        rows = cx.execute(sql_checked, params).mappings().all()
-    sel_rows = pd.DataFrame(rows)
+        for m, d in checked_pairs.itertuples(index=False, name=None):
+            rows_list.extend(cx.execute(stmt, {"mom": m, "dad": d}).mappings().all())
+    table_checked = pd.DataFrame(rows_list)
 
     # Attach run context for display (clutch_code / cross_run_code / birthday)
-    run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
-    table_checked = sel_rows.merge(run_meta, how="left", on="cross_instance_id")
+    if not table_checked.empty:
+        run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
+        table_checked = table_checked.merge(run_meta, how="left", on="cross_instance_id")
 
     for c in [
         "clutch_code","cross_run_code","birthday",
@@ -344,8 +326,6 @@ if st.button("Submit"):
 
 # ── Selection instances (distinct) for runs of the selected concepts ------------
 st.markdown("### Selection instances (distinct)")
-
-# Use all mom/dad pairs from det (all runs tied to selected concepts)
 if not {"mom_code","dad_code"}.issubset(det.columns):
     st.caption("View does not expose mom_code/dad_code; cannot list selections.")
 else:
@@ -353,16 +333,8 @@ else:
     if all_pairs.empty:
         st.info("No selection instances yet for the selected runs.")
     else:
-        vals_all = []
-        params_all = {}
-        for i, (m, d) in enumerate(all_pairs.itertuples(index=False, name=None)):
-            vals_all.append(f"(:am{i}, :ad{i})")
-            params_all[f"am{i}"] = m
-            params_all[f"ad{i}"] = d
-        values_clause_all = ", ".join(vals_all)
-
-        sql_all = text(f"""
-            with pairs(mom_code, dad_code) as (values {values_clause_all})
+        rows_list_all = []
+        stmt_all = text("""
             select
               s.selection_id,
               s.cross_instance_id,
@@ -376,18 +348,18 @@ else:
             from public.v_clutch_instance_selections s
             join public.vw_cross_runs_overview r
               on r.cross_instance_id = s.cross_instance_id
-            join pairs p
-              on p.mom_code = r.mom_code and p.dad_code = r.dad_code
+            where r.mom_code = :mom and r.dad_code = :dad
             order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
                      s.selection_created_at desc
         """)
-
         with eng.begin() as cx:
-            rows_all = cx.execute(sql_all, params_all).mappings().all()
-        table_all = pd.DataFrame(rows_all)
+            for m, d in all_pairs.itertuples(index=False, name=None):
+                rows_list_all.extend(cx.execute(stmt_all, {"mom": m, "dad": d}).mappings().all())
+        table_all = pd.DataFrame(rows_list_all)
 
         run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
-        table_all = table_all.merge(run_meta, how="left", on="cross_instance_id")
+        if not table_all.empty:
+            table_all = table_all.merge(run_meta, how="left", on="cross_instance_id")
 
         for c in [
             "clutch_code","cross_run_code","birthday",
