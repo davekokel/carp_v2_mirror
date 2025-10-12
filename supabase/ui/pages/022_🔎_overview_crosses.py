@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-# ----- path bootstrap -----
+# ───────────────────────── path bootstrap ─────────────────────────
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -18,10 +18,9 @@ if not DB_URL:
     st.error("DB_URL not set"); st.stop()
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
+# ───────────────────────── helpers ─────────────────────────
 def _exists(full: str) -> bool:
+    """Does table/view exist."""
     sch, tab = full.split(".", 1)
     q = text("""
       select exists(
@@ -36,6 +35,7 @@ def _exists(full: str) -> bool:
 def _pick_instances_source() -> tuple[str, str] | None:
     """
     Pick an instance source and its clutch-code column.
+    Tries these in order and returns (source_name, code_column).
     """
     cands = [
         "public.vw_cross_runs_overview",
@@ -47,7 +47,7 @@ def _pick_instances_source() -> tuple[str, str] | None:
     qcols = text("""select column_name from information_schema.columns
                     where table_schema=:s and table_name=:t""")
     for full in cands:
-        if not _exists(full): 
+        if not _exists(full):
             continue
         sch, tab = full.split(".", 1)
         with eng.begin() as cx:
@@ -57,24 +57,20 @@ def _pick_instances_source() -> tuple[str, str] | None:
                 return full, c
     return None
 
-# ------------------------------------------------------------------
-# Concepts source (stable DB view)
-# ------------------------------------------------------------------
-VIEW = "public.v_cross_concepts_overview"  # exposes: conceptual_cross_code, clutch_code, name, nickname, mom_code, dad_code, mom_code_tank, dad_code_tank, n_treatments, created_by, created_at
+# ───────────────────────── concepts source (stable view) ─────────────────────────
+VIEW = "public.v_cross_concepts_overview"  # columns: conceptual_cross_code, clutch_code, name, nickname, mom_code, dad_code, mom_code_tank, dad_code_tank, n_treatments, created_by, created_at
 if not _exists(VIEW):
     st.error(f"Expected view {VIEW} not found. Create it, then reload."); st.stop()
 
 inst_src = _pick_instances_source()
 
-# ------------------------------------------------------------------
-# Filters
-# ------------------------------------------------------------------
+# ───────────────────────── filters ─────────────────────────
 with st.form("filters"):
     c1, c2, c3 = st.columns([3, 1, 1])
     q  = c1.text_input("Search (code/name/nickname/mom/dad)")
     d1 = c2.date_input("From", value=None)
     d2 = c3.date_input("To", value=None)
-    _ = st.form_submit_button("Apply")
+    _  = st.form_submit_button("Apply")
 
 where, params = [], {}
 if q:
@@ -90,9 +86,7 @@ if d2:
     where.append("created_at <= :d2"); params["d2"] = str(d2)
 where_sql = (" where " + " and ".join(where)) if where else ""
 
-# ------------------------------------------------------------------
-# Load concepts (always from the stable view)
-# ------------------------------------------------------------------
+# ───────────────────────── load concepts ─────────────────────────
 sql = text(f"""
   select *
   from {VIEW}
@@ -108,23 +102,19 @@ st.caption(f"{len(df)} planned clutch(es)")
 if df.empty:
     st.info("No planned clutches match."); st.stop()
 
-# ------------------------------------------------------------------
-# Session editor with checkbox; reset if shape changed
-# ------------------------------------------------------------------
-# ---------- session editor with checkbox ----------
+# ───────────────────────── session editor with checkbox ─────────────────────────
 key = "_cross_concepts"
-required = [
+required = {
     "conceptual_cross_code","clutch_code","name","nickname",
     "mom_code","dad_code","mom_code_tank","dad_code_tank",
     "n_treatments","created_by","created_at"
-]
+}
 
 def _new_session_table() -> pd.DataFrame:
     t = df.copy()
     if "✓ Select" not in t.columns:
         t.insert(0, "✓ Select", False)
     else:
-        # ensure it's first
         cols = t.columns.tolist()
         cols.remove("✓ Select")
         t = t[["✓ Select"] + cols]
@@ -133,9 +123,9 @@ def _new_session_table() -> pd.DataFrame:
 if key not in st.session_state:
     st.session_state[key] = _new_session_table()
 else:
-    # reset if required columns changed
+    # reset if required columns not present (e.g., after view update)
     have = set(st.session_state[key].columns)
-    if not set(required).issubset(have):
+    if not required.issubset(have):
         st.session_state[key] = _new_session_table()
 
 # keep session aligned on clutch_code
@@ -144,11 +134,11 @@ now  = df.set_index("clutch_code", drop=False)
 for i in now.index:
     if i not in base.index:
         base.loc[i] = now.loc[i]
-base = base.loc[now.index]  # drop filtered-out
+base = base.loc[now.index]  # drop filtered-out rows
 st.session_state[key] = base.reset_index(drop=True)
 
-# show grid (lock explicit order; conceptual_cross_code second)
-# show grid (lock explicit order; conceptual_cross_code second)
+# ───────────────────────── concept grid ─────────────────────────
+# lock explicit order; conceptual_cross_code second
 view_cols = [
     "✓ Select",
     "conceptual_cross_code",
@@ -165,32 +155,31 @@ edited = st.data_editor(
     use_container_width=True,
     column_order=cols_present,
     column_config={
-        "✓ Select":                st.column_config.CheckboxColumn("✓", default=False),
-        "conceptual_cross_code":   st.column_config.TextColumn("conceptual_cross_code", disabled=True, label="conceptual_cross_code"),
-        "clutch_code":             st.column_config.TextColumn("clutch_code", disabled=True, label="cross"),
-        "name":                    st.column_config.TextColumn("name", disabled=True, label="cross name"),
-        "nickname":                st.column_config.TextColumn("nickname", disabled=True, label="nickname"),
-        "mom_code":                st.column_config.TextColumn("mom_code", disabled=True, label="mom"),
-        "dad_code":                st.column_config.TextColumn("dad_code", disabled=True, label="dad"),
-        "mom_code_tank":           st.column_config.TextColumn("mom_code_tank", disabled=True, label="mom tank"),
-        "dad_code_tank":           st.column_config.TextColumn("dad_code_tank", disabled=True, label="dad tank"),
-        "n_treatments":            st.column_config.NumberColumn("n_treatments", disabled=True, label="n_treatments"),
-        "created_by":              st.column_config.TextColumn("created_by", disabled=True, label="created_by"),
-        "created_at":              st.column_config.DatetimeColumn("created_at", disabled=True, label="created_at"),
+        "✓ Select":                st.column_config.CheckboxColumn(label="✓", default=False),
+        "conceptual_cross_code":   st.column_config.TextColumn(label="conceptual_cross_code", disabled=True),
+        "clutch_code":             st.column_config.TextColumn(label="cross", disabled=True),
+        "name":                    st.column_config.TextColumn(label="cross name", disabled=True),
+        "nickname":                st.column_config.TextColumn(label="nickname", disabled=True),
+        "mom_code":                st.column_config.TextColumn(label="mom", disabled=True),
+        "dad_code":                st.column_config.TextColumn(label="dad", disabled=True),
+        "mom_code_tank":           st.column_config.TextColumn(label="mom tank", disabled=True),
+        "dad_code_tank":           st.column_config.TextColumn(label="dad tank", disabled=True),
+        "n_treatments":            st.column_config.NumberColumn(label="n_treatments", disabled=True),
+        "created_by":              st.column_config.TextColumn(label="created_by", disabled=True),
+        "created_at":              st.column_config.DatetimeColumn(label="created_at", disabled=True),
     },
     key="crosses_editor",
 )
 # persist checkbox back to session
 if "✓ Select" in edited.columns:
     st.session_state[key].loc[edited.index, "✓ Select"] = edited["✓ Select"]
+
 sel_codes = edited.loc[edited["✓ Select"] == True, "clutch_code"].astype(str).tolist()
 if not sel_codes:
     st.info("Select one or more planned clutches to show existing instances.")
     st.stop()
 
-# ------------------------------------------------------------------
-# Instances for each selected concept
-# ------------------------------------------------------------------
+# ───────────────────────── instances (per selected concept) ─────────────────────────
 st.divider()
 st.subheader("Existing cross instances")
 
@@ -210,6 +199,7 @@ else:
             st.warning(f"Failed for {code}: {e}")
             continue
         if df_i.empty:
-            st.caption("No instances."); continue
+            st.caption("No instances.")
+            continue
         st.dataframe(df_i, use_container_width=True, hide_index=True)
         st.markdown("---")
