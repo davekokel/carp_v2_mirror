@@ -18,7 +18,6 @@ if not DB_URL:
     st.error("DB_URL not set"); st.stop()
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
-# ---------- helpers ----------
 def _exists(full: str) -> bool:
     sch, tab = full.split(".", 1)
     q = text("""
@@ -31,10 +30,13 @@ def _exists(full: str) -> bool:
     with eng.begin() as cx:
         return bool(pd.read_sql(q, cx, params={"s": sch, "t": tab})["ok"].iloc[0])
 
+# Use the stable view we just created
+VIEW = "public.v_cross_concepts_overview"
+if not _exists(VIEW):
+    st.error(f"Expected view {VIEW} not found in this DB."); st.stop()
+
+# --------- optional: pick an instance source (if any) ----------
 def _pick_instances_source() -> tuple[str, str] | None:
-    """
-    Return (source_name, code_col) for instances view/table.
-    """
     cands = [
         "public.vw_cross_runs_overview",
         "public.v_cross_plan_runs_enriched",
@@ -42,12 +44,10 @@ def _pick_instances_source() -> tuple[str, str] | None:
         "public.cross_instances",
     ]
     code_cols = ["clutch_code", "planned_clutch_code", "clutch", "clutch_id", "concept_code"]
-    qcols = text("""
-      select column_name from information_schema.columns
-      where table_schema=:s and table_name=:t
-    """)
+    qcols = text("""select column_name from information_schema.columns
+                    where table_schema=:s and table_name=:t""")
     for full in cands:
-        if not _exists(full): 
+        if not _exists(full):
             continue
         sch, tab = full.split(".", 1)
         with eng.begin() as cx:
@@ -57,27 +57,7 @@ def _pick_instances_source() -> tuple[str, str] | None:
                 return full, c
     return None
 
-# ---------- concept source (exact to your staging schema) ----------
-if not _exists("public.vw_planned_clutches_overview"):
-    st.info("Expected view public.vw_planned_clutches_overview not found.")
-    st.stop()
-
-# Build the projection you want:
-# clutch_code, name (clutch_name), nickname (clutch_nickname), mom_code, dad_code, n_treatments, created_by, created_at
-PROJ_SQL = """
-  select
-    v.clutch_code::text                               as clutch_code,
-    coalesce(v.clutch_name,'')::text                  as name,
-    coalesce(v.clutch_nickname,'')::text              as nickname,
-    coalesce(pc.mom_code,'')::text                    as mom_code,
-    coalesce(pc.dad_code,'')::text                    as dad_code,
-    coalesce(v.n_treatments,0)::int                   as n_treatments,
-    coalesce(v.created_by,'')::text                   as created_by,
-    v.created_at::timestamptz                         as created_at
-  from public.vw_planned_clutches_overview v
-  left join public.planned_crosses pc
-    on pc.cross_code = v.clutch_code
-"""
+inst_src = _pick_instances_source()
 
 # ---------- filters ----------
 with st.form("filters"):
@@ -91,19 +71,17 @@ where = []
 params: dict[str, object] = {}
 if q:
     params["q"] = f"%{q.strip()}%"
-    where.append("(clutch_code ilike :q or name ilike :q or nickname ilike :q or mom_code ilike :q or dad_code ilike :q)")
+    where.append("(clutch_code ilike :q or name ilike :q or nickname ilike :q or mom_code ilike :q or dad_code ilike :q or mom_code_tank ilike :q or dad_code_tank ilike :q)")
 if d1:
     where.append("created_at >= :d1"); params["d1"] = str(d1)
 if d2:
     where.append("created_at <= :d2"); params["d2"] = str(d2)
-
 where_sql = (" where " + " and ".join(where)) if where else ""
 
 # ---------- load concepts ----------
 sql = text(f"""
-  select * from (
-    {PROJ_SQL}
-  ) x
+  select *
+  from {VIEW}
   {where_sql}
   order by created_at desc nulls last
   limit 500
@@ -111,9 +89,8 @@ sql = text(f"""
 with eng.begin() as cx:
     df = pd.read_sql(sql, cx, params=params)
 
-# Debug chip: show which sources we used
-inst_src = _pick_instances_source()
-st.caption(f"concepts: vw_planned_clutches_overview  |  instances: {inst_src[0]} ({inst_src[1]})" if inst_src else "concepts: vw_planned_clutches_overview  |  instances: none")
+# Debug chip: show sources used
+st.caption(f"concepts: {VIEW}  |  instances: {inst_src[0]} ({inst_src[1]})" if inst_src else f"concepts: {VIEW}  |  instances: none")
 
 st.caption(f"{len(df)} planned clutch(es)")
 if df.empty:
@@ -130,11 +107,19 @@ if key not in st.session_state:
 base = st.session_state[key].set_index("clutch_code")
 now  = df.set_index("clutch_code")
 for i in now.index:
-    if i not in base.index: base.loc[i] = now.loc[i]
-base = base.loc[now.index]  # drop rows not in current filter
+    if i not in base.index:
+        base.loc[i] = now.loc[i]
+base = base.loc[now.index]  # drop filtered-out
 st.session_state[key] = base.reset_index()
 
-view_cols = ["✓ Select","clutch_code","name","nickname","mom_code","dad_code","n_treatments","created_by","created_at"]
+# show concept grid
+view_cols = [
+    "✓ Select","clutch_code","name","nickname",
+    "mom_code","dad_code","mom_code_tank","dad_code_tank",
+    "n_treatments","created_by","created_at"
+]
+view_cols = [c for c in view_cols if c in st.session_state[key].columns]
+
 edited = st.data_editor(
     st.session_state[key][view_cols],
     hide_index=True, use_container_width=True,
@@ -145,6 +130,8 @@ edited = st.data_editor(
         "nickname":      st.column_config.TextColumn("nickname", disabled=True),
         "mom_code":      st.column_config.TextColumn("mom_code", disabled=True),
         "dad_code":      st.column_config.TextColumn("dad_code", disabled=True),
+        "mom_code_tank": st.column_config.TextColumn("mom_code_tank", disabled=True),
+        "dad_code_tank": st.column_config.TextColumn("dad_code_tank", disabled=True),
         "n_treatments":  st.column_config.NumberColumn("n_treatments", disabled=True),
         "created_by":    st.column_config.TextColumn("created_by", disabled=True),
         "created_at":    st.column_config.DatetimeColumn("created_at", disabled=True),
