@@ -236,8 +236,24 @@ cross_date        = str(run_row["cross_date"])
 st.markdown("### 3) Choose selection for the run")
 
 with eng.begin() as cx:
-    selections = pd.read_sql(
-        text("""
+    # Does the normalized view exist?
+    has_view = bool(
+        cx.execute(
+            text("""
+                select 1
+                from pg_class c
+                join pg_namespace n on n.oid = c.relnamespace
+                where n.nspname = 'public'
+                  and c.relkind in ('v','m')
+                  and c.relname = 'v_clutch_instance_selections'
+                limit 1
+            """)
+        ).first()
+    )
+
+    if has_view:
+        # Preferred path: the view exposes stable column names.
+        sql = text("""
             select
               selection_id::text        as selection_id,
               cross_instance_id::text   as cross_instance_id,
@@ -249,56 +265,39 @@ with eng.begin() as cx:
             where cross_instance_id = cast(:xid as uuid)
             order by coalesce(selection_annotated_at, selection_created_at) desc,
                      selection_created_at desc
-        """),
-        cx,
-        params={"xid": cross_instance_id},
-    )
+        """)
+        selections = pd.read_sql(sql, cx, params={"xid": cross_instance_id})
 
-if selections.empty:
-    st.warning("No selections for this run yet. Use the ‘Annotate Clutch Instances’ page to add one, then return.")
-    st.stop()
+    else:
+        # Fallback: read directly from clutch_instances, tolerating id_uuid vs id.
+        has_id_uuid = bool(
+            cx.execute(
+                text("""
+                    select 1
+                    from information_schema.columns
+                    where table_schema='public'
+                      and table_name='clutch_instances'
+                      and column_name='id_uuid'
+                    limit 1
+                """)
+            ).first()
+        )
+        id_col = "id_uuid" if has_id_uuid else "id"
 
-key_sel = "_bruker_selection_grid"
-if key_sel not in st.session_state:
-    t = selections.copy()
-    t.insert(0, "✓ Selection", False)
-    st.session_state[key_sel] = t
-else:
-    base = st.session_state[key_sel].set_index("selection_id")
-    now  = selections.set_index("selection_id")
-    for i in now.index:
-        if i not in base.index:
-            base.loc[i] = now.loc[i]
-    base = base.loc[now.index]
-    st.session_state[key_sel] = base.reset_index()
-
-sel_cols = [
-    "✓ Selection",
-    "label", "selection_created_at", "selection_annotated_at",
-    "red_intensity", "green_intensity", "notes", "annotated_by",
-]
-sel_cols = [c for c in sel_cols if c in st.session_state[key_sel].columns]
-sel_edit = st.data_editor(
-    st.session_state[key_sel][sel_cols],
-    hide_index=True, use_container_width=True,
-    column_order=sel_cols,
-    column_config={"✓ Selection": st.column_config.CheckboxColumn("✓", default=False)},
-    key="bruker_selection_editor",
-)
-st.session_state[key_sel].loc[sel_edit.index, "✓ Selection"] = sel_edit["✓ Selection"]
-sel_row = _one_checked(st.session_state[key_sel], "✓ Selection")
-
-if sel_row is None:
-    st.info("Tick exactly one selection to continue.")
-    st.stop()
-
-selection_id = str(sel_row["selection_id"])
-selection_label = str(sel_row.get("label") or "")
-
-# Context line
-st.caption(
-    f"Context • concept={concept_code} • run={cross_run_code} ({cross_date}) • selection_label={selection_label}"
-)
+        sql = text(f"""
+            select
+              {id_col}::text             as selection_id,
+              cross_instance_id::text    as cross_instance_id,
+              created_at                 as selection_created_at,
+              annotated_at               as selection_annotated_at,
+              red_intensity, green_intensity, notes,
+              annotated_by, label
+            from public.clutch_instances
+            where cross_instance_id = cast(:xid as uuid)
+            order by coalesce(annotated_at, created_at) desc,
+                     created_at desc
+        """)
+        selections = pd.read_sql(sql, cx, params={"xid": cross_instance_id})
 
 # ────────────────────────── Step 4 — Mount details ──────────────────
 st.markdown("### 4) Mount details")
