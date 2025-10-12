@@ -111,28 +111,41 @@ if df.empty:
 # ------------------------------------------------------------------
 # Session editor with checkbox; reset if shape changed
 # ------------------------------------------------------------------
+# ---------- session editor with checkbox ----------
 key = "_cross_concepts"
-required = {
+required = [
     "conceptual_cross_code","clutch_code","name","nickname",
     "mom_code","dad_code","mom_code_tank","dad_code_tank",
     "n_treatments","created_by","created_at"
-}
+]
+
+def _new_session_table() -> pd.DataFrame:
+    t = df.copy()
+    if "✓ Select" not in t.columns:
+        t.insert(0, "✓ Select", False)
+    else:
+        # ensure it's first
+        cols = t.columns.tolist()
+        cols.remove("✓ Select")
+        t = t[["✓ Select"] + cols]
+    return t
 
 if key not in st.session_state:
-    t = df.copy(); t.insert(0, "✓ Select", False); st.session_state[key] = t
+    st.session_state[key] = _new_session_table()
 else:
-    # reset if required columns not present (e.g., after view update)
+    # reset if required columns changed
     have = set(st.session_state[key].columns)
-    if not required.issubset(have):
-        t = df.copy(); t.insert(0, "✓ Select", False); st.session_state[key] = t
+    if not set(required).issubset(have):
+        st.session_state[key] = _new_session_table()
 
 # keep session aligned on clutch_code
-base = st.session_state[key].set_index("clutch_code")
-now  = df.set_index("clutch_code")
+base = st.session_state[key].set_index("clutch_code", drop=False)
+now  = df.set_index("clutch_code", drop=False)
 for i in now.index:
-    if i not in base.index: base.loc[i] = now.loc[i]
+    if i not in base.index:
+        base.loc[i] = now.loc[i]
 base = base.loc[now.index]  # drop filtered-out
-st.session_state[key] = base.reset_index()
+st.session_state[key] = base.reset_index(drop=True)
 
 # show grid (lock explicit order; conceptual_cross_code second)
 view_cols = [
@@ -143,30 +156,32 @@ view_cols = [
     "mom_code","dad_code","mom_code_tank","dad_code_tank",
     "n_treatments","created_by","created_at",
 ]
+# slice by intersection to avoid KeyError if a column is temporarily missing
+cols_present = [c for c in view_cols if c in st.session_state[key].columns]
 edited = st.data_editor(
-    st.session_state[key][view_cols],
+    st.session_state[key][cols_present],
     hide_index=True,
     use_container_width=True,
-    column_order=view_cols,
+    column_order=cols_present,
     column_config={
-        "✓ Select":            st.column_config.CheckboxColumn("✓", default=False),
+        "✓ Select":              st.column_config.CheckboxColumn("✓", default=False),
         "conceptual_cross_code": st.column_config.TextColumn("conceptual_cross_code", disabled=True),
-        "clutch_code":         st.column_config.TextColumn("clutch_code", disabled=True),
-        "name":                st.column_config.TextColumn("name", disabled=True),
-        "nickname":            st.column_config.TextColumn("nickname", disabled=True),
-        "mom_code":            st.column_config.TextColumn("mom_code", disabled=True),
-        "dad_code":            st.column_config.TextColumn("dad_code", disabled=True),
-        "mom_code_tank":       st.column_config.TextColumn("mom_code_tank", disabled=True),
-        "dad_code_tank":       st.column_config.TextColumn("dad_code_tank", disabled=True),
-        "n_treatments":        st.column_config.NumberColumn("n_treatments", disabled=True),
-        "created_by":          st.column_config.TextColumn("created_by", disabled=True),
-        "created_at":          st.column_config.DatetimeColumn("created_at", disabled=True),
+        "clutch_code":           st.column_config.TextColumn("clutch_code", disabled=True),
+        "name":                  st.column_config.TextColumn("name", disabled=True),
+        "nickname":              st.column_config.TextColumn("nickname", disabled=True),
+        "mom_code":              st.column_config.TextColumn("mom_code", disabled=True),
+        "dad_code":              st.column_config.TextColumn("dad_code", disabled=True),
+        "mom_code_tank":         st.column_config.TextColumn("mom_code_tank", disabled=True),
+        "dad_code_tank":         st.column_config.TextColumn("dad_code_tank", disabled=True),
+        "n_treatments":          st.column_config.NumberColumn("n_treatments", disabled=True),
+        "created_by":            st.column_config.TextColumn("created_by", disabled=True),
+        "created_at":            st.column_config.DatetimeColumn("created_at", disabled=True),
     },
     key="crosses_editor",
 )
 # persist checkbox back to session
-st.session_state[key].loc[edited.index, "✓ Select"] = edited["✓ Select"]
-
+if "✓ Select" in edited.columns:
+    st.session_state[key].loc[edited.index, "✓ Select"] = edited["✓ Select"]
 sel_codes = edited.loc[edited["✓ Select"] == True, "clutch_code"].astype(str).tolist()
 if not sel_codes:
     st.info("Select one or more planned clutches to show existing instances.")
