@@ -43,6 +43,9 @@ st.set_page_config(page_title=PAGE_TITLE, page_icon="🧪", layout="wide")
 st.title("🧪 CARP — Diagnostics")
 from supabase.ui.lib.prod_banner import show_prod_banner
 show_prod_banner()
+build_sha = os.getenv("BUILD_SHA") or (getattr(st, "secrets", {}).get("BUILD_SHA") if hasattr(st, "secrets") else "")
+if build_sha:
+    st.caption(f"BUILD: {build_sha[:7]}")
 
 if os.getenv("APP_ENV","local").lower() != "local" and not st.session_state.get("_db_bootstrapped"):
     import supabase.ui.lib.app_ctx as app_ctx

@@ -46,6 +46,34 @@ st.download_button(
 )
 
 
+
+def _expected_fish_cols() -> list[str]:
+    ex = Path("templates/examples/fish_example.csv")
+    if ex.exists():
+        try:
+            return list(pd.read_csv(ex, nrows=0).columns)
+        except Exception:
+            pass
+    return [
+        "name","nickname","date_birth","genetic_background","line_building_stage",
+        "description","transgene_base_code","allele_nickname","zygosity","created_by",
+    ]
+
+def _validate_headers(got: list[str], expected: list[str]) -> tuple[bool,str,list[str]]:
+    got_set, exp_set = set(got), set(expected)
+    missing = [c for c in expected if c not in got_set]
+    extra   = [c for c in got if c not in exp_set]
+    if missing:
+        msg = "Missing required columns: " + ", ".join(missing)
+        if extra:
+            msg += " • Extra columns: " + ", ".join(extra)
+        return False, msg, expected
+    if got != expected:
+        msg = "Columns present but out of order; preview re-ordered to match template."
+    else:
+        msg = "Columns match the template."
+    return True, msg, expected
+
 st.title(PAGE_TITLE)
 st.caption("Upserts by (seed_batch_id, name, date_birth); assigns fish_code automatically. Founders with base code and no nickname will allocate a **new** allele.")
 

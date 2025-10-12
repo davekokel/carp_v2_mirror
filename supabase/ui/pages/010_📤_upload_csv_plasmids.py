@@ -45,6 +45,31 @@ st.download_button(
 )
 
 
+
+def _expected_plasmid_cols() -> list[str]:
+    ex_xlsx = Path("templates/examples/plasmids_example.xlsx")
+    if ex_xlsx.exists():
+        try:
+            return list(pd.read_excel(ex_xlsx, nrows=0, engine="openpyxl").columns)
+        except Exception:
+            pass
+    return ["plasmid_name","element_name","concentration","units","notes"]
+
+def _validate_headers(got: list[str], expected: list[str]) -> tuple[bool,str,list[str]]:
+    got_set, exp_set = set(got), set(expected)
+    missing = [c for c in expected if c not in got_set]
+    extra   = [c for c in got if c not in exp_set]
+    if missing:
+        msg = "Missing required columns: " + ", ".join(missing)
+        if extra:
+            msg += " • Extra columns: " + ", ".join(extra)
+        return False, msg, expected
+    if got != expected:
+        msg = "Columns present but out of order; preview re-ordered to match template."
+    else:
+        msg = "Columns match the template."
+    return True, msg, expected
+
 st.title(PAGE_TITLE)
 
 # ------------------------ DB setup ------------------------
