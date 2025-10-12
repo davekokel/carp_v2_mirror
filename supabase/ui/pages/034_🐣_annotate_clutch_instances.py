@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, sys
+import os, sys, re
 from pathlib import Path
 import pandas as pd
 import streamlit as st
@@ -16,9 +16,7 @@ st.title("🐣 Annotate Clutch Instances")
 # ── engine / env ────────────────────────────────────────────────────────────────
 DB_URL = os.getenv("DB_URL")
 if not DB_URL:
-    st.error("DB_URL not set")
-    st.stop()
-
+    st.error("DB_URL not set"); st.stop()
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
 # DB badge (host + role) and capture user string for stamping
@@ -51,6 +49,17 @@ with eng.begin() as cx:
 if not exists_tbl:
     st.error("Table public.clutch_instances not found in this DB.")
     st.stop()
+
+# Helper: build a safe list of UUID literals for SQL
+_UUID_RE = re.compile(r"^[0-9a-fA-F-]{32,40}$")
+def _uuid_literals(ids) -> str:
+    vals = []
+    for x in (ids or []):
+        s = str(x).strip()
+        if _UUID_RE.match(s):
+            vals.append(f"uuid '{s}'")
+    # ensure non-empty to avoid syntax error; caller checks for empty beforehand
+    return ", ".join(vals)
 
 # ── conceptual clutches (no date filters) ───────────────────────────────────────
 st.markdown("## 🔍 Clutches — Conceptual overview")
@@ -99,8 +108,7 @@ edited_concepts = st.data_editor(
     column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
     key="ci_concept_editor",
 )
-
-# Persist current checkboxes
+# Persist ✓ back to session model
 st.session_state[sel_key].loc[edited_concepts.index, "✓ Select"] = edited_concepts["✓ Select"]
 
 # STRICT selection: require at least one ✓
@@ -110,7 +118,6 @@ if isinstance(tbl, pd.DataFrame):
     selected_codes = (
         tbl.loc[tbl["✓ Select"] == True, "clutch_code"].astype(str).tolist()
     )
-
 if not selected_codes:
     st.info("Tick one or more clutches above to show realized instances.")
     st.stop()
@@ -129,7 +136,6 @@ st.caption(f"DBG • host={_host} • runs_in_view={_runs_cnt} • checked_in_gr
 st.caption(f"selected concepts used: {selected_codes}")
 
 with eng.begin() as cx:
-    # selected concepts → mom/dad
     sel_mom_dad = pd.read_sql(
         text("""
             select conceptual_cross_code as clutch_code, mom_code, dad_code
@@ -138,7 +144,6 @@ with eng.begin() as cx:
         """),
         cx, params={"codes": selected_codes}
     )
-    # all runs (enriched)
     runs = pd.read_sql(
         text("""
             select
@@ -214,8 +219,7 @@ edited_runs = st.data_editor(
 # --- Show existing selection instances for the checked run(s) -------------------
 st.markdown("#### Existing selections for the checked run(s)")
 
-# Which runs are checked in the grid?
-checked_xids: list[str] = []
+checked_xids = []
 if "cross_instance_id" in edited_runs.columns:
     checked_xids = (
         edited_runs.loc[edited_runs["✓ Add"] == True, "cross_instance_id"]
@@ -225,52 +229,51 @@ if "cross_instance_id" in edited_runs.columns:
 if not checked_xids:
     st.info("Select a run in the table above to view its existing selections.")
 else:
-    # Standard IN (...) with named binds — works across drivers and pandas/SQLAlchemy
-    ph = ",".join([f":id{i}" for i in range(len(checked_xids))])     # :id0,:id1,...
-    sql = text(f"""
-        select
-          s.selection_id,
-          s.cross_instance_id,
-          s.selection_created_at,
-          s.selection_annotated_at,
-          s.red_intensity,
-          s.green_intensity,
-          s.notes,
-          s.annotated_by,
-          s.label
-        from public.v_clutch_instance_selections s
-        where s.cross_instance_id in ({ph})
-        order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
-                 s.selection_created_at desc
-    """)
-    params = {f"id{i}": x for i, x in enumerate(checked_xids)}
+    # Build a safe inline uuid list to avoid driver binding issues
+    lit = _uuid_literals(checked_xids)
+    if not lit:
+        st.info("Select a run in the table above to view its existing selections.")
+    else:
+        sql_txt = f"""
+            select
+              s.selection_id,
+              s.cross_instance_id,
+              s.selection_created_at,
+              s.selection_annotated_at,
+              s.red_intensity,
+              s.green_intensity,
+              s.notes,
+              s.annotated_by,
+              s.label
+            from public.v_clutch_instance_selections s
+            where s.cross_instance_id in ({lit})
+            order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
+                     s.selection_created_at desc
+        """
+        with eng.begin() as cx:
+            sel_rows = pd.read_sql(sql_txt, cx)
 
-    with eng.begin() as cx:
-        sel_rows = pd.read_sql(sql, cx, params=params)
+        run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
+        table_checked = sel_rows.merge(run_meta, how="left", on="cross_instance_id")
 
-    # Attach run context for display (clutch_code / cross_run_code / birthday)
-    run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
-    table_checked = sel_rows.merge(run_meta, how="left", on="cross_instance_id")
+        for c in [
+            "clutch_code","cross_run_code","birthday",
+            "selection_created_at","selection_annotated_at",
+            "red_intensity","green_intensity","notes","annotated_by","label","selection_id",
+        ]:
+            if c not in table_checked.columns:
+                table_checked[c] = ""
 
-    # Ensure consistent columns
-    for c in [
-        "clutch_code","cross_run_code","birthday",
-        "selection_created_at","selection_annotated_at",
-        "red_intensity","green_intensity","notes","annotated_by","label","selection_id",
-    ]:
-        if c not in table_checked.columns:
-            table_checked[c] = ""
+        show_cols = [
+            "clutch_code","cross_run_code","birthday",
+            "selection_created_at","selection_annotated_at",
+            "red_intensity","green_intensity","notes","annotated_by","label",
+            "selection_id",
+        ]
+        present = [c for c in show_cols if c in table_checked.columns]
+        st.dataframe(table_checked[present], hide_index=True, use_container_width=True)
 
-    show_cols = [
-        "clutch_code","cross_run_code","birthday",
-        "selection_created_at","selection_annotated_at",
-        "red_intensity","green_intensity","notes","annotated_by","label",
-        "selection_id",
-    ]
-    present = [c for c in show_cols if c in table_checked.columns]
-    st.dataframe(table_checked[present], hide_index=True, use_container_width=True)
-
-# ---- Quick annotate selected ----------------------------------------------------
+# ---- Quick annotate selected (one per run) -------------------------------------
 st.markdown("#### Quick annotate selected")
 c1, c2, c3 = st.columns([1,1,3])
 with c1:
@@ -333,19 +336,17 @@ if st.button("Submit"):
         st.success(f"Created {saved} clutch instance(s).")
         st.rerun()
 
-# ── Selection instances (distinct rows) for the runs of the selected concepts ───
+# ── Selection instances (distinct) for runs of the selected concepts ------------
 st.markdown("### Selection instances (distinct)")
-
 if "cross_instance_id" not in det.columns:
     st.caption("View does not expose cross_instance_id, cannot list distinct selection instances.")
 else:
-    xids = det["cross_instance_id"].dropna().astype(str).unique().tolist()
-
-    if not xids:
+    all_xids = det["cross_instance_id"].dropna().astype(str).unique().tolist()
+    lit_all = _uuid_literals(all_xids)
+    if not lit_all:
         st.info("No selection instances yet for the selected runs.")
     else:
-        ph = ",".join([f":id{i}" for i in range(len(xids))])
-        sql_all = text(f"""
+        sql_all = f"""
             select
               s.selection_id,
               s.cross_instance_id,
@@ -357,14 +358,12 @@ else:
               s.annotated_by,
               s.label
             from public.v_clutch_instance_selections s
-            where s.cross_instance_id in ({ph})
+            where s.cross_instance_id in ({lit_all})
             order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
                      s.selection_created_at desc
-        """)
-        params_all = {f"id{i}": x for i, x in enumerate(xids)}
-
+        """
         with eng.begin() as cx:
-            sel_all = pd.read_sql(sql_all, cx, params=params_all)
+            sel_all = pd.read_sql(sql_all, cx)
 
         run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
         table_all = sel_all.merge(run_meta, how="left", on="cross_instance_id")
