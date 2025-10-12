@@ -212,68 +212,130 @@ else:
             key="ci_runs_editor_min",
         )
 
-        # three text inputs (red, green, note) — one insert per run
-        st.markdown("#### Quick annotate selected")
-        c1, c2, c3 = st.columns([1,1,3])
-        with c1:
-            red_txt = st.text_input("red", value="", placeholder="text")
-        with c2:
-            green_txt = st.text_input("green", value="", placeholder="text")
-        with c3:
-            note_txt = st.text_input("note", value="", placeholder="optional")
+        # --- Show existing selection instances for the checked runs ---------------------
+st.markdown("#### Existing selections for the checked run(s)")
 
-        if not (red_txt.strip() or green_txt.strip() or note_txt.strip()):
-            st.warning("Provide at least one of red/green/note before submitting.")
-            st.stop()
-            if sel.empty:
-                st.warning("No runs selected.")
-            else:
-                saved = 0
-                with eng.begin() as cx:
-                    for _, r in sel.iterrows():
-                        xid   = str(r.get("cross_instance_id") or "").strip()
-                        ccode = str(r.get("clutch_code") or "").strip()
-                        rcode = str(r.get("cross_run_code") or "").strip()
-                        if not xid:
-                            continue
+# Which runs are checked in the grid?
+checked_xids = []
+if "cross_instance_id" in edited_seed.columns:
+    checked_xids = (
+        edited_seed.loc[edited_seed["✓ Add"] == True, "cross_instance_id"]
+        .dropna().astype(str).unique().tolist()
+    )
 
-                        base_label = " / ".join([s for s in (ccode, rcode) if s]) or "clutch"
+if not checked_xids:
+    st.info("Select a run in the table above to view its existing selections.")
+else:
+    # Build robust IN(...) placeholders to avoid array binding issues
+    ph = ",".join([f":id{i}" for i in range(len(checked_xids))])  # :id0,:id1,...
+    sql = text(f"""
+        select
+          s.selection_id,
+          s.cross_instance_id,
+          s.selection_created_at,
+          s.selection_annotated_at,
+          s.red_intensity,
+          s.green_intensity,
+          s.notes,
+          s.annotated_by,
+          s.label
+        from public.v_clutch_instance_selections s
+        where s.cross_instance_id in ({ph})
+        order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
+                 s.selection_created_at desc
+    """)
+    params = {f"id{i}": x for i, x in enumerate(checked_xids)}
 
-                        existing = cx.execute(text("""
-                            select count(*) from public.clutch_instances
-                            where cross_instance_id = :xid
-                        """), {"xid": xid}).scalar() or 0
+    with eng.begin() as cx:
+        sel_rows = pd.read_sql(sql, cx, params=params)
 
-                        suffix = f" [{existing + 1}]" if existing > 0 else ""
-                        label  = base_label + suffix
+    # Attach run context for display (clutch_code / cross_run_code / birthday)
+    run_meta = det[
+        ["cross_instance_id","clutch_code","cross_run_code","birthday"]
+    ].drop_duplicates()
+    table = sel_rows.merge(run_meta, how="left", on="cross_instance_id")
 
-                        cx.execute(text("""
-                            insert into public.clutch_instances (
-                                cross_instance_id, label, created_at,
-                                red_intensity, green_intensity, notes,
-                                red_selected, green_selected,
-                                annotated_by, annotated_at
-                            )
-                            values (
-                                :xid, :label, now(),
-                                nullif(:red,''), nullif(:green,''), nullif(:note,''),
-                                case when nullif(:red,'')   is not null then true else false end,
-                                case when nullif(:green,'') is not null then true else false end,
-                                coalesce(current_setting('app.user', true), :fallback_user),
-                                now()
-                            )
-                        """), {
-                            "xid": xid,
-                            "label": label,
-                            "red":   red_txt,
-                            "green": green_txt,
-                            "note":  note_txt,
-                            "fallback_user": (user or "")
-                        })
-                        saved += 1
+    # Ensure consistent columns, even if some are missing
+    for c in [
+        "clutch_code","cross_run_code","birthday",
+        "selection_created_at","selection_annotated_at",
+        "red_intensity","green_intensity","notes","annotated_by","label","selection_id",
+    ]:
+        if c not in table.columns:
+            table[c] = ""
 
-                st.success(f"Created {saved} clutch instance(s).")
-                st.rerun()
+    # Display
+    show_cols = [
+        "clutch_code","cross_run_code","birthday",
+        "selection_created_at","selection_annotated_at",
+        "red_intensity","green_intensity","notes","annotated_by","label",
+        "selection_id",
+    ]
+    present = [c for c in show_cols if c in table.columns]
+    st.dataframe(table[present], hide_index=True, use_container_width=True)
+
+    # three text inputs (red, green, note) — one insert per run
+    st.markdown("#### Quick annotate selected")
+    c1, c2, c3 = st.columns([1,1,3])
+    with c1:
+        red_txt = st.text_input("red", value="", placeholder="text")
+    with c2:
+        green_txt = st.text_input("green", value="", placeholder="text")
+    with c3:
+        note_txt = st.text_input("note", value="", placeholder="optional")
+
+    if not (red_txt.strip() or green_txt.strip() or note_txt.strip()):
+        st.warning("Provide at least one of red/green/note before submitting.")
+        st.stop()
+        if sel.empty:
+            st.warning("No runs selected.")
+        else:
+            saved = 0
+            with eng.begin() as cx:
+                for _, r in sel.iterrows():
+                    xid   = str(r.get("cross_instance_id") or "").strip()
+                    ccode = str(r.get("clutch_code") or "").strip()
+                    rcode = str(r.get("cross_run_code") or "").strip()
+                    if not xid:
+                        continue
+
+                    base_label = " / ".join([s for s in (ccode, rcode) if s]) or "clutch"
+
+                    existing = cx.execute(text("""
+                        select count(*) from public.clutch_instances
+                        where cross_instance_id = :xid
+                    """), {"xid": xid}).scalar() or 0
+
+                    suffix = f" [{existing + 1}]" if existing > 0 else ""
+                    label  = base_label + suffix
+
+                    cx.execute(text("""
+                        insert into public.clutch_instances (
+                            cross_instance_id, label, created_at,
+                            red_intensity, green_intensity, notes,
+                            red_selected, green_selected,
+                            annotated_by, annotated_at
+                        )
+                        values (
+                            :xid, :label, now(),
+                            nullif(:red,''), nullif(:green,''), nullif(:note,''),
+                            case when nullif(:red,'')   is not null then true else false end,
+                            case when nullif(:green,'') is not null then true else false end,
+                            coalesce(current_setting('app.user', true), :fallback_user),
+                            now()
+                        )
+                    """), {
+                        "xid": xid,
+                        "label": label,
+                        "red":   red_txt,
+                        "green": green_txt,
+                        "note":  note_txt,
+                        "fallback_user": (user or "")
+                    })
+                    saved += 1
+
+            st.success(f"Created {saved} clutch instance(s).")
+            st.rerun()
 
 # ── Selection instances (distinct rows) for the selected runs ───────────────────
 st.markdown("### Selection instances (distinct)")
