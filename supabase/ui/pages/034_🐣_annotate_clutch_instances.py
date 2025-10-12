@@ -128,6 +128,7 @@ selected_codes = edited_concepts.loc[edited_concepts["✓ Select"], "clutch_code
 
 # ───────────────────── Realized instances for selected concepts ─────────────────────
 st.markdown("### Realized instances for selection")
+st.caption(f"selected concepts: {selected_codes}")
 
 if not selected_codes:
     st.info("No realized clutch instances yet.")
