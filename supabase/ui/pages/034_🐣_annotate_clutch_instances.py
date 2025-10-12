@@ -287,27 +287,28 @@ else:
     if not xids:
         st.info("No selection instances yet for the selected runs.")
     else:
+        # Build a robust IN(...) query with named binds (avoids array binding issues)
+        ph = ",".join([f":id{i}" for i in range(len(xids))])  # :id0,:id1,...
+        sql = text(f"""
+            select
+            s.selection_id,
+            s.cross_instance_id,
+            s.selection_created_at,
+            s.selection_annotated_at,
+            s.red_intensity,
+            s.green_intensity,
+            s.notes,
+            s.annotated_by,
+            s.label
+            from public.v_clutch_instance_selections s
+            where s.cross_instance_id in ({ph})
+            order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
+                    s.selection_created_at desc
+        """)
+        params = {f"id{i}": x for i, x in enumerate(xids)}
+
         with eng.begin() as cx:
-            sel = pd.read_sql(
-                text("""
-                    select
-                      s.selection_id,
-                      s.cross_instance_id,
-                      s.selection_created_at,
-                      s.selection_annotated_at,
-                      s.red_intensity,
-                      s.green_intensity,
-                      s.notes,
-                      s.annotated_by,
-                      s.label
-                    from public.v_clutch_instance_selections s
-                    where s.cross_instance_id = any(:ids)
-                    order by coalesce(s.selection_annotated_at, s.selection_created_at) desc,
-                             s.selection_created_at desc
-                """),
-                cx,
-                params={"ids": xids},
-            )
+            sel = pd.read_sql(sql, cx, params=params)
 
         # Attach run context to each selection row
         run_meta = det[["cross_instance_id","clutch_code","cross_run_code","birthday"]].drop_duplicates()
