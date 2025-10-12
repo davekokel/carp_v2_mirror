@@ -24,7 +24,7 @@ if not DB_URL:
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
 # Badge + user stamping
-from sqlalchemy import text as _text  # used only in this badge block
+from sqlalchemy import text as _text
 user = ""
 try:
     url = getattr(eng, "url", None)
@@ -66,6 +66,19 @@ def _col_exists(cx, schema: str, table: str, col: str) -> bool:
             {"s": schema, "t": table, "c": col},
         ).first()
     )
+
+def _col_is_uuid(cx, schema: str, table: str, col: str) -> bool:
+    row = cx.execute(
+        text(
+            "select data_type, udt_name from information_schema.columns "
+            "where table_schema=:s and table_name=:t and column_name=:c"
+        ),
+        {"s": schema, "t": table, "c": col},
+    ).first()
+    if not row:
+        return False
+    data_type, udt_name = (row[0] or ""), (row[1] or "")
+    return (data_type.lower() == "uuid") or (udt_name.lower() == "uuid")
 
 # ────────────────────────── Step 1 — Concept ────────────────────────
 st.markdown("### 1) Choose clutch concept")
@@ -229,6 +242,7 @@ cross_date        = str(run_row["cross_date"])
 st.markdown("### 3) Choose selection for the run")
 
 with eng.begin() as cx:
+    # Prefer normalized view if present
     has_view = bool(
         cx.execute(
             text("""
@@ -259,6 +273,7 @@ with eng.begin() as cx:
         """)
         selections = pd.read_sql(sql, cx, params={"xid": cross_instance_id})
     else:
+        # Fall back to clutch_instances, auto-detect id column
         has_id_uuid = bool(
             cx.execute(
                 text("""
@@ -320,7 +335,6 @@ sel_edit = st.data_editor(
     column_config={"✓ Selection": st.column_config.CheckboxColumn("✓", default=False)},
     key="bruker_selection_editor",
 )
-
 st.session_state[key_sel].loc[sel_edit.index, "✓ Selection"] = sel_edit["✓ Selection"]
 sel_row = _one_checked(st.session_state[key_sel], "✓ Selection")
 if sel_row is None:
@@ -353,6 +367,9 @@ save = st.button("Save mount", type="primary")
 if save:
     try:
         with eng.begin() as cx:
+            sel_is_uuid = _col_is_uuid(cx, "public", "bruker_mounts", "selection_id")
+
+            # Optional: generate mount_code if the column exists
             has_mount_code = _col_exists(cx, "public", "bruker_mounts", "mount_code")
             mount_code = None
             if has_mount_code:
@@ -362,49 +379,70 @@ if save:
                 ).scalar() or 0
                 mount_code = f"BRUKER {d_val.isoformat()} # {cnt + 1}"
 
-            if has_mount_code:
-                cx.execute(
-                    text("""
-                        insert into public.bruker_mounts (
-                          selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
-                          mount_code, created_at, created_by
-                        )
-                        values (
-                          cast(:sid as uuid), :md, :mt, :orient, :nt, :nb,
-                          :mcode, now(), coalesce(current_setting('app.user', true), current_user)
-                        )
-                    """),
-                    {
-                        "sid": selection_id,
-                        "md": d_val,
-                        "mt": t_val,
-                        "orient": orientation,
-                        "nt": n_top,
-                        "nb": n_bottom,
-                        "mcode": mount_code,
-                    },
-                )
+            if sel_is_uuid:
+                # selection_id is UUID in table
+                if has_mount_code:
+                    cx.execute(
+                        text("""
+                            insert into public.bruker_mounts (
+                              selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
+                              mount_code, created_at, created_by
+                            )
+                            values (
+                              cast(:sid as uuid), :md, :mt, :orient, :nt, :nb,
+                              :mcode, now(), coalesce(current_setting('app.user', true), current_user)
+                            )
+                        """),
+                        {"sid": selection_id, "md": d_val, "mt": t_val, "orient": orientation,
+                         "nt": n_top, "nb": n_bottom, "mcode": mount_code},
+                    )
+                else:
+                    cx.execute(
+                        text("""
+                            insert into public.bruker_mounts (
+                              selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
+                              created_at, created_by
+                            )
+                            values (
+                              cast(:sid as uuid), :md, :mt, :orient, :nt, :nb,
+                              now(), coalesce(current_setting('app.user', true), current_user)
+                            )
+                        """),
+                        {"sid": selection_id, "md": d_val, "mt": t_val,
+                         "orient": orientation, "nt": n_top, "nb": n_bottom},
+                    )
             else:
-                cx.execute(
-                    text("""
-                        insert into public.bruker_mounts (
-                          selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
-                          created_at, created_by
-                        )
-                        values (
-                          cast(:sid as uuid), :md, :mt, :orient, :nt, :nb,
-                          now(), coalesce(current_setting('app.user', true), current_user)
-                        )
-                    """),
-                    {
-                        "sid": selection_id,
-                        "md": d_val,
-                        "mt": t_val,
-                        "orient": orientation,
-                        "nt": n_top,
-                        "nb": n_bottom,
-                    },
-                )
+                # selection_id is TEXT in table
+                if has_mount_code:
+                    cx.execute(
+                        text("""
+                            insert into public.bruker_mounts (
+                              selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
+                              mount_code, created_at, created_by
+                            )
+                            values (
+                              :sid, :md, :mt, :orient, :nt, :nb,
+                              :mcode, now(), coalesce(current_setting('app.user', true), current_user)
+                            )
+                        """),
+                        {"sid": selection_id, "md": d_val, "mt": t_val, "orient": orientation,
+                         "nt": n_top, "nb": n_bottom, "mcode": mount_code},
+                    )
+                else:
+                    cx.execute(
+                        text("""
+                            insert into public.bruker_mounts (
+                              selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
+                              created_at, created_by
+                            )
+                            values (
+                              :sid, :md, :mt, :orient, :nt, :nb,
+                              now(), coalesce(current_setting('app.user', true), current_user)
+                            )
+                        """),
+                        {"sid": selection_id, "md": d_val, "mt": t_val,
+                         "orient": orientation, "nt": n_top, "nb": n_bottom},
+                    )
 
         st.success("Bruker mount saved.")
         st.rerun()
@@ -415,8 +453,10 @@ if save:
 st.markdown("### Recent mounts for this selection")
 
 with eng.begin() as cx:
-    recent = pd.read_sql(
-        text("""
+    sel_is_uuid = _col_is_uuid(cx, "public", "bruker_mounts", "selection_id")
+    if sel_is_uuid:
+        # Compare UUID to UUID
+        sql_recent = text("""
             select
               coalesce(
                 mount_code,
@@ -426,21 +466,34 @@ with eng.begin() as cx:
                   order by mount_time nulls last, created_at
                 )
               ) as mount_code,
-              mount_date,
-              mount_time,
-              n_top,
-              n_bottom,
-              orientation,
-              created_at,
-              created_by
+              mount_date, mount_time, n_top, n_bottom, orientation,
+              created_at, created_by
             from public.bruker_mounts
             where selection_id = cast(:sid as uuid)
             order by created_at desc
             limit 50
-        """),
-        cx,
-        params={"sid": selection_id},
-    )
+        """)
+        recent = pd.read_sql(sql_recent, cx, params={"sid": selection_id})
+    else:
+        # Compare TEXT to TEXT
+        sql_recent = text("""
+            select
+              coalesce(
+                mount_code,
+                'BRUKER ' || to_char(mount_date, 'YYYY-MM-DD') || ' #' ||
+                row_number() over (
+                  partition by mount_date
+                  order by mount_time nulls last, created_at
+                )
+              ) as mount_code,
+              mount_date, mount_time, n_top, n_bottom, orientation,
+              created_at, created_by
+            from public.bruker_mounts
+            where selection_id = :sid
+            order by created_at desc
+            limit 50
+        """)
+        recent = pd.read_sql(sql_recent, cx, params={"sid": selection_id})
 
 if recent.empty:
     st.caption("No mounts yet for this selection.")
