@@ -99,17 +99,20 @@ edited_concepts = st.data_editor(
     key="ci_concept_editor",
 )
 
-# robust selection: read from session table; fallback to the first visible concept
-try:
-    _tbl = st.session_state.get("_concept_table")
-    selected_codes = _tbl.loc[_tbl["✓ Select"]==True, "clutch_code"].astype(str).tolist()
-except Exception:
-    selected_codes = []
-if not selected_codes and not st.session_state[sel_key].empty:
-    try:
-        selected_codes = [str(st.session_state[sel_key].iloc[0]["clutch_code"])]
-    except Exception:
-        selected_codes = []
+# ✅ Persist the current checkboxes back into the session model
+st.session_state[sel_key].loc[edited_concepts.index, "✓ Select"] = edited_concepts["✓ Select"]
+
+# ❗STRICT selection: no fallback; require at least one ✓
+tbl = st.session_state.get(sel_key)
+selected_codes: list[str] = []
+if isinstance(tbl, pd.DataFrame):
+    selected_codes = (
+        tbl.loc[tbl["✓ Select"] == True, "clutch_code"].astype(str).tolist()
+    )
+
+if not selected_codes:
+    st.info("Tick one or more clutches above to show realized instances.")
+    st.stop()
 
 # ── realized instances for selected concepts (no date filters) ──────────────────
 st.markdown("### Realized instances for selection")
