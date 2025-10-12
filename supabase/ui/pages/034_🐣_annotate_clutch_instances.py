@@ -158,9 +158,41 @@ else:
         det = sel_mom_dad.merge(runs, how="inner", on=["mom_code","dad_code"])
         det = det.sort_values(["cross_date"], ascending=[False])
 
-        # minimal selection grid
+        # ---- Aggregate day_annotated / annotations_rollup from clutch_instances by cross_instance_id
+        with eng.begin() as cx:
+            agg = pd.read_sql(
+                text("""
+                    select
+                      cross_instance_id,
+                      max(annotated_at)::date as day_annotated,
+                      string_agg(
+                        trim(
+                          concat_ws(' ',
+                            case when coalesce(red_intensity,'')   <> '' then 'red='   || red_intensity   end,
+                            case when coalesce(green_intensity,'') <> '' then 'green=' || green_intensity end,
+                            case when coalesce(notes,'')           <> '' then 'note='  || notes          end
+                          )
+                        ),
+                        ' | ' order by created_at
+                      ) as annotations_rollup
+                    from public.clutch_instances
+                    group by cross_instance_id
+                """), cx
+            )
+
+        # Merge annotations aggregate; compute clutch-instance birthday (= run cross_date)
+        if "cross_instance_id" in det.columns and not agg.empty:
+            det = det.merge(agg, how="left", on="cross_instance_id")
+        else:
+            det["day_annotated"]      = pd.NaT
+            det["annotations_rollup"] = ""
+
+        det["birthday"] = det["cross_date"]  # clutch instance birthday = run date
+
+        # selection grid (minimal)
         cols = [
-            "clutch_code","cross_run_code","cross_date",
+            "clutch_code","cross_run_code","birthday",
+            "day_annotated","annotations_rollup",
             "mom_code","dad_code","mother_tank_label","father_tank_label"
         ]
         present_det = [c for c in cols if c in det.columns]
@@ -175,9 +207,9 @@ else:
             key="ci_runs_editor_min",
         )
 
-        # three text inputs (red, green, note) + count per run
+        # three text inputs (red, green, note) — one insert per run
         st.markdown("#### Quick annotate selected")
-        c1, c2, c3, c4 = st.columns([1,1,3,1])
+        c1, c2, c3 = st.columns([1,1,3])
         with c1:
             red_txt = st.text_input("red", value="", placeholder="text")
         with c2:
