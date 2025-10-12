@@ -24,7 +24,7 @@ if not DB_URL:
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
 # Badge + user stamping
-from sqlalchemy import text as _text
+from sqlalchemy import text as _text  # used only in this badge block
 user = ""
 try:
     url = getattr(eng, "url", None)
@@ -77,7 +77,6 @@ with c2:
     show_n = st.number_input("Show up to", 50, 2000, 500, step=50)
 
 with eng.begin() as cx:
-    # Pull a reasonable window (we'll filter in-app for simplicity/reliability)
     concepts = pd.read_sql(
         text("""
             select
@@ -93,7 +92,6 @@ with eng.begin() as cx:
         cx,
     )
 
-# simple in-app filter
 if q.strip():
     ql = q.lower()
     concepts = concepts[
@@ -107,14 +105,12 @@ if q.strip():
     ]
 concepts = concepts.head(int(show_n)).reset_index(drop=True)
 
-# selection model (checkbox in grid)
 key_concepts = "_bruker_concept_grid"
 if key_concepts not in st.session_state:
     t = concepts.copy()
     t.insert(0, "✓ Concept", False)
     st.session_state[key_concepts] = t
 else:
-    # sync rows with latest data
     base = st.session_state[key_concepts].set_index("clutch_code")
     now  = concepts.set_index("clutch_code")
     for i in now.index:
@@ -125,6 +121,7 @@ else:
 
 concept_cols = ["✓ Concept", "clutch_code", "clutch_name", "clutch_nickname", "mom_code", "dad_code", "created_at"]
 concept_cols = [c for c in concept_cols if c in st.session_state[key_concepts].columns]
+
 concept_edit = st.data_editor(
     st.session_state[key_concepts][concept_cols],
     hide_index=True,
@@ -133,7 +130,6 @@ concept_edit = st.data_editor(
     column_config={"✓ Concept": st.column_config.CheckboxColumn("✓", default=False)},
     key="bruker_concept_editor",
 )
-# persist checkbox changes
 st.session_state[key_concepts].loc[concept_edit.index, "✓ Concept"] = concept_edit["✓ Concept"]
 concept_row = _one_checked(st.session_state[key_concepts], "✓ Concept")
 
@@ -164,7 +160,6 @@ with eng.begin() as cx:
         cx,
         params={"m": mom_code, "d": dad_code},
     )
-    # Roll up existing selections per run
     sel_rollup = pd.read_sql(
         text("""
             select
@@ -205,15 +200,13 @@ else:
     base = base.loc[now.index]
     st.session_state[key_runs] = base.reset_index()
 
-run_cols = [
-    "✓ Run",
-    "cross_run_code", "cross_date", "mother_tank_label", "father_tank_label",
-    "selections_rollup",
-]
+run_cols = ["✓ Run", "cross_run_code", "cross_date", "mother_tank_label", "father_tank_label", "selections_rollup"]
 run_cols = [c for c in run_cols if c in st.session_state[key_runs].columns]
+
 run_edit = st.data_editor(
     st.session_state[key_runs][run_cols],
-    hide_index=True, use_container_width=True,
+    hide_index=True,
+    use_container_width=True,
     column_order=run_cols,
     column_config={
         "✓ Run": st.column_config.CheckboxColumn("✓", default=False),
@@ -236,7 +229,6 @@ cross_date        = str(run_row["cross_date"])
 st.markdown("### 3) Choose selection for the run")
 
 with eng.begin() as cx:
-    # Does the normalized view exist?
     has_view = bool(
         cx.execute(
             text("""
@@ -252,7 +244,6 @@ with eng.begin() as cx:
     )
 
     if has_view:
-        # Preferred path: the view exposes stable column names.
         sql = text("""
             select
               selection_id::text        as selection_id,
@@ -267,9 +258,7 @@ with eng.begin() as cx:
                      selection_created_at desc
         """)
         selections = pd.read_sql(sql, cx, params={"xid": cross_instance_id})
-
     else:
-        # Fallback: read directly from clutch_instances, tolerating id_uuid vs id.
         has_id_uuid = bool(
             cx.execute(
                 text("""
@@ -283,7 +272,6 @@ with eng.begin() as cx:
             ).first()
         )
         id_col = "id_uuid" if has_id_uuid else "id"
-
         sql = text(f"""
             select
               {id_col}::text             as selection_id,
@@ -298,6 +286,51 @@ with eng.begin() as cx:
                      created_at desc
         """)
         selections = pd.read_sql(sql, cx, params={"xid": cross_instance_id})
+
+if selections.empty:
+    st.warning("No selections for this run yet. Use the ‘Annotate Clutch Instances’ page to add one, then return.")
+    st.stop()
+
+key_sel = "_bruker_selection_grid"
+if key_sel not in st.session_state:
+    t = selections.copy()
+    t.insert(0, "✓ Selection", False)
+    st.session_state[key_sel] = t
+else:
+    base = st.session_state[key_sel].set_index("selection_id")
+    now  = selections.set_index("selection_id")
+    for i in now.index:
+        if i not in base.index:
+            base.loc[i] = now.loc[i]
+    base = base.loc[now.index]
+    st.session_state[key_sel] = base.reset_index()
+
+sel_cols = [
+    "✓ Selection",
+    "label", "selection_created_at", "selection_annotated_at",
+    "red_intensity", "green_intensity", "notes", "annotated_by",
+]
+sel_cols = [c for c in sel_cols if c in st.session_state[key_sel].columns]
+
+sel_edit = st.data_editor(
+    st.session_state[key_sel][sel_cols],
+    hide_index=True,
+    use_container_width=True,
+    column_order=sel_cols,
+    column_config={"✓ Selection": st.column_config.CheckboxColumn("✓", default=False)},
+    key="bruker_selection_editor",
+)
+
+st.session_state[key_sel].loc[sel_edit.index, "✓ Selection"] = sel_edit["✓ Selection"]
+sel_row = _one_checked(st.session_state[key_sel], "✓ Selection")
+if sel_row is None:
+    st.info("Tick exactly one selection to continue.")
+    st.stop()
+
+selection_id    = str(sel_row["selection_id"])
+selection_label = str(sel_row.get("label") or "")
+
+st.caption(f"Context • concept={concept_code} • run={cross_run_code} ({cross_date}) • selection_label={selection_label}")
 
 # ────────────────────────── Step 4 — Mount details ──────────────────
 st.markdown("### 4) Mount details")
@@ -316,74 +349,72 @@ with c4:
 with c5:
     n_bottom = int(st.number_input("n_bottom", min_value=0, value=2, step=1))
 
-# Generate mount_code like "BRUKER YYYY-MM-DD # N" (N is 1-based per date)
-def _make_mount_code(cx, mount_date: dt.date) -> str:
-    cnt = cx.execute(
-        text("select count(*) from public.bruker_mounts where mount_date=:d"),
-        {"d": mount_date},
-    ).scalar() or 0
-    return f"BRUKER {mount_date.isoformat()} # {cnt + 1}"
-
 save = st.button("Save mount", type="primary")
 if save:
     try:
         with eng.begin() as cx:
             has_mount_code = _col_exists(cx, "public", "bruker_mounts", "mount_code")
+            mount_code = None
+            if has_mount_code:
+                cnt = cx.execute(
+                    text("select count(*) from public.bruker_mounts where mount_date = :d"),
+                    {"d": d_val},
+                ).scalar() or 0
+                mount_code = f"BRUKER {d_val.isoformat()} # {cnt + 1}"
 
             if has_mount_code:
-                recent = pd.read_sql(
+                cx.execute(
                     text("""
-                        select
-                        coalesce(
-                            mount_code,
-                            'BRUKER ' || to_char(mount_date, 'YYYY-MM-DD') || ' #' ||
-                            row_number() over (
-                            partition by mount_date
-                            order by mount_time nulls last, created_at
-                            )
-                        ) as mount_code,
-                        mount_date, mount_time, n_top, n_bottom, orientation,
-                        created_at, created_by
-                        from public.bruker_mounts
-                        where selection_id = :sid
-                        order by created_at desc
-                        limit 50
+                        insert into public.bruker_mounts (
+                          selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
+                          mount_code, created_at, created_by
+                        )
+                        values (
+                          cast(:sid as uuid), :md, :mt, :orient, :nt, :nb,
+                          :mcode, now(), coalesce(current_setting('app.user', true), current_user)
+                        )
                     """),
-                    cx,
-                    params={"sid": selection_id},
+                    {
+                        "sid": selection_id,
+                        "md": d_val,
+                        "mt": t_val,
+                        "orient": orientation,
+                        "nt": n_top,
+                        "nb": n_bottom,
+                        "mcode": mount_code,
+                    },
                 )
             else:
-                # No physical mount_code column? Compute a display-only code so the UI is consistent.
-                recent = pd.read_sql(
+                cx.execute(
                     text("""
-                        select
-                        'BRUKER ' || to_char(mount_date, 'YYYY-MM-DD') || ' #' ||
-                        row_number() over (
-                            partition by mount_date
-                            order by mount_time nulls last, created_at
-                        ) as mount_code,
-                        mount_date, mount_time, n_top, n_bottom, orientation,
-                        created_at, created_by
-                        from public.bruker_mounts
-                        where selection_id = :sid
-                        order by created_at desc
-                        limit 50
+                        insert into public.bruker_mounts (
+                          selection_id, mount_date, mount_time, orientation, n_top, n_bottom,
+                          created_at, created_by
+                        )
+                        values (
+                          cast(:sid as uuid), :md, :mt, :orient, :nt, :nb,
+                          now(), coalesce(current_setting('app.user', true), current_user)
+                        )
                     """),
-                    cx,
-                    params={"sid": selection_id},
+                    {
+                        "sid": selection_id,
+                        "md": d_val,
+                        "mt": t_val,
+                        "orient": orientation,
+                        "nt": n_top,
+                        "nb": n_bottom,
+                    },
                 )
+
         st.success("Bruker mount saved.")
         st.rerun()
     except Exception as e:
-        st.error("Failed to save mount.")
+        st.error(f"Failed to save mount: {e}")
 
 # ────────────────────────── Recent mounts for this selection ────────
 st.markdown("### Recent mounts for this selection")
 
 with eng.begin() as cx:
-    # Compute a code even if the physical column doesn't exist:
-    # - If mount_code column exists and is non-null, use it.
-    # - Otherwise build "BRUKER YYYY-MM-DD #N" with a stable per-day numbering.
     recent = pd.read_sql(
         text("""
             select
@@ -391,7 +422,7 @@ with eng.begin() as cx:
                 mount_code,
                 'BRUKER ' || to_char(mount_date, 'YYYY-MM-DD') || ' #' ||
                 row_number() over (
-                  partition by selection_id, mount_date
+                  partition by mount_date
                   order by mount_time nulls last, created_at
                 )
               ) as mount_code,
@@ -403,7 +434,7 @@ with eng.begin() as cx:
               created_at,
               created_by
             from public.bruker_mounts
-            where selection_id = :sid
+            where selection_id = cast(:sid as uuid)
             order by created_at desc
             limit 50
         """),
@@ -411,26 +442,13 @@ with eng.begin() as cx:
         params={"sid": selection_id},
     )
 
-# Defensive fallback (should never trigger with the SQL above)
-if not recent.empty and "mount_code" not in recent.columns:
-    recent = recent.copy()
-    # This page only ever shows one selection_id at a time, so grouping by date is enough.
-    recent["mount_code"] = (
-        "BRUKER "
-        + recent["mount_date"].astype(str)
-        + " # "
-        + (recent.groupby("mount_date").cumcount() + 1).astype(str)
-    )
-
 if recent.empty:
     st.caption("No mounts yet for this selection.")
 else:
-    # Ensure mount_code is the FIRST column in the rendered table.
     order = [
         "mount_code",
         "mount_date", "mount_time", "n_top", "n_bottom", "orientation",
         "created_at", "created_by",
     ]
     present = [c for c in order if c in recent.columns]
-    recent = recent[present]
-    st.dataframe(recent, hide_index=True, use_container_width=True)
+    st.dataframe(recent[present], hide_index=True, use_container_width=True)
