@@ -1,179 +1,242 @@
 from __future__ import annotations
-
-try:
-    from supabase.ui.auth_gate import require_app_unlock
-except Exception:
-    try:
-        from auth_gate import require_app_unlock
-    except Exception:
-        def require_app_unlock(): ...
-require_app_unlock()
-
-import os
-from datetime import date, timedelta
-from typing import List
-
+import os, sys
+from pathlib import Path
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-import sys
-from pathlib import Path
+# ── path bootstrap ───────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-PAGE_TITLE = "CARP — Clutches (Concept → Instances)"
-st.set_page_config(page_title=PAGE_TITLE, page_icon="🔎", layout="wide")
-st.title("🔎 Clutches — Conceptual overview with instance counts")
+st.set_page_config(page_title="Clutches — Conceptual overview with instance counts",
+                   page_icon="🧬", layout="wide")
+st.title("🧬 Clutches — Conceptual overview with instance counts")
 
-def _ensure_sslmode(url: str) -> str:
-    from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
-    u = urlparse(url); q = dict(parse_qsl(u.query, keep_blank_values=True))
-    host = (u.hostname or "").lower() if u.hostname else ""
-    q["sslmode"] = "disable" if host in {"localhost","127.0.0.1","::1"} else q.get("sslmode","require")
-    return urlunparse((u.scheme,u.netloc,u.path,u.params,urlencode(q),u.fragment))
+# ── engine / env ────────────────────────────────────────────────────────────────
+DB_URL = os.getenv("DB_URL")
+if not DB_URL:
+    st.error("DB_URL not set"); st.stop()
+eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
-@st.cache_resource(show_spinner=False)
-def _get_engine():
-    url = os.environ.get("DB_URL")
-    if not url: st.stop()
-    return create_engine(_ensure_sslmode(url))
+# DB badge (host + role) and capture a user string for stamping
+user = ""
+try:
+    url = getattr(eng, "url", None)
+    host = (getattr(url, "host", None) or os.getenv("PGHOST", "") or "(unknown)")
+    with eng.begin() as cx:
+        role = cx.execute(text("select current_setting('role', true)")).scalar()
+        who  = cx.execute(text("select current_user")).scalar() or ""
+    user = who
+    st.caption(f"DB: {host} • role={role or 'default'} • user={user}")
+except Exception:
+    pass
 
-ENGINE = _get_engine()
+# Optional: stamp app user into server-side session key app.user
+try:
+    from supabase.ui.lib.app_ctx import stamp_app_user
+    who_ui = getattr(st.experimental_user, "email", "") if hasattr(st, "experimental_user") else ""
+    if who_ui:
+        user = who_ui
+    stamp_app_user(eng, user)
+except Exception:
+    pass
 
-def load_concept_overview() -> pd.DataFrame:
-    with ENGINE.connect() as cx:
-        df = pd.read_sql(
-            text("""
-                select
-                  clutch_plan_id,
-                  planned_cross_id,
-                  clutch_code,
-                  clutch_name,
-                  clutch_nickname,
-                  date_planned,
-                  created_by,
-                  created_at,
-                  note,
-                  n_instances,
-                  n_containers,
-                  n_crosses,
-                  latest_date_birth
-                from public.vw_clutches_concept_overview
-                order by coalesce(date_planned::timestamp, created_at) desc nulls last
-            """),
-            cx,
-        )
-    return df
-
-def load_instances_for_plans(plan_ids: List[str]) -> pd.DataFrame:
-    if not plan_ids:
-        return pd.DataFrame()
-    with ENGINE.connect() as cx:
-        df = pd.read_sql(
-            text("""
-                select
-                  c.id_uuid::text             as clutch_id,
-                  c.planned_cross_id::text    as planned_cross_id,
-                  c.date_birth,
-                  c.created_by,
-                  c.created_at,
-                  c.note,
-                  (select count(*) from public.clutch_containers cc where cc.clutch_id = c.id_uuid)::int as n_containers,
-                  case when c.cross_id is null then 0 else 1 end::int as has_cross
-                from public.clutches c
-                where c.planned_cross_id::text = any(:ids)
-                order by coalesce(c.date_birth::timestamp, c.created_at) desc nulls last
-            """),
-            cx,
-            params={"ids": plan_ids},
-        )
-    return df
-
-with st.sidebar:
-    st.header("Filters")
-    q = st.text_input("Search (code / name / user / note)")
-    col1, col2 = st.columns(2)
-    with col1:
-        start = st.date_input("From", value=date.today() - timedelta(days=60))
-    with col2:
-        end = st.date_input("To", value=date.today())
-
-base = load_concept_overview()
-
-if q:
-    ql = q.lower()
-    def contains(s: pd.Series) -> pd.Series:
-        return s.astype(str).str.lower().str.contains(ql, na=False)
-    mask = (
-        contains(base.get("clutch_code", pd.Series(index=base.index))) |
-        contains(base.get("clutch_name", pd.Series(index=base.index))) |
-        contains(base.get("created_by", pd.Series(index=base.index))) |
-        contains(base.get("note", pd.Series(index=base.index)))
-    )
-    base = base[mask]
-
-if "date_planned" in base.columns:
-    dp = pd.to_datetime(base["date_planned"], errors="coerce")
-    base = base[dp.isna() | dp.between(pd.to_datetime(start), pd.to_datetime(end), inclusive="both")]
-
-st.subheader("Conceptual clutches")
-if base.empty:
-    st.info("No rows for the current filters.")
+# Ensure target insert table exists (we will write here)
+with eng.begin() as cx:
+    exists_tbl = cx.execute(text("select to_regclass('public.clutch_instances')")).scalar()
+if not exists_tbl:
+    st.error("Table public.clutch_instances not found in this DB.")
     st.stop()
 
-view_cols = [c for c in [
-    "clutch_code","clutch_name","clutch_nickname",
-    "date_planned","created_by","created_at","note",
-    "n_instances","n_containers","n_crosses","latest_date_birth",
-] if c in base.columns]
+# ── conceptual clutches (no date filters) ───────────────────────────────────────
+st.markdown("## Conceptual clutches")
 
-df_view = base[view_cols + (["clutch_plan_id"] if "clutch_plan_id" in base.columns else [])].copy()
-if "clutch_plan_id" in df_view.columns:
-    df_view = df_view.set_index("clutch_plan_id", drop=True).drop(columns=["clutch_plan_id"], errors="ignore")
-df_view.index = df_view.index.map(str)
-df_view.insert(0, "✅", False)
+with eng.begin() as cx:
+    concept_df = pd.read_sql(
+        text("""
+            select
+              conceptual_cross_code as clutch_code,
+              name                  as clutch_name,
+              nickname              as clutch_nickname,
+              mom_code, dad_code, mom_code_tank, dad_code_tank,
+              created_at
+            from public.v_cross_concepts_overview
+            order by created_at desc nulls last, clutch_code
+            limit 2000
+        """), cx)
 
-edited = st.data_editor(
-    df_view,
-    hide_index=True,
-    use_container_width=True,
-    column_config={
-        "✅": st.column_config.CheckboxColumn(help="Select clutches to see realized instances"),
-        "clutch_name": st.column_config.TextColumn(width="large"),
-        "clutch_code": st.column_config.TextColumn(width="medium"),
-        "date_planned": st.column_config.DateColumn(format="YYYY-MM-DD", width="small"),
-        "latest_date_birth": st.column_config.DateColumn(format="YYYY-MM-DD", width="small"),
-        "n_instances": st.column_config.NumberColumn(width="small"),
-        "n_containers": st.column_config.NumberColumn(width="small"),
-        "n_crosses": st.column_config.NumberColumn(width="small"),
-    },
-    key="clutches_concept_editor",
-)
-
-selected_plan_ids = edited.index[edited["✅"] == True].tolist()
-
-st.divider()
-st.subheader("Realized instances for selection")
-if not selected_plan_ids:
-    st.caption("Select one or more conceptual clutches above to list realized clutch instances.")
+# selection model for concepts (checkbox in grid)
+sel_key = "_concept_table_overview"
+if sel_key not in st.session_state:
+    t = concept_df.copy()
+    t.insert(0, "✓ Select", False)
+    st.session_state[sel_key] = t
 else:
-    inst = load_instances_for_plans(selected_plan_ids)
-    if inst.empty:
+    base = st.session_state[sel_key].set_index("clutch_code")
+    now  = concept_df.set_index("clutch_code")
+    for i in now.index:
+        if i not in base.index: base.loc[i] = now.loc[i]
+    base = base.loc[now.index]
+    st.session_state[sel_key] = base.reset_index()
+
+present_cols = [
+    "✓ Select","clutch_code","clutch_name","clutch_nickname",
+    "mom_code","dad_code","mom_code_tank","dad_code_tank","created_at",
+]
+present = [c for c in present_cols if c in st.session_state[sel_key].columns]
+_edited_concepts = st.data_editor(
+    st.session_state[sel_key][present],
+    hide_index=True, use_container_width=True, column_order=present,
+    column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
+    key="ov_concept_editor",
+)
+# persist ✓ back to the session model
+st.session_state[sel_key].loc[_edited_concepts.index, "✓ Select"] = _edited_concepts["✓ Select"]
+
+# ───────────────────────── Realized instances for selected concepts ─────────────────────────
+st.markdown("### Realized instances for selection")
+
+# Debug: host, runs in view, and checkboxes read from session
+with eng.begin() as _cx_dbg:
+    _host = (getattr(getattr(eng, "url", None), "host", None) or os.getenv("PGHOST", ""))
+    _runs_cnt = pd.read_sql(text("select count(*) as c from public.vw_cross_runs_overview"), _cx_dbg)["c"].iloc[0]
+    _sel_tbl = st.session_state.get(sel_key)
+    try:
+        _checked = _sel_tbl.loc[_sel_tbl["✓ Select"] == True, "clutch_code"].astype(str).tolist() \
+                   if isinstance(_sel_tbl, pd.DataFrame) else []
+    except Exception:
+        _checked = []
+st.caption(f"DBG • host={_host} • runs_in_view={_runs_cnt} • checked_in_grid={_checked}")
+
+# Robust selection: session + fallback to first row
+selected_codes: list[str] = []
+try:
+    tbl = st.session_state.get(sel_key)
+    if isinstance(tbl, pd.DataFrame):
+        selected_codes = (
+            tbl.loc[tbl["✓ Select"] == True, "clutch_code"].astype(str).tolist()
+        )
+        if not selected_codes and not tbl.empty:
+            selected_codes = [str(tbl.iloc[0]["clutch_code"])]
+except Exception:
+    selected_codes = []
+
+st.caption(f"selected concepts used: {selected_codes}")
+
+if not selected_codes:
+    st.info("Select a concept to see realized instances.")
+else:
+    with eng.begin() as cx:
+        # mom/dad for selected concepts
+        sel_mom_dad = pd.read_sql(
+            text("""
+                select conceptual_cross_code as clutch_code,
+                       mom_code, dad_code
+                from public.v_cross_concepts_overview
+                where conceptual_cross_code = any(:codes)
+            """),
+            cx, params={"codes": selected_codes}
+        )
+        # all runs (NO date filter)
+        runs = pd.read_sql(
+            text("""
+                select
+                  cross_instance_id,
+                  cross_run_code,
+                  cross_date::date as cross_date,
+                  mom_code, dad_code,
+                  mother_tank_label, father_tank_label,
+                  run_created_by, run_created_at, run_note
+                from public.vw_cross_runs_overview
+            """), cx)
+
+    st.caption(f"runs fetched: {len(runs)}")
+
+    if sel_mom_dad.empty or runs.empty:
         st.info("No realized clutch instances yet.")
     else:
-        st.dataframe(
-            inst.rename(columns={
-                "clutch_id":"clutch_id",
-                "planned_cross_id":"planned_cross_id",
-                "date_birth":"date_birth",
-                "created_by":"created_by",
-                "created_at":"created_at",
-                "note":"note",
-                "n_containers":"n_containers",
-                "has_cross":"has_cross",
-            }),
-            use_container_width=True,
-            hide_index=True,
+        det = sel_mom_dad.merge(runs, how="inner", on=["mom_code","dad_code"]).sort_values(
+            ["run_created_at","cross_date"], ascending=[False, False]
         )
+        st.caption(f"matched by mom+dad: {len(det)}")
+
+        if det.empty:
+            st.info("No realized clutch instances for the selected concepts.")
+        else:
+            # minimal grid with ✓ Add
+            cols = ["clutch_code","cross_run_code","cross_date",
+                    "mom_code","dad_code","mother_tank_label","father_tank_label"]
+            present_det = [c for c in cols if c in det.columns]
+            grid = det[present_det + (["cross_instance_id"] if "cross_instance_id" in det.columns else [])].copy()
+            grid.insert(0, "✓ Add", False)
+
+            edited_seed = st.data_editor(
+                grid, hide_index=True, use_container_width=True,
+                column_order=["✓ Add"] + present_det,
+                column_config={"✓ Add": st.column_config.CheckboxColumn("✓", default=False)},
+                key="ov_runs_editor_min",
+            )
+
+            # quick annotate inputs + count per run
+            st.markdown("#### Quick annotate selected")
+            c1, c2, c3, c4 = st.columns([1, 1, 3, 1])
+            with c1: red_txt   = st.text_input("red",   value="", placeholder="text")
+            with c2: green_txt = st.text_input("green", value="", placeholder="text")
+            with c3: note_txt  = st.text_input("note",  value="", placeholder="optional")
+            with c4: count_per_run = st.number_input("how many per run", min_value=1, max_value=50, value=1, step=1)
+
+            if st.button("Submit"):
+                sel = edited_seed[edited_seed["✓ Add"] == True]
+                if sel.empty:
+                    st.warning("No runs selected.")
+                else:
+                    saved = 0
+                    with eng.begin() as cx:
+                        for _, r in sel.iterrows():
+                            xid   = str(r.get("cross_instance_id") or "").strip()
+                            ccode = str(r.get("clutch_code") or "").strip()
+                            rcode = str(r.get("cross_run_code") or "").strip()
+                            if not xid:
+                                continue
+
+                            base_label = " / ".join([s for s in (ccode, rcode) if s]) or "clutch"
+
+                            # continue numbering per run
+                            existing = cx.execute(text("""
+                                select count(*) from public.clutch_instances
+                                where cross_instance_id = :xid
+                            """), {"xid": xid}).scalar() or 0
+
+                            for i in range(int(count_per_run)):
+                                suffix = f" [{existing + i + 1}]" if int(count_per_run) > 1 or existing > 0 else ""
+                                label  = base_label + suffix
+
+                                cx.execute(text("""
+                                    insert into public.clutch_instances (
+                                        cross_instance_id, label, created_at,
+                                        red_intensity, green_intensity, notes,
+                                        red_selected, green_selected,
+                                        annotated_by, annotated_at
+                                    )
+                                    values (
+                                        :xid, :label, now(),
+                                        nullif(:red,''), nullif(:green,''), nullif(:note,''),
+                                        case when nullif(:red,'')   is not null then true else false end,
+                                        case when nullif(:green,'') is not null then true else false end,
+                                        coalesce(current_setting('app.user', true), :fallback_user),
+                                        now()
+                                    )
+                                """), {
+                                    "xid": xid,
+                                    "label": label,
+                                    "red":   red_txt,
+                                    "green": green_txt,
+                                    "note":  note_txt,
+                                    "fallback_user": (user or "")
+                                })
+                                saved += 1
+
+                    st.success(f"Created {saved} clutch instance(s).")
+                    st.rerun()
