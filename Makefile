@@ -33,3 +33,11 @@ pub-staging:
 pub-prod:
 	@[ "$$ALLOW_PROD" = "1" ] || (echo "Refusing: set ALLOW_PROD=1 to promote"; exit 1)
 	@git push mirror origin/main:prod
+
+# publish current commit (HEAD) to mirror
+pub-staging:
+	@git push mirror HEAD:staging
+
+pub-prod:
+	@[ "$$ALLOW_PROD" = "1" ] || (echo "Refusing: set ALLOW_PROD=1 to promote"; exit 1)
+	@git push mirror HEAD:prod
