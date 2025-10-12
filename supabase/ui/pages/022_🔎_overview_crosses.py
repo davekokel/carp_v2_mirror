@@ -114,17 +114,23 @@ st.session_state[key] = base.reset_index()
 
 # show concept grid
 view_cols = [
-    "✓ Select","clutch_code","name","nickname",
+    "✓ Select",
+    "conceptual_cross_code",
+    "clutch_code",
+    "name","nickname",
     "mom_code","dad_code","mom_code_tank","dad_code_tank",
-    "n_treatments","created_by","created_at"
+    "n_treatments","created_by","created_at",
 ]
 view_cols = [c for c in view_cols if c in st.session_state[key].columns]
 
 edited = st.data_editor(
     st.session_state[key][view_cols],
-    hide_index=True, use_container_width=True,
+    hide_index=True,
+    use_container_width=True,
+    column_order=view_cols,   # <--- add this line
     column_config={
         "✓ Select":      st.column_config.CheckboxColumn("✓", default=False),
+        "conceptual_cross_code": st.column_config.TextColumn("conceptual_cross_code", disabled=True),
         "clutch_code":   st.column_config.TextColumn("clutch_code", disabled=True),
         "name":          st.column_config.TextColumn("name", disabled=True),
         "nickname":      st.column_config.TextColumn("nickname", disabled=True),
