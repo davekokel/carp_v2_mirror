@@ -293,7 +293,7 @@ if st.button("Submit"):
                         annotated_by, annotated_at
                     )
                     values (
-                        :xid::uuid, :label, now(),
+                        cast(:xid as uuid), :label, now(),
                         nullif(:red,''), nullif(:green,''), nullif(:note,''),
                         case when nullif(:red,'')   is not null then true else false end,
                         case when nullif(:green,'') is not null then true else false end,
