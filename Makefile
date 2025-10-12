@@ -24,3 +24,12 @@ run-staging:
 	@./scripts/run_staging_direct_clean.sh
 run-prod-ro:
 	@./scripts/run_prod_ro_direct_clean.sh
+
+# Ship code to mirror staging (Streamlit staging redeploys)
+pub-staging:
+	@git push mirror origin/main:staging
+
+# Promote to prod (requires ALLOW_PROD=1)
+pub-prod:
+	@[ "$$ALLOW_PROD" = "1" ] || (echo "Refusing: set ALLOW_PROD=1 to promote"; exit 1)
+	@git push mirror origin/main:prod
