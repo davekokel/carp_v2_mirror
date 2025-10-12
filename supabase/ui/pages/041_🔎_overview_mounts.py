@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import os, sys
+import os
 from pathlib import Path
-import io
 import datetime as dt
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
+import sys 
 
-# ────────────────────────── Path bootstrap ──────────────────────────
+# ────────────────────────── bootstrap ──────────────────────────
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -16,222 +16,177 @@ if str(ROOT) not in sys.path:
 st.set_page_config(page_title="Overview — Bruker Mounts", page_icon="🔎", layout="wide")
 st.title("🔎 Overview — Bruker Mounts")
 
-# ────────────────────────── DB / engine ─────────────────────────────
+# ────────────────────────── engine / user ──────────────────────
 DB_URL = os.getenv("DB_URL")
 if not DB_URL:
     st.error("DB_URL not set")
     st.stop()
+
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
-# Badge
 from sqlalchemy import text as _text
+user = ""
 try:
-    host = (getattr(getattr(eng, "url", None), "host", None) or os.getenv("PGHOST", "") or "(unknown)")
-    with eng.begin() as _cx:
-        who = _cx.execute(_text("select current_user")).scalar() or ""
-    st.caption(f"DB: {host} • user={who}")
+    url = getattr(eng, "url", None)
+    host = (getattr(url, "host", None) or os.getenv("PGHOST", "") or "(unknown)")
+    with eng.begin() as cx:
+        role = cx.execute(_text("select current_setting('role', true)")).scalar()
+        who  = cx.execute(_text("select current_user")).scalar()
+    user = who or ""
+    st.caption(f"DB: {host} • role={role or 'default'} • user={user}")
 except Exception:
     pass
 
-# ────────────────────────── Helpers ─────────────────────────────────
-def _one_checked(df: pd.DataFrame, check_col: str) -> pd.Series | None:
-    if check_col not in df.columns:
-        return None
-    checked = df.index[df[check_col] == True].tolist()
-    return df.loc[checked[0]] if len(checked) == 1 else None
+# ────────────────────────── helpers ────────────────────────────
+def _banner_warn(msg: str):
+    st.warning(msg, icon="⚠️")
 
-def _ci_id_col(cx) -> str:
-    """Return 'id' if present, else 'id_uuid' (for clutch_instances)."""
-    has_id = bool(cx.execute(text("""
-        select 1 from information_schema.columns
-        where table_schema='public' and table_name='clutch_instances' and column_name='id'
-    """)).first())
-    if has_id:
-        return "id"
-    has_uuid = bool(cx.execute(text("""
-        select 1 from information_schema.columns
-        where table_schema='public' and table_name='clutch_instances' and column_name='id_uuid'
-    """)).first())
-    return "id_uuid" if has_uuid else "id"  # default back to id
-
-# ────────────────────────── Day filter ──────────────────────────────
+# ────────────────────────── day picker ─────────────────────────
 st.markdown("### Pick a day")
-day = st.date_input("Mount date", value=dt.date.today())
-if not day:
-    st.info("Pick a date to view mounts.")
-    st.stop()
+day = st.date_input("Day", value=dt.date.today())
 
-# ────────────────────────── Load + enrich ───────────────────────────
+# ────────────────────────── pull mounts for the day with enrichment ─────────────
 with eng.begin() as cx:
-    id_col = _ci_id_col(cx)
-
-    # Base mounts for day; compute mount_code inline (column may not exist)
     df = pd.read_sql(
-        text(f"""
-            with base as (
-              select
-                selection_id,
-                mount_date, mount_time,
-                n_top, n_bottom, orientation,
-                created_at, created_by
-              from public.bruker_mounts
-              where mount_date = :d
-            )
-            select
-              'BRUKER ' || to_char(b.mount_date, 'YYYY-MM-DD') || ' #' ||
-              row_number() over (
-                partition by b.mount_date
-                order by b.mount_time nulls last, b.created_at
-              )                              as mount_code,
-              b.selection_id::text           as selection_id,
-              b.mount_date, b.mount_time,
-              b.n_top, b.n_bottom, b.orientation,
-              b.created_at, b.created_by
-            from base b
-            order by b.created_at desc
-        """),
-        cx, params={"d": day}
-    )
-
-    # Join selection label and cross_instance_id (robust to id/id_uuid)
-    df_sel = pd.read_sql(
-        text(f"""
-            select
-              {id_col}::text  as selection_id,
-              label           as selection_label,
-              cross_instance_id
-            from public.clutch_instances
-        """), cx
-    )
-
-    # Join runs for run code
-    df_runs = pd.read_sql(
         text("""
-            select
-              cross_instance_id,
-              cross_run_code,
-              cross_date::date as run_date,
-              mother_tank_label, father_tank_label
-            from public.vw_cross_runs_overview
-        """), cx
+          select
+            mount_code, mount_date, mount_time,
+            selection_label, cross_run_code,
+            clutch_name, clutch_nickname, annotations_rollup,
+            n_top, n_bottom, orientation,
+            created_at, created_by
+          from public.v_bruker_mounts_enriched
+          where mount_date = :d
+          order by created_at desc
+        """),
+        cx,
+        params={"d": day},
     )
+    df = pd.read_sql(sql, cx, params={"d": day})
 
-# Left joins to enrich
-if not df.empty:
-    df = df.merge(df_sel, on="selection_id", how="left")
-    df = df.merge(df_runs, on="cross_instance_id", how="left")
-
-# ────────────────────────── Grid with checkboxes ────────────────────
-st.markdown("### Mounts on selected day")
 if df.empty:
-    st.info("No mounts found for the selected day.")
+    _banner_warn("No mounts found for the selected day.")
     st.stop()
 
-# Keep stable ordering and visible columns
-columns_order = [
+# ────────────────────────── grid + selection ───────────────────
+st.markdown("### Mounts on selected day")
+
+# ensure column order includes the three new fields prominently
+cols_order = [
     "mount_code",
-    "mount_date", "mount_time",
-    "selection_label", "cross_run_code",
-    "n_top", "n_bottom", "orientation",
-    "created_at", "created_by",
+    "mount_date",
+    "mount_time",
+    "selection_label",
+    "cross_run_code",
+    "clutch_name",           # NEW
+    "clutch_nickname",       # NEW
+    "annotations_rollup",    # NEW
+    "n_top",
+    "n_bottom",
+    "orientation",
+    "created_at",
+    "created_by",
 ]
-# Ensure columns exist and order them
-visible = [c for c in columns_order if c in df.columns]
-grid_df = df[visible].copy()
+present = [c for c in cols_order if c in df.columns]
+# add any remaining columns to the tail
+present += [c for c in df.columns if c not in present]
+df = df[present].copy()
 
-# Inject checkbox column
-grid_df.insert(0, "✓ Select", False)
+# Add a checkbox column for selection
+key_grid = "_overview_mounts_grid"
+if key_grid not in st.session_state:
+    t = df.copy()
+    t.insert(0, "✓", False)
+    st.session_state[key_grid] = t
+else:
+    base = st.session_state[key_grid]
+    # try to align by mount_code + timestamp to stay stable
+    if "mount_code" in df.columns and "created_at" in df.columns:
+        base = base.set_index(["mount_code","created_at"])
+        now  = df.set_index(["mount_code","created_at"])
+        for idx in now.index:
+            if idx not in base.index:
+                base.loc[idx] = [False] + now.loc[idx].to_list()
+        base = base.loc[now.index]
+        st.session_state[key_grid] = base.reset_index()
+    else:
+        st.session_state[key_grid] = df.copy().assign(**{"✓": False}).loc[:, ["✓"] + list(df.columns)]
 
-# Render
-editor = st.data_editor(
-    grid_df,
+grid_edit = st.data_editor(
+    st.session_state[key_grid],
     hide_index=True,
     use_container_width=True,
-    column_order=["✓ Select"] + visible,
-    column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
-    key="mounts_overview_editor",
+    column_order=["✓"] + present,
+    column_config={"✓": st.column_config.CheckboxColumn("✓", default=False)},
+    key="overview_mounts_editor",
 )
+st.session_state[key_grid].loc[grid_edit.index, "✓"] = grid_edit["✓"]
 
-# Persist in session (optional pattern)
-st.session_state["_mounts_overview_table"] = editor.copy()
-
-# Selection helpers
-cA, cB, cC = st.columns([1, 1, 4])
-with cA:
+left, right = st.columns([1,1])
+with left:
     if st.button("Select all"):
-        st.session_state["_mounts_overview_table"]["✓ Select"] = True
-        editor = st.session_state["_mounts_overview_table"]
-with cB:
+        st.session_state[key_grid]["✓"] = True
+        st.experimental_rerun()
+with right:
     if st.button("Clear"):
-        st.session_state["_mounts_overview_table"]["✓ Select"] = False
-        editor = st.session_state["_mounts_overview_table"]
+        st.session_state[key_grid]["✓"] = False
+        st.experimental_rerun()
 
-selected_rows = editor[editor["✓ Select"] == True].copy()
+# Selected rows for PDF
+chosen = st.session_state[key_grid].loc[st.session_state[key_grid]["✓"] == True].copy()
 
-st.caption(f"{len(editor)} row(s) • {len(selected_rows)} selected")
-
-# ────────────────────────── PDF report for selected rows ────────────
+# ────────────────────────── PDF report (very simple stub) ──────────
 st.markdown("### Print PDF report")
-st.caption("Generates a simple label-style summary for the selected mounts.")
-
-def _render_pdf_from_rows(rows: pd.DataFrame) -> bytes:
-    # Minimal PDF via reportlab
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import letter
-    from reportlab.lib.units import inch
-
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=letter)
-    W, H = letter
-
-    def line(y, txt):
-        c.setFont("Helvetica", 10)
-        c.drawString(0.8*inch, y, txt)
-
-    # Make one section per mount
-    for _, r in rows.iterrows():
-        y = H - 1.0*inch
-        # Header
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(0.8*inch, y, f"{str(r.get('mount_code',''))}")
-        y -= 0.3*inch
-
-        # Body lines
-        c.setFont("Helvetica", 10)
-        items = [
-            ("Date",        str(r.get("mount_date",""))),
-            ("Time",        str(r.get("mount_time",""))),
-            ("Selection",   str(r.get("selection_label",""))),
-            ("Run",         str(r.get("cross_run_code",""))),
-            ("Orientation", str(r.get("orientation",""))),
-            ("Top/Bottom",  f"{str(r.get('n_top',''))} / {str(r.get('n_bottom',''))}"),
-            ("Created by",  str(r.get("created_by",""))),
-            ("Created at",  str(r.get("created_at",""))),
-        ]
-        for label, val in items:
-            line(y, f"{label}: {val}")
-            y -= 0.22*inch
-
-        c.showPage()
-
-    c.save()
-    buf.seek(0)
-    return buf.read()
-
-# Enable button when at least one row selected
-if selected_rows.empty:
-    st.button("Download PDF of selected", disabled=True)
+if chosen.empty:
+    st.caption("Select one or more mounts above to enable the PDF export.")
 else:
-    # Reorder to visible columns + keep mount_code first in the PDF
-    pdf_cols = ["mount_code","mount_date","mount_time","selection_label","cross_run_code",
-                "orientation","n_top","n_bottom","created_by","created_at"]
-    pdf_view = selected_rows[[c for c in pdf_cols if c in selected_rows.columns]].copy()
-    pdf_bytes = _render_pdf_from_rows(pdf_view)
+    # Tiny HTML summary – your existing PDF generator can consume this
+    html = """
+    <h2>Bruker Mounts – {day}</h2>
+    <table border="1" cellspacing="0" cellpadding="4">
+      <thead>
+        <tr>
+          <th>mount_code</th>
+          <th>time</th>
+          <th>selection</th>
+          <th>cross_run</th>
+          <th>clutch</th>
+          <th>nickname</th>
+          <th>annotations</th>
+          <th>n_top</th>
+          <th>n_bottom</th>
+          <th>orientation</th>
+        </tr>
+      </thead>
+      <tbody>
+    """.format(day=day.isoformat())
+
+    for _, r in chosen.iterrows():
+        html += f"""
+          <tr>
+            <td>{r.get('mount_code','')}</td>
+            <td>{r.get('mount_time','')}</td>
+            <td>{r.get('selection_label','')}</td>
+            <td>{r.get('cross_run_code','')}</td>
+            <td>{r.get('clutch_name','')}</td>
+            <td>{r.get('clutch_nickname','')}</td>
+            <td>{r.get('annotations_rollup','')}</td>
+            <td>{r.get('n_top','')}</td>
+            <td>{r.get('n_bottom','')}</td>
+            <td>{r.get('orientation','')}</td>
+          </tr>
+        """
+
+    html += """
+      </tbody>
+    </table>
+    """
+
+    # For now, let the user download the HTML. Your PDF pipeline can convert it downstream.
     st.download_button(
-        "Download PDF of selected",
-        data=pdf_bytes,
-        file_name=f"bruker_mounts_{day.isoformat()}.pdf",
-        mime="application/pdf",
-        type="primary",
+        "⬇️ Download report (HTML)",
+        data=html.encode("utf-8"),
+        file_name=f"bruker_mounts_{day.isoformat()}.html",
+        mime="text/html",
         use_container_width=True,
     )
