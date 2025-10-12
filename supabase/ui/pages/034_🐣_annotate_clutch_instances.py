@@ -184,8 +184,6 @@ else:
             green_txt = st.text_input("green", value="", placeholder="text")
         with c3:
             note_txt = st.text_input("note", value="", placeholder="optional")
-        with c4:
-            count_per_run = st.number_input("how many per run", min_value=1, max_value=50, value=1, step=1)
 
         if st.button("Submit"):
             sel = edited_seed[edited_seed["✓ Add"] == True]
@@ -203,40 +201,38 @@ else:
 
                         base_label = " / ".join([s for s in (ccode, rcode) if s]) or "clutch"
 
-                        # how many already exist for this run; continue numbering
                         existing = cx.execute(text("""
                             select count(*) from public.clutch_instances
                             where cross_instance_id = :xid
                         """), {"xid": xid}).scalar() or 0
 
-                        for i in range(int(count_per_run)):
-                            suffix = f" [{existing + i + 1}]" if int(count_per_run) > 1 or existing > 0 else ""
-                            label  = base_label + suffix
+                        suffix = f" [{existing + 1}]" if existing > 0 else ""
+                        label  = base_label + suffix
 
-                            cx.execute(text("""
-                                insert into public.clutch_instances (
-                                    cross_instance_id, label, created_at,
-                                    red_intensity, green_intensity, notes,
-                                    red_selected, green_selected,
-                                    annotated_by, annotated_at
-                                )
-                                values (
-                                    :xid, :label, now(),
-                                    nullif(:red,''), nullif(:green,''), nullif(:note,''),
-                                    case when nullif(:red,'')   is not null then true else false end,
-                                    case when nullif(:green,'') is not null then true else false end,
-                                    coalesce(current_setting('app.user', true), :fallback_user),
-                                    now()
-                                )
-                            """), {
-                                "xid": xid,
-                                "label": label,
-                                "red":   red_txt,
-                                "green": green_txt,
-                                "note":  note_txt,
-                                "fallback_user": (user or "")
-                            })
-                            saved += 1
+                        cx.execute(text("""
+                            insert into public.clutch_instances (
+                                cross_instance_id, label, created_at,
+                                red_intensity, green_intensity, notes,
+                                red_selected, green_selected,
+                                annotated_by, annotated_at
+                            )
+                            values (
+                                :xid, :label, now(),
+                                nullif(:red,''), nullif(:green,''), nullif(:note,''),
+                                case when nullif(:red,'')   is not null then true else false end,
+                                case when nullif(:green,'') is not null then true else false end,
+                                coalesce(current_setting('app.user', true), :fallback_user),
+                                now()
+                            )
+                        """), {
+                            "xid": xid,
+                            "label": label,
+                            "red":   red_txt,
+                            "green": green_txt,
+                            "note":  note_txt,
+                            "fallback_user": (user or "")
+                        })
+                        saved += 1
 
                 st.success(f"Created {saved} clutch instance(s).")
                 st.rerun()
