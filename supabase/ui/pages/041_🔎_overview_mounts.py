@@ -4,9 +4,14 @@ import os
 import sys
 from pathlib import Path
 import datetime as dt
+import io
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
+from reportlab.lib.pagesizes import landscape, letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
 
 # ────────────────────────── bootstrap ──────────────────────────
 ROOT = Path(__file__).resolve().parents[3]
@@ -45,19 +50,43 @@ def _banner_warn(msg: str):
 st.markdown("### Pick a day")
 day = st.date_input("Day", value=dt.date.today())
 
-# ────────────────────────── pull mounts for the day with enrichment ─────────────
+# ────────────────────────── query mounts with live annotations ─────────────
 with eng.begin() as cx:
     df = pd.read_sql(
         text("""
           select
-            mount_code, mount_date, mount_time,
-            selection_label, cross_run_code,
-            clutch_name, clutch_nickname, annotations_rollup,
-            n_top, n_bottom, orientation,
-            created_at, created_by
-          from public.v_bruker_mounts_enriched
-          where mount_date = :d
-          order by created_at desc
+            m.mount_date,
+            coalesce(
+              'BRUKER ' || to_char(m.mount_date,'YYYY-MM-DD') || ' #' ||
+              row_number() over (
+                partition by m.mount_date
+                order by m.mount_time nulls last, m.created_at
+              ),
+              'BRUKER ' || to_char(m.mount_date,'YYYY-MM-DD')
+            ) as mount_code,
+            m.mount_time,
+            ci.label as selection_label,
+            r.cross_run_code,
+            c.clutch_name,
+            c.clutch_nickname,
+            coalesce(trim(
+              concat_ws(' ',
+                case when ci.red_intensity <> '' then 'red='||ci.red_intensity end,
+                case when ci.green_intensity <> '' then 'green='||ci.green_intensity end,
+                case when ci.notes <> '' then 'note='||ci.notes end
+              )
+            ), '') as annotations,
+            m.n_top,
+            m.n_bottom,
+            m.orientation,
+            m.created_at,
+            m.created_by
+          from public.bruker_mounts m
+          left join public.clutch_instances ci on ci.id::uuid = m.selection_id
+          left join public.vw_cross_runs_overview r on r.cross_instance_id = ci.cross_instance_id
+          left join public.v_cross_concepts_overview c on c.mom_code = r.mom_code and c.dad_code = r.dad_code
+          where m.mount_date = :d
+          order by m.created_at desc
         """),
         cx,
         params={"d": day},
@@ -72,24 +101,21 @@ st.markdown("### Mounts on selected day")
 
 cols_order = [
     "mount_code",
-    "mount_date",
     "mount_time",
     "selection_label",
     "cross_run_code",
     "clutch_name",
     "clutch_nickname",
-    "annotations_rollup",
+    "annotations",
     "n_top",
     "n_bottom",
     "orientation",
-    "created_at",
     "created_by",
 ]
 present = [c for c in cols_order if c in df.columns]
-present += [c for c in df.columns if c not in present]
 df = df[present].copy()
 
-# Add a checkbox column for selection
+# Checkbox selection
 key_grid = "_overview_mounts_grid"
 if key_grid not in st.session_state:
     t = df.copy()
@@ -97,9 +123,9 @@ if key_grid not in st.session_state:
     st.session_state[key_grid] = t
 else:
     base = st.session_state[key_grid]
-    if "mount_code" in df.columns and "created_at" in df.columns:
-        base = base.set_index(["mount_code", "created_at"])
-        now = df.set_index(["mount_code", "created_at"])
+    if "mount_code" in df.columns and "mount_time" in df.columns:
+        base = base.set_index(["mount_code", "mount_time"])
+        now = df.set_index(["mount_code", "mount_time"])
         for idx in now.index:
             if idx not in base.index:
                 base.loc[idx] = [False] + now.loc[idx].to_list()
@@ -112,7 +138,7 @@ grid_edit = st.data_editor(
     st.session_state[key_grid],
     hide_index=True,
     use_container_width=True,
-    column_order=["✓"] + present,
+    column_order=["✓"] + list(df.columns),
     column_config={"✓": st.column_config.CheckboxColumn("✓", default=False)},
     key="overview_mounts_editor",
 )
@@ -128,57 +154,58 @@ with right:
         st.session_state[key_grid]["✓"] = False
         st.experimental_rerun()
 
-# Selected rows for PDF
 chosen = st.session_state[key_grid].loc[st.session_state[key_grid]["✓"] == True].copy()
 
-# ────────────────────────── PDF report ─────────────────────────
-st.markdown("### Print PDF report")
+# ────────────────────────── PDF generation ─────────────────────
+st.markdown("### 📄 Download PDF report")
+
 if chosen.empty:
     st.caption("Select one or more mounts above to enable the PDF export.")
 else:
-    html = f"""
-    <h2>Bruker Mounts – {day.isoformat()}</h2>
-    <table border="1" cellspacing="0" cellpadding="4">
-      <thead>
-        <tr>
-          <th>mount_code</th>
-          <th>time</th>
-          <th>selection</th>
-          <th>cross_run</th>
-          <th>clutch</th>
-          <th>nickname</th>
-          <th>annotations</th>
-          <th>n_top</th>
-          <th>n_bottom</th>
-          <th>orientation</th>
-        </tr>
-      </thead>
-      <tbody>
-    """
-    for _, r in chosen.iterrows():
-        html += f"""
-          <tr>
-            <td>{r.get('mount_code','')}</td>
-            <td>{r.get('mount_time','')}</td>
-            <td>{r.get('selection_label','')}</td>
-            <td>{r.get('cross_run_code','')}</td>
-            <td>{r.get('clutch_name','')}</td>
-            <td>{r.get('clutch_nickname','')}</td>
-            <td>{r.get('annotations_rollup','')}</td>
-            <td>{r.get('n_top','')}</td>
-            <td>{r.get('n_bottom','')}</td>
-            <td>{r.get('orientation','')}</td>
-          </tr>
-        """
-    html += """
-      </tbody>
-    </table>
-    """
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=landscape(letter),
+        topMargin=36,
+        bottomMargin=36,
+        leftMargin=36,
+        rightMargin=36,
+    )
+
+    styles = getSampleStyleSheet()
+    elements = []
+
+    title = f"Bruker Mounts — {day.strftime('%Y-%m-%d')}"
+    elements.append(Paragraph(title, styles["Title"]))
+    elements.append(Spacer(1, 12))
+
+    pdf_cols = [
+        "mount_code","mount_time","selection_label","cross_run_code",
+        "clutch_name","clutch_nickname","annotations",
+        "n_top","n_bottom","orientation","created_by"
+    ]
+    present_pdf = [c for c in pdf_cols if c in chosen.columns]
+    data = [present_pdf] + chosen[present_pdf].astype(str).values.tolist()
+
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.grey),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,-1), 8),
+        ("GRID", (0,0), (-1,-1), 0.25, colors.black),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
+    ]))
+    elements.append(table)
+
+    doc.build(elements)
+    buf.seek(0)
 
     st.download_button(
-        "⬇️ Download report (HTML)",
-        data=html.encode("utf-8"),
-        file_name=f"bruker_mounts_{day.isoformat()}.html",
-        mime="text/html",
+        label="⬇️ Download 1-page PDF",
+        data=buf,
+        file_name=f"bruker_mounts_{day.strftime('%Y%m%d')}.pdf",
+        mime="application/pdf",
         use_container_width=True,
     )
