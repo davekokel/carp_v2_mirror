@@ -232,7 +232,7 @@ def _build_meta():
         sha = (getattr(st, "secrets", {}).get("BUILD_SHA") if hasattr(st,"secrets") else None) or os.getenv("BUILD_SHA","")
         ts  = (getattr(st, "secrets", {}).get("BUILD_TIME") if hasattr(st,"secrets") else None) or os.getenv("BUILD_TIME","")
         br  = (getattr(st, "secrets", {}).get("BUILD_BRANCH") if hasattr(st,"secrets") else None) or os.getenv("BUILD_BRANCH","") or os.getenv("APP_ENV","").lower()
-        return sha, ts, br as _text  # reuse imported text if available
+        return sha, ts, br
 
 def _mask(u: str | None) -> str:
     if not u: return ""
