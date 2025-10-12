@@ -1,183 +1,379 @@
-# 034_🐣_annotate_clutch_instances.py
 from __future__ import annotations
-
-try:
-    from supabase.ui.auth_gate import require_app_unlock
-except Exception:
-    try:
-        from auth_gate import require_app_unlock
-    except Exception:
-        def require_app_unlock(): ...
-require_app_unlock()
-
-import os
-from datetime import date, timedelta
-from typing import List
-
+import os, sys
+from pathlib import Path
+import datetime as _dt
+from typing import List, Dict
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-import sys
-from pathlib import Path
+# ─── path bootstrap ───────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-def _ensure_sslmode(url: str) -> str:
-    from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
-    u = urlparse(url)
-    q = dict(parse_qsl(u.query, keep_blank_values=True))
-    host = (u.hostname or "").lower() if u.hostname else ""
-    if host in {"localhost", "127.0.0.1", "::1"}:
-        q["sslmode"] = "disable"
-    else:
-        q.setdefault("sslmode", "require")
-    return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
-
-@st.cache_resource(show_spinner=False)
-def _get_engine():
-    url = os.environ.get("DB_URL")
-    if not url:
-        st.stop()
-    return create_engine(_ensure_sslmode(url))
-
-ENGINE = _get_engine()
-
-st.set_page_config(page_title="Annotate Clutch Instances", page_icon="🐣")
+st.set_page_config(page_title="Annotate Clutch Instances", page_icon="🐣", layout="wide")
 st.title("🐣 Annotate Clutch Instances")
 
-# -----------------------------
-# Sidebar filters
-# -----------------------------
-with st.sidebar:
-    st.header("Filters")
-    q = st.text_input("Search code / note / created_by")
-    days = st.number_input("Look back (days)", min_value=0, value=14, step=1)
-    start = date.today() - timedelta(days=int(days))
-    end = date.today()
+DB_URL = os.getenv("DB_URL")
+if not DB_URL:
+    st.error("DB_URL not set"); st.stop()
+eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
 
-# -----------------------------
-# Helper: which columns exist?
-# -----------------------------
-def _existing_cols() -> List[str]:
-    with ENGINE.connect() as cx:
-        cols = pd.read_sql(
-            text("""
-                select column_name
-                from information_schema.columns
-                where table_schema='public' and table_name='clutch_containers'
-            """),
-            cx,
-        )["column_name"].tolist()
-    return cols
+# ─── stamp user into session for audit (app.user) ─────────────────────────────────
+try:
+    from supabase.ui.lib.app_ctx import stamp_app_user
+    who = getattr(st.experimental_user, "email", "") if hasattr(st, "experimental_user") else ""
+    stamp_app_user(eng, who)
+except Exception:
+    pass
 
-cols = _existing_cols()
-has = {c: c in cols for c in ["id","id_uuid","clutch_id","clutch_instance_code","clutch_size","description","notes","created_by","created_at"]}
-
-# pick a pk-ish column
-pk_col = "id_uuid" if has["id_uuid"] else ("id" if has["id"] else None)
-if pk_col is None:
-    st.error("clutch_containers must have id or id_uuid column.")
+# ─── ensure table exists ──────────────────────────────────────────────────────────
+with eng.begin() as cx:
+    has_tbl = bool(pd.read_sql(text("select to_regclass('public.clutch_instances')::text t"), cx)["t"].iloc[0])
+if not has_tbl:
+    st.error("Table public.clutch_instances not found in this DB.")
     st.stop()
 
-# -----------------------------
-# Load instances (recent)
-# -----------------------------
-with ENGINE.connect() as cx:
-    df = pd.read_sql(
-        text(f"""
-            select
-              {pk_col}::text as container_id,
-              {"clutch_instance_code" if has["clutch_instance_code"] else "null::text as clutch_instance_code"},
-              {"clutch_id" if has["clutch_id"] else "null::uuid as clutch_id"},
-              {"clutch_size" if has["clutch_size"] else "null::int as clutch_size"},
-              {"description" if has["description"] else "null::text as description"},
-              {"notes" if has["notes"] else "null::text as notes"},
-              {"created_by" if has["created_by"] else "null::text as created_by"},
-              {"created_at" if has["created_at"] else "now() as created_at"}
-            from public.clutch_containers
-            where (created_at::date between :dmin and :dmax)
-            order by created_at desc
+# ───────────────────────── conceptual overview + realized instances ───────────────
+st.markdown("## 🔍 Clutches — Conceptual overview with instance counts")
+
+today = _dt.date.today()
+d_from = st.date_input("From", value=today - _dt.timedelta(days=14), key="ci_from")
+d_to   = st.date_input("To",   value=today,                      key="ci_to")
+if d_from and d_to and d_from > d_to:
+    d_from, d_to = d_to, d_from
+
+# Concepts in window
+with eng.begin() as cx:
+    concept_df = pd.read_sql(
+        text("""
+          select
+            conceptual_cross_code as clutch_code,
+            name                  as clutch_name,
+            nickname              as clutch_nickname,
+            mom_code, dad_code, mom_code_tank, dad_code_tank,
+            created_at
+          from public.v_cross_concepts_overview
+          where (:d1 is null or created_at::date >= :d1)
+            and (:d2 is null or created_at::date <= :d2)
+          order by created_at desc nulls last, clutch_code
+          limit 2000
         """),
         cx,
-        params={"dmin": start, "dmax": end},
+        params={"d1": str(d_from) if d_from else None, "d2": str(d_to) if d_to else None},
     )
 
-# Apply text filter
+# Instance counts in window using runs view (join by mom+dad)
+counts = pd.DataFrame(columns=["clutch_code","n_instances"])
+if not concept_df.empty:
+    with eng.begin() as cx:
+        runs = pd.read_sql(
+            text("""
+              select cross_run_code, cross_date::date as d, mom_code, dad_code
+              from public.vw_cross_runs_overview
+              where (:d1 is null or cross_date::date >= :d1)
+                and (:d2 is null or cross_date::date <= :d2)
+            """),
+            cx, params={"d1": str(d_from) if d_from else None, "d2": str(d_to) if d_to else None}
+        )
+    if not runs.empty:
+        merged = concept_df.merge(runs, how="left",
+                                  left_on=["mom_code","dad_code"],
+                                  right_on=["mom_code","dad_code"])
+        counts = (merged.groupby("clutch_code", dropna=False)["cross_run_code"]
+                  .count().rename("n_instances").reset_index())
+concept_df = concept_df.merge(counts, how="left", on="clutch_code").fillna({"n_instances":0})
+concept_df = concept_df.astype({"n_instances":int})
+
+# Selection model with checkbox
+sel_key = "_concept_table"
+if sel_key not in st.session_state:
+    t = concept_df.copy(); t.insert(0, "✓ Select", False); st.session_state[sel_key] = t
+else:
+    base = st.session_state[sel_key].set_index("clutch_code")
+    now  = concept_df.set_index("clutch_code")
+    for i in now.index:
+        if i not in base.index: base.loc[i] = now.loc[i]
+    base = base.loc[now.index]
+    st.session_state[sel_key] = base.reset_index()
+
+st.markdown("### Conceptual clutches")
+view_cols = ["✓ Select","clutch_code","clutch_name","clutch_nickname",
+             "mom_code","dad_code","mom_code_tank","dad_code_tank","created_at","n_instances"]
+present = [c for c in view_cols if c in st.session_state[sel_key].columns]
+edited_concepts = st.data_editor(
+    st.session_state[sel_key][present],
+    hide_index=True, use_container_width=True,
+    column_order=present,
+    column_config={
+        "✓ Select":        st.column_config.CheckboxColumn("✓", default=False),
+        "clutch_code":     st.column_config.TextColumn("clutch_code", disabled=True),
+        "clutch_name":     st.column_config.TextColumn("clutch_name", disabled=True),
+        "clutch_nickname": st.column_config.TextColumn("clutch_nickname", disabled=True),
+        "mom_code":        st.column_config.TextColumn("mom_code", disabled=True),
+        "dad_code":        st.column_config.TextColumn("dad_code", disabled=True),
+        "mom_code_tank":   st.column_config.TextColumn("mom tank", disabled=True),
+        "dad_code_tank":   st.column_config.TextColumn("dad tank", disabled=True),
+        "created_at":      st.column_config.DatetimeColumn("created_at", disabled=True),
+        "n_instances":     st.column_config.NumberColumn("instances", disabled=True),
+    },
+    key="ci_concept_editor",
+)
+st.session_state[sel_key].loc[edited_concepts.index, "✓ Select"] = edited_concepts["✓ Select"]
+selected_codes = edited_concepts.loc[edited_concepts["✓ Select"], "clutch_code"].astype(str).tolist()
+
+# Realized runs for selected concepts
+st.markdown("### Realized instances for selection")
+if not selected_codes:
+    st.info("No realized clutch instances yet.")
+else:
+    with eng.begin() as cx:
+        sel_mom_dad = pd.read_sql(
+            text("select clutch_code, mom_code, dad_code from public.v_cross_concepts_overview where clutch_code = any(:codes)"),
+            cx, params={"codes": selected_codes}
+        )
+        runs = pd.read_sql(
+            text("""
+              select cross_run_code, cross_date::date as cross_date,
+                     mom_code, dad_code,
+                     mother_tank_label, father_tank_label,
+                     run_created_by, run_created_at, run_note
+              from public.vw_cross_runs_overview
+              where (:d1 is null or cross_date::date >= :d1)
+                and (:d2 is null or cross_date::date <= :d2)
+            """),
+            cx, params={"d1": str(d_from) if d_from else None, "d2": str(d_to) if d_to else None}
+        )
+    if sel_mom_dad.empty or runs.empty:
+        st.info("No realized clutch instances yet.")
+    else:
+        det = sel_mom_dad.merge(runs, how="inner", on=["mom_code","dad_code"])
+        det = det.sort_values(["run_created_at","cross_date"], ascending=[False, False])
+        show = ["clutch_code","cross_run_code","cross_date","mom_code","dad_code",
+                "mother_tank_label","father_tank_label","run_created_by","run_created_at","run_note"]
+        present_det = [c for c in show if c in det.columns]
+        st.dataframe(det[present_det], hide_index=True, use_container_width=True)
+        # CSV downloads
+        st.download_button("⬇️ Download concepts (CSV)", concept_df.to_csv(index=False), "concepts.csv", "text/csv")
+        st.download_button("⬇️ Download runs (CSV)", det[present_det].to_csv(index=False), "runs.csv", "text/csv")
+        st.session_state["_concept_selection"] = selected_codes
+
+# ───────────────────────── annotation grid (red/green + legacy) ───────────────────
+# load latest snapshot for editor
+with eng.begin() as cx:
+    df = pd.read_sql(text("""
+        select
+          id::text as id,
+          coalesce(label,'') as label,
+          coalesce(phenotype,'') as phenotype,
+          coalesce(notes,'') as notes,
+          coalesce(red_selected,false) as red_selected,
+          coalesce(red_intensity,'') as red_intensity,
+          coalesce(red_note,'') as red_note,
+          coalesce(green_selected,false) as green_selected,
+          coalesce(green_intensity,'') as green_intensity,
+          coalesce(green_note,'') as green_note,
+          coalesce(annotated_by,'') as annotated_by,
+          annotated_at, created_at
+        from public.clutch_instances
+        order by coalesce(annotated_at, created_at) desc nulls last
+        limit 2000
+    """), cx)
+
+st.caption(f"{len(df)} clutch instance(s)")
+if df.empty:
+    st.info("No clutch instances yet."); st.stop()
+
+# optional: filter the annotation grid to the selected concepts and window
+sel_codes = st.session_state.get("_concept_selection", [])
+if sel_codes:
+    with eng.begin() as cx:
+        runs_sel = pd.read_sql(
+            text("""
+              with concepts as (
+                select clutch_code, mom_code, dad_code
+                from public.v_cross_concepts_overview
+                where clutch_code = any(:codes)
+              )
+              select r.cross_run_code
+              from public.vw_cross_runs_overview r
+              join concepts c on r.mom_code=c.mom_code and r.dad_code=c.dad_code
+              where (:d1 is null or r.cross_date::date >= :d1)
+                and (:d2 is null or r.cross_date::date <= :d2)
+            """),
+            cx, params={"codes": sel_codes, "d1": str(d_from) if d_from else None, "d2": str(d_to) if d_to else None}
+        )
+    if not runs_sel.empty:
+        run_codes = set(runs_sel["cross_run_code"].astype(str))
+        df = df[df["label"].astype(str).apply(lambda s: any(rc in s for rc in run_codes))]
+
+# presets for legacy phenotype
+existing = [x for x in df["phenotype"].dropna().unique().tolist() if str(x).strip()]
+common   = ["normal","abnormal","lethal","mosaic","wildtype","tg_positive","tg_negative"]
+presets  = list(dict.fromkeys(existing + common))
+
+# session model with checkbox
+key = "_ci_table"
+if key not in st.session_state:
+    t = df.copy(); t.insert(0, "✓ Select", False); st.session_state[key] = t
+else:
+    base = st.session_state[key].set_index("id"); now = df.set_index("id")
+    for i in now.index:
+        if i not in base.index: base.loc[i] = now.loc[i]
+    base = base.loc[now.index]; st.session_state[key] = base.reset_index()
+
+# filters + bulk controls for annotation
+c1, c2, c3 = st.columns([2, 2, 2])
+with c1: q = st.text_input("Search (id/label/phenotype/notes/red*/green*)", "")
+with c2: legacy_preset = st.selectbox("Legacy phenotype preset", ["(none)"] + presets, index=0)
+with c3: legacy_quick_note = st.text_input("Legacy quick note (optional)", "")
+
+st.subheader("Bulk apply — color selections")
+col_a, col_b = st.columns([1,1])
+with col_a: color = st.radio("Color", options=["red","green"], horizontal=True)
+with col_b: set_selected = st.checkbox("Set selected", value=True)
+
+col1, col2 = st.columns([1,2])
+with col1: intensity_val = st.text_input("Intensity", value="")
+with col2: note_val = st.text_input("Note", value="")
+
+# filtered view for display
+view = st.session_state[key].copy()
 if q:
     ql = q.lower()
-    def contains(s: pd.Series) -> pd.Series:
-        return s.astype(str).str.lower().str.contains(ql, na=False)
-    mask = (
-        contains(df.get("clutch_instance_code", pd.Series(index=df.index, dtype=str))) |
-        contains(df.get("notes", pd.Series(index=df.index, dtype=str))) |
-        contains(df.get("description", pd.Series(index=df.index, dtype=str))) |
-        contains(df.get("created_by", pd.Series(index=df.index, dtype=str)))
-    )
-    df = df[mask]
+    mask = view.apply(lambda r: ql in (" ".join([str(x) for x in r.values])).lower(), axis=1)
+    view = view[mask]
 
-# -----------------------------
-# Checkbox table (master)
-# -----------------------------
-view_cols = [c for c in [
-    "clutch_instance_code",
-    "clutch_size",
-    "description",
-    "notes",
-    "created_by",
-    "created_at",
-] if c in df.columns]
+bsa, bcl, _ = st.columns([1,1,2])
+with bsa:
+    if st.button("Select all (filtered)", key="btn_select_all_filtered"):
+        st.session_state[key].loc[view.index, "✓ Select"] = True
+with bcl:
+    if st.button("Clear selection", key="btn_clear_all"):
+        st.session_state[key]["✓ Select"] = False
 
-if df.empty:
-    st.info("No clutch instances found for the current filters.")
-    st.stop()
+if st.button("Apply legacy preset/notes → selected"):
+    rows = st.session_state[key].index[st.session_state[key]["✓ Select"] == True]
+    if len(rows) == 0:
+        st.warning("No rows selected.")
+    else:
+        if legacy_preset != "(none)":
+            st.session_state[key].loc[rows, "phenotype"] = legacy_preset
+        if legacy_quick_note.strip():
+            def _append(old: str) -> str:
+                old = (old or "").strip()
+                return (old + ("; " if old else "") + legacy_quick_note.strip())
+            st.session_state[key].loc[rows, "notes"] = \
+                st.session_state[key].loc[rows, "notes"].apply(_append)
+        st.success(f"Applied legacy fields to {len(rows)} row(s).")
 
-df_view = df[view_cols + ["container_id"]].copy()
-df_view = df_view.set_index("container_id", drop=True)
-df_view.index = df_view.index.map(str)
-df_view.insert(0, "✅", False)
+if st.button(f"Apply {color} selection → selected"):
+    rows = st.session_state[key].index[st.session_state[key]["✓ Select"] == True]
+    if len(rows) == 0:
+        st.warning("No rows selected.")
+    else:
+        sel_col   = f"{color}_selected"
+        inten_col = f"{color}_intensity"
+        note_col  = f"{color}_note"
+        st.session_state[key].loc[rows, sel_col]   = bool(set_selected)
+        st.session_state[key].loc[rows, inten_col] = intensity_val
+        st.session_state[key].loc[rows, note_col]  = note_val
+        st.success(f"Applied {color} selection to {len(rows)} row(s).")
+
+display_cols = [
+    "✓ Select","id","label",
+    "phenotype","notes",
+    "red_selected","red_intensity","red_note",
+    "green_selected","green_intensity","green_note",
+    "annotated_by","annotated_at","created_at",
+]
+present = [c for c in display_cols if c in view.columns]
 
 edited = st.data_editor(
-    df_view,
+    view[present],
     hide_index=True,
     use_container_width=True,
     column_config={
-        "✅": st.column_config.CheckboxColumn(help="Select instances to save updates"),
-        "clutch_size": st.column_config.NumberColumn(step=1, min_value=0),
+        "✓ Select":        st.column_config.CheckboxColumn("✓", default=False),
+        "id":              st.column_config.TextColumn("id", disabled=True),
+        "label":           st.column_config.TextColumn("label", disabled=True),
+        "phenotype":       st.column_config.TextColumn("phenotype"),
+        "notes":           st.column_config.TextColumn("notes"),
+        "red_selected":    st.column_config.CheckboxColumn("red_selected", default=False),
+        "red_intensity":   st.column_config.TextColumn("red_intensity"),
+        "red_note":        st.column_config.TextColumn("red_note"),
+        "green_selected":  st.column_config.CheckboxColumn("green_selected", default=False),
+        "green_intensity": st.column_config.TextColumn("green_intensity"),
+        "green_note":      st.column_config.TextColumn("green_note"),
+        "annotated_by":    st.column_config.TextColumn("annotated_by", disabled=True),
+        "annotated_at":    st.column_config.DatetimeColumn("annotated_at", disabled=True),
+        "created_at":      st.column_config.DatetimeColumn("created_at", disabled=True),
     },
-    key="clutch_instances_editor",
+    key="ci_editor",
 )
+st.session_state[key].loc[edited.index, [c for c in present if c not in ("id","label")]] = edited[present].drop(columns=["id","label"], errors="ignore")
 
-selected_ids = edited.index[edited["✅"] == True].tolist()
+base = df.set_index("id")
+cur  = st.session_state[key].set_index("id")
 
-st.divider()
-st.subheader(f"Save {len(selected_ids)} selected instance(s)")
+save_cols = [
+    "phenotype","notes",
+    "red_selected","red_intensity","red_note",
+    "green_selected","green_intensity","green_note",
+]
+joined = cur[save_cols].join(base[save_cols], how="left", lsuffix="_new", rsuffix="_old")
+changed_mask = False
+for c in save_cols:
+    joined[f"chg_{c}"] = (joined[f"{c}_new"] != joined[f"{c}_old"])
+    changed_mask = joined[f"chg_{c}"] | changed_mask
+changes = joined[changed_mask].reset_index()
 
-save = st.button("💾 Save selected")
-if save:
-    if not selected_ids:
-        st.warning("Select at least one instance.")
+if st.button("💾 Save changes", type="primary"):
+    if changes.empty:
+        st.info("No edits to save.")
     else:
-        # Build updates only for editable columns that actually exist
-        updatable = [c for c in ["clutch_size","description","notes"] if c in df_view.columns and has.get(c, False)]
-        if not updatable:
-            st.error("No editable columns (clutch_size, description, notes) exist on clutch_containers.")
-            st.stop()
-        # Prepare parameterized updates
-        try:
-            with ENGINE.begin() as cx:
-                for cid in selected_ids:
-                    row = edited.loc[cid]
-                    sets = []
-                    params = {"cid": cid}
-                    for c in updatable:
-                        sets.append(f"{c} = :{c}")
-                        params[c] = None if pd.isna(row.get(c)) else row.get(c)
-                    sql = text(f"update public.clutch_containers set {', '.join(sets)} where {pk_col}::text = :cid")
-                    cx.execute(sql, params)
-            st.success(f"Saved {len(selected_ids)} instance(s).")
-        except Exception as e:
-            st.error(f"Failed to save: {e}")
-
-st.caption("Tip: If columns are missing, add them to public.clutch_containers and reload.")
+        n = 0
+        with eng.begin() as cx:
+            for _, r in changes.iterrows():
+                cx.execute(text("""
+                    update public.clutch_instances
+                       set
+                         phenotype        = nullif(:phenotype, ''),
+                         notes            = nullif(:notes, ''),
+                         red_selected     = :red_selected,
+                         red_intensity    = nullif(:red_intensity, ''),
+                         red_note         = nullif(:red_note, ''),
+                         green_selected   = :green_selected,
+                         green_intensity  = nullif(:green_intensity, ''),
+                         green_note       = nullif(:green_note, ''),
+                         annotated_by     = coalesce(current_setting('app.user', true), annotated_by),
+                         annotated_at     = now()
+                     where id::text = :id
+                """), {
+                    "id": r["id"],
+                    "phenotype":        r.get("phenotype_new", None) if pd.notna(r.get("phenotype_new")) else None,
+                    "notes":            r.get("notes_new", None) if pd.notna(r.get("notes_new")) else None,
+                    "red_selected":     bool(r.get("red_selected_new", False)),
+                    "red_intensity":    r.get("red_intensity_new", None) if pd.notna(r.get("red_intensity_new")) else None,
+                    "red_note":         r.get("red_note_new", None) if pd.notna(r.get("red_note_new")) else None,
+                    "green_selected":   bool(r.get("green_selected_new", False)),
+                    "green_intensity":  r.get("green_intensity_new", None) if pd.notna(r.get("green_intensity_new")) else None,
+                    "green_note":       r.get("green_note_new", None) if pd.notna(r.get("green_note_new")) else None,
+                })
+                n += 1
+        st.success(f"Updated {n} row(s).")
+        with eng.begin() as cx:
+            df2 = pd.read_sql(text("""
+                select
+                  id::text as id, coalesce(label,'') as label,
+                  coalesce(phenotype,'') as phenotype, coalesce(notes,'') as notes,
+                  coalesce(red_selected,false) as red_selected, coalesce(red_intensity,'') as red_intensity, coalesce(red_note,'') as red_note,
+                  coalesce(green_selected,false) as green_selected, coalesce(green_intensity,'') as green_intensity, coalesce(green_note,'') as green_note,
+                  coalesce(annotated_by,'') as annotated_by, annotated_at, created_at
+                from public.clutch_instances
+                order by coalesce(annotated_at, created_at) desc nulls last
+            """), cx)
+        t = df2.copy(); t.insert(0, "✓ Select", False)
+        st.session_state[key] = t
+        st.rerun()
