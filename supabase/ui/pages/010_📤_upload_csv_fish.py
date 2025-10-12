@@ -21,6 +21,31 @@ require_app_unlock()
 
 PAGE_TITLE = "CARP — New Fish from CSV"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
+
+def _example_fish_csv_bytes():
+    fp = Path("templates/examples/fish_example.csv")
+    try:
+        if fp.exists():
+            return fp.read_bytes()
+    except Exception:
+        pass
+    import pandas as pd
+    cols = ["name","nickname","date_birth","genetic_background","line_building_stage","description","transgene_base_code","allele_nickname","zygosity","created_by"]
+    return pd.DataFrame(columns=cols).to_csv(index=False).encode()
+
+
+
+st.download_button(
+    "⬇️ Download example — Fish CSV",
+    data=_example_fish_csv_bytes(),
+    file_name="fish_example.csv",
+    mime="text/csv",
+    help="Exact seedkit rows; use as your template.",
+    type="secondary",
+    width='stretch',
+)
+
+
 st.title(PAGE_TITLE)
 st.caption("Upserts by (seed_batch_id, name, date_birth); assigns fish_code automatically. Founders with base code and no nickname will allocate a **new** allele.")
 

@@ -20,6 +20,31 @@ require_app_unlock()
 
 PAGE_TITLE = "📤 Upload Plasmids (Upsert on code)"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
+
+def _example_plasmids_bytes_name_mime():
+    fp = Path("templates/examples/plasmids_example.xlsx")
+    if fp.exists():
+        data = fp.read_bytes()
+        return data, fp.name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    import pandas as pd
+    cols = ["plasmid_name","element_name","concentration","units","notes"]
+    data = pd.DataFrame(columns=cols).to_csv(index=False).encode()
+    return data, "plasmids_example.csv", "text/csv"
+
+
+
+_data, _name, _mime = _example_plasmids_bytes_name_mime()
+st.download_button(
+    "⬇️ Download example — Plasmids",
+    data=_data,
+    file_name=_name,
+    mime=_mime,
+    help="Exact plasmids example from the repo.",
+    type="secondary",
+    width='stretch',
+)
+
+
 st.title(PAGE_TITLE)
 
 # ------------------------ DB setup ------------------------
