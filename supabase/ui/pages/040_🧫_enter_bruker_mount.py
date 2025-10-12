@@ -495,6 +495,31 @@ with eng.begin() as cx:
         """)
         recent = pd.read_sql(sql_recent, cx, params={"sid": selection_id})
 
+with eng.begin() as cx:
+    recent = pd.read_sql(
+        text("""
+            select
+              'BRUKER ' || to_char(mount_date, 'YYYY-MM-DD') || ' #' ||
+              row_number() over (
+                partition by mount_date
+                order by mount_time nulls last, created_at
+              ) as mount_code,
+              mount_date,
+              mount_time,
+              n_top,
+              n_bottom,
+              orientation,
+              created_at,
+              created_by
+            from public.bruker_mounts
+            where selection_id = cast(:sid as uuid)
+            order by created_at desc
+            limit 50
+        """),
+        cx,
+        params={"sid": selection_id},
+    )
+
 if recent.empty:
     st.caption("No mounts yet for this selection.")
 else:
