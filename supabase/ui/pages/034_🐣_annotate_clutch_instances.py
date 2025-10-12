@@ -113,6 +113,15 @@ if not selected_codes and not st.session_state[sel_key].empty:
 
 # ── realized instances for selected concepts (no date filters) ──────────────────
 st.markdown("### Realized instances for selection")
+with eng.begin() as _cx_dbg:
+    _host = (getattr(getattr(eng, "url", None), "host", None) or os.getenv("PGHOST", ""))
+    _runs_cnt = pd.read_sql(text("select count(*) as c from public.vw_cross_runs_overview"), _cx_dbg)["c"].iloc[0]
+    _sel_tbl = st.session_state.get("_concept_table")
+    try:
+        _checked = _sel_tbl.loc[_sel_tbl["✓ Select"]==True, "clutch_code"].astype(str).tolist() if isinstance(_sel_tbl, pd.DataFrame) else []
+    except Exception:
+        _checked = []
+st.caption(f"DBG • host={_host} • runs_in_view={_runs_cnt} • checked_in_grid={_checked}")
 st.caption(f"selected concepts used: {selected_codes}")
 
 if not selected_codes:
