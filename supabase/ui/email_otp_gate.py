@@ -1,73 +1,43 @@
 # supabase/ui/email_otp_gate.py
 from __future__ import annotations
-import os
-import requests
-import streamlit as st
+import os, requests, streamlit as st
 
-_SESS = "_otp_session"     # access_token
+_SESS = "_otp_session"
 _EMAIL = "_otp_email"
-_RTOK = "_otp_refresh"     # refresh_token
-
-def require_email_otp():
-    mode = str(
-        st.secrets.get("AUTH_MODE")
-        or os.getenv("AUTH_MODE")
-        or "otp"
-    ).strip().lower()
-
-    # temporary debug so you can see which mode is active
-    st.sidebar.caption(f"auth mode: {mode}")
-
-    if mode == "off":
-        return
-    if mode == "unlock":
-        from supabase.ui.auth_gate import require_app_unlock
-        require_app_unlock()
-        return
+_RTOK = "_otp_refresh"
 
 def _base():
     url = st.secrets["SUPABASE_URL"].rstrip("/")
     key = st.secrets["SUPABASE_ANON_KEY"]
-    hdr = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-    return url, hdr
+    return url, {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type":"application/json"}
 
 def _send_code(email: str):
     url, hdr = _base()
-    r = requests.post(f"{url}/auth/v1/otp", headers=hdr, json={
-        "email": email, "type": "email", "create_user": True, "should_create_user": True
-    }, timeout=15)
-    if r.status_code >= 400:
-        raise RuntimeError(f"/otp {r.status_code}: {r.text}")
+    r = requests.post(f"{url}/auth/v1/otp", headers=hdr, json={"email":email,"type":"email","create_user":True,"should_create_user":True}, timeout=15)
+    if r.status_code >= 400: raise RuntimeError(f"/otp {r.status_code}: {r.text}")
 
 def _verify_code(email: str, token: str):
     url, hdr = _base()
-    r = requests.post(f"{url}/auth/v1/token?grant_type=otp", headers=hdr, json={
-        "email": email, "token": token, "type": "email"
-    }, timeout=15)
-    if r.status_code >= 400:
-        raise RuntimeError(f"/token {r.status_code}: {r.text}")
-    data = r.json() or {}
-    return data.get("access_token") or "", data.get("refresh_token") or "", (data.get("user") or {}).get("email") or email
+    r = requests.post(f"{url}/auth/v1/token?grant_type=otp", headers=hdr, json={"email":email,"token":token,"type":"email"}, timeout=15)
+    if r.status_code >= 400: raise RuntimeError(f"/token {r.status_code}: {r.text}")
+    d = r.json() or {}
+    return d.get("access_token") or "", d.get("refresh_token") or "", (d.get("user") or {}).get("email") or email
 
-def _refresh_with_token(refresh_token: str):
+def _refresh(rt: str):
     url, hdr = _base()
-    r = requests.post(f"{url}/auth/v1/token?grant_type=refresh_token", headers=hdr, json={
-        "refresh_token": refresh_token
-    }, timeout=15)
-    if r.status_code >= 400:
-        return "", ""
-    data = r.json() or {}
-    return data.get("access_token") or "", data.get("refresh_token") or ""
+    r = requests.post(f"{url}/auth/v1/token?grant_type=refresh_token", headers=hdr, json={"refresh_token": rt}, timeout=15)
+    if r.status_code >= 400: return "", ""
+    d = r.json() or {}
+    return d.get("access_token") or "", d.get("refresh_token") or ""
+
+def _allowed(email: str) -> bool:
+    allow = [x.strip().lower() for x in (st.secrets.get("ALLOWED_EMAILS","")).split(",") if x.strip()]
+    if allow: return email.lower() in allow
+    dom = (st.secrets.get("ALLOWED_EMAIL_DOMAIN") or "").lower().strip()
+    return (not dom) or email.lower().endswith("@"+dom)
 
 def require_email_otp():
-    mode = str(
-        st.secrets.get("AUTH_MODE")
-        or os.getenv("AUTH_MODE")
-        or "otp"
-    ).strip().lower()
-
-    # show what mode the gate thinks it's in (temporary debug)
-    st.sidebar.caption(f"auth mode: {mode}")
+    mode = str(st.secrets.get("AUTH_MODE") or os.getenv("AUTH_MODE") or "otp").strip().lower()
 
     if mode == "off":
         return
@@ -75,45 +45,40 @@ def require_email_otp():
         from supabase.ui.auth_gate import require_app_unlock
         require_app_unlock()
         return
-    # ----------------------------------------------------------------
 
-    # 🔄 Silent sign-in using stored refresh token
+    # silent refresh
     if _SESS not in st.session_state and st.session_state.get(_RTOK):
-        at, rt = _refresh_with_token(st.session_state[_RTOK])
+        at, rt = _refresh(st.session_state[_RTOK])
         if at:
             st.session_state[_SESS] = at
             if rt: st.session_state[_RTOK] = rt
 
-    # Already signed in?
     if _SESS in st.session_state:
         st.sidebar.write(f"Signed in: {st.session_state.get(_EMAIL,'')}")
         if st.sidebar.button("Sign out"):
-            for k in (_SESS, _EMAIL, _RTOK): st.session_state.pop(k, None)
+            for k in (_SESS,_EMAIL,_RTOK): st.session_state.pop(k, None)
             st.rerun()
         return
 
     st.set_page_config(page_title="🔐 Sign in", page_icon="🔐")
     st.title("🔐 Sign in")
 
-    tab_send, tab_verify = st.tabs(["Send code", "Verify code"])
+    tab_send, tab_verify = st.tabs(["Send code","Verify code"])
 
     with tab_send:
         with st.form("send"):
             email = st.text_input("Email")
             ok = st.form_submit_button("Send code")
         if ok and email:
-            if not _allowed(email):
-                st.error("This email is not allowed."); st.stop()
+            if not _allowed(email): st.error("This email is not allowed."); st.stop()
             try:
-                _send_code(email)
-                st.session_state[_EMAIL] = email
-                st.success("Code sent. Check your email, then open the Verify tab.")
+                _send_code(email); st.session_state[_EMAIL]=email; st.success("Code sent. Check your email, then open Verify.")
             except Exception as e:
                 st.error("Failed to send code."); st.exception(e)
             st.stop()
 
     with tab_verify:
-        email = st.session_state.get(_EMAIL, "")
+        email = st.session_state.get(_EMAIL,"")
         with st.form("verify"):
             token = st.text_input("6-digit code")
             ok = st.form_submit_button("Verify")
@@ -121,9 +86,8 @@ def require_email_otp():
             try:
                 at, rt, em = _verify_code(email, token)
                 if at:
-                    st.session_state[_SESS] = at
-                    st.session_state[_EMAIL] = em
-                    if rt: st.session_state[_RTOK] = rt
+                    st.session_state[_SESS]=at; st.session_state[_EMAIL]=em
+                    if rt: st.session_state[_RTOK]=rt
                     st.success("Signed in"); st.rerun()
                 else:
                     st.error("Invalid code"); st.stop()
