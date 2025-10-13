@@ -46,8 +46,21 @@ def _client():
         raise RuntimeError("SUPABASE_URL / SUPABASE_ANON_KEY not set")
     return create_client(_SUPABASE_URL, _SUPABASE_ANON_KEY)
 
+def _restore_session_if_needed(sb):
+    toks = st.session_state.get("sb_tokens") or {}
+    at, rt = toks.get("access"), toks.get("refresh")
+    if at and rt:
+        try:
+            try:
+                sb.auth.set_session(at, rt)
+            except TypeError:
+                sb.auth.set_session({"access_token": at, "refresh_token": rt})
+        except Exception:
+            pass
+
 def require_login():
     sb = _client()
+    _restore_session_if_needed(sb)
     session = sb.auth.get_session()
     user = getattr(session, "user", None) if session else None
     if not user:
@@ -55,7 +68,7 @@ def require_login():
             st.query_params.clear()
         except Exception:
             pass
-        st.switch_page("pages/010_🔐_login.py")
+        st.switch_page("pages/010_auth_login.py")
         st.stop()
     return sb, session, user
 
