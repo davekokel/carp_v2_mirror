@@ -67,8 +67,8 @@ with eng.begin() as cx:
                 m.mount_time,
                 ci.label as selection_label,
                 r.cross_run_code,
-                c.clutch_name,
-                c.clutch_nickname,
+                c.name                                    as clutch_name,
+                c.nickname                                as clutch_nickname,
                 coalesce(trim(
                 concat_ws(' ',
                     case when ci.red_intensity <> '' then 'red='||ci.red_intensity end,
