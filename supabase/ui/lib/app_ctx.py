@@ -8,6 +8,7 @@ import streamlit as st
 APP_TZ = os.getenv('APP_TZ', 'America/Los_Angeles')
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.engine import Engine
+
 # ----------------------------------------------------------------------
 # Module-level cache: a single engine shared by all pages in a run
 # ----------------------------------------------------------------------
@@ -18,6 +19,26 @@ _cached_engine: Optional[Engine] = None
 # ----------------------------------------------------------------------
 # Internals
 # ----------------------------------------------------------------------
+def _attach_tz_listener(engine):
+    """Attach a one-time 'connect' listener to set the session time zone."""
+    # Prevent multiple attachments in a long-lived process.
+    if getattr(engine, "_tz_attached", False):
+        return engine
+
+    @event.listens_for(engine, "connect")
+    def _set_tz(dbapi_conn, _):
+        # Runs at the DB-API connection level (fast, reliable)
+        try:
+            cur = dbapi_conn.cursor()
+            cur.execute("SET TIME ZONE %s", (APP_TZ,))
+            cur.close()
+        except Exception:
+            # Don't break the app if TZ can't be set — just continue
+            pass
+
+    engine._tz_attached = True
+    return engine
+
 def _mask(url: Optional[str]) -> str:
     """Mask password in a DB URL for safe display."""
     if not url or "://" not in url:
@@ -76,6 +97,7 @@ def _maybe_rebuild_engine(url: str) -> Engine:
     if _cached_engine is None or _cached_url != url:
         # pre_ping=True avoids stale connections on resume; future=True for SQLA 2.0 style
         _cached_engine = create_engine(url, pool_pre_ping=True, future=True)
+        _cached_engine = _attach_tz_listener(_cached_engine)
         _cached_url = url
     return _cached_engine
 
