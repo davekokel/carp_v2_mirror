@@ -1,3 +1,6 @@
+from supabase.ui.email_otp_gate import require_email_otp
+require_email_otp()
+
 from pathlib import Path
 import sys
 ROOT = Path(__file__).resolve().parents[3]

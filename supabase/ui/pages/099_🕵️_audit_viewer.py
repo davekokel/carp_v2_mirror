@@ -1,3 +1,6 @@
+from supabase.ui.email_otp_gate import require_email_otp
+require_email_otp()
+
 from __future__ import annotations
 import os, sys
 from pathlib import Path
