@@ -48,6 +48,23 @@ def _refresh_with_token(refresh_token: str):
     return data.get("access_token") or "", data.get("refresh_token") or ""
 
 def require_email_otp():
+    mode = str(
+        st.secrets.get("AUTH_MODE")
+        or os.getenv("AUTH_MODE")
+        or "otp"
+    ).strip().lower()
+
+    # show what mode the gate thinks it's in (temporary debug)
+    st.sidebar.caption(f"auth mode: {mode}")
+
+    if mode == "off":
+        return
+    if mode == "unlock":
+        from supabase.ui.auth_gate import require_app_unlock
+        require_app_unlock()
+        return
+    # ----------------------------------------------------------------
+
     # 🔄 Silent sign-in using stored refresh token
     if _SESS not in st.session_state and st.session_state.get(_RTOK):
         at, rt = _refresh_with_token(st.session_state[_RTOK])
