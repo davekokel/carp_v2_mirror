@@ -148,11 +148,11 @@ left, right = st.columns([1, 1])
 with left:
     if st.button("Select all"):
         st.session_state[key_grid]["✓"] = True
-        st.experimental_rerun()
+        st.rerun()
 with right:
     if st.button("Clear"):
         st.session_state[key_grid]["✓"] = False
-        st.experimental_rerun()
+        st.rerun()
 
 chosen = st.session_state[key_grid].loc[st.session_state[key_grid]["✓"] == True].copy()
 
