@@ -2,8 +2,9 @@
 from __future__ import annotations
 import requests, streamlit as st
 
-_SESS = "_otp_session"
+_SESS = "_otp_session"     # access_token
 _EMAIL = "_otp_email"
+_RTOK = "_otp_refresh"     # refresh_token
 
 def _allowed(email: str) -> bool:
     allow_list = [x.strip().lower() for x in (st.secrets.get("ALLOWED_EMAILS","")).split(",") if x.strip()]
@@ -15,43 +16,51 @@ def _allowed(email: str) -> bool:
 def _base():
     url = st.secrets["SUPABASE_URL"].rstrip("/")
     key = st.secrets["SUPABASE_ANON_KEY"]
-    # ✅ include Authorization bearer; GoTrue requires it even with apikey
-    hdr = {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-    }
+    hdr = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     return url, hdr
 
 def _send_code(email: str):
     url, hdr = _base()
-    # ✅ include type="email"
     r = requests.post(f"{url}/auth/v1/otp", headers=hdr, json={
-        "email": email,
-        "type": "email",
-        "create_user": True,
-        "should_create_user": True,
+        "email": email, "type": "email", "create_user": True, "should_create_user": True
     }, timeout=15)
     if r.status_code >= 400:
-        # bubble up server message for debugging in Streamlit
         raise RuntimeError(f"/otp {r.status_code}: {r.text}")
 
-def _verify_code(email: str, token: str) -> str:
+def _verify_code(email: str, token: str):
     url, hdr = _base()
     r = requests.post(f"{url}/auth/v1/token?grant_type=otp", headers=hdr, json={
-        "email": email,
-        "token": token,
-        "type": "email",
+        "email": email, "token": token, "type": "email"
     }, timeout=15)
     if r.status_code >= 400:
         raise RuntimeError(f"/token {r.status_code}: {r.text}")
-    return str((r.json() or {}).get("access_token") or "")
+    data = r.json() or {}
+    return data.get("access_token") or "", data.get("refresh_token") or "", (data.get("user") or {}).get("email") or email
+
+def _refresh_with_token(refresh_token: str):
+    url, hdr = _base()
+    r = requests.post(f"{url}/auth/v1/token?grant_type=refresh_token", headers=hdr, json={
+        "refresh_token": refresh_token
+    }, timeout=15)
+    if r.status_code >= 400:
+        return "", ""
+    data = r.json() or {}
+    return data.get("access_token") or "", data.get("refresh_token") or ""
 
 def require_email_otp():
+    # 🔄 Silent sign-in using stored refresh token
+    if _SESS not in st.session_state and st.session_state.get(_RTOK):
+        at, rt = _refresh_with_token(st.session_state[_RTOK])
+        if at:
+            st.session_state[_SESS] = at
+            if rt: st.session_state[_RTOK] = rt
+
+    # Already signed in?
     if _SESS in st.session_state:
         st.sidebar.write(f"Signed in: {st.session_state.get(_EMAIL,'')}")
         if st.sidebar.button("Sign out"):
-            st.session_state.pop(_SESS, None); st.session_state.pop(_EMAIL, None); st.rerun()
+            for k in (_SESS, _EMAIL, _RTOK): st.session_state.pop(k, None)
+            st.rerun()
         return
 
     st.set_page_config(page_title="🔐 Sign in", page_icon="🔐")
@@ -81,10 +90,11 @@ def require_email_otp():
             ok = st.form_submit_button("Verify")
         if ok and email and token:
             try:
-                tok = _verify_code(email, token)
-                if tok:
-                    st.session_state[_SESS] = tok
-                    st.session_state[_EMAIL] = email
+                at, rt, em = _verify_code(email, token)
+                if at:
+                    st.session_state[_SESS] = at
+                    st.session_state[_EMAIL] = em
+                    if rt: st.session_state[_RTOK] = rt
                     st.success("Signed in"); st.rerun()
                 else:
                     st.error("Invalid code"); st.stop()
