@@ -13,6 +13,10 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 
+from zoneinfo import ZoneInfo
+APP_TZ = os.getenv("APP_TZ", "America/Los_Angeles")
+LA_TODAY = dt.datetime.now(ZoneInfo(APP_TZ)).date()
+
 # ────────────────────────── bootstrap ──────────────────────────
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -28,6 +32,14 @@ if not DB_URL:
     st.stop()
 
 eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
+
+try:
+    from sqlalchemy import text as _text
+    with eng.begin() as _cx:
+        _tz = _cx.execute(_text("select current_setting('TimeZone')")).scalar()
+    st.caption(f"DB session TimeZone = {_tz}")
+except Exception:
+    pass
 
 from sqlalchemy import text as _text
 user = ""
@@ -48,7 +60,7 @@ def _banner_warn(msg: str):
 
 # ────────────────────────── day picker ─────────────────────────
 st.markdown("### Pick a day")
-day = st.date_input("Day", value=dt.date.today())
+day = st.date_input("Day", value=LA_TODAY)
 
 # ────────────────────────── query mounts with live annotations ─────────────
 with eng.begin() as cx:

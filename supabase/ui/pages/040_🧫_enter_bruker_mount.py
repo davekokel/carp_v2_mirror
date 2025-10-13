@@ -6,6 +6,9 @@ import datetime as dt
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
+from zoneinfo import ZoneInfo
+APP_TZ = os.getenv("APP_TZ", "America/Los_Angeles")
+LA_TODAY = dt.datetime.now(ZoneInfo(APP_TZ)).date()
 
 # ────────────────────────── Path bootstrap ──────────────────────────
 ROOT = Path(__file__).resolve().parents[3]
@@ -334,7 +337,7 @@ st.markdown("### 4) Mount details")
 
 c1, c2, c3 = st.columns([1, 1, 1])
 with c1:
-    d_val = st.date_input("Date", value=dt.date.today())
+    d_val = st.date_input("Date", value=LA_TODAY)
 with c2:
     t_val = st.time_input("Time mounted", value=dt.datetime.now().time().replace(microsecond=0))
 with c3:
