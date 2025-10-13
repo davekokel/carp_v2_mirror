@@ -1,7 +1,8 @@
 from __future__ import annotations
-# supabase/ui/auth_gate.py
-import hashlib
+import os, sys, hashlib
+from pathlib import Path
 import streamlit as st
+
 def require_app_unlock():
     locked = bool(st.secrets.get("APP_LOCKED", False))
     if not locked:
@@ -12,7 +13,7 @@ def require_app_unlock():
     st.title("🔒 Carp")
     st.caption("This app is locked. Enter the passphrase to continue.")
     pw = st.text_input("Passphrase", type="password")
-    submit = st.button("Unlock", type="primary", width="stretch")
+    submit = st.button("Unlock", type="primary")
     if submit:
         sha_expected = (st.secrets.get("APP_PASSWORD_SHA256") or "").strip().lower()
         sha_entered = hashlib.sha256((pw or "").encode("utf-8")).hexdigest()
@@ -22,3 +23,42 @@ def require_app_unlock():
         else:
             st.error("Incorrect passphrase.")
     st.stop()
+
+ROOT = Path(__file__).resolve().parents[2]
+LOCAL_SUPABASE = Path(__file__).resolve().parents[1]
+for p in (str(LOCAL_SUPABASE), str(ROOT)):
+    while p in sys.path:
+        try:
+            sys.path.remove(p)
+        except ValueError:
+            break
+if "supabase" in sys.modules:
+    del sys.modules["supabase"]
+from supabase import create_client
+sys.path.insert(0, str(ROOT))
+
+_SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+_SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+
+@st.cache_resource(show_spinner=False)
+def _client():
+    if not _SUPABASE_URL or not _SUPABASE_ANON_KEY:
+        raise RuntimeError("SUPABASE_URL / SUPABASE_ANON_KEY not set")
+    return create_client(_SUPABASE_URL, _SUPABASE_ANON_KEY)
+
+def require_login():
+    sb = _client()
+    session = sb.auth.get_session()
+    user = getattr(session, "user", None) if session else None
+    if not user:
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        st.switch_page("pages/010_🔐_login.py")
+        st.stop()
+    return sb, session, user
+
+def require_auth():
+    require_app_unlock()
+    return require_login()
