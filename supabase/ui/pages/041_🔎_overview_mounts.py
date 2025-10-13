@@ -60,6 +60,7 @@ with eng.begin() as cx:
             where mount_date = :d
           )
           select
+            m.id                                     as mount_id,          -- stable key
             'BRUKER '||to_char(m.mount_date,'YYYY-MM-DD')||' #'||
             row_number() over (
               partition by m.mount_date
@@ -96,10 +97,11 @@ if df.empty:
     _banner_warn("No mounts found for the selected day.")
     st.stop()
 
-# ────────────────────────── grid + selection ───────────────────
+# ────────────────────────── grid + selection (stable) ───────────────────
 st.markdown("### Mounts on selected day")
 
-cols_order = [
+# Columns shown in the grid (keep mount_id hidden)
+grid_cols = [
     "mount_code",
     "mount_time",
     "selection_label",
@@ -111,50 +113,53 @@ cols_order = [
     "n_bottom",
     "orientation",
     "created_by",
+    "created_at",
 ]
-present = [c for c in cols_order if c in df.columns]
-df = df[present].copy()
+present = [c for c in grid_cols if c in df.columns]
+df_view = df[["mount_id"] + present].copy()
 
-# Checkbox selection
-key_grid = "_overview_mounts_grid"
-if key_grid not in st.session_state:
-    t = df.copy()
-    t.insert(0, "✓", False)
-    st.session_state[key_grid] = t
-else:
-    base = st.session_state[key_grid]
-    if "mount_code" in df.columns and "mount_time" in df.columns:
-        base = base.set_index(["mount_code", "mount_time"])
-        now = df.set_index(["mount_code", "mount_time"])
-        for idx in now.index:
-            if idx not in base.index:
-                base.loc[idx] = [False] + now.loc[idx].to_list()
-        base = base.loc[now.index]
-        st.session_state[key_grid] = base.reset_index()
-    else:
-        st.session_state[key_grid] = df.copy().assign(**{"✓": False}).loc[:, ["✓"] + list(df.columns)]
+# Keep a stable set of checked mount_ids in session
+checked_key = "_overview_mounts_checked"
+if checked_key not in st.session_state:
+    st.session_state[checked_key] = set()
+# ensure it's a set even after session deserialization
+if not isinstance(st.session_state[checked_key], set):
+    st.session_state[checked_key] = set(st.session_state[checked_key])
+
+# Build the display frame with ✓ from the set
+df_view.insert(1, "✓", df_view["mount_id"].isin(st.session_state[checked_key]))
 
 grid_edit = st.data_editor(
-    st.session_state[key_grid],
+    df_view.drop(columns=["mount_id"]),
     hide_index=True,
     use_container_width=True,
-    column_order=["✓"] + list(df.columns),
+    column_order=["✓"] + present,
     column_config={"✓": st.column_config.CheckboxColumn("✓", default=False)},
     key="overview_mounts_editor",
 )
-st.session_state[key_grid].loc[grid_edit.index, "✓"] = grid_edit["✓"]
+
+# Read user edits back into the set (only for rows currently visible)
+visible_ids = df_view["mount_id"].tolist()
+edited_checked = grid_edit["✓"].tolist()
+new_checked_ids = {mid for mid, ok in zip(visible_ids, edited_checked) if ok}
+
+# Update the session set for visible rows only
+before = st.session_state[checked_key]
+after = (before - set(visible_ids)) | new_checked_ids
+st.session_state[checked_key] = after
 
 left, right = st.columns([1, 1])
 with left:
     if st.button("Select all"):
-        st.session_state[key_grid]["✓"] = True
+        st.session_state[checked_key] |= set(visible_ids)
         st.rerun()
 with right:
     if st.button("Clear"):
-        st.session_state[key_grid]["✓"] = False
+        st.session_state[checked_key] -= set(visible_ids)
         st.rerun()
 
-chosen = st.session_state[key_grid].loc[st.session_state[key_grid]["✓"] == True].copy()
+# Subset for PDF (use the stable set)
+chosen = df[df["mount_id"].isin(st.session_state[checked_key])].copy()
 
 # ────────────────────────── PDF generation ─────────────────────
 st.markdown("### 📄 Download PDF report")
@@ -163,42 +168,103 @@ if chosen.empty:
     st.caption("Select one or more mounts above to enable the PDF export.")
 else:
     buf = io.BytesIO()
+
+    # Landscape Letter page
+    PAGE_W, PAGE_H = landscape(letter)
+    MARGIN = 36
+    INNER_W = PAGE_W - 2 * MARGIN
+
     doc = SimpleDocTemplate(
         buf,
         pagesize=landscape(letter),
-        topMargin=36,
-        bottomMargin=36,
-        leftMargin=36,
-        rightMargin=36,
+        topMargin=MARGIN,
+        bottomMargin=MARGIN,
+        leftMargin=MARGIN,
+        rightMargin=MARGIN,
     )
 
     styles = getSampleStyleSheet()
+    title_style = styles["Title"]
+
+    # Smaller body style for dense table
+    body = styles["BodyText"]
+    body.fontName = "Helvetica"
+    body.fontSize = 7
+    body.leading = 8
+    body.wordWrap = "CJK"  # allow wrapping anywhere (best effort for tight cells)
+
     elements = []
-
     title = f"Bruker Mounts — {day.strftime('%Y-%m-%d')}"
-    elements.append(Paragraph(title, styles["Title"]))
-    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(title, title_style))
+    elements.append(Spacer(1, 10))
 
+    # Report table columns (as requested: remove cross_run_code, mount_time, clutch_nickname)
     pdf_cols = [
-        "mount_code","mount_time","selection_label","cross_run_code",
-        "clutch_name","clutch_nickname","annotations",
-        "n_top","n_bottom","orientation","created_by"
+        "mount_code", "selection_label", "clutch_name",
+        "annotations", "n_top", "n_bottom", "orientation", "created_by"
     ]
-    present_pdf = [c for c in pdf_cols if c in chosen.columns]
-    data = [present_pdf] + chosen[present_pdf].astype(str).values.tolist()
 
-    table = Table(data, repeatRows=1)
+    # Fixed widths; cut annotations to half the previous (e.g., 190 → ~95)
+    # Sum ≈ 720 (will be scaled to INNER_W if needed)
+    col_widths = [
+        105,   # mount_code
+        120,   # selection_label
+        140,   # clutch_name
+         95,   # annotations (wrapped, half previous)
+         35,   # n_top
+         45,   # n_bottom
+         70,   # orientation
+         70,   # created_by
+    ]
+    scale = INNER_W / sum(col_widths)
+    if abs(scale - 1.0) > 0.02:
+        col_widths = [w * scale for w in col_widths]
+
+    # Build data with wrapped Paragraphs for texty fields
+    texty = {"mount_code", "selection_label", "clutch_name", "annotations", "orientation", "created_by"}
+    present_pdf = [c for c in pdf_cols if c in chosen.columns]
+    header = present_pdf[:]
+
+    rows = []
+    for _, r in chosen[present_pdf].iterrows():
+        row = []
+        for c in present_pdf:
+            val = "" if pd.isna(r[c]) else str(r[c])
+            if c in texty:
+                row.append(Paragraph(val, body))
+            else:
+                row.append(val)
+        rows.append(row)
+
+    data = [header] + rows
+
+    table = Table(data, colWidths=col_widths, repeatRows=1)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.grey),
         ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
-        ("ALIGN", (0,0), (-1,-1), "CENTER"),
         ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-        ("FONTSIZE", (0,0), (-1,-1), 8),
+        ("FONTSIZE", (0,0), (-1,0), 8),
         ("GRID", (0,0), (-1,-1), 0.25, colors.black),
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
         ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
     ]))
-    elements.append(table)
 
+    # If you must hard cap to one page, uncomment the following and tune cap_rows:
+    # cap_rows = 22
+    # if len(rows) > cap_rows:
+    #     data = [header] + rows[:cap_rows]
+    #     table = Table(data, colWidths=col_widths, repeatRows=1)
+    #     table.setStyle(TableStyle([
+    #         ("BACKGROUND", (0,0), (-1,0), colors.grey),
+    #         ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
+    #         ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+    #         ("FONTSIZE", (0,0), (-1,0), 8),
+    #         ("GRID", (0,0), (-1,-1), 0.25, colors.black),
+    #         ("VALIGN", (0,0), (-1,-1), "TOP"),
+    #         ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
+    #     ]))
+
+    elements.append(table)
     doc.build(elements)
     buf.seek(0)
 
