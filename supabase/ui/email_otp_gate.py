@@ -1,6 +1,5 @@
 from __future__ import annotations
-import streamlit as st
-from supabase import create_client, Client
+import os, requests, streamlit as st
 
 _SESS = "_otp_session"
 _EMAIL = "_otp_email"
@@ -12,10 +11,33 @@ def _allowed(email: str) -> bool:
     domain = (st.secrets.get("ALLOWED_EMAIL_DOMAIN") or "").lower().strip()
     return (not domain) or email.lower().endswith("@"+domain)
 
-def _client() -> Client:
-    url = st.secrets["SUPABASE_URL"]
+def _base():
+    url = st.secrets["SUPABASE_URL"].rstrip("/")
     key = st.secrets["SUPABASE_ANON_KEY"]
-    return create_client(url, key)
+    hdr = {"apikey": key, "Content-Type": "application/json"}
+    return url, hdr
+
+def _send_code(email: str):
+    url, hdr = _base()
+    # https://supabase.com/docs/guides/auth/auth-email#one-time-password-otp
+    r = requests.post(f"{url}/auth/v1/otp", headers=hdr, json={
+        "email": email,
+        "create_user": True,
+        "should_create_user": True,
+    }, timeout=10)
+    r.raise_for_status()
+
+def _verify_code(email: str, token: str) -> str:
+    url, hdr = _base()
+    # https://supabase.com/docs/reference/auth/verify-otp#exchange-otp-for-a-session
+    r = requests.post(f"{url}/auth/v1/token?grant_type=otp", headers=hdr, json={
+        "email": email,
+        "token": token,
+        "type": "email",
+    }, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    return str(data.get("access_token") or "")
 
 def require_email_otp():
     if _SESS in st.session_state:
@@ -39,9 +61,13 @@ def require_email_otp():
             if not _allowed(email):
                 st.error("This email is not allowed.")
                 st.stop()
-            _client().auth.sign_in_with_otp({"email": email})
-            st.session_state[_EMAIL] = email
-            st.success("Code sent. Check your email, then open the Verify tab.")
+            try:
+                _send_code(email)
+                st.session_state[_EMAIL] = email
+                st.success("Code sent. Check your email, then open the Verify tab.")
+            except Exception as e:
+                st.error("Failed to send code.")
+                st.exception(e)
             st.stop()
 
     with tab_verify:
@@ -50,14 +76,19 @@ def require_email_otp():
             token = st.text_input("6-digit code")
             ok = st.form_submit_button("Verify")
         if ok and email and token:
-            r = _client().auth.verify_otp({"email": email, "token": token, "type": "email"})
-            if r and r.session and r.session.access_token:
-                st.session_state[_SESS] = r.session.access_token
-                st.session_state[_EMAIL] = email
-                st.success("Signed in")
-                st.rerun()
-            else:
-                st.error("Invalid code")
+            try:
+                access_token = _verify_code(email, token)
+                if access_token:
+                    st.session_state[_SESS] = access_token
+                    st.session_state[_EMAIL] = email
+                    st.success("Signed in")
+                    st.rerun()
+                else:
+                    st.error("Invalid code")
+                    st.stop()
+            except Exception as e:
+                st.error("Verification failed.")
+                st.exception(e)
                 st.stop()
 
     st.stop()
