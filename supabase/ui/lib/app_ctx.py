@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 import streamlit as st
 APP_TZ = os.getenv('APP_TZ', 'America/Los_Angeles')
