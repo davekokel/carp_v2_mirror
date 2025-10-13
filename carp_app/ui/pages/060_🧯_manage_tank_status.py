@@ -1,6 +1,11 @@
 from __future__ import annotations
+<<<<<<< HEAD:carp_app/ui/pages/060_🧯_manage_tank_status.py
 from supabase.ui.auth_gate import require_auth
 sb, session, user = require_auth()
+=======
+from supabase.ui.email_otp_gate import require_email_otp
+require_email_otp()
+>>>>>>> 37d27c5 (fix: normalize future-import + auth gate order across pages):supabase/ui/pages/060_🧯_manage_tank_status.py
 
 from pathlib import Path
 import sys
