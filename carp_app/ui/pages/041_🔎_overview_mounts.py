@@ -64,8 +64,31 @@ def _banner_warn(msg: str):
     st.warning(msg, icon="⚠️")
 
 # ────────────────────────── day picker ─────────────────────────
+# --- Pick a day ---
 st.markdown("### Pick a day")
-day = st.date_input("Day", value=LA_TODAY)
+day = st.date_input("Day", value=LA_TODAY, key="overview_mounts_day")  # unique key
+
+# --- Query mounts (use enriched view; cast uuid/text to avoid Arrow issues) ---
+from sqlalchemy import text
+
+with eng.begin() as cx:
+    sql = text("""
+        select
+          mount_code,
+          selection_id::text     as selection_id,
+          mount_date, mount_time,
+          n_top, n_bottom, orientation,
+          created_at, created_by
+        from public.vw_bruker_mounts_enriched
+        where mount_date = cast(:d as date)
+        order by created_at desc
+    """)
+    df = pd.read_sql(sql, cx, params={"d": str(day)})
+
+if df.empty:
+    _banner_warn("No mounts found for the selected day.")
+else:
+    st.dataframe(df, width='stretch')
 
 # ────────────────────────── query mounts with live annotations ─────────────
 with eng.begin() as cx:
