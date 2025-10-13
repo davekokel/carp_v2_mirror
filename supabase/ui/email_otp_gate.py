@@ -1,17 +1,29 @@
 # supabase/ui/email_otp_gate.py
 from __future__ import annotations
-import requests, streamlit as st
+import os
+import requests
+import streamlit as st
 
 _SESS = "_otp_session"     # access_token
 _EMAIL = "_otp_email"
 _RTOK = "_otp_refresh"     # refresh_token
 
-def _allowed(email: str) -> bool:
-    allow_list = [x.strip().lower() for x in (st.secrets.get("ALLOWED_EMAILS","")).split(",") if x.strip()]
-    if allow_list:
-        return email.lower() in allow_list
-    domain = (st.secrets.get("ALLOWED_EMAIL_DOMAIN") or "").lower().strip()
-    return (not domain) or email.lower().endswith("@"+domain)
+def require_email_otp():
+    mode = str(
+        st.secrets.get("AUTH_MODE")
+        or os.getenv("AUTH_MODE")
+        or "otp"
+    ).strip().lower()
+
+    # temporary debug so you can see which mode is active
+    st.sidebar.caption(f"auth mode: {mode}")
+
+    if mode == "off":
+        return
+    if mode == "unlock":
+        from supabase.ui.auth_gate import require_app_unlock
+        require_app_unlock()
+        return
 
 def _base():
     url = st.secrets["SUPABASE_URL"].rstrip("/")
