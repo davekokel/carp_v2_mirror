@@ -5,8 +5,25 @@ import os
 from typing import Dict, Optional, Tuple
 
 import streamlit as st
-from sqlalchemy import create_engine, text
+APP_TZ = os.getenv('APP_TZ', 'America/Los_Angeles')
+from sqlalchemy import create_engine, text, event
 from sqlalchemy.engine import Engine
+
+def _attach_tz_listener(engine):
+    if getattr(engine, "_tz_attached", False):
+        return engine
+    @event.listens_for(engine, "connect")
+    def _set_tz(dbapi_conn, connection_record):
+        try:
+            cur = dbapi_conn.cursor()
+            # parameterized SET for safety
+            cur.execute("SET TIME ZONE %s", (APP_TZ,))
+            cur.close()
+        except Exception:
+            pass
+    engine._tz_attached = True
+    return engine
+
 
 
 # ----------------------------------------------------------------------
@@ -77,6 +94,7 @@ def _maybe_rebuild_engine(url: str) -> Engine:
     if _cached_engine is None or _cached_url != url:
         # pre_ping=True avoids stale connections on resume; future=True for SQLA 2.0 style
         _cached_engine = create_engine(url, pool_pre_ping=True, future=True)
+    _cached_engine = _attach_tz_listener(_cached_engine)
         _cached_url = url
     return _cached_engine
 
