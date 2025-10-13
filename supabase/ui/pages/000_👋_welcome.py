@@ -1,7 +1,9 @@
+from __future__ import annotations
+from supabase.ui.auth_gate import require_auth
+sb, session, user = require_auth()
 from supabase.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
-from __future__ import annotations
 
 import os, sys
 from pathlib import Path

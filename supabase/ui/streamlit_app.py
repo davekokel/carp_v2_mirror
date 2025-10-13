@@ -1,4 +1,6 @@
 from __future__ import annotations
+from supabase.ui.auth_gate import require_auth
+sb, session, user = require_auth()
 
 # --- boot router (runs before importing streamlit) ---
 import os, sys, runpy
