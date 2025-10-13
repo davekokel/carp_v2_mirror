@@ -8,24 +8,6 @@ import streamlit as st
 APP_TZ = os.getenv('APP_TZ', 'America/Los_Angeles')
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.engine import Engine
-
-def _attach_tz_listener(engine):
-    if getattr(engine, "_tz_attached", False):
-        return engine
-    @event.listens_for(engine, "connect")
-    def _set_tz(dbapi_conn, connection_record):
-        try:
-            cur = dbapi_conn.cursor()
-            # parameterized SET for safety
-            cur.execute("SET TIME ZONE %s", (APP_TZ,))
-            cur.close()
-        except Exception:
-            pass
-    engine._tz_attached = True
-    return engine
-
-
-
 # ----------------------------------------------------------------------
 # Module-level cache: a single engine shared by all pages in a run
 # ----------------------------------------------------------------------
