@@ -95,6 +95,7 @@ def _maybe_rebuild_engine(url: str) -> Engine:
         # pre_ping=True avoids stale connections on resume; future=True for SQLA 2.0 style
         _cached_engine = create_engine(url, pool_pre_ping=True, future=True)
     _cached_engine = _attach_tz_listener(_cached_engine)
+    _cached_engine = _attach_tz_listener(_cached_engine)
         _cached_url = url
     return _cached_engine
 
