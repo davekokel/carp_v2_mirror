@@ -1,16 +1,15 @@
--- Make views robust while tables are mid-swap to id (support id OR id_uuid)
+-- Make clutch-related views resilient during id/id_uuid swaps
 
--- vw_clutches_concept_overview
 CREATE OR REPLACE VIEW public.vw_clutches_concept_overview AS
 WITH base AS (
   SELECT
-    cp.id                                        AS clutch_plan_id,
-    COALESCE(pc.id, pc.id_uuid)                  AS planned_cross_id,
+    cp.id                         AS clutch_plan_id,
+    COALESCE(pc.id, pc.id_uuid)   AS planned_cross_id,
     cp.clutch_code,
-    cp.planned_name                              AS clutch_name,
-    cp.planned_nickname                          AS clutch_nickname,
-    pc.cross_date                                AS date_planned,
-    COALESCE(cp.note, pc.note)                   AS note,
+    cp.planned_name               AS clutch_name,
+    cp.planned_nickname           AS clutch_nickname,
+    pc.cross_date                 AS date_planned,
+    COALESCE(cp.note, pc.note)    AS note,
     cp.created_by,
     cp.created_at
   FROM public.clutch_plans cp
@@ -23,23 +22,15 @@ WITH base AS (
   FROM public.clutches c
   GROUP BY c.planned_cross_id
 )
-SELECT b.clutch_plan_id,
-       b.planned_cross_id,
-       b.clutch_code,
-       b.clutch_name,
-       b.clutch_nickname,
-       b.date_planned,
-       b.created_by,
-       b.created_at,
-       b.note,
-       COALESCE(i.n_instances,0)      AS n_instances,
-       COALESCE(i.n_crosses,0)        AS n_crosses,
+SELECT b.clutch_plan_id, b.planned_cross_id, b.clutch_code, b.clutch_name, b.clutch_nickname,
+       b.date_planned, b.created_by, b.created_at, b.note,
+       COALESCE(i.n_instances,0) AS n_instances,
+       COALESCE(i.n_crosses,0)   AS n_crosses,
        i.latest_date_birth
 FROM base b
 LEFT JOIN inst i ON i.planned_cross_id = b.planned_cross_id
 ORDER BY COALESCE(b.date_planned::timestamp, b.created_at) DESC NULLS LAST;
 
--- vw_clutches_overview_human
 CREATE OR REPLACE VIEW public.vw_clutches_overview_human AS
 WITH base AS (
   SELECT
@@ -68,7 +59,7 @@ WITH base AS (
 ), crosses_via_clutches AS (
   SELECT b.clutch_id, count(x.id_uuid)::int AS n_crosses
   FROM base b
-  LEFT JOIN public.crosses x ON x.id_uuid = b.cross_id   -- crosses not swapped yet
+  LEFT JOIN public.crosses x ON x.id_uuid = b.cross_id
   GROUP BY b.clutch_id
 )
 SELECT b.clutch_id, b.date_birth, b.created_by, b.created_at, b.note, b.batch_label, b.seed_batch_id,
@@ -82,7 +73,6 @@ LEFT JOIN instances i ON i.clutch_id = b.clutch_id
 LEFT JOIN crosses_via_clutches cx ON cx.clutch_id = b.clutch_id
 ORDER BY COALESCE(b.date_birth::timestamp, b.created_at) DESC NULLS LAST;
 
--- vw_planned_clutches_overview
 CREATE OR REPLACE VIEW public.vw_planned_clutches_overview AS
 WITH x AS (
   SELECT
