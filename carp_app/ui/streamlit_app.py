@@ -1,39 +1,52 @@
 from __future__ import annotations
-import importlib.util, pathlib, re, streamlit as st
+import importlib.util
+import pathlib
+import re
+import streamlit as st
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
-CARP_PAGES = ROOT / "carp_app" / "ui" / "pages"
-FALLBACK_SUPA_PAGES = ROOT / "supabase" / "ui" / "pages"
+# repo root = .../carp_v2
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+PAGES = ROOT / "carp_app" / "ui" / "pages"
 
-def _exec_file(pyfile: pathlib.Path):
+def _exec(pyfile: pathlib.Path) -> None:
     spec = importlib.util.spec_from_file_location(pyfile.stem, str(pyfile))
-    mod = importlib.util.module_from_spec(spec)
+    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
     assert spec and spec.loader
-    spec.loader.exec_module(mod)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
     fn = getattr(mod, "main", None) or getattr(mod, "run", None)
     if callable(fn):
         fn()
 
-def _pick_welcome(pages_dir: pathlib.Path) -> pathlib.Path | None:
-    if not pages_dir.exists():
+def _pick_welcome() -> pathlib.Path | None:
+    if not PAGES.exists():
         return None
-    cand = sorted(pages_dir.glob("*.py"))
-    # prefer any *welcome*.py
-    w = [p for p in cand if re.search("welcome", p.stem, re.IGNORECASE)]
-    if w:
-        return w[0]
-    # else first 000_* file
-    z = [p for p in cand if p.name.startswith("000_")]
-    if z:
-        return z[0]
-    return cand[0] if cand else None
+    files = sorted(PAGES.glob("*.py"))
+    if not files:
+        return None
+    # 1) prefer any *welcome*.py (case-insensitive)
+    for p in files:
+        if re.search("welcome", p.stem, re.IGNORECASE):
+            return p
+    # 2) else prefer a numbered landing page
+    for p in files:
+        if p.name.startswith("000_"):
+            return p
+    # 3) else first file
+    return files[0]
 
-st.set_page_config(page_title="streamlit app", page_icon="👋", layout="wide")
+st.set_page_config(page_title="CARP", page_icon="👋", layout="wide")
 
-target = _pick_welcome(CARP_PAGES) or _pick_welcome(FALLBACK_SUPA_PAGES)
-
+target = _pick_welcome()
 if target and target.exists():
-    _exec_file(target)
+    _exec(target)
 else:
-    st.title("streamlit app")
-    st.warning("No pages found in carp_app/ui/pages or supabase/ui/pages.")
+    st.title("CARP")
+    if not PAGES.exists():
+        st.warning("No pages folder found at carp_app/ui/pages.")
+    else:
+        names = [p.name for p in sorted(PAGES.glob("*.py"))]
+        if names:
+            st.info("Found pages but couldn’t select a welcome file:")
+            st.write(names)
+        else:
+            st.warning("No .py files in carp_app/ui/pages.")
