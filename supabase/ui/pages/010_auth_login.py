@@ -45,22 +45,30 @@ def verify_code():
         if at and rt:
             st.session_state["sb_tokens"] = {"access": at, "refresh": rt}
         st.success(f"Signed in as {e}")
-        st.session_state["otp_code"] = ""
-        st.rerun()
+        st.switch_page("pages/001_db_ping_min.py")
     except Exception as ex:
         st.error(f"Code verification failed: {ex}")
 
 sess = sb.auth.get_session()
 usr = getattr(sess,"user",None) if sess else None
 if usr:
-    st.success(f"Signed in as {getattr(usr,'email',None)}")
+    st.success(f"Signed in as {getattr(usr, 'email', None)}")
+    st.switch_page("pages/001_db_ping_min.py")
 else:
     st.title("Sign in — 6-digit code (no links)")
     st.text_input("Email address", key="otp_email", autocomplete="email")
-    c1,c2,c3 = st.columns([1,1.4,1])
-    with c1: st.button("Send code", on_click=send_code, use_container_width=True)
-    with c2: st.text_input("Enter 6-digit code", key="otp_code", max_chars=8)
-    with c3: st.button("Verify", on_click=verify_code, type="primary", use_container_width=True)
+    c1, c2, c3 = st.columns([1, 1.4, 1])
+with c1:
+    send = st.button("Send code", use_container_width=True)
+with c2:
+    st.text_input("Enter 6-digit code", key="otp_code", max_chars=8)
+with c3:
+    verify = st.button("Verify", type="primary", use_container_width=True)
 
+# inline handlers (no on_click)
+if send:
+    send_code()
+if verify:
+    verify_code()
 with st.expander("debug"):
     st.write({"session": sb.auth.get_session(), "tokens_in_state": st.session_state.get("sb_tokens")})
