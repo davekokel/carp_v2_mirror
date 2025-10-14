@@ -18,7 +18,7 @@ require_app_unlock()
 
 # ---- queries backend (multi-term + field filters) ----
 import importlib
-import supabase.queries as Q
+from carp_app.lib import queries as Q
 importlib.reload(Q)
 
 # ---- engine ----

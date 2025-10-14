@@ -44,9 +44,9 @@ def _get_engine() -> Engine:
 # ---------- Queries helper ----------
 import importlib
 try:
-    import supabase.queries as _queries
+    from carp_app.lib import queries as _queries
     importlib.reload(_queries)
-    from supabase.queries import load_label_rows
+    from carp_app.lib.queries import load_label_rows
 except Exception:
     import queries as _queries  # type: ignore
     importlib.reload(_queries)

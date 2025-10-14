@@ -16,7 +16,7 @@ from sqlalchemy import create_engine, text
 
 # --- reuse the shared search backend ---
 import importlib
-import supabase.queries as Q
+from carp_app.lib import queries as Q
 importlib.reload(Q)
 
 st.set_page_config(page_title="Assign Inventory Tanks & Status", page_icon="🏷️", layout="wide")

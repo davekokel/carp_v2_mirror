@@ -18,7 +18,7 @@ import streamlit as st
 from sqlalchemy import text
 
 from supabase.ui.lib.app_ctx import get_engine, engine_info
-from supabase.queries import load_fish_overview
+from carp_app.lib.queries import load_fish_overview
 
 PAGE_TITLE = "CARP — Overview"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🔎", layout="wide")

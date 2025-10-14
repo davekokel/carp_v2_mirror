@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
 
 # Shared engine + helpers
 from supabase.ui.lib_shared import current_engine, connection_info
-import supabase.queries as Q
+from carp_app.lib import queries as Q
 
 # 🔒 auth
 try:
