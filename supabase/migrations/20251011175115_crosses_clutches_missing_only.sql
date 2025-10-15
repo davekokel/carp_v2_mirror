@@ -506,92 +506,157 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: idx_cross_plans_created_by; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_created_by ON public.cross_plans USING btree (created_by);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_created_by' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_created_by ON public.cross_plans USING btree (created_by);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_day_father; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_day_father ON public.cross_plans USING btree (plan_date, father_fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_day_father' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_day_father ON public.cross_plans USING btree (plan_date, father_fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_day_mother; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_day_mother ON public.cross_plans USING btree (plan_date, mother_fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_day_mother' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_day_mother ON public.cross_plans USING btree (plan_date, mother_fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_father; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_father ON public.cross_plans USING btree (father_fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_father' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_father ON public.cross_plans USING btree (father_fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_mother; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_mother ON public.cross_plans USING btree (mother_fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_mother' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_mother ON public.cross_plans USING btree (mother_fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_nick; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_nick ON public.cross_plans USING btree (plan_nickname);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_nick' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_nick ON public.cross_plans USING btree (plan_nickname);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_plan_date; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_plan_date ON public.cross_plans USING btree (plan_date);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_plan_date' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_plan_date ON public.cross_plans USING btree (plan_date);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_tank_a; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_tank_a ON public.cross_plans USING btree (tank_a_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_tank_a' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_tank_a ON public.cross_plans USING btree (tank_a_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_tank_b; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_tank_b ON public.cross_plans USING btree (tank_b_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_tank_b' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_tank_b ON public.cross_plans USING btree (tank_b_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_title; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_title ON public.cross_plans USING btree (plan_title);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_title' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_title ON public.cross_plans USING btree (plan_title);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_crosses_created_desc; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_crosses_created_desc ON public.crosses USING btree (created_at DESC);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_crosses_created_desc' AND relkind='i') THEN
+    CREATE INDEX idx_crosses_created_desc ON public.crosses USING btree (created_at DESC);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_crosses_parents_code; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_crosses_parents_code ON public.crosses USING btree (mother_code, father_code);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_crosses_parents_code' AND relkind='i') THEN
+    CREATE INDEX idx_crosses_parents_code ON public.crosses USING btree (mother_code, father_code);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_planned_crosses_clutch; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_planned_crosses_clutch ON public.planned_crosses USING btree (clutch_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_planned_crosses_clutch' AND relkind='i') THEN
+    CREATE INDEX idx_planned_crosses_clutch ON public.planned_crosses USING btree (clutch_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
