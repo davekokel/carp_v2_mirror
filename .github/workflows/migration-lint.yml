@@ -1,0 +1,15 @@
+name: Migration Lint
+on: [pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check migration filenames
+        run: |
+          bad=$(ls supabase/migrations | grep -v -E '^[0-9]{8}_[0-9]{6}_.+\.sql$' || true)
+          if [ -n "$bad" ]; then
+            echo "Bad migration filenames:"
+            echo "$bad"
+            exit 1
+          fi
