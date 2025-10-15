@@ -3,7 +3,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_rw') THEN
     CREATE ROLE app_rw LOGIN;
   END IF;
-END$$;
+END$$; LANGUAGE plpgsql;
 
 GRANT USAGE ON SCHEMA public TO app_rw;
 GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO app_rw;
@@ -32,7 +32,7 @@ BEGIN
   ) THEN
     CREATE POLICY app_rw_update_fish ON public.fish FOR UPDATE TO app_rw USING (true) WITH CHECK (true);
   END IF;
-END$$;
+END$$; LANGUAGE plpgsql;
 
 ALTER TABLE public.transgene_alleles ENABLE ROW LEVEL SECURITY;
 DO $$
@@ -55,7 +55,7 @@ BEGIN
   ) THEN
     CREATE POLICY app_rw_update_tga ON public.transgene_alleles FOR UPDATE TO app_rw USING (true) WITH CHECK (true);
   END IF;
-END$$;
+END$$; LANGUAGE plpgsql;
 
 ALTER TABLE public.fish_transgene_alleles ENABLE ROW LEVEL SECURITY;
 DO $$
@@ -78,4 +78,5 @@ BEGIN
   ) THEN
     CREATE POLICY app_rw_update_fta ON public.fish_transgene_alleles FOR UPDATE TO app_rw USING (true) WITH CHECK (true);
   END IF;
-END$$;
+END$$; LANGUAGE plpgsql;
+
