@@ -36,7 +36,8 @@ jobs:
         run: |
           for i in {1..60}; do
             if PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -Atc "select 1" >/dev/null 2>&1; then
-              echo "Postgres is up"; exit 0; fi
+              echo "Postgres is up"; exit 0
+            fi
             sleep 1
           done
           echo "Postgres did not start in time"; exit 1
@@ -49,18 +50,18 @@ jobs:
       - name: Apply audit primitives (required by baseline)
         run: |
           psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
-            -f supabase/migrations/00000002_audit_primitives.sql
 
       - name: Apply roles (required by baseline)
-        env:
-          PGPASSWORD: postgres
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+
+      - name: Apply audit primitives (required by baseline)
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000002_audit_primitives.sql
+      - name: Apply roles (required by baseline)
         run: |
           psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000003_roles_min.sql
-
-      - name: Apply app roles (required by baseline)
-        env:
-          PGPASSWORD: postgres
-        run: |
           psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000004_app_roles.sql
 
       - name: Apply baseline
