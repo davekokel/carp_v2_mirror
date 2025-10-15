@@ -456,8 +456,12 @@ IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid='public.cross_plans'::regclass AND contype='p'
   ) THEN
+IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.cross_plans'::regclass AND contype='p'
+  ) THEN
     ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT cross_plans_pkey PRIMARY KEY (id);
   END IF;
+END IF;
 END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -471,8 +475,12 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conrelid='public.crosses'::regclass AND contype='p'
   ) THEN
+IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.crosses'::regclass AND contype='p'
+  ) THEN
     ALTER TABLE ONLY public.crosses ADD CONSTRAINT crosses_pkey PRIMARY KEY (id_uuid);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -485,8 +493,12 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conrelid='public.planned_crosses'::regclass AND contype='p'
   ) THEN
+IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.planned_crosses'::regclass AND contype='p'
+  ) THEN
     ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_pkey PRIMARY KEY (id_uuid);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -497,8 +509,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_cross_plans_unique') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_cross_plans_unique') THEN
     ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT uq_cross_plans_unique UNIQUE (plan_date, tank_a_id, tank_b_id);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -509,8 +523,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_created_by' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_created_by' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_created_by ON public.cross_plans USING btree (created_by);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -521,8 +537,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_day_father' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_day_father' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_day_father ON public.cross_plans USING btree (plan_date, father_fish_id);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -533,8 +551,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_day_mother' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_day_mother' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_day_mother ON public.cross_plans USING btree (plan_date, mother_fish_id);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -545,8 +565,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_father' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_father' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_father ON public.cross_plans USING btree (father_fish_id);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -557,8 +579,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_mother' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_mother' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_mother ON public.cross_plans USING btree (mother_fish_id);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -569,8 +593,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_nick' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_nick' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_nick ON public.cross_plans USING btree (plan_nickname);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -581,8 +607,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_plan_date' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_plan_date' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_plan_date ON public.cross_plans USING btree (plan_date);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -593,8 +621,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_tank_a' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_tank_a' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_tank_a ON public.cross_plans USING btree (tank_a_id);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -605,8 +635,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_tank_b' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_tank_b' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_tank_b ON public.cross_plans USING btree (tank_b_id);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -617,8 +649,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_title' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_title' AND relkind='i') THEN
     CREATE INDEX idx_cross_plans_title ON public.cross_plans USING btree (plan_title);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -629,8 +663,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_crosses_created_desc' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_crosses_created_desc' AND relkind='i') THEN
     CREATE INDEX idx_crosses_created_desc ON public.crosses USING btree (created_at DESC);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -641,8 +677,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_crosses_parents_code' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_crosses_parents_code' AND relkind='i') THEN
     CREATE INDEX idx_crosses_parents_code ON public.crosses USING btree (mother_code, father_code);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -653,8 +691,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_planned_crosses_clutch' AND relkind='i') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_planned_crosses_clutch' AND relkind='i') THEN
     CREATE INDEX idx_planned_crosses_clutch ON public.planned_crosses USING btree (clutch_id);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -667,8 +707,10 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_crosses_concept_pair' AND relkind = 'i'
   ) THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_crosses_concept_pair' AND relkind='i') THEN
     CREATE UNIQUE INDEX uq_crosses_concept_pair ON public.crosses USING btree (upper(TRIM(BOTH FROM mother_code)), upper(TRIM(BOTH FROM father_code)));
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -681,8 +723,10 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_crosses_cross_code' AND relkind = 'i'
   ) THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_crosses_cross_code' AND relkind='i') THEN
     CREATE UNIQUE INDEX uq_crosses_cross_code ON public.crosses USING btree (cross_code) WHERE (cross_code IS NOT NULL);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -695,8 +739,10 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_planned_crosses_clutch_parents_canonical' AND relkind = 'i'
   ) THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_planned_crosses_clutch_parents_canonical' AND relkind='i') THEN
     CREATE UNIQUE INDEX uq_planned_crosses_clutch_parents_canonical ON public.planned_crosses USING btree (clutch_id, mother_tank_id, father_tank_id) WHERE ((is_canonical = true) AND (mother_tank_id IS NOT NULL) AND (father_tank_id IS NOT NULL));
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -709,8 +755,10 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_planned_crosses_cross_code' AND relkind = 'i'
   ) THEN
+IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_planned_crosses_cross_code' AND relkind='i') THEN
     CREATE UNIQUE INDEX uq_planned_crosses_cross_code ON public.planned_crosses USING btree (cross_code) WHERE (cross_code IS NOT NULL);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -726,9 +774,14 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE t.tgname = 'trg_cross_code' AND n.nspname = 'public' AND c.relname = 'crosses'
   ) THEN
-    
+IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE t.tgname='trg_cross_code' AND n.nspname='public' AND c.relname='crosses'
+  ) THEN
+        
 CREATE TRIGGER trg_cross_code BEFORE INSERT ON public.crosses FOR EACH ROW EXECUTE FUNCTION public.trg_cross_code();
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -744,9 +797,14 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE t.tgname = 'trg_cross_name_fill' AND n.nspname = 'public' AND c.relname = 'crosses'
   ) THEN
-    
+IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE t.tgname='trg_cross_name_fill' AND n.nspname='public' AND c.relname='crosses'
+  ) THEN
+        
 CREATE TRIGGER trg_cross_name_fill BEFORE INSERT ON public.crosses FOR EACH ROW EXECUTE FUNCTION public.trg_cross_name_fill();
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -757,8 +815,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plans_father_fish_id_fkey') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plans_father_fish_id_fkey') THEN
     ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT cross_plans_father_fish_id_fkey FOREIGN KEY (father_fish_id) REFERENCES public.fish (id) ON DELETE RESTRICT;
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -769,8 +829,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plans_mother_fish_id_fkey') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plans_mother_fish_id_fkey') THEN
     ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT cross_plans_mother_fish_id_fkey FOREIGN KEY (mother_fish_id) REFERENCES public.fish (id) ON DELETE RESTRICT;
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -781,8 +843,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_cross_plans_tank_a_cont') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_cross_plans_tank_a_cont') THEN
     ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT fk_cross_plans_tank_a_cont FOREIGN KEY (tank_a_id) REFERENCES public.containers (id_uuid) ON DELETE RESTRICT;
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -793,8 +857,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_cross_plans_tank_b_cont') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_cross_plans_tank_b_cont') THEN
     ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT fk_cross_plans_tank_b_cont FOREIGN KEY (tank_b_id) REFERENCES public.containers (id_uuid) ON DELETE RESTRICT;
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -805,8 +871,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_clutch_id_fkey') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_clutch_id_fkey') THEN
     ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutch_plans (id_uuid) ON DELETE CASCADE;
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -817,8 +885,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_cross_id_fkey') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_cross_id_fkey') THEN
     ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_cross_id_fkey FOREIGN KEY (cross_id) REFERENCES public.crosses (id_uuid) ON DELETE SET NULL;
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -829,8 +899,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_cross_instance_id_fkey') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_cross_instance_id_fkey') THEN
     ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_cross_instance_id_fkey FOREIGN KEY (cross_instance_id) REFERENCES public.cross_instances (id_uuid) ON DELETE SET NULL;
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -841,8 +913,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_father_tank_id_fkey') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_father_tank_id_fkey') THEN
     ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_father_tank_id_fkey FOREIGN KEY (father_tank_id) REFERENCES public.containers (id_uuid);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -853,8 +927,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_mother_tank_id_fkey') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_mother_tank_id_fkey') THEN
     ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_mother_tank_id_fkey FOREIGN KEY (mother_tank_id) REFERENCES public.containers (id_uuid);
   END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
