@@ -12,8 +12,8 @@ BEGIN
     -- add a blanket read policy for authenticated (idempotent)
     IF NOT EXISTS (
       SELECT 1 FROM pg_policy
-      WHERE schemaname = r.table_schema
-        AND tablename  = r.table_name
+      WHERE 1=1
+        AND polrelid = (quote_ident(r.table_schema)||'.'||quote_ident(r.table_name))::regclass
         AND polname = 'allow_read_auth'
     ) THEN
       EXECUTE format(
