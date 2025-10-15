@@ -643,7 +643,15 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_containers'::regclass AND contype='p'
   ) THEN
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_containers'::regclass AND contype='p'
+  ) THEN
     ALTER TABLE ONLY public.clutch_containers ADD CONSTRAINT clutch_containers_pkey PRIMARY KEY (container_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -655,7 +663,13 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_genotype_options_clutch_id_allele_code_transgene_bas_key') THEN
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_genotype_options_clutch_id_allele_code_transgene_bas_key') THEN
     ALTER TABLE ONLY public.clutch_genotype_options ADD CONSTRAINT clutch_genotype_options_clutch_id_allele_code_transgene_bas_key UNIQUE (clutch_id, allele_code, transgene_base_code);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -664,57 +678,99 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: clutch_genotype_options clutch_genotype_options_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_genotype_options
-    ADD CONSTRAINT clutch_genotype_options_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_genotype_options'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.clutch_genotype_options ADD CONSTRAINT clutch_genotype_options_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutch_plan_treatments clutch_plan_treatments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_plan_treatments
-    ADD CONSTRAINT clutch_plan_treatments_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_plan_treatments'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.clutch_plan_treatments ADD CONSTRAINT clutch_plan_treatments_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutch_plans clutch_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_plans
-    ADD CONSTRAINT clutch_plans_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_plans'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.clutch_plans ADD CONSTRAINT clutch_plans_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutch_treatments clutch_treatments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_treatments
-    ADD CONSTRAINT clutch_treatments_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_treatments'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.clutch_treatments ADD CONSTRAINT clutch_treatments_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutches clutches_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutches
-    ADD CONSTRAINT clutches_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.clutches'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.clutches ADD CONSTRAINT clutches_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_instances cross_instances_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_instances
-    ADD CONSTRAINT cross_instances_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.cross_instances'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.cross_instances ADD CONSTRAINT cross_instances_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plan_genotype_alleles cross_plan_genotype_alleles_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_genotype_alleles
-    ADD CONSTRAINT cross_plan_genotype_alleles_pkey PRIMARY KEY (id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.cross_plan_genotype_alleles'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.cross_plan_genotype_alleles ADD CONSTRAINT cross_plan_genotype_alleles_pkey PRIMARY KEY (id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
@@ -723,7 +779,13 @@ ALTER TABLE ONLY public.cross_plan_genotype_alleles
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key') THEN
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key') THEN
     ALTER TABLE ONLY public.cross_plan_genotype_alleles ADD CONSTRAINT cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key UNIQUE (plan_id, transgene_base_code, allele_number);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -732,9 +794,15 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: cross_plan_runs cross_plan_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_runs
-    ADD CONSTRAINT cross_plan_runs_pkey PRIMARY KEY (id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.cross_plan_runs'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.cross_plan_runs ADD CONSTRAINT cross_plan_runs_pkey PRIMARY KEY (id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
@@ -743,7 +811,13 @@ ALTER TABLE ONLY public.cross_plan_runs
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_runs_plan_id_seq_key') THEN
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_runs_plan_id_seq_key') THEN
     ALTER TABLE ONLY public.cross_plan_runs ADD CONSTRAINT cross_plan_runs_plan_id_seq_key UNIQUE (plan_id, seq);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -752,33 +826,57 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: cross_plan_treatments cross_plan_treatments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_treatments
-    ADD CONSTRAINT cross_plan_treatments_pkey PRIMARY KEY (id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.cross_plan_treatments'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.cross_plan_treatments ADD CONSTRAINT cross_plan_treatments_pkey PRIMARY KEY (id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plans cross_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plans
-    ADD CONSTRAINT cross_plans_pkey PRIMARY KEY (id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.cross_plans'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT cross_plans_pkey PRIMARY KEY (id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: crosses crosses_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.crosses
-    ADD CONSTRAINT crosses_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.crosses'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.crosses ADD CONSTRAINT crosses_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: planned_crosses planned_crosses_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.planned_crosses
-    ADD CONSTRAINT planned_crosses_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.planned_crosses'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
@@ -787,7 +885,13 @@ ALTER TABLE ONLY public.planned_crosses
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_cross_plans_unique') THEN
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_cross_plans_unique') THEN
     ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT uq_cross_plans_unique UNIQUE (plan_date, tank_a_id, tank_b_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -796,204 +900,349 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: idx_cc_clutch; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cc_clutch ON public.clutch_containers USING btree (clutch_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cc_clutch' AND relkind='i') THEN
+    CREATE INDEX idx_cc_clutch ON public.clutch_containers USING btree (clutch_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cc_created_desc; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cc_created_desc ON public.clutch_containers USING btree (created_at DESC);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cc_created_desc' AND relkind='i') THEN
+    CREATE INDEX idx_cc_created_desc ON public.clutch_containers USING btree (created_at DESC);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cc_selection; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cc_selection ON public.clutch_containers USING btree (selection_label);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cc_selection' AND relkind='i') THEN
+    CREATE INDEX idx_cc_selection ON public.clutch_containers USING btree (selection_label);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cgo_clutch; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cgo_clutch ON public.clutch_genotype_options USING btree (clutch_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cgo_clutch' AND relkind='i') THEN
+    CREATE INDEX idx_cgo_clutch ON public.clutch_genotype_options USING btree (clutch_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_clutches_batch; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_clutches_batch ON public.clutches USING btree (batch_label);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_clutches_batch' AND relkind='i') THEN
+    CREATE INDEX idx_clutches_batch ON public.clutches USING btree (batch_label);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_clutches_created_desc; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_clutches_created_desc ON public.clutches USING btree (created_at DESC);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_clutches_created_desc' AND relkind='i') THEN
+    CREATE INDEX idx_clutches_created_desc ON public.clutches USING btree (created_at DESC);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_clutches_cross_id; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_clutches_cross_id ON public.clutches USING btree (cross_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_clutches_cross_id' AND relkind='i') THEN
+    CREATE INDEX idx_clutches_cross_id ON public.clutches USING btree (cross_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_clutches_run_id; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_clutches_run_id ON public.clutches USING btree (run_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_clutches_run_id' AND relkind='i') THEN
+    CREATE INDEX idx_clutches_run_id ON public.clutches USING btree (run_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_clutches_seed; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_clutches_seed ON public.clutches USING btree (seed_batch_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_clutches_seed' AND relkind='i') THEN
+    CREATE INDEX idx_clutches_seed ON public.clutches USING btree (seed_batch_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cpga_plan; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cpga_plan ON public.cross_plan_genotype_alleles USING btree (plan_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cpga_plan' AND relkind='i') THEN
+    CREATE INDEX idx_cpga_plan ON public.cross_plan_genotype_alleles USING btree (plan_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cpt_plan; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cpt_plan ON public.cross_plan_treatments USING btree (plan_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cpt_plan' AND relkind='i') THEN
+    CREATE INDEX idx_cpt_plan ON public.cross_plan_treatments USING btree (plan_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cpt_plasmid; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cpt_plasmid ON public.cross_plan_treatments USING btree (plasmid_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cpt_plasmid' AND relkind='i') THEN
+    CREATE INDEX idx_cpt_plasmid ON public.cross_plan_treatments USING btree (plasmid_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cpt_rna; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cpt_rna ON public.cross_plan_treatments USING btree (rna_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cpt_rna' AND relkind='i') THEN
+    CREATE INDEX idx_cpt_rna ON public.cross_plan_treatments USING btree (rna_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plan_runs_date; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plan_runs_date ON public.cross_plan_runs USING btree (planned_date);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plan_runs_date' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plan_runs_date ON public.cross_plan_runs USING btree (planned_date);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plan_runs_plan; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plan_runs_plan ON public.cross_plan_runs USING btree (plan_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plan_runs_plan' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plan_runs_plan ON public.cross_plan_runs USING btree (plan_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_created_by; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_created_by ON public.cross_plans USING btree (created_by);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_created_by' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_created_by ON public.cross_plans USING btree (created_by);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_day_father; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_day_father ON public.cross_plans USING btree (plan_date, father_fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_day_father' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_day_father ON public.cross_plans USING btree (plan_date, father_fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_day_mother; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_day_mother ON public.cross_plans USING btree (plan_date, mother_fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_day_mother' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_day_mother ON public.cross_plans USING btree (plan_date, mother_fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_father; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_father ON public.cross_plans USING btree (father_fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_father' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_father ON public.cross_plans USING btree (father_fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_mother; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_mother ON public.cross_plans USING btree (mother_fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_mother' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_mother ON public.cross_plans USING btree (mother_fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_nick; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_nick ON public.cross_plans USING btree (plan_nickname);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_nick' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_nick ON public.cross_plans USING btree (plan_nickname);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_plan_date; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_plan_date ON public.cross_plans USING btree (plan_date);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_plan_date' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_plan_date ON public.cross_plans USING btree (plan_date);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_tank_a; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_tank_a ON public.cross_plans USING btree (tank_a_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_tank_a' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_tank_a ON public.cross_plans USING btree (tank_a_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_tank_b; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_tank_b ON public.cross_plans USING btree (tank_b_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_tank_b' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_tank_b ON public.cross_plans USING btree (tank_b_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_cross_plans_title; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_cross_plans_title ON public.cross_plans USING btree (plan_title);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_cross_plans_title' AND relkind='i') THEN
+    CREATE INDEX idx_cross_plans_title ON public.cross_plans USING btree (plan_title);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_crosses_created_desc; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_crosses_created_desc ON public.crosses USING btree (created_at DESC);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_crosses_created_desc' AND relkind='i') THEN
+    CREATE INDEX idx_crosses_created_desc ON public.crosses USING btree (created_at DESC);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_crosses_parents_code; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_crosses_parents_code ON public.crosses USING btree (mother_code, father_code);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_crosses_parents_code' AND relkind='i') THEN
+    CREATE INDEX idx_crosses_parents_code ON public.crosses USING btree (mother_code, father_code);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_ct_clutch; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_ct_clutch ON public.clutch_treatments USING btree (clutch_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_ct_clutch' AND relkind='i') THEN
+    CREATE INDEX idx_ct_clutch ON public.clutch_treatments USING btree (clutch_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_planned_crosses_clutch; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_planned_crosses_clutch ON public.planned_crosses USING btree (clutch_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_planned_crosses_clutch' AND relkind='i') THEN
+    CREATE INDEX idx_planned_crosses_clutch ON public.planned_crosses USING btree (clutch_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
