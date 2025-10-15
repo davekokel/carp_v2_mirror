@@ -67,7 +67,7 @@
 - transgene_alleles [missing created_at] [missing updated_at]
 - transgenes [missing updated_at]
 
-## Tables using id_uuid (naming consistency scan)
+## Historical note: id_uuid (now removed)
 
 - clutch_genotype_options
 - clutch_plan_treatments
