@@ -22,3 +22,9 @@ __pycache__/
 !supabase/migrations/**/*.sql
 .DS_Store
 _trufflehog_local.json
+
+# commit id-only snapshots
+!snapshots_staging/*.sql
+
+# ignore archived migration backups
+supabase/migrations/_archive/*.bak.sql
