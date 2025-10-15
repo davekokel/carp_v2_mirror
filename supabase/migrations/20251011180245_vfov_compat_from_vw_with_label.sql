@@ -2,7 +2,7 @@
 create or replace view public.v_fish_overview as
 select
   v.fish_code,
-  coalesce(v.fish_name, '')                        as name,
+  coalesce(v.name, '')                        as name,
   coalesce(v.nickname, '')                         as nickname,
   coalesce(v.transgene_pretty_filled,
            v.transgene_pretty_nickname,
