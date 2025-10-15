@@ -1,14 +1,14 @@
 DO $$
 BEGIN
-BEGIN
 IF NOT EXISTS (
   SELECT 1
   FROM pg_type t
   JOIN pg_namespace n ON n.oid=t.typnamespace
   WHERE t.typname='cross_plan_status' AND n.nspname='public'
 ) THEN
-DO;
+
 END;
+$$ LANGUAGE plpgsql;
 $$ LANGUAGE plpgsql;BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_type t
