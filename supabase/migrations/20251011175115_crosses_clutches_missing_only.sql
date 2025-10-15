@@ -48,7 +48,7 @@ ALTER TABLE public.cross_plans OWNER TO postgres;
 -- Name: crosses; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.crosses (
+CREATE TABLE IF NOT EXISTS public.crosses (
     id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     mother_code text NOT NULL,
     father_code text NOT NULL,
