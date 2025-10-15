@@ -70,12 +70,22 @@ COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 -- Name: container_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
-CREATE TYPE public.container_status AS ENUM (
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_type
+    WHERE typname='container_status'
+      AND typnamespace='public'::regnamespace
+  ) THEN
+    CREATE TYPE public.container_status AS ENUM (
     'planned',
     'active',
     'to_kill',
     'retired'
 );
+  END IF;
+END
+$ plpgsql;
 
 
 ALTER TYPE public.container_status OWNER TO postgres;
