@@ -1,5 +1,6 @@
 from __future__ import annotations
 from carp_app.ui.auth_gate import require_auth
+from carp_app.lib.config import engine as get_engine, DB_URL
 sb, session, user = require_auth()
 
 from carp_app.ui.email_otp_gate import require_email_otp
@@ -33,7 +34,7 @@ def _db_url() -> str:
         raise RuntimeError("DB_URL not set")
     return u
 
-ENGINE = create_engine(_db_url(), pool_pre_ping=True)
+ENGINE = get_engine(_db_url())
 
 # ---------- data loaders ----------
 def _load_tanks(container_types: List[str], statuses: List[str], q: str) -> pd.DataFrame:

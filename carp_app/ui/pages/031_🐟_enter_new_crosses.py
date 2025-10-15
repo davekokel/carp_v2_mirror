@@ -1,5 +1,6 @@
 from __future__ import annotations
 from carp_app.ui.auth_gate import require_auth
+from carp_app.lib.config import engine as get_engine, DB_URL
 sb, session, user = require_auth()
 
 from carp_app.ui.email_otp_gate import require_email_otp
@@ -40,7 +41,7 @@ def _get_engine():
     url = os.getenv("DB_URL")
     if not url:
         raise RuntimeError("DB_URL not set")
-    _ENGINE = create_engine(url, future=True)
+    _ENGINE = get_engine(url)
     return _ENGINE
 
 # =================================

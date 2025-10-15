@@ -1,4 +1,5 @@
 from __future__ import annotations
+from carp_app.lib.config import engine as get_engine, DB_URL
 # supabase/ui/lib_shared.py
 
 import os
@@ -177,7 +178,7 @@ def _mask_db_url(u: str) -> str:
 def _engine_for(db_url: str) -> Engine:
     """Create (or return cached) Engine keyed by db_url."""
     assert db_url, "DB URL must be provided"
-    return create_engine(_ensure_sslmode(db_url), pool_pre_ping=True, future=True)
+    return get_engine(_ensure_sslmode(db_url))
 
 
 def db_picker(show_ui: bool = False) -> Tuple[Engine, str]:
