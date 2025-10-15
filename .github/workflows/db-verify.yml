@@ -1,0 +1,71 @@
+name: DB Verify (id-only)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..60}; do
+            if PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -Atc "select 1" >/dev/null 2>&1; then
+              echo "Postgres is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not start in time"
+          exit 1
+
+      - name: Apply baseline
+        env:
+          PGPASSWORD: postgres
+        run: psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000000_baseline_v2.sql
+
+      - name: Apply util helpers if present
+        env:
+          PGPASSWORD: postgres
+        run: |
+          if [ -f supabase/migrations/00000001_util_mig_helpers.sql ]; then
+            psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000001_util_mig_helpers.sql
+          fi
+
+      - name: Apply all migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in $(ls -1 supabase/migrations/*.sql | sort); do
+            if [ "$(basename "$f")" != "00000000_baseline_v2.sql" ] && [ "$(basename "$f")" != "00000001_util_mig_helpers.sql" ]; then
+              echo "Applying $f"
+              psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f "$f"
+            fi
+          done
+
+      - name: Verify id-only
+        env:
+          PGPASSWORD: postgres
+        run: psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f scripts/verify_id_only.sql
