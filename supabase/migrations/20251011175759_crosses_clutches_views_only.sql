@@ -22,7 +22,7 @@ SET row_security = off;
 -- Name: v_containers_crossing_candidates; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.v_containers_crossing_candidates AS
+CREATE OR REPLACE VIEW public.v_containers_crossing_candidates AS
  SELECT id_uuid,
     container_type,
     label,
@@ -44,7 +44,7 @@ ALTER VIEW public.v_containers_crossing_candidates OWNER TO postgres;
 -- Name: v_cross_plan_runs_enriched; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.v_cross_plan_runs_enriched AS
+CREATE OR REPLACE VIEW public.v_cross_plan_runs_enriched AS
  SELECT r.id,
     r.plan_id,
     r.seq,
@@ -75,7 +75,7 @@ ALTER VIEW public.v_cross_plan_runs_enriched OWNER TO postgres;
 -- Name: v_cross_plans_enriched; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.v_cross_plans_enriched AS
+CREATE OR REPLACE VIEW public.v_cross_plans_enriched AS
  SELECT p.id,
     p.plan_date,
     p.status,
@@ -121,7 +121,7 @@ ALTER VIEW public.v_cross_plans_enriched OWNER TO postgres;
 -- Name: v_crosses_status; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.v_crosses_status AS
+CREATE OR REPLACE VIEW public.v_crosses_status AS
  SELECT id_uuid,
     mother_code,
     father_code,
@@ -143,7 +143,7 @@ ALTER VIEW public.v_crosses_status OWNER TO postgres;
 -- Name: vw_clutches_concept_overview; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.vw_clutches_concept_overview AS
+CREATE OR REPLACE VIEW public.vw_clutches_concept_overview AS
  WITH base AS (
          SELECT cp.id_uuid AS clutch_plan_id,
             pc.id_uuid AS planned_cross_id,
@@ -195,7 +195,7 @@ ALTER VIEW public.vw_clutches_concept_overview OWNER TO postgres;
 -- Name: vw_clutches_overview_human; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.vw_clutches_overview_human AS
+CREATE OR REPLACE VIEW public.vw_clutches_overview_human AS
  WITH base AS (
          SELECT c.id_uuid AS clutch_id,
             c.date_birth,
@@ -253,7 +253,7 @@ ALTER VIEW public.vw_clutches_overview_human OWNER TO postgres;
 -- Name: vw_cross_runs_overview; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.vw_cross_runs_overview AS
+CREATE OR REPLACE VIEW public.vw_cross_runs_overview AS
  WITH cl AS (
          SELECT clutches.cross_instance_id,
             (count(*))::integer AS n_clutches
@@ -295,7 +295,7 @@ ALTER VIEW public.vw_cross_runs_overview OWNER TO postgres;
 -- Name: vw_crosses_concept; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.vw_crosses_concept AS
+CREATE OR REPLACE VIEW public.vw_crosses_concept AS
  WITH runs AS (
          SELECT cross_instances.cross_id,
             (count(*))::integer AS n_runs,
@@ -337,7 +337,7 @@ ALTER VIEW public.vw_crosses_concept OWNER TO postgres;
 -- Name: vw_planned_clutches_overview; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.vw_planned_clutches_overview AS
+CREATE OR REPLACE VIEW public.vw_planned_clutches_overview AS
  WITH x AS (
          SELECT cp.id_uuid AS clutch_plan_id,
             pc.id_uuid AS planned_cross_id,
