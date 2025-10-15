@@ -91,8 +91,10 @@ BEGIN
 );
   END IF;
 END
+END
 $$ LANGUAGE plpgsql;
   END IF;
+END
 END
 $$ LANGUAGE plpgsql;
 
@@ -115,6 +117,7 @@ BEGIN
     'executed'
 );
   END IF;
+END
 END
 $$ LANGUAGE plpgsql;
 
@@ -139,7 +142,8 @@ CREATE FUNCTION public.apply_plasmid_treatment(p_fish_id uuid, p_plasmid_id uuid
     VALUES
       (p_fish_id, p_plasmid_id, p_amount, p_units, p_at_time, p_note)
     ON CONFLICT ON CONSTRAINT uq_ipt_natural DO NOTHING;
-  END
+END
+$$ LANGUAGE plpgsql;
   $$;
 
 
@@ -163,7 +167,8 @@ CREATE FUNCTION public.apply_rna_treatment(p_fish_id uuid, p_rna_id uuid, p_amou
     VALUES
       (p_fish_id, p_rna_id, p_amount, p_units, p_at_time, p_note)
     ON CONFLICT ON CONSTRAINT uq_irt_natural DO NOTHING;
-  END
+END
+$$ LANGUAGE plpgsql;
   $$;
 
 
@@ -303,7 +308,8 @@ CREATE FUNCTION public.create_offspring_batch(p_mother_id uuid, p_father_id uuid
       fish_code := fish_row.fish_code;
       RETURN NEXT;
     END LOOP;
-  END
+END
+$$ LANGUAGE plpgsql;
   $_$;
 
 
@@ -692,7 +698,8 @@ CREATE FUNCTION public.inherit_transgene_alleles(child_id uuid, mother_id uuid, 
       WHERE fish_id IN (mother_id, father_id)
     ) x
     ON CONFLICT DO NOTHING;
-  END
+END
+$$ LANGUAGE plpgsql;
   $$;
 
 
@@ -877,7 +884,8 @@ BEGIN
                  THEN COALESCE(note,'') || CASE WHEN note IS NULL OR note='' THEN '' ELSE E'\n' END ||
                       ('status: '||v_old||' → '||p_new||' @ '||now()||' by '||COALESCE(p_by,'?')||COALESCE(' — '||p_reason,''))
                ELSE note
-             END
+END
+$$ LANGUAGE plpgsql;
   WHERE id_uuid = p_id;
 
   INSERT INTO public.container_status_history(container_id, old_status, new_status, changed_by, reason)
@@ -902,6 +910,7 @@ BEGIN
                 updated_at    = EXCLUDED.updated_at;
   RETURN NULL;
 END
+$$ LANGUAGE plpgsql;
 $$;
 
 
@@ -986,6 +995,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END
+$$ LANGUAGE plpgsql;
 $$;
 
 
@@ -1016,6 +1026,7 @@ BEGIN
   IF NEW.cross_nickname IS NULL OR btrim(NEW.cross_nickname)='' THEN NEW.cross_nickname:=NEW.cross_name; END IF;
   RETURN NEW;
 END
+$$ LANGUAGE plpgsql;
 $$;
 
 
@@ -1064,6 +1075,7 @@ BEGIN
 
   RETURN NEW;
 END
+$$ LANGUAGE plpgsql;
 $$;
 
 
@@ -1124,6 +1136,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END
+$$ LANGUAGE plpgsql;
 $$;
 
 
@@ -1383,7 +1396,8 @@ begin
       continue;
     end;
   end loop;
-end
+END
+$$ LANGUAGE plpgsql;
 $$;
 
 
@@ -1419,7 +1433,8 @@ begin
       p_ref_schema, p_ref_table, ref_cols_sql, od_sql
     );
   end if;
-end
+END
+$$ LANGUAGE plpgsql;
 $$;
 
 
@@ -1444,7 +1459,8 @@ begin
   if not exists_idx then
     execute format('create unique index %I on %I.%I (%s)', p_index_name, p_schema, p_table, cols_sql);
   end if;
-end
+END
+$$ LANGUAGE plpgsql;
 $$;
 
 
@@ -1477,7 +1493,8 @@ begin
     where table_schema=p_schema and table_name=p_table and column_name='id_uuid'
   );
   return col; -- may be null if neither exists
-end
+END
+$$ LANGUAGE plpgsql;
 $$;
 
 
