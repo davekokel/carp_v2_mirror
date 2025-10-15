@@ -466,9 +466,15 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: crosses crosses_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.crosses
-    ADD CONSTRAINT crosses_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.crosses'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.crosses ADD CONSTRAINT crosses_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
