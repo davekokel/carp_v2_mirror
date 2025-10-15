@@ -49,11 +49,11 @@ with ins as (
   insert into public.plasmids (plasmid_code, name)
   values (:code, coalesce(nullif(:name,''), :code))
   on conflict (plasmid_code) do nothing
-  returning id_uuid
+  returning id
 )
-select id_uuid from ins
+select id from ins
 union all
-select id_uuid from public.plasmids where plasmid_code = :code
+select id from public.plasmids where plasmid_code = :code
 limit 1
 """)
 

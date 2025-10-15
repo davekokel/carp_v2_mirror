@@ -49,11 +49,11 @@ with ins as (
   insert into public.rnas (rna_code, name)
   values (:code, coalesce(nullif(:name,''), :code))
   on conflict (rna_code) do nothing
-  returning id_uuid
+  returning id
 )
-select id_uuid from ins
+select id from ins
 union all
-select id_uuid from public.rnas where rna_code = :code
+select id from public.rnas where rna_code = :code
 limit 1
 """)
 

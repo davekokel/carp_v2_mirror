@@ -59,12 +59,12 @@ def upsert_transgene_links(engine, df, default_zygosity="unknown"):
                 text("""
                     WITH keys AS (SELECT UNNEST(:keys::text[]) AS k)
                     SELECT
-                      UPPER(TRIM(f.fish_code)) AS k, f.id_uuid
+                      UPPER(TRIM(f.fish_code)) AS k, f.id
                     FROM public.fish f
                     JOIN keys ON UPPER(TRIM(f.fish_code)) = keys.k
                     UNION ALL
                     SELECT
-                      UPPER(TRIM(f.name)) AS k, f.id_uuid
+                      UPPER(TRIM(f.name)) AS k, f.id
                     FROM public.fish f
                     JOIN keys ON UPPER(TRIM(f.name)) = keys.k
                 """),
@@ -238,11 +238,11 @@ with ins as (
   insert into public.plasmids (plasmid_code, name)
   values (:code, coalesce(nullif(:name,''), :code))
   on conflict (plasmid_code) do nothing
-  returning id_uuid
+  returning id
 )
-select id_uuid from ins
+select id from ins
 union all
-select id_uuid from public.plasmids where plasmid_code = :code
+select id from public.plasmids where plasmid_code = :code
 limit 1
 """)
 
@@ -258,11 +258,11 @@ with ins as (
   insert into public.rnas (rna_code, name)
   values (:code, coalesce(nullif(:name,''), :code))
   on conflict (rna_code) do nothing
-  returning id_uuid
+  returning id
 )
-select id_uuid from ins
+select id from ins
 union all
-select id_uuid from public.rnas where rna_code = :code
+select id from public.rnas where rna_code = :code
 limit 1
 """)
 
