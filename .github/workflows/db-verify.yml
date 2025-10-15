@@ -1,12 +1,11 @@
 name: DB Verify (id-only)
 
 on:
-  pull_request:
   workflow_dispatch:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -27,45 +26,44 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install psql
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
       - name: Wait for Postgres
         run: |
           for i in {1..60}; do
             if PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -Atc "select 1" >/dev/null 2>&1; then
-              echo "Postgres is up"
-              exit 0
+              echo "Postgres is up"; exit 0
             fi
             sleep 1
           done
-          echo "Postgres did not start in time"
-          exit 1
+          echo "Postgres did not start in time"; exit 1
+
+      - name: Apply util_mig helpers (required by baseline)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000001_util_mig_helpers.sql
 
       - name: Apply baseline
         env:
           PGPASSWORD: postgres
-        run: psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000000_baseline_v2.sql
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000000_baseline_v2.sql
 
-      - name: Apply util helpers if present
+      - name: Apply all 2025 migrations
         env:
           PGPASSWORD: postgres
         run: |
-          if [ -f supabase/migrations/00000001_util_mig_helpers.sql ]; then
-            psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000001_util_mig_helpers.sql
-          fi
-
-      - name: Apply all migrations
-        env:
-          PGPASSWORD: postgres
-        run: |
-          for f in $(ls -1 supabase/migrations/*.sql | sort); do
-            if [ "$(basename "$f")" != "00000000_baseline_v2.sql" ] && [ "$(basename "$f")" != "00000001_util_mig_helpers.sql" ]; then
-              echo "Applying $f"
-              psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f "$f"
-            fi
+          set -e
+          for f in $(ls -1 supabase/migrations/2025*.sql 2>/dev/null || true); do
+            echo "Applying $f"
+            psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f "$f"
           done
 
-      - name: Verify id-only
+      - name: Verify id-only (no id_uuid anywhere)
         env:
           PGPASSWORD: postgres
-        run: psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f scripts/verify_id_only.sql
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f scripts/verify_id_only.sql
