@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from carp_app.lib.db import get_engine, text
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp

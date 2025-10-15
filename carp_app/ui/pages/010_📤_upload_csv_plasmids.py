@@ -16,7 +16,7 @@ import io, os
 from typing import List, Dict, Any
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from carp_app.lib.db import get_engine, text
 
 # 🔒 Optional unlock
 try:

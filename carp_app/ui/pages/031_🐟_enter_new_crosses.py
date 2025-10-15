@@ -15,7 +15,7 @@ import os
 from typing import Any, Dict, List
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from carp_app.lib.db import get_engine, text
 
 # =================================
 # Page config

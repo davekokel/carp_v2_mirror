@@ -10,7 +10,7 @@ import os, sys
 from pathlib import Path
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from carp_app.lib.db import get_engine, text
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:

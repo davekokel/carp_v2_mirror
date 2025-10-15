@@ -13,7 +13,7 @@ import datetime as dt
 import io
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from carp_app.lib.db import get_engine, text
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib import colors

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from carp_app.ui.auth_gate import require_auth
-from carp_app.lib.config import engine as get_engine, DB_URL
+from carp_app.lib.db import get_engine
+from carp_app.lib.secret import db_url as DB_URL
 sb, session, user = require_auth()
 
 from carp_app.ui.email_otp_gate import require_email_otp
@@ -25,10 +26,12 @@ except Exception:
 st.set_page_config(page_title="CARP — Welcome", page_icon="👋", layout="wide")
 
 from carp_app.ui.lib.env_badge import show_env_badge
+from carp_app.lib.secret import env_info
 from carp_app.lib.config import DB_URL, AUTH_MODE, env_name
 
 st.title("👋 Welcome to CARP")
 show_env_badge()
+_env,_proj,_host,_mode = env_info()
 import os, streamlit as st
 from carp_app.lib import secret
 # st.caption('RAW_DB_URL: ' + os.getenv('DB_URL','(missing)'))
@@ -52,8 +55,8 @@ mode = os.getenv("APP_MODE") or ("readonly" if _pguser.endswith("_ro") else "wri
 
 c1, c2, c3 = st.columns(3)
 with c1: st.metric("Environment", env_name)
-with c2: st.metric("Mode", mode)
-with c3: st.metric("Database host", (_pghost.split(".supabase.co")[0] + ".supabase.co") if _pghost else "—")
+with c2: st.metric("Mode", _mode)
+with c3: st.metric("Database host", _host if _host else "—")
 
 st.divider()
 

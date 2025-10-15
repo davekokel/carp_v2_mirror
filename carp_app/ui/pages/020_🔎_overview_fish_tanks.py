@@ -15,7 +15,7 @@ from typing import List
 import os
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from carp_app.lib.db import get_engine, text
 
 try:
     from carp_app.ui.auth_gate import require_app_unlock
@@ -266,7 +266,7 @@ if __name__ == "__main__":
 # --- CARP override: use DB_URL for SQLAlchemy engine ---
 import os as _carp_os
 import streamlit as _st
-from sqlalchemy import create_engine as _carp_create_engine
+from carp_app.lib.db import get_engine as _carp_create_engine
 
 @_st.cache_resource(show_spinner=False)
 def _carp_cached_engine():

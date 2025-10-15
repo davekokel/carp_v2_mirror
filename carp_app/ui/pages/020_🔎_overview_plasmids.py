@@ -16,7 +16,7 @@ import os, shlex
 from typing import List, Dict, Any
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from carp_app.lib.db import get_engine, text
 
 # ---- page config FIRST ----
 st.set_page_config(page_title="CARP — Plasmids Overview", page_icon="🧪", layout="wide")

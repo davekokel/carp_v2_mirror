@@ -5,7 +5,7 @@ from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
 import streamlit as st
-from sqlalchemy import create_engine, text
+from carp_app.lib.db import get_engine, text
 st.title("🩺 Health Checks")
 
 ENGINE = get_engine()

@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import List, Optional, Dict
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
+from carp_app.lib.db import get_engine, text
 
 st.set_page_config(page_title="Manage Tank Status", page_icon="🧯")
 st.title("🧯 Manage Tank Status")
