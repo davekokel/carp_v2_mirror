@@ -494,9 +494,13 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: cross_plans uq_cross_plans_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plans
-    ADD CONSTRAINT uq_cross_plans_unique UNIQUE (plan_date, tank_a_id, tank_b_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_cross_plans_unique') THEN
+    ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT uq_cross_plans_unique UNIQUE (plan_date, tank_a_id, tank_b_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
