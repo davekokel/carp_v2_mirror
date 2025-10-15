@@ -6,7 +6,7 @@ alter table public.clutch_instances
 
 do $$
 begin
-  if not exists (select 1 from pg_policies where polrelid='public.clutch_instances'::regclass) then
+  if not exists (select 1 from pg_policy where polrelid='public.clutch_instances'::regclass) then
     execute 'alter table public.clutch_instances enable row level security';
     execute 'create policy app_rw_select_ci on public.clutch_instances for select to app_rw using (true)';
     execute 'create policy app_rw_update_ci on public.clutch_instances for update to app_rw using (true) with check (true)';
