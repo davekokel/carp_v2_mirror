@@ -1228,7 +1228,7 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: uq_clutch_plans_clutch_code; Type: INDEX; Schema: public; Owner: postgres
 --
-DO 24515
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_clutch_plans_clutch_code' AND relkind='i') THEN
 DO $$
@@ -1242,13 +1242,13 @@ END;
 $$ LANGUAGE plpgsql;
   END IF;
 END;
-24515 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: uq_clutches_instance_code; Type: INDEX; Schema: public; Owner: postgres
 --
-DO 24515
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_clutches_instance_code' AND relkind='i') THEN
 DO $$
@@ -1262,13 +1262,13 @@ END;
 $$ LANGUAGE plpgsql;
   END IF;
 END;
-24515 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: uq_clutches_planned_by_date; Type: INDEX; Schema: public; Owner: postgres
 --
-DO 24515
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_clutches_planned_by_date' AND relkind='i') THEN
 DO $$
@@ -1282,13 +1282,13 @@ END;
 $$ LANGUAGE plpgsql;
   END IF;
 END;
-24515 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: uq_crosses_concept_pair; Type: INDEX; Schema: public; Owner: postgres
 --
-DO 24515
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_crosses_concept_pair' AND relkind='i') THEN
 DO $$
@@ -1302,13 +1302,13 @@ END;
 $$ LANGUAGE plpgsql;
   END IF;
 END;
-24515 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: uq_crosses_cross_code; Type: INDEX; Schema: public; Owner: postgres
 --
-DO 24515
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_crosses_cross_code' AND relkind='i') THEN
 DO $$
@@ -1322,13 +1322,13 @@ END;
 $$ LANGUAGE plpgsql;
   END IF;
 END;
-24515 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: uq_planned_crosses_clutch_parents_canonical; Type: INDEX; Schema: public; Owner: postgres
 --
-DO 24515
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_planned_crosses_clutch_parents_canonical' AND relkind='i') THEN
 DO $$
@@ -1342,13 +1342,13 @@ END;
 $$ LANGUAGE plpgsql;
   END IF;
 END;
-24515 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: uq_planned_crosses_cross_code; Type: INDEX; Schema: public; Owner: postgres
 --
-DO 24515
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_planned_crosses_cross_code' AND relkind='i') THEN
 DO $$
@@ -1362,7 +1362,7 @@ END;
 $$ LANGUAGE plpgsql;
   END IF;
 END;
-24515 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 --
