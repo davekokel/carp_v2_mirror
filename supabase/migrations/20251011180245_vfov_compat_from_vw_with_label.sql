@@ -4,7 +4,7 @@ select
   v.fish_code,
   coalesce(v.name, '')                        as name,
   coalesce(v.nickname, '')                         as nickname,
-  coalesce(coalesce(v.transgene_pretty, v.genotype_pretty, ''),
+  coalesce(coalesce('', '', ''),
            v.transgene_pretty_nickname,
            v.allele_name_filled,
            v.allele_code_filled,
