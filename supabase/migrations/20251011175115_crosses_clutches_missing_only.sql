@@ -26,7 +26,7 @@ SET default_table_access_method = heap;
 -- Name: cross_plans; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.cross_plans (
+CREATE TABLE IF NOT EXISTS public.cross_plans (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     plan_date date NOT NULL,
     tank_a_id uuid,
