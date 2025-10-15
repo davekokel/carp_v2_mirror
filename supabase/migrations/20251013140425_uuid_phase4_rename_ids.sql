@@ -1,9 +1,19 @@
 begin;
 
 -- clutch_instances: id_uuid -> id, and PK name to standard
-alter table public.clutch_instances
-  rename column id_uuid to id;
-
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='clutch_instances' AND column_name='id_uuid'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='clutch_instances' AND column_name='id'
+  ) THEN
+    EXECUTE 'ALTER TABLE public.clutch_instances RENAME COLUMN id_uuid TO id';
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 alter table public.clutch_instances
   rename constraint clutch_instances_pkey_uuid to clutch_instances_pkey;
 
