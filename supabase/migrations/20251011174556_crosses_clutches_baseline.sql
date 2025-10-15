@@ -47,7 +47,7 @@ ALTER SCHEMA staging OWNER TO postgres;
 -- Name: util_mig; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
-CREATE SCHEMA util_mig;
+CREATE SCHEMA IF NOT EXISTS util_mig;
 
 
 ALTER SCHEMA util_mig OWNER TO postgres;
