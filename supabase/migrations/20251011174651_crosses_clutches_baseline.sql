@@ -639,8 +639,16 @@ ALTER VIEW public.vw_planned_clutches_overview OWNER TO postgres;
 -- Name: clutch_containers clutch_containers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.clutch_containers
-    ADD CONSTRAINT clutch_containers_pkey PRIMARY KEY (container_id);
+
+DO 24099
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_containers'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.clutch_containers ADD CONSTRAINT clutch_containers_pkey PRIMARY KEY (container_id);
+  END IF;
+END;
+24099 LANGUAGE plpgsql;
 
 
 --
