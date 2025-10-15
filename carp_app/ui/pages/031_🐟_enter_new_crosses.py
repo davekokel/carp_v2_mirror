@@ -70,7 +70,7 @@ def _get_or_create_cross_and_set_nickname(mom_code: str, dad_code: str, created_
         # Try to find existing concept (case-insensitive on codes)
         row = cx.execute(
             text("""
-              SELECT id_uuid::text, COALESCE(cross_code, id_uuid::text)
+              SELECT id::text, COALESCE(cross_code, id::text)
               FROM public.crosses
               WHERE upper(trim(mother_code)) = upper(trim(:m))
                 AND upper(trim(father_code)) = upper(trim(:d))
@@ -82,7 +82,7 @@ def _get_or_create_cross_and_set_nickname(mom_code: str, dad_code: str, created_
         if row:
             cross_id, cross_code = row[0], row[1]
             cx.execute(
-                text("UPDATE public.crosses SET cross_nickname = :nick WHERE id_uuid = :id"),
+                text("UPDATE public.crosses SET cross_nickname = :nick WHERE id = :id"),
                 {"nick": wanted_nick, "id": cross_id},
             )
         else:
@@ -90,7 +90,7 @@ def _get_or_create_cross_and_set_nickname(mom_code: str, dad_code: str, created_
                 text("""
                   INSERT INTO public.crosses (mother_code, father_code, created_by, cross_nickname)
                   VALUES (:m, :d, :by, :nick)
-                  RETURNING id_uuid::text, COALESCE(cross_code, id_uuid::text)
+                  RETURNING id::text, COALESCE(cross_code, id::text)
                 """),
                 {"m": mom_code, "d": dad_code, "by": created_by, "nick": wanted_nick},
             ).one()
@@ -120,8 +120,8 @@ def _load_planned_clutches(q: str, limit: int) -> pd.DataFrame:
         group by clutch_id
       )
       select
-        p.id_uuid::text                          as clutch_id,
-        coalesce(p.clutch_code, p.id_uuid::text) as clutch_code,
+        p.id::text                          as clutch_id,
+        coalesce(p.clutch_code, p.id::text) as clutch_code,
         coalesce(p.planned_name,'')              as name,
         coalesce(p.planned_nickname,'')          as nickname,
         p.mom_code,
@@ -130,7 +130,7 @@ def _load_planned_clutches(q: str, limit: int) -> pd.DataFrame:
         p.created_by,
         p.created_at
       from public.clutch_plans p
-      left join tx_counts t on t.clutch_id = p.id_uuid
+      left join tx_counts t on t.clutch_id = p.id
       where (
         :q = '' OR
         p.clutch_code ILIKE :q_like OR
@@ -195,7 +195,7 @@ with _get_engine().begin() as cx:
         coalesce(c.status,'')  as tank_status
       from public.fish f
       join public.fish_tank_memberships m on m.fish_id = f.id and m.left_at is null
-      join public.containers c on c.id_uuid = m.container_id
+      join public.containers c on c.id = m.container_id
       where c.container_type in ('inventory_tank','holding_tank','nursery_tank')
         and c.status = any(:live_statuses)
       order by f.fish_code, c.label
@@ -228,8 +228,8 @@ for _, r in picked.iterrows():
                 cf.label as father_tank, coalesce(cf.status,'') as father_status,
                 pc.created_at
               from public.planned_crosses pc
-              left join public.containers cm on cm.id_uuid = pc.mother_tank_id
-              left join public.containers cf on cf.id_uuid = pc.father_tank_id
+              left join public.containers cm on cm.id = pc.mother_tank_id
+              left join public.containers cf on cf.id = pc.father_tank_id
               where pc.clutch_id = :clutch_id
                 and (coalesce(cm.status,'') = any(:live_statuses)
                      or coalesce(cf.status,'') = any(:live_statuses))
@@ -319,12 +319,12 @@ if save_btn:
                 (clutch_id, mom_code, dad_code, mother_tank_id, father_tank_id, note, created_by)
               values
                 (:clutch_id, :mom, :dad, :m_id, :f_id, :note, :by)
-              returning id_uuid
+              returning id
             """)
             link_back = text("""
               update public.planned_crosses
               set cross_id = :cross_id, cross_code = :cross_code
-              where id_uuid = :planned_id
+              where id = :planned_id
             """)
 
             for a in assignments:
@@ -372,7 +372,7 @@ if save_btn:
 with _get_engine().begin() as cx:
     df_recent = pd.read_sql(text("""
       select
-        coalesce(pc.cross_code, pc.id_uuid::text) as cross_code,
+        coalesce(pc.cross_code, pc.id::text) as cross_code,
         cp.clutch_code,
         cp.planned_name,
         pc.mom_code,
@@ -381,9 +381,9 @@ with _get_engine().begin() as cx:
         cf.label as father_tank,
         pc.created_at
       from public.planned_crosses pc
-      join public.clutch_plans cp on cp.id_uuid = pc.clutch_id
-      left join public.containers cm on cm.id_uuid = pc.mother_tank_id
-      left join public.containers cf on cf.id_uuid = pc.father_tank_id
+      join public.clutch_plans cp on cp.id = pc.clutch_id
+      left join public.containers cm on cm.id = pc.mother_tank_id
+      left join public.containers cf on cf.id = pc.father_tank_id
       order by pc.created_at desc
       limit 100
     """), cx)

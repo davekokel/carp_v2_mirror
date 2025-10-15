@@ -64,7 +64,7 @@ def _load_standard_for_codes(codes: List[str]) -> pd.DataFrame:
       live_counts as (
         select m.fish_id, count(*)::int as n_living_tanks
         from public.fish_tank_memberships m
-        join public.containers c on c.id_uuid = m.container_id
+        join public.containers c on c.id = m.container_id
         where m.left_at is null
           and c.status in ('active','new_tank')
           and m.fish_id in (select id from wanted)
@@ -115,7 +115,7 @@ def _load_tanks_for_codes(codes: List[str]) -> pd.DataFrame:
     base_sql = """
       select
         f.fish_code,
-        c.id_uuid::text            as container_id,
+        c.id::text            as container_id,
         coalesce(c.label,'')       as label,
         coalesce(c.status,'')      as status,
         c.container_type,
@@ -129,7 +129,7 @@ def _load_tanks_for_codes(codes: List[str]) -> pd.DataFrame:
         on m.fish_id = f.id
        and m.left_at is null
       join public.containers c
-        on c.id_uuid = m.container_id
+        on c.id = m.container_id
       where f.fish_code = ANY(:codes)
       order by f.fish_code, c.created_at
     """

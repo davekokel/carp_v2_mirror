@@ -409,7 +409,7 @@ def _plasmids_sql(q: str) -> tuple[str, Dict[str, Any]]:
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     sql = f"""
       select
-        v.id_uuid,
+        v.id,
         v.code,
         v.name,
         v.nickname,
@@ -448,14 +448,14 @@ def _rnas_sql(q: str) -> tuple[str, Dict[str, Any]]:
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     sql = f"""
       select
-        r.id_uuid,
+        r.id,
         r.code,
         r.name,
         p.code   as source_plasmid_code,
         r.created_by,
         r.created_at
       from public.rnas r
-      left join public.plasmids p on p.id_uuid = r.source_plasmid_id
+      left join public.plasmids p on p.id = r.source_plasmid_id
       {where_sql}
       order by r.code
       limit 1000
@@ -719,7 +719,7 @@ else:
             (mom_code, dad_code, cross_date, note, created_by, planned_name, planned_nickname)
           values
             (:mom, :dad, :xdate, :note, :by, :pname, :pnick)
-          returning id_uuid
+          returning id
         """)
 
         cid = None
@@ -752,7 +752,7 @@ else:
         st.session_state["last_clutch_plan_id"] = str(cid)
         with _get_engine().begin() as cx:
             row = cx.execute(
-                text("select clutch_code, planned_name from public.clutch_plans where id_uuid = :cid"),
+                text("select clutch_code, planned_name from public.clutch_plans where id = :cid"),
                 {"cid": cid}
             ).mappings().first()
         if row:
@@ -768,7 +768,7 @@ else:
             group by clutch_id
           )
           select
-            coalesce(p.clutch_code, p.id_uuid::text) as clutch_code,
+            coalesce(p.clutch_code, p.id::text) as clutch_code,
             coalesce(p.planned_name,'')              as name,
             coalesce(p.planned_nickname,'')          as nickname,
             p.mom_code,
@@ -777,7 +777,7 @@ else:
             p.created_by,
             p.created_at
           from public.clutch_plans p
-          left join tx_counts t on t.clutch_id = p.id_uuid
+          left join tx_counts t on t.clutch_id = p.id
           order by p.created_at desc
           limit 100
         """), cx)

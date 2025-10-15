@@ -37,8 +37,8 @@ if "supabase" in sys.modules:
 from supabase import create_client
 sys.path.insert(0, str(ROOT))
 
-_SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-_SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+_SUPABASE_URL = (st.secrets.get('SUPABASE_URL') or os.getenv('SUPABASE_URL',''))
+_SUPABASE_ANON_KEY = (st.secrets.get('SUPABASE_ANON_KEY') or os.getenv('SUPABASE_ANON_KEY',''))
 
 @st.cache_resource(show_spinner=False)
 def _client():

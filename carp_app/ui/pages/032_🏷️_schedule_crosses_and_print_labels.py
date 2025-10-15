@@ -304,39 +304,39 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
       SELECT f.fish_code, COUNT(*)::int AS n_live
       FROM public.fish f
       JOIN public.fish_tank_memberships m ON m.fish_id = f.id AND m.left_at IS NULL
-      JOIN public.containers c           ON c.id_uuid = m.container_id
+      JOIN public.containers c           ON c.id = m.container_id
       WHERE c.status = ANY(:live_statuses) AND c.container_type = ANY(:tank_types)
       GROUP BY f.fish_code
     ),
     pc_with_tanks AS (
       SELECT
-        x.id_uuid            AS cross_id,
-        pc.id_uuid           AS planned_cross_id,
+        x.id            AS cross_id,
+        pc.id           AS planned_cross_id,
         pc.clutch_id         AS clutch_plan_id,
         pc.mother_tank_id, pc.father_tank_id,
         ROW_NUMBER() OVER (
-          PARTITION BY x.id_uuid
+          PARTITION BY x.id
           ORDER BY COALESCE(pc.cross_date::timestamp, pc.created_at) DESC NULLS LAST
         ) AS rn
       FROM public.crosses x
       LEFT JOIN public.planned_crosses pc
-        ON pc.cross_id = x.id_uuid
+        ON pc.cross_id = x.id
        AND pc.mother_tank_id IS NOT NULL
        AND pc.father_tank_id IS NOT NULL
     ),
     picked_pc AS ( SELECT * FROM pc_with_tanks WHERE rn = 1 ),
     fallback_pc AS (
       SELECT
-        x.id_uuid            AS cross_id,
-        pc.id_uuid           AS planned_cross_id,
+        x.id            AS cross_id,
+        pc.id           AS planned_cross_id,
         pc.clutch_id         AS clutch_plan_id,
         pc.mother_tank_id, pc.father_tank_id,
         ROW_NUMBER() OVER (
-          PARTITION BY x.id_uuid
+          PARTITION BY x.id
           ORDER BY COALESCE(pc.cross_date::timestamp, pc.created_at) DESC NULLS LAST
         ) AS rn
       FROM public.crosses x
-      LEFT JOIN public.planned_crosses pc ON pc.cross_id = x.id_uuid
+      LEFT JOIN public.planned_crosses pc ON pc.cross_id = x.id
     ),
     picked_any AS ( SELECT * FROM fallback_pc WHERE rn = 1 ),
     picked AS (
@@ -365,13 +365,13 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
       v.n_clutches AS clutches,
       v.n_containers AS containers
     FROM public.vw_crosses_concept v
-    JOIN public.crosses x     ON x.id_uuid = v.cross_id
+    JOIN public.crosses x     ON x.id = v.cross_id
     LEFT JOIN live_by_fish lm ON lm.fish_code = v.mom_code
     LEFT JOIN live_by_fish ld ON ld.fish_code = v.dad_code
     LEFT JOIN picked p        ON p.cross_id   = v.cross_id
-    LEFT JOIN public.clutch_plans cp ON cp.id_uuid = p.clutch_plan_id
-    LEFT JOIN public.containers  cm ON cm.id_uuid = p.mother_tank_id
-    LEFT JOIN public.containers  cf ON cf.id_uuid = p.father_tank_id
+    LEFT JOIN public.clutch_plans cp ON cp.id = p.clutch_plan_id
+    LEFT JOIN public.containers  cm ON cm.id = p.mother_tank_id
+    LEFT JOIN public.containers  cf ON cf.id = p.father_tank_id
     WHERE (lm.n_live > 0 AND ld.n_live > 0)
       AND (v.created_at::date BETWEEN :d1 AND :d2 OR v.latest_cross_date BETWEEN :d1 AND :d2)
       AND (:by = '' OR v.created_by ILIKE :byl)
@@ -397,7 +397,7 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
 
 def _lookup_cross_id(cross_code: str) -> str:
     with _get_engine().begin() as cx:
-        row = cx.execute(text("select id_uuid::text from public.crosses where cross_code = :c limit 1"),
+        row = cx.execute(text("select id::text from public.crosses where cross_code = :c limit 1"),
                          {"c": cross_code}).fetchone()
     if not row:
         raise RuntimeError(f"cross_id not found for code {cross_code}")
@@ -414,7 +414,7 @@ def _schedule_instance(cross_code: str, mom_code: str, dad_code: str, run_date: 
         ci_id, ci_code = cx.execute(
             text("""insert into public.cross_instances (cross_id, cross_date, note, created_by)
                     values (:cross_id, :d, :note, :by)
-                    returning id_uuid::text, cross_run_code"""),
+                    returning id::text, cross_run_code"""),
             {"cross_id": cross_id, "d": run_date, "note": None, "by": created_by},
         ).one()
 
@@ -423,7 +423,7 @@ def _schedule_instance(cross_code: str, mom_code: str, dad_code: str, run_date: 
         clutch_id = cx.execute(
             text("""insert into public.clutches (cross_id, cross_instance_id, date_birth, created_by)
                     values (:cross_id, :ci, :dob, :by)
-                    returning id_uuid::text"""),
+                    returning id::text"""),
             {"cross_id": cross_id, "ci": ci_id, "dob": dob, "by": created_by},
         ).scalar()
 
@@ -432,7 +432,7 @@ def _schedule_instance(cross_code: str, mom_code: str, dad_code: str, run_date: 
         container_id = cx.execute(
             text("""insert into public.containers (container_type, status, label, created_by)
                     values ('petri_dish', 'new_tank', :label, :by)
-                    returning id_uuid::text"""),
+                    returning id::text"""),
             {"label": petri_label, "by": created_by},
         ).scalar()
 
@@ -458,7 +458,7 @@ def _fetch_labels_for_instances(inst_codes: List[str]) -> tuple[pd.DataFrame, pd
         return pd.DataFrame(), pd.DataFrame()
 
     use_ci_code = _has_column("public", "clutches", "clutch_instance_code")
-    clutch_code_expr = "cl.clutch_instance_code" if use_ci_code else "left(cl.id_uuid::text, 8)"
+    clutch_code_expr = "cl.clutch_instance_code" if use_ci_code else "left(cl.id::text, 8)"
 
     sql = text(f"""
       with x as (
@@ -473,10 +473,10 @@ def _fetch_labels_for_instances(inst_codes: List[str]) -> tuple[pd.DataFrame, pd
           {clutch_code_expr} as clutch_instance_code,
           cl.date_birth
         from public.cross_instances ci
-        join public.crosses x  on x.id_uuid = ci.cross_id
-        left join public.planned_crosses pc on pc.cross_id = x.id_uuid
-        left join public.clutch_plans   cp on cp.id_uuid = pc.clutch_id
-        left join public.clutches       cl on cl.cross_instance_id = ci.id_uuid
+        join public.crosses x  on x.id = ci.cross_id
+        left join public.planned_crosses pc on pc.cross_id = x.id
+        left join public.clutch_plans   cp on cp.id = pc.clutch_id
+        left join public.clutches       cl on cl.cross_instance_id = ci.id
         where ci.cross_run_code = any(:codes)
       )
       select
@@ -492,8 +492,8 @@ def _fetch_labels_for_instances(inst_codes: List[str]) -> tuple[pd.DataFrame, pd
         cm.tank_code as mother_tank_code,
         cf.tank_code as father_tank_code
       from x
-      left join public.containers cm on cm.id_uuid = x.mother_tank_id
-      left join public.containers cf on cf.id_uuid = x.father_tank_id
+      left join public.containers cm on cm.id = x.mother_tank_id
+      left join public.containers cf on cf.id = x.father_tank_id
       order by x.cross_date, x.cross_run_code
     """)
 

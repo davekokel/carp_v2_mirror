@@ -92,7 +92,7 @@ def _build_query(q: str, supports_only: bool) -> tuple[str, Dict[str, Any]]:
 
     sql = f"""
       select
-        v.id_uuid,
+        v.id,
         v.code,
         v.name,
         v.nickname,

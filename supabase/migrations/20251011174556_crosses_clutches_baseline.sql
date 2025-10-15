@@ -37,7 +37,7 @@ COMMENT ON SCHEMA public IS '';
 -- Name: staging; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
-CREATE SCHEMA staging;
+CREATE SCHEMA IF NOT EXISTS staging;
 
 
 ALTER SCHEMA staging OWNER TO postgres;

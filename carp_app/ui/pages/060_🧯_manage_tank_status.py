@@ -46,13 +46,13 @@ def _load_tanks(container_types: List[str], statuses: List[str], q: str) -> pd.D
           and (
             coalesce(label,'') ilike :qq
             or coalesce(tank_code,'') ilike :qq
-            or id_uuid::text ilike :qq
+            or id::text ilike :qq
           )
         """
         params["qq"] = f"%{q.strip()}%"
     sql = f"""
       select
-        id_uuid as id,
+        id as id,
         coalesce(label,'') as label,
         tank_code,
         container_type,
@@ -108,7 +108,7 @@ def _touch_last_seen(container_id: str, source: str, also_activate: bool, by: st
               update public.containers
               set last_seen_at = now(),
                   last_seen_source = :src
-              where id_uuid = :id
+              where id = :id
             """),
             dict(id=container_id, src=source or "manual"),
         )
@@ -141,7 +141,7 @@ def _bulk_touch_last_seen(ids: List[str], source: str, also_activate: bool, by: 
                 update public.containers
                    set last_seen_at = now(),
                        last_seen_source = :src
-                 where id_uuid = any(CAST(:ids as uuid[]))
+                 where id = any(CAST(:ids as uuid[]))
             """),
             dict(ids=ids, src=(source or "manual")),
         )
