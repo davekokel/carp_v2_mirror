@@ -1231,16 +1231,12 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_clutch_plans_clutch_code' AND relkind='i') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (
+IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_clutch_plans_clutch_code' AND relkind = 'i'
   ) THEN
     CREATE UNIQUE INDEX uq_clutch_plans_clutch_code ON public.clutch_plans USING btree (clutch_code);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1251,16 +1247,12 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_clutches_instance_code' AND relkind='i') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (
+IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_clutches_instance_code' AND relkind = 'i'
   ) THEN
     CREATE UNIQUE INDEX uq_clutches_instance_code ON public.clutches USING btree (clutch_instance_code) WHERE (clutch_instance_code IS NOT NULL);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1271,16 +1263,12 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_clutches_planned_by_date' AND relkind='i') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (
+IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_clutches_planned_by_date' AND relkind = 'i'
   ) THEN
     CREATE UNIQUE INDEX uq_clutches_planned_by_date ON public.clutches USING btree (planned_cross_id, date_birth);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1291,16 +1279,12 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_crosses_concept_pair' AND relkind='i') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (
+IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_crosses_concept_pair' AND relkind = 'i'
   ) THEN
     CREATE UNIQUE INDEX uq_crosses_concept_pair ON public.crosses USING btree (upper(TRIM(BOTH FROM mother_code)), upper(TRIM(BOTH FROM father_code)));
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1311,16 +1295,12 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_crosses_cross_code' AND relkind='i') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (
+IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_crosses_cross_code' AND relkind = 'i'
   ) THEN
     CREATE UNIQUE INDEX uq_crosses_cross_code ON public.crosses USING btree (cross_code) WHERE (cross_code IS NOT NULL);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1331,16 +1311,12 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_planned_crosses_clutch_parents_canonical' AND relkind='i') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (
+IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_planned_crosses_clutch_parents_canonical' AND relkind = 'i'
   ) THEN
     CREATE UNIQUE INDEX uq_planned_crosses_clutch_parents_canonical ON public.planned_crosses USING btree (clutch_id, mother_tank_id, father_tank_id) WHERE ((is_canonical = true) AND (mother_tank_id IS NOT NULL) AND (father_tank_id IS NOT NULL));
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1351,16 +1327,12 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='uq_planned_crosses_cross_code' AND relkind='i') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (
+IF NOT EXISTS (
     SELECT 1 FROM pg_class WHERE relname = 'uq_planned_crosses_cross_code' AND relkind = 'i'
   ) THEN
     CREATE UNIQUE INDEX uq_planned_crosses_cross_code ON public.planned_crosses USING btree (cross_code) WHERE (cross_code IS NOT NULL);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
