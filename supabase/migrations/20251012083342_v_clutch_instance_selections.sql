@@ -1,7 +1,7 @@
 -- Alias view for readability: selections made on a run (distinct rows)
 create or replace view public.v_clutch_instance_selections as
 select
-  id_uuid              as selection_id,
+  id                  as selection_id,
   cross_instance_id,
   created_at           as selection_created_at,
   annotated_at         as selection_annotated_at,
