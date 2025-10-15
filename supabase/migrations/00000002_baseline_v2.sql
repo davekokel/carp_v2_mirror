@@ -761,7 +761,7 @@ $$;
 -- Name: safe_drop_view(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.safe_drop_view(_schema text, _name text) RETURNS void
+CREATE OR REPLACE FUNCTION public.safe_drop_view(_schema text, _name text) RETURNS void
     LANGUAGE plpgsql
     AS $$
 BEGIN
