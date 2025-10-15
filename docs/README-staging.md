@@ -19,7 +19,7 @@ psql "$DB_URL" -Atc "select now(), current_user, current_database();"
 ## 3) Run UI
 ```bash
 export PYTHONPATH=$PWD/supabase/ui:$PYTHONPATH
-python -m streamlit run supabase/ui/streamlit_app.py
+python -m streamlit run carp_app/ui/streamlit_app.py
 ```
 
 Keep real passwords out of Git. Share DSNs privately (1Password/Slack DM).

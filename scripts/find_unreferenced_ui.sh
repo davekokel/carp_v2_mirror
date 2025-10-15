@@ -3,7 +3,7 @@ set -euo pipefail
 
 search_scopes=(
   "supabase/ui/pages"
-  "supabase/ui/streamlit_app.py"
+  "carp_app/ui/streamlit_app.py"
   "supabase/ui/auth_gate.py"
   "supabase/ui/lib_shared.py"
 )
@@ -12,8 +12,8 @@ echo -e "status\thits\tpath\texample"
 
 scan_file() {
   local f="$1"; local stem="${f##*/}"; stem="${stem%.py}"
-  local mod_comp="supabase.ui.components.${stem}"
-  local mod_lib="supabase.ui.lib.${stem}"
+  local mod_comp="carp_app.ui.components.${stem}"
+  local mod_lib="carp_app.ui.lib.${stem}"
 
   # search only in UI pages + a few entry files, exclude the file itself
   local hits

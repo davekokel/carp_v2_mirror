@@ -10,7 +10,7 @@ app-local:
 	python3 -m venv .venv 2>/dev/null || true; . .venv/bin/activate; \
 	pip install -r supabase/ui/requirements.txt >/dev/null; \
 	mkdir -p .streamlit; printf 'APP_LOCKED = false\n' > .streamlit/secrets.toml; \
-	streamlit run supabase/ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+	streamlit run carp_app/ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
 
 .PHONY: cleanseed-local baseline-local
 

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from supabase.ui.auth_gate import require_auth
+from carp_app.ui.auth_gate import require_auth
 sb, session, user = require_auth()
 
 
@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 try:
-    from supabase.ui.auth_gate import require_app_unlock
+    from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
 require_app_unlock()
@@ -24,7 +24,7 @@ if APP_ENV != "local":
 
 st.set_page_config(page_title="CARP — DB Ping (minimal)", page_icon="🩺")
 st.title("🩺 DB Ping — minimal")
-from supabase.ui.lib.prod_banner import show_prod_banner
+from carp_app.ui.lib.prod_banner import show_prod_banner
 show_prod_banner()
 
 if APP_ENV != "local":
@@ -41,7 +41,7 @@ env_line  = f"PG env → host={os.getenv('PGHOST','')}  port={os.getenv('PGPORT'
 urls_line = f"resolved DB_URL → {os.environ.get('DB_URL','<none>')!r}    session DB_URL → {st.session_state.get('DB_URL','<none>')!r}"
 st.text(env_line + "\n" + urls_line)
 
-from supabase.ui.lib import app_ctx as app_ctx
+from carp_app.ui.lib import app_ctx as app_ctx
 
 c1, c2, c3 = st.columns(3)
 with c1:

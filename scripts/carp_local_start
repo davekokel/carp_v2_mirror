@@ -42,6 +42,6 @@ fi
 
 echo "🔒 DB_URL => $DB_URL"
 echo "🚀 Starting Streamlit on :$PORT (python: $PY)"
-exec "$PY" -m streamlit run "$ROOT/supabase/ui/streamlit_app.py" \
+exec "$PY" -m streamlit run "$ROOT/carp_app/ui/streamlit_app.py" \
   --server.port "$PORT" \
   --server.address 0.0.0.0

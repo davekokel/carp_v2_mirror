@@ -1,8 +1,8 @@
 from __future__ import annotations
-from supabase.ui.auth_gate import require_auth
+from carp_app.ui.auth_gate import require_auth
 sb, session, user = require_auth()
 
-from supabase.ui.email_otp_gate import require_email_otp
+from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
 from pathlib import Path
@@ -20,7 +20,7 @@ import streamlit as st
 from sqlalchemy import create_engine, text
 
 try:
-    from supabase.ui.auth_gate import require_app_unlock
+    from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     from auth_gate import require_app_unlock
 require_app_unlock()

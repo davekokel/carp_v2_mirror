@@ -5,5 +5,5 @@ exec env -i PATH="$PATH" HOME="$HOME" bash -lc '
   set -a
   . ./.env.prod.direct
   set +a
-  exec .venv/bin/streamlit run supabase/ui/streamlit_app.py
+  exec .venv/bin/streamlit run carp_app/ui/streamlit_app.py
 '

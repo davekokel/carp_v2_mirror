@@ -1,8 +1,8 @@
 from __future__ import annotations
-from supabase.ui.auth_gate import require_auth
+from carp_app.ui.auth_gate import require_auth
 sb, session, user = require_auth()
 
-from supabase.ui.email_otp_gate import require_email_otp
+from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
 import os, sys
@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 
 # Prod/staging banner (if available)
 try:
-    from supabase.ui.lib.prod_banner import show_prod_banner
+    from carp_app.ui.lib.prod_banner import show_prod_banner
     show_prod_banner()
 except Exception:
     pass

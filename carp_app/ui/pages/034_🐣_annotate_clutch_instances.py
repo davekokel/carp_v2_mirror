@@ -1,8 +1,8 @@
 from __future__ import annotations
-from supabase.ui.auth_gate import require_auth
+from carp_app.ui.auth_gate import require_auth
 sb, session, user = require_auth()
 
-from supabase.ui.email_otp_gate import require_email_otp
+from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
 import os, sys, re
@@ -41,7 +41,7 @@ except Exception:
 
 # (Optional) stamp app user into server-side session key app.user
 try:
-    from supabase.ui.lib.app_ctx import stamp_app_user
+    from carp_app.ui.lib.app_ctx import stamp_app_user
     who_ui = getattr(st.experimental_user, "email", "") if hasattr(st, "experimental_user") else ""
     if who_ui:
         user = who_ui  # prefer email if available

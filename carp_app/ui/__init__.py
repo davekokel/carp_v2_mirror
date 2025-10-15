@@ -1,2 +1,1 @@
-from __future__ import annotations
-from supabase.ui import *  # re-export
+from carp_app.ui import *

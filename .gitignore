@@ -30,3 +30,12 @@ _trufflehog_local.json
 supabase/migrations/_archive/*.bak.sql
 
 *.bak
+
+# snapshots hygiene
+snapshots/*_data_*.sql
+
+*.bak*
+
+*.bak*
+
+*.bak*

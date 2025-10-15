@@ -1,5 +1,5 @@
 from __future__ import annotations
-from supabase.ui.email_otp_gate import require_email_otp
+from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
 import streamlit as st

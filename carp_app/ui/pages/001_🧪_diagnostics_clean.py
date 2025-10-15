@@ -1,8 +1,8 @@
 from __future__ import annotations
-from supabase.ui.auth_gate import require_auth
+from carp_app.ui.auth_gate import require_auth
 sb, session, user = require_auth()
 
-from supabase.ui.email_otp_gate import require_email_otp
+from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
 import os, sys, time
@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 try:
-    from supabase.ui.auth_gate import require_app_unlock
+    from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
 require_app_unlock()
@@ -29,7 +29,7 @@ if APP_ENV != "local":
 PAGE_TITLE = "CARP — Diagnostics (Clean)"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🧪", layout="wide")
 st.title("🧪 Diagnostics (Clean)")
-from supabase.ui.lib.prod_banner import show_prod_banner
+from carp_app.ui.lib.prod_banner import show_prod_banner
 show_prod_banner()
 
 # Normalize PG* from DB_URL so captions match reality
@@ -48,7 +48,7 @@ urls_line = f"resolved DB_URL → {os.environ.get('DB_URL','<none>')!r}    sessi
 st.text(env_line + "\n" + urls_line)
 
 import importlib
-from supabase.ui.lib import app_ctx as _app
+from carp_app.ui.lib import app_ctx as _app
 importlib.reload(_app)
 
 c1, c2 = st.columns(2)
