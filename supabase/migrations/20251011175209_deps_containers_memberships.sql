@@ -30,8 +30,7 @@ ALTER TABLE public.containers OWNER TO postgres;
 --
 -- Name: fish_tank_memberships; Type: TABLE; Schema: public; Owner: postgres
 --
-
-CREATE TABLE public.fish_tank_memberships (
+CREATE TABLE IF NOT EXISTS public.fish_tank_memberships (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     fish_id uuid NOT NULL,
     container_id uuid NOT NULL,
@@ -46,59 +45,101 @@ ALTER TABLE public.fish_tank_memberships OWNER TO postgres;
 --
 -- Name: containers containers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.containers
-    ADD CONSTRAINT containers_pkey PRIMARY KEY (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.containers'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.containers ADD CONSTRAINT containers_pkey PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: fish_tank_memberships fish_tank_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.fish_tank_memberships
-    ADD CONSTRAINT fish_tank_memberships_pkey PRIMARY KEY (id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.fish_tank_memberships'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.fish_tank_memberships ADD CONSTRAINT fish_tank_memberships_pkey PRIMARY KEY (id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_containers_created_desc; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_containers_created_desc ON public.containers USING btree (created_at DESC);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_containers_created_desc' AND relkind='i') THEN
+    CREATE INDEX idx_containers_created_desc ON public.containers USING btree (created_at DESC);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_containers_type_status; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_containers_type_status ON public.containers USING btree (container_type, status);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_containers_type_status' AND relkind='i') THEN
+    CREATE INDEX idx_containers_type_status ON public.containers USING btree (container_type, status);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_ftm_container; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_ftm_container ON public.fish_tank_memberships USING btree (container_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_ftm_container' AND relkind='i') THEN
+    CREATE INDEX idx_ftm_container ON public.fish_tank_memberships USING btree (container_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_ftm_fish; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_ftm_fish ON public.fish_tank_memberships USING btree (fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_ftm_fish' AND relkind='i') THEN
+    CREATE INDEX idx_ftm_fish ON public.fish_tank_memberships USING btree (fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_ftm_fish_id; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_ftm_fish_id ON public.fish_tank_memberships USING btree (fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_ftm_fish_id' AND relkind='i') THEN
+    CREATE INDEX idx_ftm_fish_id ON public.fish_tank_memberships USING btree (fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: idx_vfltc_fish; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE INDEX idx_vfltc_fish ON public.fish_tank_memberships USING btree (fish_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='idx_vfltc_fish' AND relkind='i') THEN
+    CREATE INDEX idx_vfltc_fish ON public.fish_tank_memberships USING btree (fish_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
@@ -132,25 +173,37 @@ CREATE TRIGGER trg_containers_status_history AFTER UPDATE OF status ON public.co
 --
 -- Name: containers containers_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.containers
-    ADD CONSTRAINT containers_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.tank_requests(id_uuid) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='containers_request_id_fkey') THEN
+    ALTER TABLE ONLY public.containers ADD CONSTRAINT containers_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.tank_requests (id_uuid) ON DELETE SET NULL;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: fish_tank_memberships fish_tank_memberships_container_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.fish_tank_memberships
-    ADD CONSTRAINT fish_tank_memberships_container_id_fkey FOREIGN KEY (container_id) REFERENCES public.containers(id_uuid) ON DELETE RESTRICT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fish_tank_memberships_container_id_fkey') THEN
+    ALTER TABLE ONLY public.fish_tank_memberships ADD CONSTRAINT fish_tank_memberships_container_id_fkey FOREIGN KEY (container_id) REFERENCES public.containers (id_uuid) ON DELETE RESTRICT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: fish_tank_memberships fish_tank_memberships_fish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.fish_tank_memberships
-    ADD CONSTRAINT fish_tank_memberships_fish_id_fkey FOREIGN KEY (fish_id) REFERENCES public.fish(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fish_tank_memberships_fish_id_fkey') THEN
+    ALTER TABLE ONLY public.fish_tank_memberships ADD CONSTRAINT fish_tank_memberships_fish_id_fkey FOREIGN KEY (fish_id) REFERENCES public.fish (id) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
