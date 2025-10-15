@@ -46,12 +46,18 @@ jobs:
 
       - name: Apply util_mig helpers (required by baseline)
         run: |
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000001_util_mig_helpers.sql
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/00000001_util_mig_helpers.sql
+
+      - name: Apply audit primitives (required by baseline)
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/00000002_audit_primitives.sql
 
       - name: Apply baseline
         run: |
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000002_audit_primitives.sql
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000000_baseline_v2.sql
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/00000000_baseline_v2.sql
 
       - name: Apply all 2025 migrations
         run: |
@@ -63,4 +69,5 @@ jobs:
 
       - name: Verify id-only (no id_uuid anywhere)
         run: |
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f scripts/verify_id_only.sql
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+            -f scripts/verify_id_only.sql
