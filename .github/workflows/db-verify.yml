@@ -57,6 +57,12 @@ jobs:
         run: |
           psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000003_roles_min.sql
 
+      - name: Apply app roles (required by baseline)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000004_app_roles.sql
+
       - name: Apply baseline
         run: |
           psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
