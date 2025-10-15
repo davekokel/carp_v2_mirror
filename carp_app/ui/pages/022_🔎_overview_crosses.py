@@ -1,3 +1,4 @@
+from carp_app.lib.config import engine as get_engine
 from __future__ import annotations
 from carp_app.ui.auth_gate import require_auth
 sb, session, user = require_auth()
@@ -22,7 +23,7 @@ st.title("🔎 Overview — Crosses")
 DB_URL = os.getenv("DB_URL")
 if not DB_URL:
     st.error("DB_URL not set"); st.stop()
-eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
+eng = get_engine()
 
 # ───────────────────────── helpers ─────────────────────────
 def _exists(full: str) -> bool:

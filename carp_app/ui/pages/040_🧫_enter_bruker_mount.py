@@ -1,3 +1,4 @@
+from carp_app.lib.config import engine as get_engine
 # carp_app/ui/pages/040_🧫_enter_bruker_mount.py
 from __future__ import annotations
 
@@ -35,7 +36,7 @@ DB_URL = os.getenv("DB_URL")
 if not DB_URL:
     st.error("DB_URL not set")
     st.stop()
-eng = create_engine(DB_URL, future=True, pool_pre_ping=True)
+eng = get_engine()
 
 # Badge + user stamping
 from sqlalchemy import text as _text  # only for the badge

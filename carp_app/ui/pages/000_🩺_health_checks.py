@@ -1,3 +1,5 @@
+from carp_app.lib.config import engine as get_engine
+from carp_app.lib.config import DB_URL
 from __future__ import annotations
 from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
@@ -6,7 +8,7 @@ import streamlit as st
 from sqlalchemy import create_engine, text
 st.title("🩺 Health Checks")
 
-ENGINE = create_engine(st.secrets["DB_URL"], pool_pre_ping=True)
+ENGINE = get_engine()
 
 def ro_connection():
     cx = ENGINE.connect()

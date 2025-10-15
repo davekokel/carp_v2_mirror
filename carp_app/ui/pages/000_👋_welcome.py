@@ -24,12 +24,13 @@ except Exception:
 st.set_page_config(page_title="CARP — Welcome", page_icon="👋", layout="wide")
 
 from carp_app.ui.lib.env_badge import show_env_badge
+from carp_app.lib.config import DB_URL, AUTH_MODE, env_name
 
 st.title("👋 Welcome to CARP")
 show_env_badge()
 import os, streamlit as st
 from carp_app.lib import secret
-st.caption('RAW_DB_URL: ' + os.getenv('DB_URL','(missing)'))
+# st.caption('RAW_DB_URL: ' + os.getenv('DB_URL','(missing)'))
 st.write("Browse live data, upload CSVs, and print labels — no install needed. Use the **left sidebar** to navigate.")
 
 
