@@ -9,7 +9,7 @@
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
+-- SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -26,7 +26,7 @@ SET default_table_access_method = heap;
 -- Name: clutch_containers; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.clutch_containers (
+CREATE TABLE IF NOT EXISTS public.clutch_containers (
     container_id uuid NOT NULL,
     clutch_id uuid NOT NULL,
     is_mixed boolean DEFAULT true NOT NULL,
@@ -44,7 +44,7 @@ ALTER TABLE public.clutch_containers OWNER TO postgres;
 -- Name: clutch_genotype_options; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.clutch_genotype_options (
+CREATE TABLE IF NOT EXISTS public.clutch_genotype_options (
     id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     clutch_id uuid NOT NULL,
     allele_code text,
@@ -58,7 +58,7 @@ ALTER TABLE public.clutch_genotype_options OWNER TO postgres;
 -- Name: clutch_plan_treatments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.clutch_plan_treatments (
+CREATE TABLE IF NOT EXISTS public.clutch_plan_treatments (
     id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     clutch_id uuid NOT NULL,
     material_type text NOT NULL,
@@ -79,7 +79,7 @@ ALTER TABLE public.clutch_plan_treatments OWNER TO postgres;
 -- Name: clutch_plans; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.clutch_plans (
+CREATE TABLE IF NOT EXISTS public.clutch_plans (
     id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     mom_code text NOT NULL,
     dad_code text NOT NULL,
@@ -99,7 +99,7 @@ ALTER TABLE public.clutch_plans OWNER TO postgres;
 -- Name: clutch_treatments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.clutch_treatments (
+CREATE TABLE IF NOT EXISTS public.clutch_treatments (
     id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     clutch_id uuid NOT NULL,
     type text NOT NULL,
@@ -120,7 +120,7 @@ ALTER TABLE public.clutch_treatments OWNER TO postgres;
 -- Name: clutches; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.clutches (
+CREATE TABLE IF NOT EXISTS public.clutches (
     id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     cross_id uuid NOT NULL,
     batch_label text,
@@ -142,7 +142,7 @@ ALTER TABLE public.clutches OWNER TO postgres;
 -- Name: cross_instances; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.cross_instances (
+CREATE TABLE IF NOT EXISTS public.cross_instances (
     id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     cross_id uuid NOT NULL,
     cross_date date DEFAULT CURRENT_DATE NOT NULL,
@@ -161,7 +161,7 @@ ALTER TABLE public.cross_instances OWNER TO postgres;
 -- Name: cross_plan_genotype_alleles; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.cross_plan_genotype_alleles (
+CREATE TABLE IF NOT EXISTS public.cross_plan_genotype_alleles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     plan_id uuid NOT NULL,
     transgene_base_code text NOT NULL,
@@ -176,7 +176,7 @@ ALTER TABLE public.cross_plan_genotype_alleles OWNER TO postgres;
 -- Name: cross_plan_runs; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.cross_plan_runs (
+CREATE TABLE IF NOT EXISTS public.cross_plan_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     plan_id uuid NOT NULL,
     seq integer NOT NULL,
@@ -196,7 +196,7 @@ ALTER TABLE public.cross_plan_runs OWNER TO postgres;
 -- Name: cross_plan_treatments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.cross_plan_treatments (
+CREATE TABLE IF NOT EXISTS public.cross_plan_treatments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     plan_id uuid NOT NULL,
     treatment_name text NOT NULL,
@@ -217,7 +217,7 @@ ALTER TABLE public.cross_plan_treatments OWNER TO postgres;
 -- Name: cross_plans; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.cross_plans (
+CREATE TABLE IF NOT EXISTS public.cross_plans (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     plan_date date NOT NULL,
     tank_a_id uuid,
@@ -239,7 +239,7 @@ ALTER TABLE public.cross_plans OWNER TO postgres;
 -- Name: crosses; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.crosses (
+CREATE TABLE IF NOT EXISTS public.crosses (
     id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     mother_code text NOT NULL,
     father_code text NOT NULL,
@@ -259,7 +259,7 @@ ALTER TABLE public.crosses OWNER TO postgres;
 -- Name: planned_crosses; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.planned_crosses (
+CREATE TABLE IF NOT EXISTS public.planned_crosses (
     id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     clutch_id uuid NOT NULL,
     mom_code text NOT NULL,
