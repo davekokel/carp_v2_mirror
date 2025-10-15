@@ -643,16 +643,12 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_containers'::regclass AND contype='p'
   ) THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (
+IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_containers'::regclass AND contype='p'
   ) THEN
     ALTER TABLE ONLY public.clutch_containers ADD CONSTRAINT clutch_containers_pkey PRIMARY KEY (container_id);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -663,14 +659,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_genotype_options_clutch_id_allele_code_transgene_bas_key') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_genotype_options_clutch_id_allele_code_transgene_bas_key') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_genotype_options_clutch_id_allele_code_transgene_bas_key') THEN
     ALTER TABLE ONLY public.clutch_genotype_options ADD CONSTRAINT clutch_genotype_options_clutch_id_allele_code_transgene_bas_key UNIQUE (clutch_id, allele_code, transgene_base_code);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -779,14 +771,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key') THEN
     ALTER TABLE ONLY public.cross_plan_genotype_alleles ADD CONSTRAINT cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key UNIQUE (plan_id, transgene_base_code, allele_number);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -811,14 +799,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_runs_plan_id_seq_key') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_runs_plan_id_seq_key') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_runs_plan_id_seq_key') THEN
     ALTER TABLE ONLY public.cross_plan_runs ADD CONSTRAINT cross_plan_runs_plan_id_seq_key UNIQUE (plan_id, seq);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -885,14 +869,10 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_cross_plans_unique') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_cross_plans_unique') THEN
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_cross_plans_unique') THEN
     ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT uq_cross_plans_unique UNIQUE (plan_date, tank_a_id, tank_b_id);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
