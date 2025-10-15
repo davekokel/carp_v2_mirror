@@ -29,9 +29,9 @@ end$$;
 do $$
 begin
   execute 'alter table public.planned_crosses enable row level security';
-  if not exists (select 1 from pg_policies where polrelid='public.planned_crosses'::regclass and polname='app_rw_select_planned_crosses')
+  if not exists (select 1 from pg_policy where polrelid='public.planned_crosses'::regclass and polname='app_rw_select_planned_crosses')
   then execute 'create policy app_rw_select_planned_crosses on public.planned_crosses for select to app_rw using (true)'; end if;
-  if not exists (select 1 from pg_policies where polrelid='public.planned_crosses'::regclass and polname='app_rw_upsert_planned_crosses')
+  if not exists (select 1 from pg_policy where polrelid='public.planned_crosses'::regclass and polname='app_rw_upsert_planned_crosses')
   then execute 'create policy app_rw_upsert_planned_crosses on public.planned_crosses for insert, update to app_rw using (true) with check (true)'; end if;
 end$$;
 
