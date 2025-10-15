@@ -11,10 +11,10 @@ BEGIN
 
     -- add a blanket read policy for authenticated (idempotent)
     IF NOT EXISTS (
-      SELECT 1 FROM pg_policies
+      SELECT 1 FROM pg_policy
       WHERE schemaname = r.table_schema
         AND tablename  = r.table_name
-        AND policyname = 'allow_read_auth'
+        AND polname = 'allow_read_auth'
     ) THEN
       EXECUTE format(
         'CREATE POLICY allow_read_auth ON %I.%I FOR SELECT TO authenticated USING (true)',
