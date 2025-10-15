@@ -52,12 +52,12 @@ END;
 $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
-  if exists (
-    select 1 from pg_class where relname='ix_bm_selection_id_uuid'
-  ) then
-    execute 'alter index ix_bm_selection_id_uuid rename to ix_bm_selection_id';
-  end if;
-end
+  IF EXISTS (SELECT 1 FROM pg_class WHERE relname='ix_bm_selection_id_uuid')
+     AND NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='ix_bm_selection_id')
+  THEN
+    EXECUTE 'alter index ix_bm_selection_id_uuid rename to ix_bm_selection_id';
+  END IF;
+END;
 $$ LANGUAGE plpgsql;
 
 commit;
