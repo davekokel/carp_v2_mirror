@@ -25,29 +25,6 @@ SET default_table_access_method = heap;
 --
 -- Name: containers; Type: TABLE; Schema: public; Owner: postgres
 --
-
-CREATE TABLE public.containers (
-    id_uuid uuid DEFAULT gen_random_uuid() NOT NULL,
-    container_type text NOT NULL,
-    label text,
-    status text DEFAULT 'planned'::public.container_status NOT NULL,
-    created_by text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    note text,
-    request_id uuid,
-    status_changed_at timestamp with time zone DEFAULT now() NOT NULL,
-    activated_at timestamp with time zone,
-    deactivated_at timestamp with time zone,
-    last_seen_at timestamp with time zone,
-    last_seen_source text,
-    tank_volume_l integer,
-    tank_code text,
-    CONSTRAINT chk_containers_type_allowed CHECK ((container_type = ANY (ARRAY['inventory_tank'::text, 'crossing_tank'::text, 'holding_tank'::text, 'nursery_tank'::text, 'petri_dish'::text]))),
-    CONSTRAINT chk_containers_volume_allowed CHECK (((tank_volume_l IS NULL) OR (tank_volume_l = ANY (ARRAY[2, 4, 8, 16])))),
-    CONSTRAINT containers_status_check CHECK ((status = ANY (ARRAY['planned'::text, 'new_tank'::text, 'active'::text, 'ready_to_kill'::text, 'inactive'::text])))
-);
-
-
 ALTER TABLE public.containers OWNER TO postgres;
 
 --
