@@ -1441,241 +1441,361 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: clutch_containers clutch_containers_clutch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_containers
-    ADD CONSTRAINT clutch_containers_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutches(id_uuid) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_containers_clutch_id_fkey') THEN
+    ALTER TABLE ONLY public.clutch_containers ADD CONSTRAINT clutch_containers_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutches (id_uuid) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutch_containers clutch_containers_container_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_containers
-    ADD CONSTRAINT clutch_containers_container_id_fkey FOREIGN KEY (container_id) REFERENCES public.containers(id_uuid) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_containers_container_id_fkey') THEN
+    ALTER TABLE ONLY public.clutch_containers ADD CONSTRAINT clutch_containers_container_id_fkey FOREIGN KEY (container_id) REFERENCES public.containers (id_uuid) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutch_containers clutch_containers_source_container_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_containers
-    ADD CONSTRAINT clutch_containers_source_container_id_fkey FOREIGN KEY (source_container_id) REFERENCES public.containers(id_uuid) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_containers_source_container_id_fkey') THEN
+    ALTER TABLE ONLY public.clutch_containers ADD CONSTRAINT clutch_containers_source_container_id_fkey FOREIGN KEY (source_container_id) REFERENCES public.containers (id_uuid) ON DELETE SET NULL;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutch_genotype_options clutch_genotype_options_clutch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_genotype_options
-    ADD CONSTRAINT clutch_genotype_options_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutches(id_uuid) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_genotype_options_clutch_id_fkey') THEN
+    ALTER TABLE ONLY public.clutch_genotype_options ADD CONSTRAINT clutch_genotype_options_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutches (id_uuid) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutch_plan_treatments clutch_plan_treatments_clutch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_plan_treatments
-    ADD CONSTRAINT clutch_plan_treatments_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutch_plans(id_uuid) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_plan_treatments_clutch_id_fkey') THEN
+    ALTER TABLE ONLY public.clutch_plan_treatments ADD CONSTRAINT clutch_plan_treatments_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutch_plans (id_uuid) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutch_treatments clutch_treatments_clutch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_treatments
-    ADD CONSTRAINT clutch_treatments_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutches(id_uuid) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_treatments_clutch_id_fkey') THEN
+    ALTER TABLE ONLY public.clutch_treatments ADD CONSTRAINT clutch_treatments_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutches (id_uuid) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutches clutches_cross_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutches
-    ADD CONSTRAINT clutches_cross_id_fkey FOREIGN KEY (cross_id) REFERENCES public.crosses(id_uuid) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutches_cross_id_fkey') THEN
+    ALTER TABLE ONLY public.clutches ADD CONSTRAINT clutches_cross_id_fkey FOREIGN KEY (cross_id) REFERENCES public.crosses (id_uuid) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutches clutches_cross_instance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutches
-    ADD CONSTRAINT clutches_cross_instance_id_fkey FOREIGN KEY (cross_instance_id) REFERENCES public.cross_instances(id_uuid) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutches_cross_instance_id_fkey') THEN
+    ALTER TABLE ONLY public.clutches ADD CONSTRAINT clutches_cross_instance_id_fkey FOREIGN KEY (cross_instance_id) REFERENCES public.cross_instances (id_uuid) ON DELETE SET NULL;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutches clutches_planned_cross_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutches
-    ADD CONSTRAINT clutches_planned_cross_id_fkey FOREIGN KEY (planned_cross_id) REFERENCES public.planned_crosses(id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutches_planned_cross_id_fkey') THEN
+    ALTER TABLE ONLY public.clutches ADD CONSTRAINT clutches_planned_cross_id_fkey FOREIGN KEY (planned_cross_id) REFERENCES public.planned_crosses (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutches clutches_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutches
-    ADD CONSTRAINT clutches_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.cross_plan_runs(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutches_run_id_fkey') THEN
+    ALTER TABLE ONLY public.clutches ADD CONSTRAINT clutches_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.cross_plan_runs (id) ON DELETE SET NULL;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_instances cross_instances_cross_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_instances
-    ADD CONSTRAINT cross_instances_cross_id_fkey FOREIGN KEY (cross_id) REFERENCES public.crosses(id_uuid) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_instances_cross_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_instances ADD CONSTRAINT cross_instances_cross_id_fkey FOREIGN KEY (cross_id) REFERENCES public.crosses (id_uuid) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_instances cross_instances_father_tank_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_instances
-    ADD CONSTRAINT cross_instances_father_tank_id_fkey FOREIGN KEY (father_tank_id) REFERENCES public.containers(id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_instances_father_tank_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_instances ADD CONSTRAINT cross_instances_father_tank_id_fkey FOREIGN KEY (father_tank_id) REFERENCES public.containers (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_instances cross_instances_mother_tank_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_instances
-    ADD CONSTRAINT cross_instances_mother_tank_id_fkey FOREIGN KEY (mother_tank_id) REFERENCES public.containers(id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_instances_mother_tank_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_instances ADD CONSTRAINT cross_instances_mother_tank_id_fkey FOREIGN KEY (mother_tank_id) REFERENCES public.containers (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plan_genotype_alleles cross_plan_genotype_alleles_plan_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_genotype_alleles
-    ADD CONSTRAINT cross_plan_genotype_alleles_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.cross_plans(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_genotype_alleles_plan_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_plan_genotype_alleles ADD CONSTRAINT cross_plan_genotype_alleles_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.cross_plans (id) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plan_runs cross_plan_runs_plan_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_runs
-    ADD CONSTRAINT cross_plan_runs_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.cross_plans(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_runs_plan_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_plan_runs ADD CONSTRAINT cross_plan_runs_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.cross_plans (id) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plan_runs cross_plan_runs_tank_a_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_runs
-    ADD CONSTRAINT cross_plan_runs_tank_a_id_fkey FOREIGN KEY (tank_a_id) REFERENCES public.containers(id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_runs_tank_a_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_plan_runs ADD CONSTRAINT cross_plan_runs_tank_a_id_fkey FOREIGN KEY (tank_a_id) REFERENCES public.containers (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plan_runs cross_plan_runs_tank_b_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_runs
-    ADD CONSTRAINT cross_plan_runs_tank_b_id_fkey FOREIGN KEY (tank_b_id) REFERENCES public.containers(id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_runs_tank_b_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_plan_runs ADD CONSTRAINT cross_plan_runs_tank_b_id_fkey FOREIGN KEY (tank_b_id) REFERENCES public.containers (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plan_treatments cross_plan_treatments_plan_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_treatments
-    ADD CONSTRAINT cross_plan_treatments_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.cross_plans(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_treatments_plan_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_plan_treatments ADD CONSTRAINT cross_plan_treatments_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.cross_plans (id) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plan_treatments cross_plan_treatments_plasmid_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_treatments
-    ADD CONSTRAINT cross_plan_treatments_plasmid_id_fkey FOREIGN KEY (plasmid_id) REFERENCES public.plasmid_registry(id) ON DELETE RESTRICT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_treatments_plasmid_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_plan_treatments ADD CONSTRAINT cross_plan_treatments_plasmid_id_fkey FOREIGN KEY (plasmid_id) REFERENCES public.plasmid_registry (id) ON DELETE RESTRICT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plan_treatments cross_plan_treatments_rna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_treatments
-    ADD CONSTRAINT cross_plan_treatments_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES public.rna_registry(id) ON DELETE RESTRICT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_treatments_rna_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_plan_treatments ADD CONSTRAINT cross_plan_treatments_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES public.rna_registry (id) ON DELETE RESTRICT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plans cross_plans_father_fish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plans
-    ADD CONSTRAINT cross_plans_father_fish_id_fkey FOREIGN KEY (father_fish_id) REFERENCES public.fish(id) ON DELETE RESTRICT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plans_father_fish_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT cross_plans_father_fish_id_fkey FOREIGN KEY (father_fish_id) REFERENCES public.fish (id) ON DELETE RESTRICT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plans cross_plans_mother_fish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plans
-    ADD CONSTRAINT cross_plans_mother_fish_id_fkey FOREIGN KEY (mother_fish_id) REFERENCES public.fish(id) ON DELETE RESTRICT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plans_mother_fish_id_fkey') THEN
+    ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT cross_plans_mother_fish_id_fkey FOREIGN KEY (mother_fish_id) REFERENCES public.fish (id) ON DELETE RESTRICT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plan_genotype_alleles fk_cpga_transgene_allele; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_genotype_alleles
-    ADD CONSTRAINT fk_cpga_transgene_allele FOREIGN KEY (transgene_base_code, allele_number) REFERENCES public.transgene_alleles(transgene_base_code, allele_number) ON DELETE RESTRICT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_cpga_transgene_allele') THEN
+    ALTER TABLE ONLY public.cross_plan_genotype_alleles ADD CONSTRAINT fk_cpga_transgene_allele FOREIGN KEY (transgene_base_code, allele_number) REFERENCES public.transgene_alleles (transgene_base_code, allele_number) ON DELETE RESTRICT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plans fk_cross_plans_tank_a_cont; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plans
-    ADD CONSTRAINT fk_cross_plans_tank_a_cont FOREIGN KEY (tank_a_id) REFERENCES public.containers(id_uuid) ON DELETE RESTRICT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_cross_plans_tank_a_cont') THEN
+    ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT fk_cross_plans_tank_a_cont FOREIGN KEY (tank_a_id) REFERENCES public.containers (id_uuid) ON DELETE RESTRICT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: cross_plans fk_cross_plans_tank_b_cont; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plans
-    ADD CONSTRAINT fk_cross_plans_tank_b_cont FOREIGN KEY (tank_b_id) REFERENCES public.containers(id_uuid) ON DELETE RESTRICT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_cross_plans_tank_b_cont') THEN
+    ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT fk_cross_plans_tank_b_cont FOREIGN KEY (tank_b_id) REFERENCES public.containers (id_uuid) ON DELETE RESTRICT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: planned_crosses planned_crosses_clutch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.planned_crosses
-    ADD CONSTRAINT planned_crosses_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutch_plans(id_uuid) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_clutch_id_fkey') THEN
+    ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_clutch_id_fkey FOREIGN KEY (clutch_id) REFERENCES public.clutch_plans (id_uuid) ON DELETE CASCADE;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: planned_crosses planned_crosses_cross_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.planned_crosses
-    ADD CONSTRAINT planned_crosses_cross_id_fkey FOREIGN KEY (cross_id) REFERENCES public.crosses(id_uuid) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_cross_id_fkey') THEN
+    ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_cross_id_fkey FOREIGN KEY (cross_id) REFERENCES public.crosses (id_uuid) ON DELETE SET NULL;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: planned_crosses planned_crosses_cross_instance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.planned_crosses
-    ADD CONSTRAINT planned_crosses_cross_instance_id_fkey FOREIGN KEY (cross_instance_id) REFERENCES public.cross_instances(id_uuid) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_cross_instance_id_fkey') THEN
+    ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_cross_instance_id_fkey FOREIGN KEY (cross_instance_id) REFERENCES public.cross_instances (id_uuid) ON DELETE SET NULL;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: planned_crosses planned_crosses_father_tank_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.planned_crosses
-    ADD CONSTRAINT planned_crosses_father_tank_id_fkey FOREIGN KEY (father_tank_id) REFERENCES public.containers(id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_father_tank_id_fkey') THEN
+    ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_father_tank_id_fkey FOREIGN KEY (father_tank_id) REFERENCES public.containers (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: planned_crosses planned_crosses_mother_tank_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.planned_crosses
-    ADD CONSTRAINT planned_crosses_mother_tank_id_fkey FOREIGN KEY (mother_tank_id) REFERENCES public.containers(id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='planned_crosses_mother_tank_id_fkey') THEN
+    ALTER TABLE ONLY public.planned_crosses ADD CONSTRAINT planned_crosses_mother_tank_id_fkey FOREIGN KEY (mother_tank_id) REFERENCES public.containers (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
