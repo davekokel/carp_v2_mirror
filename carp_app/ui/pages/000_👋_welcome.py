@@ -23,24 +23,39 @@ except Exception:
 
 st.set_page_config(page_title="CARP — Welcome", page_icon="👋", layout="wide")
 
+from carp_app.ui.lib.env_badge import show_env_badge
+
 st.title("👋 Welcome to CARP")
+show_env_badge()
+import os, streamlit as st
+st.caption('RAW_DB_URL: ' + os.getenv('DB_URL','(missing)'))
 st.write("Browse live data, upload CSVs, and print labels — no install needed. Use the **left sidebar** to navigate.")
 
-# Compact status
-APP_ENV = os.getenv("APP_ENV", "local").lower()
-pguser  = os.getenv("PGUSER", "")
-pghost  = os.getenv("PGHOST", "")
-mode    = os.getenv("APP_MODE", "readonly" if pguser.endswith("_ro") else "write")
+
+# Compact status (derived from DB_URL)
+import re
+DB_URL = os.getenv("DB_URL","")
+m = re.match(r".*://([^:@]+)@([^/?]+)", DB_URL)
+_pguser = m.group(1) if m else os.getenv("PGUSER","")
+_pghost = m.group(2) if m else os.getenv("PGHOST","")
+_proj   = _pguser.split(".",1)[1] if "." in _pguser else "?"
+
+env_name = (
+    "PROD"    if (_proj == os.getenv("PROD_PROJECT_ID","") or "prod" in (_pghost or "")) else
+    "STAGING" if (_proj == os.getenv("STAGING_PROJECT_ID","") or "staging" in (_pghost or "")) else
+    "LOCAL"
+)
+mode = os.getenv("APP_MODE") or ("readonly" if _pguser.endswith("_ro") else "write")
 
 c1, c2, c3 = st.columns(3)
-with c1: st.metric("Environment", APP_ENV.upper())
+with c1: st.metric("Environment", env_name)
 with c2: st.metric("Mode", mode)
-with c3: st.metric("Database host", (pghost.split(".supabase.co")[0] + ".supabase.co") if pghost else "—")
+with c3: st.metric("Database host", (_pghost.split(".supabase.co")[0] + ".supabase.co") if _pghost else "—")
 
 st.divider()
 
 # Friendly guard for read-only deployments
-is_readonly = (mode != "write") or pguser.endswith("_ro")
+is_readonly = (mode != "write") or _pguser.endswith("_ro")
 if is_readonly:
     st.info("This deployment is read-only. You can explore data and print labels.")
 else:

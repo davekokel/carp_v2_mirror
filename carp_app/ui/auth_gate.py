@@ -1,81 +1,55 @@
-from __future__ import annotations
-import os, sys, hashlib
-from pathlib import Path
+import os
 import streamlit as st
 
-def require_app_unlock():
-    locked = bool(st.secrets.get("APP_LOCKED", False))
-    if not locked:
-        return
-    ok = st.session_state.get("_app_unlocked", False)
-    if ok:
-        return
-    st.title("🔒 Carp")
-    st.caption("This app is locked. Enter the passphrase to continue.")
-    pw = st.text_input("Passphrase", type="password")
-    submit = st.button("Unlock", type="primary")
-    if submit:
-        sha_expected = (st.secrets.get("APP_PASSWORD_SHA256") or "").strip().lower()
-        sha_entered = hashlib.sha256((pw or "").encode("utf-8")).hexdigest()
-        if sha_entered == sha_expected:
-            st.session_state["_app_unlocked"] = True
-            st.rerun()
-        else:
-            st.error("Incorrect passphrase.")
-    st.stop()
-
-ROOT = Path(__file__).resolve().parents[2]
-LOCAL_SUPABASE = Path(__file__).resolve().parents[1]
-for p in (str(LOCAL_SUPABASE), str(ROOT)):
-    while p in sys.path:
-        try:
-            sys.path.remove(p)
-        except ValueError:
-            break
-if "supabase" in sys.modules:
-    del sys.modules["supabase"]
-from supabase import create_client
-sys.path.insert(0, str(ROOT))
-
-_SUPABASE_URL = (st.secrets.get('SUPABASE_URL') or os.getenv('SUPABASE_URL',''))
-_SUPABASE_ANON_KEY = (st.secrets.get('SUPABASE_ANON_KEY') or os.getenv('SUPABASE_ANON_KEY',''))
-
-@st.cache_resource(show_spinner=False)
-def _client():
-    if not _SUPABASE_URL or not _SUPABASE_ANON_KEY:
-        raise RuntimeError("SUPABASE_URL / SUPABASE_ANON_KEY not set")
-    return create_client(_SUPABASE_URL, _SUPABASE_ANON_KEY)
-
-def _restore_session_if_needed(sb):
-    toks = st.session_state.get("sb_tokens") or {}
-    at, rt = toks.get("access"), toks.get("refresh")
-    if at and rt:
-        try:
-            try:
-                sb.auth.set_session(at, rt)
-            except TypeError:
-                sb.auth.set_session({"access_token": at, "refresh_token": rt})
-        except Exception:
-            pass
-
-def require_login():
-    sb = _client()
-
-    # DEV BYPASS (local-only): set AUTH_DEV_BYPASS=1 to skip OTP while testing
-    if os.getenv("AUTH_DEV_BYPASS") == "1":
-        fake_user = type("User", (), {"email": "dev@local"})()
-        return sb, None, fake_user
-
-    _restore_session_if_needed(sb)
-    session = sb.auth.get_session()
-    user = getattr(session, "user", None) if session else None
-    if not user:
-        try: st.query_params.clear()
-        except Exception: pass
-        st.switch_page("pages/010_auth_login.py")
-        st.stop()
+def _off_auth():
+    sb = None
+    session = {"auth_mode": "off", "debug": True}
+    user = {"email": "debug@local"}
     return sb, session, user
 
-def require_auth():
-    require_app_unlock()
-    return require_login()
+def _passcode_auth():
+    expected = os.getenv("PASSCODE", "letmein")
+    st.sidebar.markdown("### auth login")
+    code = st.sidebar.text_input("Enter passcode", type="password")
+    ok = st.sidebar.button("Unlock")
+    if "auth_ok" not in st.session_state:
+        st.session_state.auth_ok = False
+    if ok and code == expected:
+        st.session_state.auth_ok = True
+    if not st.session_state.auth_ok:
+        st.stop()
+    sb = None
+    session = {"auth_mode": "passcode"}
+    user = {"email": "passcode@local"}
+    return sb, session, user
+
+def _otp_auth():
+    try:
+        from carp_app.ui.email_otp_gate import require_email_otp
+    except Exception as e:
+        st.error("OTP gate not available: " + str(e))
+        st.stop()
+    require_email_otp()
+    sb = None
+    session = {"auth_mode": "otp"}
+    user = {"email": "otp@user"}
+    return sb, session, user
+
+def require_auth(*args, **kwargs):
+    mode = os.getenv("AUTH_MODE", "otp").lower()
+    if mode == "off":
+        return _off_auth()
+    if mode == "passcode":
+        return _passcode_auth()
+    return _otp_auth()
+
+def require_app_unlock(*args, **kwargs):
+    mode = os.getenv("AUTH_MODE", "otp").lower()
+    if mode in ("off", "passcode"):
+        return
+    try:
+        from carp_app.ui.email_otp_gate import require_email_otp
+        require_email_otp()
+    except Exception as e:
+        st.error("Unlock failed: " + str(e))
+        st.stop()
