@@ -1,9 +1,9 @@
 CREATE SCHEMA IF NOT EXISTS audit;
-CREATE OR REPLACE FUNCTION audit.fn_writes() RETURNS trigger LANGUAGE plpgsql AS 41041
+CREATE OR REPLACE FUNCTION audit.fn_writes() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
-41041;
+$$;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 SET search_path = public, audit;
 --
@@ -30,10 +30,6 @@ SET row_security = off;
 --
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
 --
-
-CREATE SCHEMA public;
-
-
 --
 -- Name: container_status; Type: TYPE; Schema: public; Owner: -
 --
