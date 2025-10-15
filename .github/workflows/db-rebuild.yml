@@ -50,6 +50,7 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000001_util_mig_helpers.sql
           psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
             -f supabase/migrations/00000000_baseline_v2.sql
 
