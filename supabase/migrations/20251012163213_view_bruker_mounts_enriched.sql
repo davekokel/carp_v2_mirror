@@ -6,7 +6,7 @@ with m as (
 ),
 ci as (
   select
-    coalesce(id::text, id_uuid::text) as selection_id,
+    id::text as selection_id,
     cross_instance_id,
     coalesce(label,'')                as selection_label
   from public.clutch_instances
