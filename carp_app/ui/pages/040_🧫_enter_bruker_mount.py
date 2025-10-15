@@ -272,12 +272,12 @@ with eng.begin() as cx:
                     from information_schema.columns
                     where table_schema='public'
                       and table_name='clutch_instances'
-                      and column_name='id_uuid'
+                      and column_name='id'
                     limit 1
                 """)
             ).first()
         )
-        id_col = "id_uuid" if has_id_uuid else "id"
+        id_col = "id" if has_id_uuid else "id"
         sql = text(f"""
             select
               {id_col}::text             as selection_id,
