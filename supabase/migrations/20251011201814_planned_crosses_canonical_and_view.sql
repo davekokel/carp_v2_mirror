@@ -25,16 +25,34 @@ BEGIN
   end if;
 end
 $$ LANGUAGE plpgsql;
-
--- Optional RLS (permissive for app_rw)
 DO $$
 BEGIN
-  execute 'alter table public.planned_crosses enable row level security';
-  if not exists (select 1 from pg_policy where polrelid='public.planned_crosses'::regclass and polname='app_rw_select_planned_crosses')
-  then execute 'create policy app_rw_select_planned_crosses on public.planned_crosses for select to app_rw using (true)'; end if;
-  if not exists (select 1 from pg_policy where polrelid='public.planned_crosses'::regclass and polname='app_rw_upsert_planned_crosses')
-  then execute 'create policy app_rw_upsert_planned_crosses on public.planned_crosses for insert, update to app_rw using (true) with check (true)'; end if;
-end
+  EXECUTE 'ALTER TABLE public.planned_crosses ENABLE ROW LEVEL SECURITY';
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='planned_crosses'
+      AND policyname='app_rw_select_planned_crosses'
+  ) THEN
+    EXECUTE 'CREATE POLICY app_rw_select_planned_crosses ON public.planned_crosses FOR SELECT TO app_rw USING (true)';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='planned_crosses'
+      AND policyname='app_rw_insert_planned_crosses'
+  ) THEN
+    EXECUTE 'CREATE POLICY app_rw_insert_planned_crosses ON public.planned_crosses FOR INSERT TO app_rw WITH CHECK (true)';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='planned_crosses'
+      AND policyname='app_rw_update_planned_crosses'
+  ) THEN
+    EXECUTE 'CREATE POLICY app_rw_update_planned_crosses ON public.planned_crosses FOR UPDATE TO app_rw USING (true) WITH CHECK (true)';
+  END IF;
+END;
 $$ LANGUAGE plpgsql;
 
 -- AUTHORITATIVE view for the concept grid (pull planned values + live-tank fallback)

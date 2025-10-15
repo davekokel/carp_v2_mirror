@@ -23,7 +23,6 @@ $$ LANGUAGE plpgsql;
 
 --
 -- Name: container_status; Type: TYPE; Schema: public; Owner: -
-
 DO $$
 BEGIN
   IF NOT EXISTS (
