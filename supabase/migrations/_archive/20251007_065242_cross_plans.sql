@@ -1,6 +1,5 @@
 BEGIN;
-
-DO $$
+DO 28762
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cross_plan_status') THEN
     CREATE TYPE cross_plan_status AS ENUM ('planned','canceled','executed');

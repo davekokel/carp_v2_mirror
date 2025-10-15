@@ -1,5 +1,5 @@
--- offspring helpers (idempotent)
-DO $$
+-- offspring helpers (idempotent);
+DO 28762
 BEGIN
   -- 1) Inherit transgene alleles (unchanged)
   CREATE OR REPLACE FUNCTION public.inherit_transgene_alleles(child_id uuid, mother_id uuid, father_id uuid)

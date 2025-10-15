@@ -1,6 +1,6 @@
 create extension if not exists pgcrypto;
 
-do $$ begin
+DO 28691  begin
   if not exists (select 1 from pg_type where typname='treatment_route') then
     create type treatment_route as enum ('bath','injection','feed','other');
   end if;

@@ -1,5 +1,5 @@
 begin;
-do $$
+DO 28762
 declare cname text := containers_status_check;
 begin
   if exists (select 1 from pg_constraint where conname = cname and conrelid = public.containers::regclass) then

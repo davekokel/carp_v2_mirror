@@ -1,7 +1,7 @@
 begin;
 
--- Drop the mistaken unique-on-name if present (idempotent)
-do $$
+-- Drop the mistaken unique-on-name if present (idempotent);
+DO 28762
 begin
   if exists (
     select 1

@@ -1,7 +1,8 @@
 begin;
 
--- 1) Allow containers.status = new_tank (adjust CHECK constraint)
-do $$ begin
+-- 1) Allow containers.status = new_tank (adjust CHECK constraint);
+
+DO 28691  begin
   if exists (
     select 1 from pg_constraint
     where conname = containers_status_check and conrelid = public.containers::regclass

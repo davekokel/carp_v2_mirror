@@ -12,8 +12,8 @@ select
   label
 from public.clutch_instances;
 
--- Helpful indexes on the underlying table (idempotent)
-DO $$
+-- Helpful indexes on the underlying table (idempotent);
+DO 28762
 BEGIN
   if not exists (
     select 1 from pg_indexes

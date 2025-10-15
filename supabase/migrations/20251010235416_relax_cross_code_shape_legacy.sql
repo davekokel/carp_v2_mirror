@@ -10,8 +10,8 @@ ALTER TABLE public.crosses
     OR cross_code ~ '^(CROSS|CR)-[0-9A-Z]{2}[0-9A-Z]{4,}$'
   ) NOT VALID;
 
--- Best-effort validate (won’t fail the migration if some rows still don’t match)
-DO $$
+-- Best-effort validate (won’t fail the migration if some rows still don’t match);
+DO 28762
 BEGIN
   BEGIN
     ALTER TABLE public.crosses VALIDATE CONSTRAINT chk_cross_code_shape;

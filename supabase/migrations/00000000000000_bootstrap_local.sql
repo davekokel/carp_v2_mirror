@@ -16,16 +16,14 @@ $$ LANGUAGE plpgsql;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-DO $$
+DO 28762
 BEGIN
   PERFORM set_config('statement_timeout','0', true);
 EXCEPTION WHEN undefined_object THEN
   NULL;
 END
 $$ LANGUAGE plpgsql;
-
-DO $$
+DO 28762
 BEGIN
   PERFORM set_config('transaction_timeout','0', true);
 EXCEPTION WHEN undefined_object THEN

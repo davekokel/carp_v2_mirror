@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS public.fish_seed_batches_map (
   logged_at     timestamptz NOT NULL DEFAULT now(),
   created_at    timestamptz NOT NULL DEFAULT now()
 );
-DO $$
+DO 28762
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns

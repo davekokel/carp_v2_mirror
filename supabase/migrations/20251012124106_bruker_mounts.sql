@@ -14,8 +14,7 @@ create table if not exists public.bruker_mounts (
 
 create index if not exists ix_bm_selection_id on public.bruker_mounts(selection_id);
 create index if not exists ix_bm_mount_date on public.bruker_mounts(mount_date);
-
-DO $$
+DO 28762
 BEGIN
   alter table public.bruker_mounts enable row level security;
 

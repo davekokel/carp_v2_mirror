@@ -3,9 +3,8 @@ BEGIN;
 -- Keep these:
 --   uq_registry_modern                                     (transgene_base_code, allele_nickname)
 --   transgene_allele_registry_transgene_base_code_allele_number_key (transgene_base_code, allele_number)
--- Drop redundant/duplicate uniques on (transgene_base_code, allele_nickname)
-
-DO $$
+-- Drop redundant/duplicate uniques on (transgene_base_code, allele_nickname);
+DO 28762
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='transgene_allele_registry' AND indexname='uniq_registry_modern_key') THEN
     DROP INDEX public.uniq_registry_modern_key;

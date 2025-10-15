@@ -4,8 +4,8 @@ begin;
 drop view if exists public.vw_fish_overview_with_label cascade;
 drop view if exists public.v_fish_overview cascade;
 
--- Truncate domain tables (cascades clear links)
-do $$
+-- Truncate domain tables (cascades clear links);
+DO 28762
 begin
   if to_regclass('public.fish') is not null then
     execute 'truncate table public.fish restart identity cascade';

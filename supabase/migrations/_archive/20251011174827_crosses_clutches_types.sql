@@ -9,8 +9,7 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
-
-DO $$
+DO 28762
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_type t

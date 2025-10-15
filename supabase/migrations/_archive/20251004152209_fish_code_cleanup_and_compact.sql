@@ -23,8 +23,8 @@ RETURNS text LANGUAGE sql AS $$
   SELECT 'FSH-' || to_char(current_date,'YY') || public._to_base36(nextval('public.fish_code_seq'), 4)
 $$;
 
--- B) Remove ALL existing user triggers on fish (legacy & prior versions)
-DO $$
+-- B) Remove ALL existing user triggers on fish (legacy & prior versions);
+DO 28762
 DECLARE r record;
 BEGIN
   FOR r IN
@@ -51,8 +51,8 @@ BEFORE INSERT ON public.fish
 FOR EACH ROW
 EXECUTE FUNCTION public.fish_before_insert_code();
 
--- D) Drop obsolete generators if present (cleanup)
-DO $$
+-- D) Drop obsolete generators if present (cleanup);
+DO 28762
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname='trg_fish_set_code' AND pronamespace='public'::regnamespace)
   THEN EXECUTE 'DROP FUNCTION public.trg_fish_set_code() CASCADE'; END IF;
@@ -64,8 +64,8 @@ BEGIN
   THEN EXECUTE 'DROP FUNCTION public.gen_fish_code(timestamp with time zone) CASCADE'; END IF;
 END$$;
 
--- E) Format check (compact)
-DO $$
+-- E) Format check (compact);
+DO 28762
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint

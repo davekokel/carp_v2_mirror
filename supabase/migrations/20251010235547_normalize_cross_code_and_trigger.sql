@@ -48,8 +48,7 @@ ALTER TABLE public.crosses
     cross_code IS NULL
     OR cross_code ~ '^CROSS-[0-9A-Z]{2}[0-9A-Z]{4,}$'
   ) NOT VALID;
-
-DO $$
+DO 28762
 BEGIN
   BEGIN
     ALTER TABLE public.crosses VALIDATE CONSTRAINT chk_cross_code_shape;

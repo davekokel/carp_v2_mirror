@@ -12,8 +12,8 @@ SET transgene_base_code = COALESCE(transgene_base_code, base_code),
 WHERE (transgene_base_code IS NULL OR allele_nickname IS NULL)
   AND (base_code IS NOT NULL OR legacy_label IS NOT NULL);
 
--- 3) Install canonical UNIQUE(modern) required by seeds (idempotent)
-DO $$
+-- 3) Install canonical UNIQUE(modern) required by seeds (idempotent);
+DO 28762
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
@@ -25,8 +25,8 @@ BEGIN
   END IF;
 END$$;
 
--- 4) (Optional) keep a legacy unique too, but only as a constraint (not partial)
-DO $$
+-- 4) (Optional) keep a legacy unique too, but only as a constraint (not partial);
+DO 28762
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint

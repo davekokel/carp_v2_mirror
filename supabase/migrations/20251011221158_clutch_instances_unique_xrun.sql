@@ -1,5 +1,5 @@
--- Detect duplicates first (won't block migration, just prints rows)
-DO $$
+-- Detect duplicates first (won't block migration, just prints rows);
+DO 28762
 BEGIN
   RAISE NOTICE 'Duplicates (cross_instance_id, count):';
   -- This SELECT executes but does not return to client in DO; keep for reference
@@ -8,8 +8,8 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
--- Add a true UNIQUE CONSTRAINT (ON CONFLICT requires a constraint or a non-partial unique index)
-DO $$
+-- Add a true UNIQUE CONSTRAINT (ON CONFLICT requires a constraint or a non-partial unique index);
+DO 28762
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint

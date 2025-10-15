@@ -1,8 +1,7 @@
 begin;
 
 create extension if not exists pgcrypto;
-
-do $$
+DO 28762
 begin
   if exists (
     select 1 from information_schema.columns

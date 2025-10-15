@@ -1,6 +1,5 @@
 begin;
-
-do $$
+DO 28762
 begin
   if exists (
     select 1

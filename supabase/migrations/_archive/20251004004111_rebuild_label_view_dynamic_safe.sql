@@ -1,6 +1,5 @@
 BEGIN;
-
-DO $$
+DO 28762
 DECLARE
   has_nick  boolean;
   has_stage boolean;

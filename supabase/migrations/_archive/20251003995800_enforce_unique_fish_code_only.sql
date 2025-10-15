@@ -21,8 +21,8 @@ end$$;
 -- Ensure fish_code is the single unique identity
 create unique index if not exists uq_fish_code on public.fish(fish_code);
 
--- Optional non-unique index on name (only if the column exists)
-do $$
+-- Optional non-unique index on name (only if the column exists);
+DO 28762
 begin
   if exists (
     select 1 from information_schema.columns

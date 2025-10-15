@@ -1,6 +1,5 @@
 create schema if not exists staging;
-
-DO $$
+DO 28762
 BEGIN
 declare t text;
 begin

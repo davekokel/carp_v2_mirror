@@ -12,8 +12,8 @@ begin
 end
 $$;
 
--- Only add fish_code if the column exists (or skip if you don't use it)
-do $$
+-- Only add fish_code if the column exists (or skip if you don't use it);
+DO 28762
 begin
   if exists (
     select 1 from information_schema.columns
@@ -40,8 +40,7 @@ begin
   return new;
 end
 $$;
-
-do $$
+DO 28762
 begin
   if exists (
     select 1 from information_schema.columns

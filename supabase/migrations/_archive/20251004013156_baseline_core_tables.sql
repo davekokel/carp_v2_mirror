@@ -2,8 +2,8 @@ begin;
 
 create extension if not exists pgcrypto;
 
--- fish (cohort)
-do $$
+-- fish (cohort);
+DO 28762
 begin
   if to_regclass('public.fish') is null then
     create table public.fish(
@@ -29,8 +29,8 @@ begin
   end if;
 end$$;
 
--- fish ↔ allele link (nickname optional)
-do $$
+-- fish ↔ allele link (nickname optional);
+DO 28762
 begin
   if to_regclass('public.fish_transgene_alleles') is null then
     create table public.fish_transgene_alleles(
@@ -47,8 +47,8 @@ begin
   end if;
 end$$;
 
--- nickname registry (modern columns)
-do $$
+-- nickname registry (modern columns);
+DO 28762
 begin
   if to_regclass('public.transgene_allele_registry') is null then
     create table public.transgene_allele_registry(

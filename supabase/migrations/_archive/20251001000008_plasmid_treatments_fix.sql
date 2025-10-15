@@ -20,8 +20,8 @@ begin
   end if;
 end$$;
 
--- 2) Add plasmid_id if missing (should exist already, but keep it safe)
-do $$
+-- 2) Add plasmid_id if missing (should exist already, but keep it safe);
+DO 28762
 begin
   if not exists (
     select 1 from information_schema.columns
@@ -38,8 +38,8 @@ begin
   end if;
 end$$;
 
--- 3) Add optional detail columns if missing (amount, units, at_time, note)
-do $$
+-- 3) Add optional detail columns if missing (amount, units, at_time, note);
+DO 28762
 begin
   if not exists (
     select 1 from information_schema.columns

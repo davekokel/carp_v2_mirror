@@ -1,7 +1,7 @@
 begin;
 
--- 1. Drop everything (safe if missing)
-do $$
+-- 1. Drop everything (safe if missing);
+DO 28762
 declare
   rec record;
 begin

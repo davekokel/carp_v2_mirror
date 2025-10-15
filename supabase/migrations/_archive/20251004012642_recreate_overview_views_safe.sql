@@ -2,8 +2,7 @@ begin;
 
 drop view if exists public.vw_fish_overview_with_label cascade;
 drop view if exists public.v_fish_overview cascade;
-
-do $$
+DO 28762
 declare has_fish boolean;
 begin
   has_fish := to_regclass('public.fish') is not null;

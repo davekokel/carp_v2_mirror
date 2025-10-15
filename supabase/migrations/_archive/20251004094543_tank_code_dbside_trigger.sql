@@ -35,8 +35,7 @@ language sql
 as $$
   select 'TANK-' || to_char(current_date,'YY') || public._to_base36(nextval('public.tank_code_seq'), 4)
 $$;
-
-do $$
+DO 28762
 begin
   if to_regclass('public.tanks') is not null
      and exists (

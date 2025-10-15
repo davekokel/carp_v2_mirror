@@ -13,8 +13,8 @@ create table if not exists public.transgene_allele_registry (
   primary key (base_code, allele_number)
 );
 
--- Optional: keep legacy labels unique per base_code (NULLs allowed multiple)
-do $$
+-- Optional: keep legacy labels unique per base_code (NULLs allowed multiple);
+DO 28762
 begin
   if not exists (
     select 1

@@ -1,6 +1,5 @@
 BEGIN;
-
-DO $$
+DO 28762
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='container_status') THEN
     CREATE TYPE container_status AS ENUM ('planned','active','inactive','retired','unknown');

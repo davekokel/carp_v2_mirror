@@ -16,8 +16,7 @@ alter table public.bruker_mounts
 
 alter table public.bruker_mounts
   rename constraint fk_bm_selection_uuid to fk_bm_selection_id;
-
-DO $$
+DO 28762
 BEGIN
   if exists (select 1 from pg_class where relname='ix_bm_selection_id_uuid') then
     execute 'alter index ix_bm_selection_id_uuid rename to ix_bm_selection_id';

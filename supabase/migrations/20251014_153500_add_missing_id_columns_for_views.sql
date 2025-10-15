@@ -1,5 +1,5 @@
--- Ensure every table used in views has an id column (mapped to id_uuid where needed)
-DO $$
+-- Ensure every table used in views has an id column (mapped to id_uuid where needed);
+DO 28762
 BEGIN
 DECLARE
   t text;

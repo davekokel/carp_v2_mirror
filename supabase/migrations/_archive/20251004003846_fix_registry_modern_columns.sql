@@ -1,6 +1,5 @@
 BEGIN;
-
-DO $$
+DO 28762
 BEGIN
   -- 1) Add modern columns if missing and backfill from legacy fields
   IF NOT EXISTS (

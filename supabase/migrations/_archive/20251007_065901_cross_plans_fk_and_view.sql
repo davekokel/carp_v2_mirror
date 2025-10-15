@@ -1,6 +1,5 @@
 BEGIN;
-
-DO $$
+DO 28762
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
@@ -27,8 +26,7 @@ BEGIN
     END IF;
   END IF;
 END$$;
-
-DO $$
+DO 28762
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables

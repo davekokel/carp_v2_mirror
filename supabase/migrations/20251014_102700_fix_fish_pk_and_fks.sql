@@ -17,8 +17,8 @@ ALTER TABLE ONLY public.injected_rna_treatments    DROP CONSTRAINT IF EXISTS inj
 ALTER TABLE ONLY public.injected_rna_treatments    DROP CONSTRAINT IF EXISTS irt_fish_fk;
 ALTER TABLE ONLY public.load_log_fish              DROP CONSTRAINT IF EXISTS load_log_fish_fish_id_fkey;
 
--- 2) Swap fish primary key to (id)
-DO $$
+-- 2) Swap fish primary key to (id);
+DO 28762
 BEGIN
 DECLARE pkname text;
 BEGIN

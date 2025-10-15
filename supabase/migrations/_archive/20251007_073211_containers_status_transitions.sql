@@ -1,13 +1,12 @@
 BEGIN;
-
-DO $$
+DO 28762
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='container_status') THEN
     CREATE TYPE container_status AS ENUM ('planned','active','to_kill','retired');
   END IF;
 END$$;
 
-DO $$ BEGIN
+DO 28691  BEGIN
   BEGIN
     ALTER TYPE container_status ADD VALUE IF NOT EXISTS 'planned';
     EXCEPTION WHEN duplicate_object THEN NULL;

@@ -43,8 +43,8 @@ BEGIN
   RETURN 'FSH-' || yy || public._to_base36(k, 4);
 END $$;
 
--- Drop ALL user triggers on fish (covers legacy names like before_insert_set_fish_code)
-DO $$
+-- Drop ALL user triggers on fish (covers legacy names like before_insert_set_fish_code);
+DO 28762
 DECLARE r record;
 BEGIN
   FOR r IN

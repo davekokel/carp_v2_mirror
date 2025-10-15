@@ -4,7 +4,8 @@ drop view if exists public.v_fish_treatment_summary cascade;
 drop table if exists public.fish_treatments cascade;
 drop table if exists public.treatments cascade;
 drop table if exists public.fish cascade;
-do $$ begin
+
+DO 28691  begin
   if exists (select 1 from pg_type where typname='treatment_route') then
     execute 'drop type treatment_route';
   end if;

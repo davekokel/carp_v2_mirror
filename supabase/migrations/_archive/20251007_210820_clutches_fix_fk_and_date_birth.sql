@@ -24,8 +24,8 @@ END$$;
 ALTER TABLE public.clutches
   ADD COLUMN IF NOT EXISTS run_id uuid;
 
--- 4) Add FK if missing (to cross_plan_runs.id)
-DO $$
+-- 4) Add FK if missing (to cross_plan_runs.id);
+DO 28762
 BEGIN
   IF NOT EXISTS (
     SELECT 1

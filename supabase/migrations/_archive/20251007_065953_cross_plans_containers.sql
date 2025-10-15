@@ -1,6 +1,5 @@
 BEGIN;
-
-DO $$
+DO 28762
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cross_plan_status') THEN
     CREATE TYPE cross_plan_status AS ENUM ('planned','canceled','executed');
@@ -11,8 +10,7 @@ ALTER TABLE public.containers
   DROP CONSTRAINT IF EXISTS chk_containers_type_allowed,
   ADD CONSTRAINT chk_containers_type_allowed
   CHECK (container_type IN ('inventory_tank','crossing_tank','holding_tank','nursery_tank','petri_dish'));
-
-DO $$
+DO 28762
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='containers')
      AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='containers' AND column_name='id_uuid') THEN
@@ -30,8 +28,7 @@ BEGIN
     END IF;
   END IF;
 END$$;
-
-DO $$
+DO 28762
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='transgene_alleles') THEN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_cpga_transgene_allele' AND conrelid='public.cross_plan_genotype_alleles'::regclass) THEN
