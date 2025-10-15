@@ -448,8 +448,16 @@ ALTER VIEW public.vw_planned_clutches_overview OWNER TO postgres;
 -- Name: cross_plans cross_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.cross_plans
-    ADD CONSTRAINT cross_plans_pkey PRIMARY KEY (id);
+
+DO 25347
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.cross_plans'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT cross_plans_pkey PRIMARY KEY (id);
+  END IF;
+END;
+25347 LANGUAGE plpgsql;
 
 
 --
