@@ -8,41 +8,59 @@ on:
 jobs:
   db-push:
     runs-on: ubuntu-latest
-    env:
-      STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Supabase CLI
+      - name: Assert STAGING_DB_URL is set
+        shell: bash
         run: |
+          if [ -z "${{ secrets.STAGING_DB_URL }}" ]; then
+            echo "::error::Secret STAGING_DB_URL is not set. Add it in Settings → Secrets → Actions."; exit 1
+          fi
+          echo "STAGING_DB_URL is set."
+
+      - name: Install Supabase CLI + psql client
+        shell: bash
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client curl
           curl -sL https://github.com/supabase/cli/releases/download/v2.47.2/supabase_2.47.2_linux_amd64.deb -o /tmp/supabase.deb
           sudo dpkg -i /tmp/supabase.deb
           supabase -v
+          psql --version
 
+      # Optional: block $$→PID corruption sneaking into migrations
       - name: Lint migrations (no PID-corrupted DO)
+        shell: bash
         run: |
           BAD1=$(grep -RIl "^[[:space:]]*DO[[:space:]][0-9]\+" supabase/migrations || true)
-          BAD2=$(grep -RIl "^[[:space:]]*[0-9][0-9][0-9][0-9]+[[:space:]]+LANGUAGE[[:space:]]+plpgsql" supabase/migrations || true)
+          BAD2=$(grep -RIl "^[[:space:]]*[0-9][0-9][0-9][0-9][[:space:]]\+LANGUAGE[[:space:]]\+plpgsql" supabase/migrations || true)
           if [ -n "$BAD1$BAD2" ]; then
-            echo "::error::Found PID-corrupted DO blocks:"
-            echo "$BAD1"
-            echo "$BAD2"
-            exit 1
+            echo "::error::Found PID-corrupted DO blocks:"; echo "$BAD1"; echo "$BAD2"; exit 1
           fi
 
-      - name: Push DB changes to staging
+      - name: Push DB changes to staging (Freeze & Continue)
+        shell: bash
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
         run: |
-          supabase db push --db-url "${STAGING_DB_URL}" --debug || {
-            echo "::warning::db push failed; applying post-freeze files with psql fallback"
+          echo "Running supabase db push..."
+          if supabase db push --db-url "${STAGING_DB_URL}" --debug; then
+            echo "db push completed."
+          else
+            echo "::warning::db push failed (driver quirk). Falling back to psql apply of post-freeze files."
             for f in $(ls -1 supabase/migrations/*.sql | sort); do
               echo "Applying $f ..."
               psql "${STAGING_DB_URL}" -v ON_ERROR_STOP=1 -f "$f"
             done
-          }
+          fi
 
       - name: Verify UI views exist
+        shell: bash
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
         run: |
           psql "${STAGING_DB_URL}" -Atc "select 'v_fish_overview', exists(select 1 from information_schema.views where table_schema='public' and table_name='v_fish_overview')"
           psql "${STAGING_DB_URL}" -Atc "select 'v_cross_concepts_overview', exists(select 1 from information_schema.views where table_schema='public' and table_name='v_cross_concepts_overview')"
