@@ -1,3 +1,4 @@
+DROP VIEW IF EXISTS public.v_fish_overview CASCADE;
 -- Compat view for the UI: expose the columns load_fish_overview() expects.
 create or replace view public.v_fish_overview as
 select
