@@ -6,6 +6,7 @@ alter table public.clutch_instances
 
 -- drop the current primary key (name-agnostic)
 DO $$
+DO $$
 DECLARE pk_name text;
 BEGIN
 select conname
