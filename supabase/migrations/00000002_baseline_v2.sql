@@ -7,7 +7,7 @@ BEGIN
     CREATE ROLE app_ro;
   END IF;
 END;
-23726 LANGUAGE plpgsql;
+24014 LANGUAGE plpgsql;
 
 --
 --
