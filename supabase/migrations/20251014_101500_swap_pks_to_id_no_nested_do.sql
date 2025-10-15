@@ -9,6 +9,7 @@ UPDATE public.clutch_genotype_options SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutch_genotype_options ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutch_genotype_options ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -20,7 +21,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.clutch_genotype_options DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.clutch_genotype_options ADD CONSTRAINT clutch_genotype_options_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.clutch_genotype_options DROP CONSTRAINT IF EXISTS clutch_genotype_options_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.clutch_genotype_options_id_key;
 ALTER TABLE public.clutch_genotype_options DROP COLUMN IF EXISTS id_uuid;
@@ -31,6 +34,7 @@ UPDATE public.clutch_plan_treatments SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutch_plan_treatments ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutch_plan_treatments ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -40,7 +44,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.clutch_plan_treatments DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.clutch_plan_treatments ADD CONSTRAINT clutch_plan_treatments_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.clutch_plan_treatments DROP CONSTRAINT IF EXISTS clutch_plan_treatments_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.clutch_plan_treatments_id_key;
 ALTER TABLE public.clutch_plan_treatments DROP COLUMN IF EXISTS id_uuid;
@@ -51,6 +57,7 @@ UPDATE public.clutch_treatments SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutch_treatments ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutch_treatments ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -60,7 +67,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.clutch_treatments DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.clutch_treatments ADD CONSTRAINT clutch_treatments_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.clutch_treatments DROP CONSTRAINT IF EXISTS clutch_treatments_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.clutch_treatments_id_key;
 ALTER TABLE public.clutch_treatments DROP COLUMN IF EXISTS id_uuid;
@@ -71,6 +80,7 @@ UPDATE public.clutches SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutches ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutches ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -80,7 +90,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.clutches DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.clutches ADD CONSTRAINT clutches_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.clutches DROP CONSTRAINT IF EXISTS clutches_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.clutches_id_key;
 ALTER TABLE public.clutches DROP COLUMN IF EXISTS id_uuid;
@@ -91,6 +103,7 @@ UPDATE public.containers SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.containers ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.containers ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -100,7 +113,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.containers DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.containers ADD CONSTRAINT containers_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.containers DROP CONSTRAINT IF EXISTS containers_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.containers_id_key;
 ALTER TABLE public.containers DROP COLUMN IF EXISTS id_uuid;
@@ -111,6 +126,7 @@ UPDATE public.cross_instances SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.cross_instances ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.cross_instances ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -120,7 +136,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.cross_instances DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.cross_instances ADD CONSTRAINT cross_instances_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.cross_instances DROP CONSTRAINT IF EXISTS cross_instances_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.cross_instances_id_key;
 ALTER TABLE public.cross_instances DROP COLUMN IF EXISTS id_uuid;
@@ -131,6 +149,7 @@ UPDATE public.crosses SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.crosses ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.crosses ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -140,7 +159,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.crosses DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.crosses ADD CONSTRAINT crosses_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.crosses DROP CONSTRAINT IF EXISTS crosses_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.crosses_id_key;
 ALTER TABLE public.crosses DROP COLUMN IF EXISTS id_uuid;
@@ -151,6 +172,7 @@ UPDATE public.label_items SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.label_items ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.label_items ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -160,7 +182,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.label_items DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.label_items ADD CONSTRAINT label_items_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.label_items DROP CONSTRAINT IF EXISTS label_items_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.label_items_id_key;
 ALTER TABLE public.label_items DROP COLUMN IF EXISTS id_uuid;
@@ -171,6 +195,7 @@ UPDATE public.planned_crosses SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.planned_crosses ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.planned_crosses ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -180,7 +205,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.planned_crosses DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.planned_crosses ADD CONSTRAINT planned_crosses_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.planned_crosses DROP CONSTRAINT IF EXISTS planned_crosses_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.planned_crosses_id_key;
 ALTER TABLE public.planned_crosses DROP COLUMN IF EXISTS id_uuid;
@@ -191,6 +218,7 @@ UPDATE public.plasmids SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.plasmids ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.plasmids ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -200,7 +228,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.plasmids DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.plasmids ADD CONSTRAINT plasmids_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.plasmids DROP CONSTRAINT IF EXISTS plasmids_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.plasmids_id_key;
 ALTER TABLE public.plasmids DROP COLUMN IF EXISTS id_uuid;
@@ -211,6 +241,7 @@ UPDATE public.rnas SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.rnas ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.rnas ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -220,7 +251,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.rnas DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.rnas ADD CONSTRAINT rnas_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.rnas DROP CONSTRAINT IF EXISTS rnas_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.rnas_id_key;
 ALTER TABLE public.rnas DROP COLUMN IF EXISTS id_uuid;
@@ -231,6 +264,7 @@ UPDATE public.selection_labels SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.selection_labels ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.selection_labels ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -240,7 +274,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.selection_labels DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.selection_labels ADD CONSTRAINT selection_labels_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.selection_labels DROP CONSTRAINT IF EXISTS selection_labels_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.selection_labels_id_key;
 ALTER TABLE public.selection_labels DROP COLUMN IF EXISTS id_uuid;
@@ -251,6 +287,7 @@ UPDATE public.tank_requests SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.tank_requests ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.tank_requests ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -260,7 +297,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.tank_requests DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.tank_requests ADD CONSTRAINT tank_requests_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.tank_requests DROP CONSTRAINT IF EXISTS tank_requests_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.tank_requests_id_key;
 ALTER TABLE public.tank_requests DROP COLUMN IF EXISTS id_uuid;

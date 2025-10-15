@@ -1,4 +1,5 @@
 DO $$
+BEGIN
 DECLARE
   t text;
   pkname text;
@@ -78,4 +79,6 @@ BEGIN
       EXECUTE format('ALTER TABLE public.%I DROP COLUMN IF EXISTS id_uuid', t);
     END IF;
   END LOOP;
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;

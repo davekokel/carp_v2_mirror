@@ -5,7 +5,8 @@ BEGIN
   -- This SELECT executes but does not return to client in DO; keep for reference
   -- SELECT cross_instance_id, count(*) FROM public.clutch_instances
   -- WHERE cross_instance_id IS NOT NULL GROUP BY 1 HAVING count(*)>1;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 -- Add a true UNIQUE CONSTRAINT (ON CONFLICT requires a constraint or a non-partial unique index)
 DO $$
@@ -18,4 +19,5 @@ BEGIN
     ALTER TABLE public.clutch_instances
       ADD CONSTRAINT uq_ci_cross_instance_id UNIQUE (cross_instance_id);
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;

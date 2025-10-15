@@ -1,4 +1,5 @@
 DO $$
+BEGIN
 DECLARE
   r record;
   parent_has_id boolean;
@@ -68,4 +69,6 @@ BEGIN
       r.child_table, r.conname, r.child_col, r.parent_table
     );
   END LOOP;
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;

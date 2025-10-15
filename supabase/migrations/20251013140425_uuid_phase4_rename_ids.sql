@@ -21,6 +21,7 @@ BEGIN
   ) then
     execute 'alter index ix_bm_selection_id_uuid rename to ix_bm_selection_id';
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;
 
 commit;

@@ -1,7 +1,8 @@
 begin;
 
 -- clutch_instances PK: rename only if the old name exists
-do $$
+DO $$
+BEGIN
 declare pkname text;
 begin
   select conname
@@ -14,7 +15,9 @@ begin
   if pkname = 'clutch_instances_pkey_uuid' then
     execute 'alter table public.clutch_instances rename constraint clutch_instances_pkey_uuid to clutch_instances_pkey';
   end if;
-end$$;
+end;
+END;
+$$ LANGUAGE plpgsql;
 
 -- bruker_mounts FK: rename only if the old name exists
 DO $$
@@ -26,7 +29,8 @@ BEGIN
   ) then
     execute 'alter table public.bruker_mounts rename constraint fk_bm_selection_uuid to fk_bm_selection_id';
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;
 
 -- index rename: only if the old name exists
 DO $$
@@ -34,6 +38,7 @@ BEGIN
   if exists (select 1 from pg_class where relname='ix_bm_selection_id_uuid') then
     execute 'alter index ix_bm_selection_id_uuid rename to ix_bm_selection_id';
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;
 
 commit;

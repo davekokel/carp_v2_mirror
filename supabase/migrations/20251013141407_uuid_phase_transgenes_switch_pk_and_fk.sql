@@ -14,14 +14,16 @@ BEGIN
   ) then
     execute 'create unique index uq_transgenes_transgene_base_code on public.transgenes(transgene_base_code)';
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;
 
 -- 3) Drop legacy FK in transgene_alleles that depends on current PK
 alter table public.transgene_alleles
   drop constraint if exists fk_transgene_alleles_base;
 
 -- 4) Drop current PK on transgenes (whatever its name is), then set PK(id)
-do $$
+DO $$
+BEGIN
 declare pk_name text;
 begin
   select conname into pk_name
@@ -31,7 +33,9 @@ begin
     execute format('alter table public.transgenes drop constraint %I', pk_name);
   end if;
   execute 'alter table public.transgenes add constraint transgenes_pkey primary key (id)';
-end$$;
+end;
+END;
+$$ LANGUAGE plpgsql;
 
 -- 5) Introduce UUID FK lane on transgene_alleles
 alter table public.transgene_alleles

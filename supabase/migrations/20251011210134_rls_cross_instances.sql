@@ -14,4 +14,5 @@ BEGIN
     create policy app_rw_update_ci on public.cross_instances
       for update to app_rw using (true) with check (true);
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;

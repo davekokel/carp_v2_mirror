@@ -24,4 +24,5 @@ BEGIN
     alter table public.cross_instances
       add constraint fk_ci_father_container foreign key (father_tank_id) references public.containers(id_uuid) NOT VALID;
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;

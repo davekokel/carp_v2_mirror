@@ -31,4 +31,5 @@ BEGIN
     CREATE INDEX ix_ci_cross_instance_id
       ON public.clutch_instances(cross_instance_id);
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;

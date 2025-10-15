@@ -15,4 +15,5 @@ BEGIN
       add constraint fk_ci_xrun
       foreign key (cross_instance_id) references public.cross_instances(id_uuid) not valid;
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;

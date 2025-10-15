@@ -10,6 +10,7 @@ ALTER TABLE ONLY public.tank_requests DROP CONSTRAINT IF EXISTS tank_requests_fi
 
 -- tank_requests
 DO $$
+BEGIN
 DECLARE pk text;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='tank_requests' AND column_name='id') THEN
@@ -26,13 +27,16 @@ BEGIN
     EXECUTE 'ALTER TABLE public.tank_requests DROP CONSTRAINT '||quote_ident(pk);
   END IF;
   EXECUTE 'ALTER TABLE public.tank_requests ADD CONSTRAINT tank_requests_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.tank_requests DROP CONSTRAINT IF EXISTS tank_requests_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.tank_requests_id_key;
 ALTER TABLE public.tank_requests DROP COLUMN IF EXISTS id_uuid;
 
 -- label_jobs
 DO $$
+BEGIN
 DECLARE pk text;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='label_jobs' AND column_name='id') THEN
@@ -49,13 +53,16 @@ BEGIN
     EXECUTE 'ALTER TABLE public.label_jobs DROP CONSTRAINT '||quote_ident(pk);
   END IF;
   EXECUTE 'ALTER TABLE public.label_jobs ADD CONSTRAINT label_jobs_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.label_jobs DROP CONSTRAINT IF EXISTS label_jobs_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.label_jobs_id_key;
 ALTER TABLE public.label_jobs DROP COLUMN IF EXISTS id_uuid;
 
 -- plasmids
 DO $$
+BEGIN
 DECLARE pk text;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='plasmids' AND column_name='id') THEN
@@ -72,13 +79,16 @@ BEGIN
     EXECUTE 'ALTER TABLE public.plasmids DROP CONSTRAINT '||quote_ident(pk);
   END IF;
   EXECUTE 'ALTER TABLE public.plasmids ADD CONSTRAINT plasmids_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.plasmids DROP CONSTRAINT IF EXISTS plasmids_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.plasmids_id_key;
 ALTER TABLE public.plasmids DROP COLUMN IF EXISTS id_uuid;
 
 -- fish
 DO $$
+BEGIN
 DECLARE pk text;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='fish' AND column_name='id') THEN
@@ -95,7 +105,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.fish DROP CONSTRAINT '||quote_ident(pk);
   END IF;
   EXECUTE 'ALTER TABLE public.fish ADD CONSTRAINT fish_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.fish DROP CONSTRAINT IF EXISTS fish_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.fish_id_key;
 ALTER TABLE public.fish DROP COLUMN IF EXISTS id_uuid;

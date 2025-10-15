@@ -1,4 +1,5 @@
 DO $$
+BEGIN
 DECLARE r record;
 BEGIN
   FOR r IN
@@ -19,4 +20,6 @@ BEGIN
       RAISE NOTICE 'Skip public.%.id_uuid (has dependent objects): %', r.tbl, SQLERRM;
     END;
   END LOOP;
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;

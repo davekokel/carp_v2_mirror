@@ -1,5 +1,6 @@
 -- Rewrite any remaining single-column FKs that reference parent(id_uuid) to parent(id)
 DO $$
+BEGIN
 DECLARE
   r RECORD;
   del_action text;
@@ -62,4 +63,6 @@ BEGIN
       r.child_schema, r.child_table, r.fk_name, r.child_col, r.parent_schema, r.parent_table, del_action
     );
   END LOOP;
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;

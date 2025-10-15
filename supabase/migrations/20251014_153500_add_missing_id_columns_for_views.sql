@@ -1,5 +1,6 @@
 -- Ensure every table used in views has an id column (mapped to id_uuid where needed)
 DO $$
+BEGIN
 DECLARE
   t text;
 BEGIN
@@ -21,4 +22,6 @@ BEGIN
       EXECUTE format('ALTER TABLE public.%I ALTER COLUMN id SET DEFAULT gen_random_uuid()', t);
     END IF;
   END LOOP;
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;

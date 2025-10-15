@@ -40,4 +40,5 @@ BEGIN
       to app_rw
       using (true) with check (true);
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;

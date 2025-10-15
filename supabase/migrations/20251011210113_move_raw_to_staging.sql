@@ -1,6 +1,7 @@
 create schema if not exists staging;
 
-do $$
+DO $$
+BEGIN
 declare t text;
 begin
   foreach t in array array[
@@ -16,4 +17,6 @@ begin
       execute format('alter table public.%I set schema staging', t);
     end if;
   end loop;
-end$$;
+end;
+END;
+$$ LANGUAGE plpgsql;

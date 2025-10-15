@@ -9,6 +9,7 @@ END
 $$;
 
 DO $$
+BEGIN
 DECLARE r record;
 BEGIN
   FOR r IN
@@ -21,4 +22,6 @@ BEGIN
     EXECUTE format('DROP TRIGGER IF EXISTS trg_set_updated_at ON %I.%I', r.table_schema, r.table_name);
     EXECUTE format('CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON %I.%I FOR EACH ROW EXECUTE FUNCTION public.trg_set_updated_at()', r.table_schema, r.table_name);
   END LOOP;
-END$$;
+END;
+END;
+$$ LANGUAGE plpgsql;

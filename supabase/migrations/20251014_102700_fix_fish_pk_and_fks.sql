@@ -19,6 +19,7 @@ ALTER TABLE ONLY public.load_log_fish              DROP CONSTRAINT IF EXISTS loa
 
 -- 2) Swap fish primary key to (id)
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -30,7 +31,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.fish DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.fish ADD CONSTRAINT fish_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 
 -- 3) Drop transition bits and old column
 ALTER TABLE public.fish DROP CONSTRAINT IF EXISTS fish_id_equals_id_uuid;

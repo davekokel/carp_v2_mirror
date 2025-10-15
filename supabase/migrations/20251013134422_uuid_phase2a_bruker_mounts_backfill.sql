@@ -4,7 +4,8 @@ alter table public.bruker_mounts
   add column if not exists selection_id_uuid uuid;
 
 -- backfill from existing selection_id
-do $$
+DO $$
+BEGIN
 declare v_typ text;
 begin
   select data_type
@@ -33,7 +34,9 @@ begin
      where selection_id_uuid is null
        and selection_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
   end if;
-end$$;
+end;
+END;
+$$ LANGUAGE plpgsql;
 
 create index if not exists ix_bm_selection_id_uuid on public.bruker_mounts(selection_id_uuid);
 

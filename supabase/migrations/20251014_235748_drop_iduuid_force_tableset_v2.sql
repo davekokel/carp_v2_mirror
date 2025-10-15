@@ -1,4 +1,5 @@
 DO $$
+BEGIN
 DECLARE
   t text;
   attnum int;
@@ -62,4 +63,6 @@ BEGIN
       RAISE NOTICE 'Could not drop public.%.id_uuid: %', t, SQLERRM;
     END;
   END LOOP;
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;

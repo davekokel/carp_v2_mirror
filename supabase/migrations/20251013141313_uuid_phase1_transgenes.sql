@@ -14,10 +14,12 @@ BEGIN
   ) then
     execute 'create unique index uq_transgenes_transgene_base_code on public.transgenes(transgene_base_code)';
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;
 
 -- 3) promote id to PK (drop existing PK if any)
-do $$
+DO $$
+BEGIN
 declare pk_name text;
 begin
   select conname into pk_name
@@ -29,6 +31,8 @@ begin
   end if;
 
   execute 'alter table public.transgenes add constraint transgenes_pkey primary key (id)';
-end$$;
+end;
+END;
+$$ LANGUAGE plpgsql;
 
 commit;

@@ -21,10 +21,10 @@ BEGIN
     JOIN pg_namespace n ON n.oid = t.typnamespace
     WHERE t.typname = 'container_status' AND n.nspname = 'public'
   ) THEN
-    CREATE TYPE public.container_status AS ENUM ('planned','active','to_kill','retired');
+CREATE TYPE public.container_status AS ENUM ('planned', 'active', 'to_kill', 'retired');
   END IF;
 END
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;LANGUAGE plpgsql;
 
 -- Name: cross_plan_status; Type: TYPE; Schema: public; Owner: -
 DO $$
@@ -35,10 +35,10 @@ BEGIN
     JOIN pg_namespace n ON n.oid = t.typnamespace
     WHERE t.typname = 'cross_plan_status' AND n.nspname = 'public'
   ) THEN
-    CREATE TYPE public.cross_plan_status AS ENUM ('planned','canceled','executed');
+CREATE TYPE public.cross_plan_status AS ENUM ('planned', 'canceled', 'executed');
   END IF;
 END
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;LANGUAGE plpgsql;
 
 --
 -- Name: apply_plasmid_treatment(uuid, uuid, numeric, text, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -

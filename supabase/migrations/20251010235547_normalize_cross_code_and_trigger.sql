@@ -57,4 +57,5 @@ BEGIN
     -- If legacy stragglers exist, leave NOT VALID; we can clean them later.
     NULL;
   END;
-END$$;
+END
+$$ LANGUAGE plpgsql;

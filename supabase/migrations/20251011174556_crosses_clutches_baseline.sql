@@ -71,24 +71,21 @@ COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 
 DO $$
 BEGIN
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_type
     WHERE typname='container_status'
       AND typnamespace='public'::regnamespace
   ) THEN
-DO $$
-BEGIN
+DO;
+END;
+$$ LANGUAGE plpgsql;BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_type t
     JOIN pg_namespace n ON n.oid=t.typnamespace
     WHERE t.typname='container_status' AND n.nspname='public'
   ) THEN
-    CREATE TYPE public.container_status AS ENUM (
-    'planned',
-    'active',
-    'to_kill',
-    'retired'
-);
+CREATE TYPE public.container_status AS ENUM ('planned', 'active', 'to_kill', 'retired');
   END IF;
 END
 END
@@ -111,15 +108,11 @@ BEGIN
     JOIN pg_namespace n ON n.oid=t.typnamespace
     WHERE t.typname='cross_plan_status' AND n.nspname='public'
   ) THEN
-    CREATE TYPE public.cross_plan_status AS ENUM (
-    'planned',
-    'canceled',
-    'executed'
-);
+CREATE TYPE public.cross_plan_status AS ENUM ('planned', 'canceled', 'executed');
   END IF;
 END
 END
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;LANGUAGE plpgsql;
 
 
 ALTER TYPE public.cross_plan_status OWNER TO postgres;

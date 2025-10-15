@@ -8,6 +8,7 @@ ALTER TABLE public.clutch_plans ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutch_plans ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
 DO $$
+BEGIN
 DECLARE pk text;
 BEGIN
   SELECT c.conname INTO pk
@@ -19,7 +20,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.clutch_plans DROP CONSTRAINT '||quote_ident(pk);
   END IF;
   EXECUTE 'ALTER TABLE public.clutch_plans ADD CONSTRAINT clutch_plans_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 
 ALTER TABLE public.clutch_plans DROP CONSTRAINT IF EXISTS clutch_plans_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.clutch_plans_id_key;

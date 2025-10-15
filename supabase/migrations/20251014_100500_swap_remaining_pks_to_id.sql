@@ -1,6 +1,7 @@
 -- Ensure id exists, is populated, and has sensible defaults, then swap PK(id_uuid) -> PK(id) and drop id_uuid.
 
 DO $$
+BEGIN
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
@@ -39,8 +40,9 @@ BEGIN
 
     IF NOT FOUND THEN
       -- drop current PK and re-add on (id)
-      EXECUTE format($f$ DO $$
-        DECLARE pkname text;
+      EXECUTE format($f$ DO;
+END;
+$$ LANGUAGE plpgsql;DECLARE pkname text;
         BEGIN
           SELECT c.conname INTO pkname
           FROM pg_constraint c

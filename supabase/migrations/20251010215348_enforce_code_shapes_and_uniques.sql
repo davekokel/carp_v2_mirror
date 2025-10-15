@@ -22,7 +22,8 @@ BEGIN
       NULL;
     END;
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 -- containers.tank_code
 DO $$
@@ -45,7 +46,8 @@ BEGIN
       NULL;
     END;
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 -- crosses.cross_code
 DO $$
@@ -68,4 +70,5 @@ BEGIN
       NULL;
     END;
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;

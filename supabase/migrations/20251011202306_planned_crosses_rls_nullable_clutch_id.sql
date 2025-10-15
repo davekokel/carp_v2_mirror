@@ -37,4 +37,5 @@ BEGIN
       USING (true)
       WITH CHECK (true);
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;

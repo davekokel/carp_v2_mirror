@@ -39,4 +39,5 @@ BEGIN
       CREATE POLICY app_rw_update_fta ON public.fish_transgene_alleles FOR UPDATE TO app_rw USING (true) WITH CHECK (true);
     END IF;
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;

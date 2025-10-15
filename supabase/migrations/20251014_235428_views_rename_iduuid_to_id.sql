@@ -1,4 +1,5 @@
 DO $$
+BEGIN
 DECLARE v RECORD;
 BEGIN
   FOR v IN
@@ -14,4 +15,6 @@ BEGIN
       RAISE NOTICE 'Skip rename on view %: %', v.view_name, SQLERRM;
     END;
   END LOOP;
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;

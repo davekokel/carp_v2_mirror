@@ -22,6 +22,7 @@ ALTER TABLE public.containers ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.containers ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
 DO $$
+BEGIN
 DECLARE pk text;
 BEGIN
   SELECT c.conname INTO pk
@@ -33,7 +34,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.containers DROP CONSTRAINT '||quote_ident(pk);
   END IF;
   EXECUTE 'ALTER TABLE public.containers ADD CONSTRAINT containers_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 
 -- clean transition bits and drop id_uuid now that no views/FKs depend on it
 ALTER TABLE public.containers DROP CONSTRAINT IF EXISTS containers_id_equals_id_uuid;

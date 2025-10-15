@@ -19,4 +19,5 @@ BEGIN
     -- leave as NOT VALID; new rows are still guarded; we can clean & validate later
     NULL;
   END;
-END$$;
+END
+$$ LANGUAGE plpgsql;

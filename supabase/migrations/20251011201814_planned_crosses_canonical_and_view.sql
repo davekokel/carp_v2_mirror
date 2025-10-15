@@ -23,7 +23,8 @@ BEGIN
   ) then
     execute 'create unique index ux_planned_crosses_cross_code on public.planned_crosses (cross_code)';
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;
 
 -- Optional RLS (permissive for app_rw)
 DO $$
@@ -33,7 +34,8 @@ BEGIN
   then execute 'create policy app_rw_select_planned_crosses on public.planned_crosses for select to app_rw using (true)'; end if;
   if not exists (select 1 from pg_policy where polrelid='public.planned_crosses'::regclass and polname='app_rw_upsert_planned_crosses')
   then execute 'create policy app_rw_upsert_planned_crosses on public.planned_crosses for insert, update to app_rw using (true) with check (true)'; end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;
 
 -- AUTHORITATIVE view for the concept grid (pull planned values + live-tank fallback)
 create or replace view public.v_cross_concepts_overview as

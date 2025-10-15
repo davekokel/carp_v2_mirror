@@ -1,4 +1,5 @@
 DO $$
+BEGIN
 DECLARE r record;
 BEGIN
   FOR r IN
@@ -22,4 +23,6 @@ BEGIN
       );
     END IF;
   END LOOP;
-END$$;
+END;
+END;
+$$ LANGUAGE plpgsql;

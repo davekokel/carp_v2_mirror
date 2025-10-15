@@ -10,6 +10,7 @@ ALTER TABLE ONLY public.tank_requests     DROP CONSTRAINT IF EXISTS tank_request
 
 -- Swap fish PK to (id)
 DO $$
+BEGIN
 DECLARE pkname text;
 BEGIN
   SELECT c.conname INTO pkname
@@ -21,7 +22,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.fish DROP CONSTRAINT '||quote_ident(pkname);
   END IF;
   EXECUTE 'ALTER TABLE public.fish ADD CONSTRAINT fish_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Drop transitional CHECK/index; then drop id_uuid
 ALTER TABLE public.fish DROP CONSTRAINT IF EXISTS fish_id_equals_id_uuid;

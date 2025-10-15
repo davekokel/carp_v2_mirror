@@ -28,4 +28,5 @@ BEGIN
   ) then
     create index ix_ci_created_at on public.clutch_instances(created_at);
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;

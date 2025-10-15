@@ -11,4 +11,5 @@ BEGIN
     execute 'create policy app_rw_select_ci on public.clutch_instances for select to app_rw using (true)';
     execute 'create policy app_rw_update_ci on public.clutch_instances for update to app_rw using (true) with check (true)';
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;

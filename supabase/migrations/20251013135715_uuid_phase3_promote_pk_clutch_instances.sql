@@ -5,7 +5,8 @@ alter table public.clutch_instances
   alter column id_uuid set not null;
 
 -- drop the current primary key (name-agnostic)
-do $$
+DO $$
+BEGIN
 declare pk_name text;
 begin
   select conname
@@ -17,7 +18,9 @@ begin
   if pk_name is not null then
     execute format('alter table public.clutch_instances drop constraint %I', pk_name);
   end if;
-end$$;
+end;
+END;
+$$ LANGUAGE plpgsql;
 
 -- make id_uuid the PK
 alter table public.clutch_instances

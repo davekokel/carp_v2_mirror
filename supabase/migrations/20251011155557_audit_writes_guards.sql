@@ -15,4 +15,5 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='fish_tank_memberships') THEN
     PERFORM audit.attach_writes('public.fish_tank_memberships'::regclass);
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;

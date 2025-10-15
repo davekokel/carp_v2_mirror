@@ -8,7 +8,8 @@ BEGIN
   if not exists (select 1 from pg_policy where polrelid=''public.planned_crosses''::regclass and polname=''app_rw_upsert_planned_crosses'') then
     execute 'create policy app_rw_upsert_planned_crosses on public.planned_crosses for insert, update to app_rw using (true) with check (true)';
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;
 
 -- 2) Relax NOT NULL on clutch_id so insert/upsert can succeed without a pre-linked clutch
 DO $$
@@ -20,4 +21,5 @@ BEGIN
   ) then
     execute 'alter table public.planned_crosses alter column clutch_id drop not null';
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;

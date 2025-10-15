@@ -38,4 +38,5 @@ BEGIN
     create policy app_rw_update_ci_annot
       on public.clutch_instances for update to app_rw using (true) with check (true);
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;

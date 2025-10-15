@@ -25,4 +25,5 @@ BEGIN
       ON public.clutch_instances FOR UPDATE TO app_rw
       USING (true) WITH CHECK (true);
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;

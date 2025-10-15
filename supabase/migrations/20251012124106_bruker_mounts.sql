@@ -39,4 +39,5 @@ BEGIN
     create policy app_rw_update_bm on public.bruker_mounts
       for update to app_rw using (true) with check (true);
   end if;
-end$$;
+end
+$$ LANGUAGE plpgsql;

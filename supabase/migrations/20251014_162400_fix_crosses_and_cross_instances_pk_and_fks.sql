@@ -15,6 +15,7 @@ UPDATE public.crosses SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.crosses ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.crosses ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pk text;
 BEGIN
   SELECT c.conname INTO pk
@@ -26,7 +27,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.crosses DROP CONSTRAINT '||quote_ident(pk);
   END IF;
   EXECUTE 'ALTER TABLE public.crosses ADD CONSTRAINT crosses_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.crosses DROP CONSTRAINT IF EXISTS crosses_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.crosses_id_key;
 ALTER TABLE public.crosses DROP COLUMN IF EXISTS id_uuid;
@@ -37,6 +40,7 @@ UPDATE public.cross_instances SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.cross_instances ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.cross_instances ALTER COLUMN id SET DEFAULT gen_random_uuid();
 DO $$
+BEGIN
 DECLARE pk text;
 BEGIN
   SELECT c.conname INTO pk
@@ -48,7 +52,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.cross_instances DROP CONSTRAINT '||quote_ident(pk);
   END IF;
   EXECUTE 'ALTER TABLE public.cross_instances ADD CONSTRAINT cross_instances_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 ALTER TABLE public.cross_instances DROP CONSTRAINT IF EXISTS cross_instances_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.cross_instances_id_key;
 ALTER TABLE public.cross_instances DROP COLUMN IF EXISTS id_uuid;

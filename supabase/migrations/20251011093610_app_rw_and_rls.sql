@@ -4,7 +4,7 @@ BEGIN
     CREATE ROLE app_rw LOGIN;
   END IF;
 END
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;LANGUAGE plpgsql;
 
 
 GRANT USAGE ON SCHEMA public TO app_rw;
@@ -35,7 +35,7 @@ BEGIN
     CREATE POLICY app_rw_update_fish ON public.fish FOR UPDATE TO app_rw USING (true) WITH CHECK (true);
   END IF;
 END
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;LANGUAGE plpgsql;
 
 
 ALTER TABLE public.transgene_alleles ENABLE ROW LEVEL SECURITY;
@@ -60,7 +60,7 @@ BEGIN
     CREATE POLICY app_rw_update_tga ON public.transgene_alleles FOR UPDATE TO app_rw USING (true) WITH CHECK (true);
   END IF;
 END
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;LANGUAGE plpgsql;
 
 
 ALTER TABLE public.fish_transgene_alleles ENABLE ROW LEVEL SECURITY;
@@ -85,6 +85,6 @@ BEGIN
     CREATE POLICY app_rw_update_fta ON public.fish_transgene_alleles FOR UPDATE TO app_rw USING (true) WITH CHECK (true);
   END IF;
 END
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;LANGUAGE plpgsql;
 
 

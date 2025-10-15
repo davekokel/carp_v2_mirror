@@ -6,6 +6,7 @@ ALTER TABLE public.planned_crosses ALTER COLUMN id SET DEFAULT gen_random_uuid()
 
 -- Drop existing PK (if any) and add new one on id
 DO $$
+BEGIN
 DECLARE pk text;
 BEGIN
   SELECT c.conname INTO pk
@@ -17,7 +18,9 @@ BEGIN
     EXECUTE 'ALTER TABLE public.planned_crosses DROP CONSTRAINT '||quote_ident(pk);
   END IF;
   EXECUTE 'ALTER TABLE public.planned_crosses ADD CONSTRAINT planned_crosses_pkey PRIMARY KEY (id)';
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
 
 ALTER TABLE public.planned_crosses DROP CONSTRAINT IF EXISTS planned_crosses_id_equals_id_uuid;
 DROP INDEX IF EXISTS public.planned_crosses_id_key;

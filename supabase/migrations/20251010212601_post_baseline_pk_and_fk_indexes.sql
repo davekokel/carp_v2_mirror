@@ -6,7 +6,8 @@ BEGIN
   ) THEN
     EXECUTE 'ALTER TABLE public.fish ADD PRIMARY KEY (id_uuid)';
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 ALTER TABLE public.fish_seed_batches_map
   ADD COLUMN IF NOT EXISTS id uuid DEFAULT gen_random_uuid();
@@ -19,7 +20,8 @@ BEGIN
   ) THEN
     EXECUTE 'ALTER TABLE public.fish_seed_batches_map ADD PRIMARY KEY (id)';
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 DO $$
 BEGIN
@@ -29,7 +31,8 @@ BEGIN
   ) THEN
     EXECUTE 'ALTER TABLE public.fish_seed_batches_map ADD CONSTRAINT uq_fsbm_natural UNIQUE (fish_id, seed_batch_id)';
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 DO $$
 BEGIN
@@ -43,7 +46,8 @@ BEGIN
              ON DELETE CASCADE NOT VALID';
     EXECUTE 'ALTER TABLE public.fish_seed_batches_map VALIDATE CONSTRAINT fk_fsbm_fish';
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 CREATE INDEX IF NOT EXISTS idx_clutch_containers_container_id              ON public.clutch_containers(container_id);
 CREATE INDEX IF NOT EXISTS idx_clutch_containers_source_container_id       ON public.clutch_containers(source_container_id);

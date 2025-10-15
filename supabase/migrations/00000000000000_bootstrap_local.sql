@@ -11,7 +11,8 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN
     CREATE ROLE service_role;
   END IF;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -21,14 +22,16 @@ BEGIN
   PERFORM set_config('statement_timeout','0', true);
 EXCEPTION WHEN undefined_object THEN
   NULL;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 DO $$
 BEGIN
   PERFORM set_config('transaction_timeout','0', true);
 EXCEPTION WHEN undefined_object THEN
   NULL;
-END$$;
+END
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION public.safe_drop_view(_schema text, _name text)
 RETURNS void

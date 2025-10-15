@@ -59,4 +59,5 @@ BEGIN
     -- leave NOT VALID; new rows will be normalized by the trigger anyway
     NULL;
   END;
-END$$;
+END
+$$ LANGUAGE plpgsql;

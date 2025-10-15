@@ -1,5 +1,6 @@
 -- Final wave: swap PKs from id_uuid → id for remaining core tables
 DO $$
+BEGIN
 DECLARE t text; pk text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
@@ -40,4 +41,6 @@ BEGIN
     EXECUTE format('DROP INDEX IF EXISTS public.%I', t||'_id_key');
     EXECUTE format('ALTER TABLE public.%I DROP COLUMN IF EXISTS id_uuid', t);
   END LOOP;
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;

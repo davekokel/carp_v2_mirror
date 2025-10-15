@@ -1,4 +1,5 @@
 DO $$
+BEGIN
 DECLARE r record; pkname text;
 BEGIN
   FOR r IN
@@ -30,4 +31,6 @@ BEGIN
 
     EXECUTE format('ALTER TABLE %I.%I ADD CONSTRAINT %I PRIMARY KEY (id)', r.sch, r.tbl, r.tbl||'_pkey');
   END LOOP;
-END $$;
+END;
+END;
+$$ LANGUAGE plpgsql;
