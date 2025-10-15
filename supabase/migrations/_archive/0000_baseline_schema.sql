@@ -497,7 +497,7 @@ DROP SCHEMA IF EXISTS realtime;
 DROP SCHEMA IF EXISTS raw;
 -- *not* dropping schema, since initdb creates it
 DROP SCHEMA IF EXISTS pgbouncer;
-DO 28762
+DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_net') THEN
     EXECUTE 'DROP EXTENSION IF EXISTS pg_net';

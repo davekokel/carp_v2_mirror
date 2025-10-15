@@ -6,7 +6,7 @@ alter table public.transgenes
   add column if not exists id uuid default gen_random_uuid();
 
 -- 2) keep natural key unique (assuming transgene_base_code is the natural key column name);
-DO 28762
+DO $$
 BEGIN
   if not exists (
     select 1 from pg_indexes
@@ -18,7 +18,7 @@ end
 $$ LANGUAGE plpgsql;
 
 -- 3) promote id to PK (drop existing PK if any);
-DO 28762
+DO $$
 BEGIN
 declare pk_name text;
 begin

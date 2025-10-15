@@ -12,7 +12,7 @@ BEGIN
 END$$;
 
 -- 2) truncate links & fish (guarded);
-DO 28762
+DO $$
 BEGIN
   IF to_regclass('public.fish_transgene_alleles') IS NOT NULL THEN
     TRUNCATE TABLE public.fish_transgene_alleles RESTART IDENTITY;
@@ -23,7 +23,7 @@ BEGIN
 END$$;
 
 -- 3) truncate allocator registry & per-base counters (guarded);
-DO 28762
+DO $$
 BEGIN
   IF to_regclass('public.transgene_allele_registry') IS NOT NULL THEN
     TRUNCATE TABLE public.transgene_allele_registry RESTART IDENTITY;
@@ -37,7 +37,7 @@ BEGIN
 END$$;
 
 -- 4) recreate allocator tables if missing (idempotent);
-DO 28762
+DO $$
 BEGIN
   IF to_regclass('public.transgene_allele_registry') IS NULL THEN
     CREATE TABLE public.transgene_allele_registry(

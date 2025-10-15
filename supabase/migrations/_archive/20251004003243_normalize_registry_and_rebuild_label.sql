@@ -1,7 +1,7 @@
 BEGIN;
 
 -- 1) Normalize transgene_allele_registry to modern columns (legacy-safe);
-DO 28762
+DO $$
 DECLARE
   has_mod_base    boolean;
   has_mod_nick    boolean;

@@ -11,7 +11,7 @@ $$ LANGUAGE plpgsql;
 
 ALTER TABLE public.fish_seed_batches_map
   ADD COLUMN IF NOT EXISTS id uuid DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
@@ -21,7 +21,7 @@ BEGIN
   END IF;
 END
 $$ LANGUAGE plpgsql;
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
@@ -31,7 +31,7 @@ BEGIN
   END IF;
 END
 $$ LANGUAGE plpgsql;
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint

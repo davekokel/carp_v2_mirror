@@ -1,5 +1,5 @@
 BEGIN;
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_indexes

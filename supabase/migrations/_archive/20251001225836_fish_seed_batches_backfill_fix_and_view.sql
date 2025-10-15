@@ -1,5 +1,5 @@
 -- Guard-safe backfill + labeled view (works with/without load_log_fish; uses fish.id);
-DO 28762
+DO $$
 BEGIN
   -- Ensure base tables exist
   IF to_regclass('public.fish') IS NULL THEN

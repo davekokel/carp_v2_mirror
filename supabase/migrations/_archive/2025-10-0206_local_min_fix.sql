@@ -2,7 +2,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Ensure fish has id_uuid (skip if it already exists);
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -14,7 +14,7 @@ BEGIN
 END$$;
 
 -- Ensure treatments has id_uuid (unique);
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns

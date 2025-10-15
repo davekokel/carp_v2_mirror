@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.load_log_fish (
   row_key       text NOT NULL,
   logged_at     timestamptz NOT NULL DEFAULT now()
 );
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns

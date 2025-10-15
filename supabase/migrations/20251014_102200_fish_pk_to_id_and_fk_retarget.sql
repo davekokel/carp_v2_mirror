@@ -9,7 +9,7 @@ ALTER TABLE ONLY public.fish_seed_batches DROP CONSTRAINT IF EXISTS fk_fsbm_fish
 ALTER TABLE ONLY public.tank_requests     DROP CONSTRAINT IF EXISTS tank_requests_fish_id_fkey;
 
 -- Swap fish PK to (id);
-DO 28762
+DO $$
 BEGIN
 DECLARE pkname text;
 BEGIN

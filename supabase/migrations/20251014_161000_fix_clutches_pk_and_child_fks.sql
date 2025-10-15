@@ -6,7 +6,7 @@ ALTER TABLE public.clutches ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.clutches SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutches ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutches ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;
 BEGIN

@@ -6,7 +6,7 @@ alter table public.transgenes
   add column if not exists id uuid default gen_random_uuid();
 
 -- 2) Keep natural key unique (adjust column name if different);
-DO 28762
+DO $$
 BEGIN
   if not exists (
     select 1 from pg_indexes
@@ -22,7 +22,7 @@ alter table public.transgene_alleles
   drop constraint if exists fk_transgene_alleles_base;
 
 -- 4) Drop current PK on transgenes (whatever its name is), then set PK(id);
-DO 28762
+DO $$
 BEGIN
 declare pk_name text;
 begin

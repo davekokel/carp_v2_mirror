@@ -1,11 +1,11 @@
 BEGIN;
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='container_status') THEN
     CREATE TYPE container_status AS ENUM ('planned','active','inactive','retired','unknown');
   END IF;
 END$$;
-DO 28762
+DO $$
 DECLARE
   is_enum boolean;
 BEGIN

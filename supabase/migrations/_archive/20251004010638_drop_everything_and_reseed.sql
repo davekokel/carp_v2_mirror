@@ -1,7 +1,7 @@
 begin;
 
 -- 1. Drop everything (safe if missing);
-DO 28762
+DO $$
 declare
   rec record;
 begin

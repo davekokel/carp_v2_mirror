@@ -9,7 +9,7 @@ ALTER TABLE public.injected_rna_treatments
   ADD COLUMN IF NOT EXISTS fish_id uuid;
 
 -- 3) Add FK on fish_id (idempotent);
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1

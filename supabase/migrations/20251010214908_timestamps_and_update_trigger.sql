@@ -7,7 +7,7 @@ BEGIN
   RETURN NEW;
 END
 $$;
-DO 28762
+DO $$
 BEGIN
 DECLARE r record;
 BEGIN

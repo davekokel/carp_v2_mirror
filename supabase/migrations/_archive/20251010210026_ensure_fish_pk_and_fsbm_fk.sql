@@ -9,7 +9,7 @@ BEGIN
 END$$;
 
 -- Add the FK after table exists (idempotent & safe);
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint

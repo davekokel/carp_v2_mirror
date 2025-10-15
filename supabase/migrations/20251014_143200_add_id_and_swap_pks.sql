@@ -5,7 +5,7 @@ ALTER TABLE public.clutch_genotype_options ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.clutch_genotype_options SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutch_genotype_options ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutch_genotype_options ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -25,7 +25,7 @@ ALTER TABLE public.clutch_plan_treatments ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.clutch_plan_treatments SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutch_plan_treatments ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutch_plan_treatments ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -45,7 +45,7 @@ ALTER TABLE public.clutch_plans ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.clutch_plans SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutch_plans ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutch_plans ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -65,7 +65,7 @@ ALTER TABLE public.clutch_treatments ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.clutch_treatments SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutch_treatments ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutch_treatments ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -85,7 +85,7 @@ ALTER TABLE public.clutches ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.clutches SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.clutches ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.clutches ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -105,7 +105,7 @@ ALTER TABLE public.containers ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.containers SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.containers ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.containers ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -125,7 +125,7 @@ ALTER TABLE public.cross_instances ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.cross_instances SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.cross_instances ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.cross_instances ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -145,7 +145,7 @@ ALTER TABLE public.crosses ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.crosses SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.crosses ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.crosses ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -165,7 +165,7 @@ ALTER TABLE public.label_items ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.label_items SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.label_items ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.label_items ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -185,7 +185,7 @@ ALTER TABLE public.label_jobs ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.label_jobs SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.label_jobs ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.label_jobs ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -205,7 +205,7 @@ ALTER TABLE public.planned_crosses ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.planned_crosses SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.planned_crosses ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.planned_crosses ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -225,7 +225,7 @@ ALTER TABLE public.plasmids ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.plasmids SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.plasmids ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.plasmids ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -245,7 +245,7 @@ ALTER TABLE public.rnas ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.rnas SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.rnas ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.rnas ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -265,7 +265,7 @@ ALTER TABLE public.selection_labels ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.selection_labels SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.selection_labels ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.selection_labels ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid
@@ -285,7 +285,7 @@ ALTER TABLE public.tank_requests ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.tank_requests SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.tank_requests ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.tank_requests ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;BEGIN
   SELECT c.conname INTO pk FROM pg_constraint c JOIN pg_class cl ON cl.oid=c.conrelid

@@ -1,5 +1,5 @@
 BEGIN;
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='container_status') THEN
     CREATE TYPE container_status AS ENUM ('planned','active','inactive','retired','unknown');
@@ -8,7 +8,7 @@ END$$;
 
 ALTER TABLE public.containers
   ALTER COLUMN status DROP DEFAULT;
-DO 28762
+DO $$
 BEGIN
   IF (SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='containers' AND column_name='status') <> 'USER-DEFINED' THEN
     ALTER TABLE public.containers

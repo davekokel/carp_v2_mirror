@@ -17,7 +17,7 @@ USING d
 WHERE t.id = d.id AND d.rn > 1;
 
 -- Drop redundant partial/duplicate indexes (optional cleanup);
-DO 28762
+DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='transgene_allele_registry' AND indexname='uniq_registry_base_legacy') THEN
     DROP INDEX public.uniq_registry_base_legacy;
@@ -25,7 +25,7 @@ BEGIN
 END$$;
 
 -- Create the canonical UNIQUE (required for ON CONFLICT (base_code, legacy_label));
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint

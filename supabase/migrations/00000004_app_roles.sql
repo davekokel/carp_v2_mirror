@@ -5,7 +5,7 @@ BEGIN
   END IF;
 END
 $$ LANGUAGE plpgsql;
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_ro') THEN
     CREATE ROLE app_ro;

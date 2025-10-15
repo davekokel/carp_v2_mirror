@@ -1,5 +1,5 @@
 BEGIN;
-DO 28762
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1

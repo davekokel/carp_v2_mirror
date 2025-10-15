@@ -1,5 +1,5 @@
 -- Rewrite any remaining single-column FKs that reference parent(id_uuid) to parent(id);
-DO 28762
+DO $$
 BEGIN
 DECLARE
   r RECORD;

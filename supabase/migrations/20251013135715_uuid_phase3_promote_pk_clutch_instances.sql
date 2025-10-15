@@ -5,7 +5,7 @@ alter table public.clutch_instances
   alter column id_uuid set not null;
 
 -- drop the current primary key (name-agnostic);
-DO 28762
+DO $$
 DECLARE pk_name text;
 BEGIN
   SELECT conname INTO pk_name

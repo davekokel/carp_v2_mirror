@@ -6,7 +6,7 @@ create table if not exists public.fish (
   created_at timestamptz not null default now(),
   created_by text
 );
-DO 28762
+DO $$
 begin
   if not exists (select 1 from pg_type where typname = 'treatment_route') then
     create type treatment_route as enum ('bath','injection','feed','other');

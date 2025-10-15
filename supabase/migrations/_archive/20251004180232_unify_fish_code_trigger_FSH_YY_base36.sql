@@ -44,7 +44,7 @@ BEGIN
 END $$;
 
 -- Drop ALL user triggers on fish (covers legacy names like before_insert_set_fish_code);
-DO 28762
+DO $$
 DECLARE r record;
 BEGIN
   FOR r IN

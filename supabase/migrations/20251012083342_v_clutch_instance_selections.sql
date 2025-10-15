@@ -13,7 +13,7 @@ select
 from public.clutch_instances;
 
 -- Helpful indexes on the underlying table (idempotent);
-DO 28762
+DO $$
 BEGIN
   if not exists (
     select 1 from pg_indexes

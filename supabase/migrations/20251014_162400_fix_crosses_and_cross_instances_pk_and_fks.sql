@@ -14,7 +14,7 @@ ALTER TABLE public.crosses ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.crosses SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.crosses ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.crosses ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;
 BEGIN
@@ -39,7 +39,7 @@ ALTER TABLE public.cross_instances ADD COLUMN IF NOT EXISTS id uuid;
 UPDATE public.cross_instances SET id = id_uuid WHERE id IS NULL;
 ALTER TABLE public.cross_instances ALTER COLUMN id SET NOT NULL;
 ALTER TABLE public.cross_instances ALTER COLUMN id SET DEFAULT gen_random_uuid();
-DO 28762
+DO $$
 BEGIN
 DECLARE pk text;
 BEGIN

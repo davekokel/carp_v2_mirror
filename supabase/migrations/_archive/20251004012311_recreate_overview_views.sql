@@ -32,7 +32,7 @@ where exists (select 1 from public.fish_transgene_alleles t where t.fish_id = f.
 order by f.created_at desc;
 
 drop view if exists public.vw_fish_overview_with_label cascade;
-DO 28762
+DO $$
 declare
   has_nickname boolean;
   has_line     boolean;

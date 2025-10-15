@@ -20,7 +20,7 @@ create index if not exists ix_clutch_instances_annotated_at on public.clutch_ins
 create index if not exists ix_clutch_instances_created_at    on public.clutch_instances(created_at);
 
 alter table public.clutch_instances enable row level security;
-DO 28762
+DO $$
 BEGIN
   if not exists (
     select 1 from pg_policy

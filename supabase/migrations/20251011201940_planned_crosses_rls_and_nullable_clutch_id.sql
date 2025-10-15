@@ -1,5 +1,5 @@
 -- 1) Fix RLS helper (use pg_policy, not pg_policy);
-DO 28762
+DO $$
 BEGIN
   EXECUTE 'ALTER TABLE public.planned_crosses ENABLE ROW LEVEL SECURITY';
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='planned_crosses' AND policyname='app_rw_select_planned_crosses') THEN
@@ -26,7 +26,7 @@ BEGIN
   end if;
 end
 $$ LANGUAGE plpgsql;
-DO 28762
+DO $$
 BEGIN
   EXECUTE 'ALTER TABLE public.planned_crosses ENABLE ROW LEVEL SECURITY';
 

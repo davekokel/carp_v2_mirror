@@ -1,5 +1,5 @@
 BEGIN;
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cross_plan_status') THEN
     CREATE TYPE cross_plan_status AS ENUM ('planned','canceled','executed');
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS public.cross_plan_treatments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cpt_plan ON public.cross_plan_treatments(plan_id);
-DO 28762
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
@@ -62,7 +62,7 @@ BEGIN
       ON DELETE RESTRICT;
   END IF;
 END$$;
-DO 28762
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables

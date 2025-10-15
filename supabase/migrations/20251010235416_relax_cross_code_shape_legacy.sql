@@ -11,7 +11,7 @@ ALTER TABLE public.crosses
   ) NOT VALID;
 
 -- Best-effort validate (won’t fail the migration if some rows still don’t match);
-DO 28762
+DO $$
 BEGIN
   BEGIN
     ALTER TABLE public.crosses VALIDATE CONSTRAINT chk_cross_code_shape;

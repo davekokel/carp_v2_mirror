@@ -15,7 +15,7 @@ alter table public.planned_crosses
   add column if not exists updated_at        timestamptz;
 
 -- unique concept code key (idempotent);
-DO 28762
+DO $$
 BEGIN
   if not exists (
     select 1 from pg_indexes
@@ -25,7 +25,7 @@ BEGIN
   end if;
 end
 $$ LANGUAGE plpgsql;
-DO 28762
+DO $$
 BEGIN
   EXECUTE 'ALTER TABLE public.planned_crosses ENABLE ROW LEVEL SECURITY';
 

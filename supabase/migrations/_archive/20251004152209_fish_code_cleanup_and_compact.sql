@@ -24,7 +24,7 @@ RETURNS text LANGUAGE sql AS $$
 $$;
 
 -- B) Remove ALL existing user triggers on fish (legacy & prior versions);
-DO 28762
+DO $$
 DECLARE r record;
 BEGIN
   FOR r IN
@@ -52,7 +52,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.fish_before_insert_code();
 
 -- D) Drop obsolete generators if present (cleanup);
-DO 28762
+DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname='trg_fish_set_code' AND pronamespace='public'::regnamespace)
   THEN EXECUTE 'DROP FUNCTION public.trg_fish_set_code() CASCADE'; END IF;
@@ -65,7 +65,7 @@ BEGIN
 END$$;
 
 -- E) Format check (compact);
-DO 28762
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint

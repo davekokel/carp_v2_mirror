@@ -1,5 +1,5 @@
 alter table public.fish_seed_batches_map add column if not exists id uuid default gen_random_uuid();
-DO 28762
+DO $$
 begin
   if not exists (
     select 1
