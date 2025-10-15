@@ -6,10 +6,15 @@ alter table public.clutch_instances
 
 alter table public.clutch_instances
   rename column id_uuid to id;
-
-alter table public.clutch_instances
-  rename constraint clutch_instances_pkey_uuid to clutch_instances_pkey;
-
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_instances_pkey_uuid')
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_instances_pkey')
+  THEN
+    EXECUTE 'ALTER TABLE public.clutch_instances RENAME CONSTRAINT clutch_instances_pkey_uuid TO clutch_instances_pkey';
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 -- bruker_mounts: standardize FK column/constraint/index names
 alter table public.bruker_mounts
   rename column selection_id_uuid to selection_id;
