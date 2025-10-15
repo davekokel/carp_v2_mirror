@@ -51,8 +51,6 @@ jobs:
       - name: Apply baseline
         run: |
           psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000002_audit_primitives.sql
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000002_audit_primitives.sql
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000002_audit_primitives.sql
           psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000000_baseline_v2.sql
 
       - name: Apply all 2025 migrations
