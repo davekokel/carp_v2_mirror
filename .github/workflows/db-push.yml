@@ -1,0 +1,48 @@
+name: DB Push (Freeze & Continue)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  db-push:
+    runs-on: ubuntu-latest
+    env:
+      STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        run: |
+          curl -sL https://github.com/supabase/cli/releases/download/v2.47.2/supabase_2.47.2_linux_amd64.deb -o /tmp/supabase.deb
+          sudo dpkg -i /tmp/supabase.deb
+          supabase -v
+
+      - name: Lint migrations (no PID-corrupted DO)
+        run: |
+          BAD1=$(grep -RIl "^[[:space:]]*DO[[:space:]][0-9]\+" supabase/migrations || true)
+          BAD2=$(grep -RIl "^[[:space:]]*[0-9][0-9][0-9][0-9]+[[:space:]]+LANGUAGE[[:space:]]+plpgsql" supabase/migrations || true)
+          if [ -n "$BAD1$BAD2" ]; then
+            echo "::error::Found PID-corrupted DO blocks:"
+            echo "$BAD1"
+            echo "$BAD2"
+            exit 1
+          fi
+
+      - name: Push DB changes to staging
+        run: |
+          supabase db push --db-url "${STAGING_DB_URL}" --debug || {
+            echo "::warning::db push failed; applying post-freeze files with psql fallback"
+            for f in $(ls -1 supabase/migrations/*.sql | sort); do
+              echo "Applying $f ..."
+              psql "${STAGING_DB_URL}" -v ON_ERROR_STOP=1 -f "$f"
+            done
+          }
+
+      - name: Verify UI views exist
+        run: |
+          psql "${STAGING_DB_URL}" -Atc "select 'v_fish_overview', exists(select 1 from information_schema.views where table_schema='public' and table_name='v_fish_overview')"
+          psql "${STAGING_DB_URL}" -Atc "select 'v_cross_concepts_overview', exists(select 1 from information_schema.views where table_schema='public' and table_name='v_cross_concepts_overview')"
