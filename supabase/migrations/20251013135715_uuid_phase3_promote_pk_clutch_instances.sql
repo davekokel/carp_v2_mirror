@@ -19,13 +19,11 @@ begin
     execute format('alter table public.clutch_instances drop constraint %I', pk_name);
   end if;
 END;
-27966 LANGUAGE plpgsql;
-
+$$ LANGUAGE plpgsql;
 -- make id_uuid the PK
 alter table public.clutch_instances
   add constraint clutch_instances_pkey_uuid primary key (id_uuid);
 
 -- keep legacy int id around (optional uniqueness if you want)
 -- create unique index if not exists uq_clutch_instances_id on public.clutch_instances(id);
-
-commit;
+COMMIT;
