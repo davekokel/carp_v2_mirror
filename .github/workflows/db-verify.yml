@@ -6,6 +6,8 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    env:
+      PGPASSWORD: postgres
     services:
       postgres:
         image: postgres:16
@@ -34,27 +36,27 @@ jobs:
         run: |
           for i in {1..60}; do
             if PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -Atc "select 1" >/dev/null 2>&1; then
-              echo "Postgres is up"; exit 0
-            fi
+              echo "Postgres is up"; exit 0; fi
             sleep 1
           done
           echo "Postgres did not start in time"; exit 1
 
       - name: Apply util_mig helpers (required by baseline)
-        env:
-          PGPASSWORD: postgres
         run: |
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000001_util_mig_helpers.sql
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/00000001_util_mig_helpers.sql
+
+      - name: Apply audit primitives (required by baseline)
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/00000002_audit_primitives.sql
 
       - name: Apply baseline
-        env:
-          PGPASSWORD: postgres
         run: |
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/00000000_baseline_v2.sql
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/00000000_baseline_v2.sql
 
       - name: Apply all 2025 migrations
-        env:
-          PGPASSWORD: postgres
         run: |
           set -e
           for f in $(ls -1 supabase/migrations/2025*.sql 2>/dev/null || true); do
@@ -63,7 +65,6 @@ jobs:
           done
 
       - name: Verify id-only (no id_uuid anywhere)
-        env:
-          PGPASSWORD: postgres
         run: |
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -f scripts/verify_id_only.sql
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 \
+            -f scripts/verify_id_only.sql
