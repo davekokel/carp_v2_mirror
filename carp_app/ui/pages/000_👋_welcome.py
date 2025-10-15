@@ -28,13 +28,14 @@ from carp_app.ui.lib.env_badge import show_env_badge
 st.title("👋 Welcome to CARP")
 show_env_badge()
 import os, streamlit as st
+from carp_app.lib import secret
 st.caption('RAW_DB_URL: ' + os.getenv('DB_URL','(missing)'))
 st.write("Browse live data, upload CSVs, and print labels — no install needed. Use the **left sidebar** to navigate.")
 
 
 # Compact status (derived from DB_URL)
 import re
-DB_URL = os.getenv("DB_URL","")
+DB_URL = secret.get("DB_URL","")
 m = re.match(r".*://([^:@]+)@([^/?]+)", DB_URL)
 _pguser = m.group(1) if m else os.getenv("PGUSER","")
 _pghost = m.group(2) if m else os.getenv("PGHOST","")
