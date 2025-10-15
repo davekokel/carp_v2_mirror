@@ -7,7 +7,7 @@ BEGIN
     CREATE ROLE app_ro;
   END IF;
 END;
-24014 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 --
 --
@@ -5810,5 +5810,4 @@ ALTER TABLE public.transgenes ENABLE ROW LEVEL SECURITY;
 
 --
 --
-
 
