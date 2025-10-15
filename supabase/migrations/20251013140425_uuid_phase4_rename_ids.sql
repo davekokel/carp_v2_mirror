@@ -14,15 +14,42 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
-alter table public.clutch_instances
-  rename constraint clutch_instances_pkey_uuid to clutch_instances_pkey;
-
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname='clutch_instances_pkey_uuid'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname='clutch_instances_pkey'
+  ) THEN
+    EXECUTE 'ALTER TABLE public.clutch_instances RENAME CONSTRAINT clutch_instances_pkey_uuid TO clutch_instances_pkey';
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 -- bruker_mounts: selection_id_uuid -> selection_id, plus FK/index rename
-alter table public.bruker_mounts
-  rename column selection_id_uuid to selection_id;
-
-alter table public.bruker_mounts
-  rename constraint fk_bm_selection_uuid to fk_bm_selection_id;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='bruker_mounts' AND column_name='selection_id_uuid'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='bruker_mounts' AND column_name='selection_id'
+  ) THEN
+    EXECUTE 'ALTER TABLE public.bruker_mounts RENAME COLUMN selection_id_uuid TO selection_id';
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname='fk_bm_selection_uuid'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname='fk_bm_selection_id'
+  ) THEN
+    EXECUTE 'ALTER TABLE public.bruker_mounts RENAME CONSTRAINT fk_bm_selection_uuid TO fk_bm_selection_id';
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   if exists (
