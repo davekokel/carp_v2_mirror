@@ -7,4 +7,4 @@ BEGIN
     RAISE NOTICE 'index rename skipped (already renamed or not present)';
   END IF;
 END
-$$ LANGUAGE plpgsql;LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;

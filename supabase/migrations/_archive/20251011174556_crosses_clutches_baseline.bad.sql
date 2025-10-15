@@ -77,8 +77,10 @@ BEGIN
     WHERE typname='container_status'
       AND typnamespace='public'::regnamespace
   ) THEN
-DO;
+-- DO ;  (commented: missing;
 END;
+$$ LANGUAGE plpgsql;LANGUAGE plpgsql;delimiter)
+-- stray END; (commented)
 $$ LANGUAGE plpgsql;BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_type t
@@ -112,10 +114,7 @@ CREATE TYPE public.cross_plan_status AS ENUM ('planned', 'canceled', 'executed')
   END IF;
 END
 END
-$$ LANGUAGE plpgsql;LANGUAGE plpgsql;
-
-
-ALTER TYPE public.cross_plan_status OWNER TO postgres;
+$$ LANGUAGE plpgsql;ALTER TYPE public.cross_plan_status OWNER TO postgres;
 
 --
 -- Name: apply_plasmid_treatment(uuid, uuid, numeric, text, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -137,7 +136,6 @@ CREATE FUNCTION public.apply_plasmid_treatment(p_fish_id uuid, p_plasmid_id uuid
     ON CONFLICT ON CONSTRAINT uq_ipt_natural DO NOTHING;
 END
 $$ LANGUAGE plpgsql;
-  $$;
 
 
 ALTER FUNCTION public.apply_plasmid_treatment(p_fish_id uuid, p_plasmid_id uuid, p_amount numeric, p_units text, p_at_time timestamp with time zone, p_note text) OWNER TO postgres;
@@ -162,7 +160,6 @@ CREATE FUNCTION public.apply_rna_treatment(p_fish_id uuid, p_rna_id uuid, p_amou
     ON CONFLICT ON CONSTRAINT uq_irt_natural DO NOTHING;
 END
 $$ LANGUAGE plpgsql;
-  $$;
 
 
 ALTER FUNCTION public.apply_rna_treatment(p_fish_id uuid, p_rna_id uuid, p_amount numeric, p_units text, p_at_time timestamp with time zone, p_note text) OWNER TO postgres;
@@ -295,7 +292,8 @@ CREATE FUNCTION public.create_offspring_batch(p_mother_id uuid, p_father_id uuid
         END IF;
       EXCEPTION WHEN undefined_column THEN
         NULL;
-      END;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
 
       child_id  := fish_row.id;
       fish_code := fish_row.fish_code;
@@ -433,8 +431,8 @@ BEGIN
   RETURNING id_uuid, code INTO rna_id, rna_code;
 
   RETURN NEXT;
-END;
-$$;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
 
 
 ALTER FUNCTION public.ensure_rna_for_plasmid(p_plasmid_code text, p_suffix text, p_name text, p_created_by text, p_notes text) OWNER TO postgres;
@@ -491,7 +489,8 @@ BEGIN
 
   -- EXPLICITLY emit a row (this is what the importer expects)
   RETURN QUERY SELECT ret_allele_number, ret_allele_nickname;
-END;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
 $_$;
 
 
@@ -552,7 +551,8 @@ BEGIN
     NEW.fish_code := 'FSH-' || yy || s;
   END IF;
   RETURN NEW;
-END;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
 $_$;
 
 
@@ -598,7 +598,7 @@ CREATE FUNCTION public.gen_clutch_instance_code() RETURNS text
     AS $$
 DECLARE y text := to_char(current_date,'YY'); n bigint;
 BEGIN SELECT nextval('public.clutch_instance_code_seq') INTO n; RETURN format('CI-%s%05s', y, n); END;
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.gen_clutch_instance_code() OWNER TO postgres;
@@ -612,7 +612,7 @@ CREATE FUNCTION public.gen_cross_code() RETURNS text
     AS $$
 DECLARE y text := to_char(current_date,'YY'); n bigint;
 BEGIN SELECT nextval('public.cross_code_seq') INTO n; RETURN format('CR-%s%05s', y, n); END;
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.gen_cross_code() OWNER TO postgres;
@@ -625,7 +625,7 @@ CREATE FUNCTION public.gen_cross_name(mom text, dad text) RETURNS text
     LANGUAGE sql IMMUTABLE
     AS $$
   SELECT trim(coalesce(NULLIF(mom,''),'?')) || ' × ' || trim(coalesce(NULLIF(dad,''),'?'));
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.gen_cross_name(mom text, dad text) OWNER TO postgres;
@@ -639,7 +639,7 @@ CREATE FUNCTION public.gen_cross_run_code() RETURNS text
     AS $$
 DECLARE y text := to_char(current_date,'YY'); n bigint;
 BEGIN SELECT nextval('public.cross_run_code_seq') INTO n; RETURN format('XR-%s%05s', y, n); END;
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.gen_cross_run_code() OWNER TO postgres;
@@ -693,7 +693,6 @@ CREATE FUNCTION public.inherit_transgene_alleles(child_id uuid, mother_id uuid, 
     ON CONFLICT DO NOTHING;
 END
 $$ LANGUAGE plpgsql;
-  $$;
 
 
 ALTER FUNCTION public.inherit_transgene_alleles(child_id uuid, mother_id uuid, father_id uuid) OWNER TO postgres;
@@ -706,7 +705,7 @@ CREATE FUNCTION public.is_container_live(s text) RETURNS boolean
     LANGUAGE sql IMMUTABLE
     AS $$
   select s in ('active','new_tank')
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.is_container_live(s text) OWNER TO postgres;
@@ -719,7 +718,7 @@ CREATE FUNCTION public.make_fish_code_compact() RETURNS text
     LANGUAGE sql
     AS $$
   SELECT 'FSH-' || to_char(current_date,'YY') || util_mig._to_base36(nextval('public.fish_code_seq'), 4)
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.make_fish_code_compact() OWNER TO postgres;
@@ -756,7 +755,7 @@ CREATE FUNCTION public.make_tank_code_compact() RETURNS text
     LANGUAGE sql
     AS $$
   select 'TANK-' || to_char(current_date,'YY') || util_mig._to_base36(nextval('public.tank_code_seq'), 4)
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.make_tank_code_compact() OWNER TO postgres;
@@ -838,7 +837,7 @@ CREATE FUNCTION public.next_fish_code() RETURNS text
     LANGUAGE sql
     AS $$
   SELECT 'FSH-' || to_char(nextval('public.fish_code_seq'), 'FM000000');
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.next_fish_code() OWNER TO postgres;
@@ -904,7 +903,6 @@ BEGIN
   RETURN NULL;
 END
 $$ LANGUAGE plpgsql;
-$$;
 
 
 ALTER FUNCTION public.tg_upsert_fish_seed_maps() OWNER TO postgres;
@@ -935,8 +933,8 @@ BEGIN
     END LOOP;
 
     RETURN result;
-END;
-$$;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
 
 
 ALTER FUNCTION public.to_base36(n integer) OWNER TO postgres;
@@ -966,7 +964,7 @@ CREATE FUNCTION public.trg_clutch_instance_code() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN IF NEW.clutch_instance_code IS NULL OR btrim(NEW.clutch_instance_code)='' THEN NEW.clutch_instance_code:=public.gen_clutch_instance_code(); END IF; RETURN NEW; END;
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.trg_clutch_instance_code() OWNER TO postgres;
@@ -989,7 +987,6 @@ BEGIN
   RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
-$$;
 
 
 ALTER FUNCTION public.trg_containers_activate_on_label() OWNER TO postgres;
@@ -1002,7 +999,7 @@ CREATE FUNCTION public.trg_cross_code() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN IF NEW.cross_code IS NULL OR btrim(NEW.cross_code)='' THEN NEW.cross_code:=public.gen_cross_code(); END IF; RETURN NEW; END;
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.trg_cross_code() OWNER TO postgres;
@@ -1020,7 +1017,6 @@ BEGIN
   RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
-$$;
 
 
 ALTER FUNCTION public.trg_cross_name_fill() OWNER TO postgres;
@@ -1033,7 +1029,7 @@ CREATE FUNCTION public.trg_cross_run_code() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN IF NEW.cross_run_code IS NULL OR btrim(NEW.cross_run_code)='' THEN NEW.cross_run_code:=public.gen_cross_run_code(); END IF; RETURN NEW; END;
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION public.trg_cross_run_code() OWNER TO postgres;
@@ -1052,7 +1048,8 @@ BEGIN
   v_label := CASE
                WHEN NEW.fish_code IS NOT NULL THEN format('TANK %s #1', NEW.fish_code)
                ELSE NULL
-             END;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
 
   INSERT INTO public.containers (container_type, status, label, created_by)
   VALUES ('holding_tank', 'new_tank', v_label, COALESCE(NEW.created_by, 'system'))
@@ -1064,12 +1061,12 @@ BEGIN
   EXCEPTION WHEN undefined_column THEN
     INSERT INTO public.fish_tank_memberships (fish_id, container_id, joined_at)
     VALUES (NEW.id_uuid, v_container_id, now());
-  END;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
 
   RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
-$$;
 
 
 ALTER FUNCTION public.trg_fish_autotank() OWNER TO postgres;
@@ -1107,8 +1104,8 @@ BEGIN
     PERFORM public.ensure_rna_for_plasmid(NEW.code, '-RNA', NEW.name, NEW.created_by, NEW.notes);
   END IF;
   RETURN NEW;
-END;
-$$;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
 
 
 ALTER FUNCTION public.trg_plasmid_auto_ensure_rna() OWNER TO postgres;
@@ -1130,7 +1127,6 @@ BEGIN
   RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
-$$;
 
 
 ALTER FUNCTION public.trg_registry_fill_modern() OWNER TO postgres;
@@ -1192,8 +1188,8 @@ BEGIN
   ON CONFLICT DO NOTHING;
 
   RETURN QUERY SELECT v_id, v_code;
-END;
-$$;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
 
 
 ALTER FUNCTION public.upsert_fish_by_batch_name_dob(p_seed_batch_id text, p_name text, p_date_birth date, p_genetic_background text, p_nickname text, p_line_building_stage text, p_description text, p_notes text, p_created_by text) OWNER TO postgres;
@@ -1316,7 +1312,7 @@ CREATE FUNCTION util_mig._table_has(col_table_schema text, col_table_name text, 
     select 1 from information_schema.columns
     where table_schema=col_table_schema and table_name=col_table_name and column_name=col_name
   )
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION util_mig._table_has(col_table_schema text, col_table_name text, col_name text) OWNER TO postgres;
@@ -1387,11 +1383,11 @@ begin
     exception when unique_violation then
       -- racing with another allocator; try again
       continue;
-    end;
+-- stray END; (commented)
+$$ LANGUAGE plpgsql;
   end loop;
 END
 $$ LANGUAGE plpgsql;
-$$;
 
 
 ALTER FUNCTION util_mig.allocate_allele_number(p_base_code text, p_legacy_label text) OWNER TO postgres;
@@ -1428,7 +1424,6 @@ begin
   end if;
 END
 $$ LANGUAGE plpgsql;
-$$;
 
 
 ALTER FUNCTION util_mig.ensure_fk(p_schema text, p_table text, p_cols text[], p_ref_schema text, p_ref_table text, p_ref_cols text[], p_constraint_name text, p_on_delete text) OWNER TO postgres;
@@ -1454,7 +1449,6 @@ begin
   end if;
 END
 $$ LANGUAGE plpgsql;
-$$;
 
 
 ALTER FUNCTION util_mig.ensure_unique(p_schema text, p_table text, p_index_name text, p_cols text[]) OWNER TO postgres;
@@ -1488,7 +1482,6 @@ begin
   return col; -- may be null if neither exists
 END
 $$ LANGUAGE plpgsql;
-$$;
 
 
 ALTER FUNCTION util_mig.pk_col(p_schema text, p_table text) OWNER TO postgres;
@@ -1501,7 +1494,7 @@ CREATE FUNCTION util_mig.table_exists(p_schema text, p_table text) RETURNS boole
     LANGUAGE sql STABLE
     AS $$
   select to_regclass(format('%I.%I', p_schema, p_table)) is not null
-$$;
+-- stray $$; (commented)
 
 
 ALTER FUNCTION util_mig.table_exists(p_schema text, p_table text) OWNER TO postgres;
@@ -4538,5 +4531,3 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 --
 -- PostgreSQL database dump complete
 --
-
-
