@@ -1340,8 +1340,23 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: clutch_plans trg_clutch_code; Type: TRIGGER; Schema: public; Owner: postgres
 --
-
-CREATE TRIGGER trg_clutch_code BEFORE INSERT ON public.clutch_plans FOR EACH ROW EXECUTE FUNCTION public.trg_clutch_code();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE t.tgname = 'trg_clutch_code'
+      AND n.nspname = 'public'
+      AND c.relname = 'clutch_plans'
+  ) THEN
+    CREATE TRIGGER trg_clutch_code
+    BEFORE INSERT ON public.clutch_plans
+    FOR EACH ROW EXECUTE FUNCTION public.trg_clutch_code();
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
