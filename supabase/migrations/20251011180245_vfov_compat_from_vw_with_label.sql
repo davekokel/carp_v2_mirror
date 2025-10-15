@@ -11,7 +11,7 @@ select
            '')                                      as genotype,
   null::text                                       as genetic_background,
   coalesce(v.line_building_stage, '')              as stage,
-  v.date_of_birth                                  as date_birth,
+  NULL::date                                  as date_birth,
   null::timestamptz                                as created_at,
   coalesce(v.created_by, '')                       as created_by,
   coalesce(v.batch_label, '')                      as batch_display
