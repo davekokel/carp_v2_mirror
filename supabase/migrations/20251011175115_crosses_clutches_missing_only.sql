@@ -452,17 +452,13 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conrelid='public.cross_plans'::regclass AND contype='p'
   ) THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (
+IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid='public.cross_plans'::regclass AND contype='p'
   ) THEN
     ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT cross_plans_pkey PRIMARY KEY (id);
   END IF;
-END;
-$$ LANGUAGE plpgsql;
-  END IF;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
