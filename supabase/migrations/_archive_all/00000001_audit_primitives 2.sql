@@ -1,0 +1,14 @@
+CREATE SCHEMA IF NOT EXISTS audit;
+
+CREATE OR REPLACE FUNCTION audit.fn_writes()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  ELSE
+    RETURN NEW;
+  END IF;
+END
+$$;

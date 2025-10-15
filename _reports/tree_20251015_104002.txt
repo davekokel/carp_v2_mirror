@@ -1,0 +1,184 @@
+.
+├── _backups
+│   ├── migrations_20251014_234300 2.tgz
+│   └── migrations_20251014_234300.tgz
+├── _reports
+│   └── tree_20251015_104002.txt
+├── _trufflehog_local.json
+├── .devcontainer
+│   ├── devcontainer.json
+│   ├── Dockerfile
+│   ├── README-for-Dan.md
+│   └── README.md
+├── .env
+├── .env.local
+├── .env.prod.direct
+├── .env.prod.ro
+├── .env.sample
+├── .env.staging
+├── .env.staging.direct
+├── .github
+│   ├── pull_request_template.md
+│   └── workflows
+│       ├── db-push.yml
+│       ├── migration-lint.yml
+│       └── truffle_hog.yaml
+├── .gitignore
+├── .pre-commit-config.yaml
+├── .streamlit
+│   ├── config.toml
+│   ├── secrets.example.toml
+│   ├── secrets.localsupabase.toml
+│   ├── secrets.sample.toml
+│   └── secrets.toml
+├── app_min.py
+├── bin
+│   └── pdb
+├── carp_app
+│   ├── __init__.py
+│   ├── lib
+│   │   ├── __init__.py
+│   │   └── queries.py
+│   └── ui
+│       ├── __init__.py
+│       ├── lib
+│       ├── pages
+│       └── streamlit_app.py
+├── carp_v2_tree.txt
+├── clutch_annotations.csv
+├── Dockerfile
+├── docs
+│   ├── DEVCONTAINER-DB-NOTES.md
+│   ├── INSPECTION.md
+│   ├── README-staging.md
+│   ├── SCRIPTS.md
+│   └── Upload_Fish_Seedkit.md
+├── Makefile
+├── Makefile.__new__
+├── mk
+│   └── local.mk
+├── README.md
+├── requirements.txt
+├── runtime.txt
+├── SCHEMA_CHECKS.md
+├── SCHEMA_INVENTORY.md
+├── scripts
+│   ├── apply_migrations.sh
+│   ├── carp_local_start
+│   ├── check_sequences.sh
+│   ├── db_healthcheck.py
+│   ├── dburl_local.sh
+│   ├── DROP_INDEX_CANDIDATES.sql
+│   ├── find_unreferenced_ui.sh
+│   ├── fix_migration_filenames.py
+│   ├── guard_migration.py
+│   ├── load_batch_numbered.sql
+│   ├── load_csvs_raw.sh
+│   ├── load_csvs_smart.sh
+│   ├── load_csvs.sh
+│   ├── load_plasmid_injections.py
+│   ├── load_rna_injections.py
+│   ├── load_seedkit_core_local.sh
+│   ├── load_seedkit_core.sh
+│   ├── migrate_local.sh
+│   ├── migrate.sh
+│   ├── migration_lint_fast.sh
+│   ├── migrations_normalize.py
+│   ├── new_migration.sh
+│   ├── patches
+│   │   └── patch_all.py
+│   ├── promote_to_prod.sh
+│   ├── run_prod_direct_clean.sh
+│   ├── run_prod_ro_direct_clean.sh
+│   ├── run_staging_direct_clean.sh
+│   ├── run_staging_direct.sh
+│   ├── sanity.sh
+│   ├── seedkit_link_alleles.py
+│   ├── seedkit_link_fish_transgenes.py
+│   ├── seedkit_load_allele_catalog.py
+│   ├── seedkit_load_dyes.py
+│   ├── seedkit_load_fish.py
+│   ├── seedkit_load_plasmids.py
+│   ├── seedkit_load_rnas.py
+│   ├── seedkit_load_transgenes.py
+│   ├── seedkit_load_treatments.py
+│   ├── seedkit_load_wide.py
+│   ├── seedkit_util.py
+│   ├── transform_raw_to_core.sql
+│   ├── verify_id_only.sql
+│   └── wipe_local.sql
+├── snapshots_local
+│   ├── local_full_20250929_093641.dump
+│   ├── local_full_20250929_123158.dump
+│   ├── local_full_20251004_1355.dump
+│   ├── local_full_20251010_115623.dump
+│   ├── local_full_20251010_144420.dump
+│   └── local_seed_20251004_1903.dump
+├── snapshots_prod
+│   ├── public_20251011_081636.sql.gz
+│   ├── public_20251011_081738.sql.gz
+│   └── public_20251011_133657.sql.gz
+├── snapshots_staging
+│   ├── 20251014_175024_public_id_only.sql
+│   ├── 20251014_175431_public_id_only.sql
+│   ├── staging_20251014_135012_schema.sql
+│   ├── staging_20251014_135532_schema.sql
+│   ├── staging_20251014_140049_schema.sql
+│   ├── staging_20251014_141624_schema.sql
+│   ├── staging_full_20250923_093137.dump
+│   ├── staging_full_20250923_093144.dump
+│   ├── staging_full_20250923_093231.dump
+│   ├── staging_full_20250923_132502.dump
+│   ├── staging_full_20250923_133246.dump
+│   ├── staging_full_20250923_134818.dump
+│   ├── staging_full_20250923_142757.dump
+│   ├── staging_full_20250923_143502.dump
+│   ├── staging_full_20250923_143607.dump
+│   └── staging_full_20250923_153555.dump
+├── supabase
+│   ├── __init__.py
+│   ├── .branches
+│   │   └── _current_branch
+│   ├── .gitignore
+│   ├── .temp
+│   │   └── cli-latest
+│   ├── config.toml
+│   ├── migrations
+│   │   ├── 20251011174556_crosses_clutches_baseline.sql 2.new
+│   │   ├── 20251011174556_crosses_clutches_baseline.sql.new
+│   │   ├── 20251015_073019_anchor_freeze 2.sql
+│   │   ├── 20251015_073019_anchor_freeze.sql
+│   │   ├── 20251015_090400_create_ui_views 2.sql
+│   │   ├── 20251015_090400_create_ui_views.sql
+│   │   ├── 20251015_094400_ui_views_with_deps 2.sql
+│   │   ├── 20251015_094400_ui_views_with_deps.sql
+│   │   ├── README_FREEZE 2.md
+│   │   └── README_FREEZE.md
+│   ├── queries.py
+│   ├── seed_kits
+│   │   ├── fish
+│   │   ├── injections_plasmid
+│   │   └── injections_rna
+│   └── ui
+│       ├── __init__.py
+│       ├── auth_gate.py
+│       ├── components
+│       ├── email_otp_gate.py
+│       ├── env.staging.sample
+│       ├── lib
+│       ├── lib_shared.py
+│       ├── pages -> ../../carp_app/ui/pages
+│       ├── pages 2 -> ../../carp_app/ui/pages
+│       ├── runtime.txt
+│       └── streamlit_app.py
+└── templates
+    ├── env
+    │   ├── env.prod.ro.example
+    │   ├── env.staging.direct.example
+    │   ├── prod.ro.sample
+    │   └── staging.direct.sample
+    └── examples
+        ├── fish_example.csv
+        └── plasmids_example.xlsx
+
+36 directories, 146 files

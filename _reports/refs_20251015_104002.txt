@@ -1,0 +1,95 @@
+app_min.py:2:st.set_page_config(page_title="Boot check", page_icon="✅")
+_reports/page_hashes_20251015_104002.txt:1:08c367ca600bbbfe28a9858443077e4c0a67670216594b575551546b36cfc306  carp_app/ui/pages/031_🐟_enter_new_crosses.py
+_reports/page_hashes_20251015_104002.txt:2:0d8fd001634b2dcac46519cf04c4b9e4d102a0cf1b61b96acec5902f6c8b0891  carp_app/ui/pages/000_👋_welcome.py
+_reports/page_hashes_20251015_104002.txt:7:26dcf5ed95916df0e2c112e0be6a154b93a63dd88a13e5feb31703255d54915d  carp_app/ui/pages/025_🏷️_print_tank_labels.py
+_reports/page_hashes_20251015_104002.txt:11:2f200406766cdd0b1be8088893fece4de75d17b68f7ecc948ec41d7ea88bafd3  carp_app/ui/pages/000_🩺_health_checks.py
+_reports/page_hashes_20251015_104002.txt:12:2ff6b993bfbc45641a0ffdadde27b7e3ad48c08b8168f2ba3dbb1e1e6005209f  carp_app/ui/pages/040_🧫_enter_bruker_mount.py
+_reports/page_hashes_20251015_104002.txt:17:4305617f180813f6a0144c7929a2d06934f20b2fbf03dfc2d1f6c1f6491a988e  carp_app/ui/pages/010_📤_upload_csv_fish.py
+_reports/page_hashes_20251015_104002.txt:18:43194748a212a9fbfc18267c0f5ca13205edfeb0b39c6bf8e1813cc2cd703a56  carp_app/ui/pages/034_🐣_annotate_clutch_instances.py
+_reports/page_hashes_20251015_104002.txt:23:513071f144def5425fe07945b24e62f6d6cb92d3c2158aabd2b4b2839cc2e577  carp_app/ui/pages/060_🧯_manage_tank_status.py
+_reports/page_hashes_20251015_104002.txt:24:5384bfdb2df380b6557cc7a71d16891415bccaa87699406e236f752c6415389f  carp_app/__init__.py
+_reports/page_hashes_20251015_104002.txt:27:5d933db4379f5ea04b8b3130027edc832e546a99fec5c42fc6c312d0baf25f8d  carp_app/ui/pages/001_db_ping_min.py
+_reports/page_hashes_20251015_104002.txt:29:65f689f97f9de848b151ca09105ec3aafb8f29367a64b52bb09dda902ab63896  carp_app/ui/pages/010_auth_login.py
+_reports/page_hashes_20251015_104002.txt:32:6ff9ffbff97f3ad1b33ac9e6b3bbc9ae5885e7ac3e02955996ef9be494f388b4  carp_app/lib/__init__.py
+_reports/page_hashes_20251015_104002.txt:33:6ff9ffbff97f3ad1b33ac9e6b3bbc9ae5885e7ac3e02955996ef9be494f388b4  carp_app/ui/lib/__init__.py
+_reports/page_hashes_20251015_104002.txt:36:7f8905b25babd2403cedf9b610e48b3e96a63cbd5fff299539938f9e68dc2d3e  carp_app/lib/queries.py
+_reports/page_hashes_20251015_104002.txt:45:a576beb39803b9fc3fe70d85d09e0366b04417303e91e1400b8986b3b07274fb  carp_app/ui/pages/010_📤_upload_csv_plasmids.py
+_reports/page_hashes_20251015_104002.txt:46:a6501c989795fd8cee99663e696422c824405acf751f0fe367f4871563cbfd39  carp_app/ui/pages/021_🔎_Overview_Clutches.py
+_reports/page_hashes_20251015_104002.txt:50:aa2189f013bd7fd6c471601383fe6231a394e767ddd2de134201adc854358458  carp_app/ui/__init__.py
+_reports/page_hashes_20251015_104002.txt:55:b72ecc231a6e1b04ba824bc37c1e5f2166e93e86b4f8e983a36a129fed81578d  carp_app/ui/pages/041_🔎_overview_mounts.py
+_reports/page_hashes_20251015_104002.txt:60:cb1c8e49138c05a6897a28360bc38f9435660a95570496e6212ccdb801f9d755  carp_app/ui/pages/022_🔎_overview_crosses.py
+_reports/page_hashes_20251015_104002.txt:62:ce64dbae06b69f943426bc6429a0962ec82db9bed739b8e1a289ba1b60452499  carp_app/ui/pages/032_🏷️_schedule_crosses_and_print_labels.py
+_reports/page_hashes_20251015_104002.txt:64:db222e310a75f7a9a510c7736bfe0118902f55c440ed3b43f442ba4f0e27be91  carp_app/ui/pages/020_🔎_overview_fish_tanks.py
+_reports/page_hashes_20251015_104002.txt:66:dfa8c06d9c996e3198d8dd6dfe9c24c0d1d347911c3d1f29647f15143d5deaa7  carp_app/ui/pages/020_🔎_overview_plasmids.py
+_reports/page_hashes_20251015_104002.txt:71:e45d549e9e98ba42faa6ecb550c75e14330ac26a45eb5cb4d67f9e7072f5011a  carp_app/ui/pages/030_🐟_enter_new_clutches.py
+_reports/page_hashes_20251015_104002.txt:72:e985e68261185f22a67db76829eb176ed090c0b406b027000cd6ed2d4b0bf756  carp_app/ui/pages/099_🕵️_audit_viewer.py
+_reports/page_hashes_20251015_104002.txt:74:f41244acdbf8f43370f4d8e3e75b78a0cb7f5dcdc3ae3206b9f2ee4215d0d198  carp_app/ui/pages/001_🧪_diagnostics_clean.py
+_reports/page_hashes_20251015_104002.txt:75:f86ab0e0d2cc03bfce30a28ea2beb7bc127e5f0731bc4c56259fe5cb2bfbd9af  carp_app/ui/streamlit_app.py
+_reports/carp_app_pages_20251015_104002.txt:1:carp_app/__init__.py
+_reports/carp_app_pages_20251015_104002.txt:2:carp_app/lib/__init__.py
+_reports/carp_app_pages_20251015_104002.txt:3:carp_app/lib/queries.py
+_reports/carp_app_pages_20251015_104002.txt:4:carp_app/ui/__init__.py
+_reports/carp_app_pages_20251015_104002.txt:5:carp_app/ui/lib/__init__.py
+_reports/carp_app_pages_20251015_104002.txt:6:carp_app/ui/pages/000_🩺_health_checks.py
+_reports/carp_app_pages_20251015_104002.txt:7:carp_app/ui/pages/000_👋_welcome.py
+_reports/carp_app_pages_20251015_104002.txt:8:carp_app/ui/pages/001_🧪_diagnostics_clean.py
+_reports/carp_app_pages_20251015_104002.txt:9:carp_app/ui/pages/001_db_ping_min.py
+_reports/carp_app_pages_20251015_104002.txt:10:carp_app/ui/pages/010_📤_upload_csv_fish.py
+_reports/carp_app_pages_20251015_104002.txt:11:carp_app/ui/pages/010_📤_upload_csv_plasmids.py
+_reports/carp_app_pages_20251015_104002.txt:12:carp_app/ui/pages/010_auth_login.py
+_reports/carp_app_pages_20251015_104002.txt:13:carp_app/ui/pages/020_🔎_overview_fish_tanks.py
+_reports/carp_app_pages_20251015_104002.txt:14:carp_app/ui/pages/020_🔎_overview_plasmids.py
+_reports/carp_app_pages_20251015_104002.txt:15:carp_app/ui/pages/021_🔎_Overview_Clutches.py
+_reports/carp_app_pages_20251015_104002.txt:16:carp_app/ui/pages/022_🔎_overview_crosses.py
+_reports/carp_app_pages_20251015_104002.txt:17:carp_app/ui/pages/025_🏷️_print_tank_labels.py
+_reports/carp_app_pages_20251015_104002.txt:18:carp_app/ui/pages/030_🐟_enter_new_clutches.py
+_reports/carp_app_pages_20251015_104002.txt:19:carp_app/ui/pages/031_🐟_enter_new_crosses.py
+_reports/carp_app_pages_20251015_104002.txt:20:carp_app/ui/pages/032_🏷️_schedule_crosses_and_print_labels.py
+_reports/carp_app_pages_20251015_104002.txt:21:carp_app/ui/pages/034_🐣_annotate_clutch_instances.py
+_reports/carp_app_pages_20251015_104002.txt:22:carp_app/ui/pages/040_🧫_enter_bruker_mount.py
+_reports/carp_app_pages_20251015_104002.txt:23:carp_app/ui/pages/041_🔎_overview_mounts.py
+_reports/carp_app_pages_20251015_104002.txt:24:carp_app/ui/pages/060_🧯_manage_tank_status.py
+_reports/carp_app_pages_20251015_104002.txt:25:carp_app/ui/pages/099_🕵️_audit_viewer.py
+_reports/carp_app_pages_20251015_104002.txt:26:carp_app/ui/streamlit_app.py
+_reports/tree_20251015_104002.txt:37:├── carp_app
+_reports/tree_20251015_104002.txt:170:│       ├── pages -> ../../carp_app/ui/pages
+_reports/tree_20251015_104002.txt:171:│       ├── pages 2 -> ../../carp_app/ui/pages
+Dockerfile:79:# Expose the port Streamlit runs on
+carp_app/ui/pages/020_🔎_overview_fish_tanks.py:26:from carp_app.lib import queries as Q
+carp_app/ui/pages/020_🔎_overview_fish_tanks.py:30:st.set_page_config(page_title=PAGE_TITLE, page_icon="🔎", layout="wide")
+carp_app/ui/pages/041_🔎_overview_mounts.py:30:st.set_page_config(page_title="Overview — Bruker Mounts", page_icon="🔎", layout="wide")
+carp_app/ui/pages/000_👋_welcome.py:24:st.set_page_config(page_title="CARP — Welcome", page_icon="👋", layout="wide")
+carp_app/ui/pages/030_🐟_enter_new_clutches.py:21:st.set_page_config(page_title="🧬 Plan crosses and treatments", page_icon="🧬", layout="wide")
+carp_app/ui/pages/030_🐟_enter_new_clutches.py:32:from carp_app.lib import queries as Q
+docs/README-staging.md:22:python -m streamlit run supabase/ui/streamlit_app.py
+carp_app/ui/pages/001_db_ping_min.py:25:st.set_page_config(page_title="CARP — DB Ping (minimal)", page_icon="🩺")
+carp_app/ui/pages/025_🏷️_print_tank_labels.py:29:from carp_app.lib import queries as Q
+carp_app/ui/pages/025_🏷️_print_tank_labels.py:32:st.set_page_config(page_title="CARP — Overview Tanks (holding) + Labels", page_icon="🏷️", layout="wide")
+carp_app/ui/pages/010_📤_upload_csv_fish.py:29:st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
+scripts/find_unreferenced_ui.sh:5:  "supabase/ui/pages"
+carp_app/ui/pages/099_🕵️_audit_viewer.py:18:st.set_page_config(page_title="CARP — Audit Viewer", page_icon="🕵️", layout="wide")
+carp_app/ui/pages/040_🧫_enter_bruker_mount.py:23:st.set_page_config(page_title="Enter Bruker Mount", page_icon="🧪", layout="wide")
+carp_app/ui/pages/021_🔎_Overview_Clutches.py:19:st.set_page_config(
+carp_app/ui/pages/001_🧪_diagnostics_clean.py:30:st.set_page_config(page_title=PAGE_TITLE, page_icon="🧪", layout="wide")
+carp_app/ui/pages/010_📤_upload_csv_plasmids.py:28:st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
+carp_app/ui/pages/032_🏷️_schedule_crosses_and_print_labels.py:24:st.set_page_config(page_title="🐟 Deploy crosses", page_icon="🐟", layout="wide")
+carp_app/ui/pages/060_🧯_manage_tank_status.py:27:st.set_page_config(page_title="Manage Tank Status", page_icon="🧯")
+carp_app/ui/pages/034_🐣_annotate_clutch_instances.py:19:st.set_page_config(page_title="Annotate Clutch Instances", page_icon="🐣", layout="wide")
+carp_app/ui/pages/031_🐟_enter_new_crosses.py:22:st.set_page_config(page_title="🐟 Plan new crosses", page_icon="🐟", layout="wide")
+carp_app/ui/pages/022_🔎_overview_crosses.py:19:st.set_page_config(page_title="Overview — Crosses", page_icon="🔎", layout="wide")
+carp_app/ui/pages/010_auth_login.py:6:st.set_page_config(page_title="Sign in — Code", page_icon="🔐")
+carp_app/ui/pages/020_🔎_overview_plasmids.py:21:st.set_page_config(page_title="CARP — Plasmids Overview", page_icon="🧪", layout="wide")
+carp_app/ui/streamlit_app.py:9:PAGES = ROOT / "carp_app" / "ui" / "pages"
+carp_app/ui/streamlit_app.py:37:st.set_page_config(page_title="CARP", page_icon="👋", layout="wide")
+carp_app/ui/streamlit_app.py:45:        st.warning("No pages folder found at carp_app/ui/pages.")
+carp_app/ui/streamlit_app.py:52:            st.warning("No .py files in carp_app/ui/pages.")
+mk/local.mk:13:	streamlit run supabase/ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+carp_v2_tree.txt:8795:    │   │   ├── 20250924005959_create_carp_app_role.sql
+scripts/carp_local_start:45:exec "$PY" -m streamlit run "$ROOT/supabase/ui/streamlit_app.py" \
+supabase/ui/lib/page_bootstrap.py:8:# Ensure project root import works when pages run from /supabase/ui/pages
+supabase/ui/lib/page_bootstrap.py:75:    st.set_page_config(page_title=title, page_icon=icon, layout=layout)
+scripts/run_prod_ro_direct_clean.sh:8:  exec .venv/bin/streamlit run supabase/ui/streamlit_app.py
+supabase/ui/streamlit_app.py:2:from carp_app.ui.streamlit_app import *  # delegate to real app
+scripts/run_staging_direct_clean.sh:8:  exec .venv/bin/streamlit run supabase/ui/streamlit_app.py
+scripts/run_prod_direct_clean.sh:8:  exec .venv/bin/streamlit run supabase/ui/streamlit_app.py
+scripts/run_staging_direct.sh:7:exec .venv/bin/streamlit run supabase/ui/streamlit_app.py
