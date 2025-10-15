@@ -265,7 +265,7 @@ with eng.begin() as cx:
         selections = pd.read_sql(sql, cx, params={"xid": cross_instance_id})
     else:
         # Fall back to clutch_instances, auto-detect id column
-        has_id_uuid = bool(
+
             cx.execute(
                 text("""
                     select 1
@@ -277,7 +277,7 @@ with eng.begin() as cx:
                 """)
             ).first()
         )
-        id_col = "id" if has_id_uuid else "id"
+        id_col = "id"
         sql = text(f"""
             select
               {id_col}::text             as selection_id,

@@ -142,12 +142,12 @@ def fish_overview_minimal(conn_or_engine: Any, q: Optional[str] = None, limit: i
     data = load_fish_overview(eng, q=q or "", limit=limit)
     df = pd.DataFrame(data)
 
-    for c in ["id_uuid","id","fish_code","name","nickname","batch_label","seed_batch_id","created_by","date_birth","created_at"]:
+    for c in ["id","fish_code","name","nickname","batch_label","seed_batch_id","created_by","date_birth","created_at"]:
         if c not in df.columns:
             df[c] = None
     df["batch_display"] = df["batch_label"].fillna(df["seed_batch_id"])
 
-    keep = [c for c in ["id_uuid","id","fish_code","name","nickname","batch_display","created_by","date_birth","created_at"] if c in df.columns]
+    keep = [c for c in ["id","fish_code","name","nickname","batch_display","created_by","date_birth","created_at"] if c in df.columns]
     if keep:
         df = df[keep]
 
