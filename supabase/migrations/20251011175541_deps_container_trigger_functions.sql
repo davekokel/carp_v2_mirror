@@ -1,4 +1,4 @@
-CREATE OR REPLACE CREATE OR REPLACE FUNCTION public.trg_containers_activate_on_label()
+CREATE OR REPLACE FUNCTION public.trg_containers_activate_on_label()
  RETURNS trigger
  LANGUAGE plpgsql
 AS $function$
