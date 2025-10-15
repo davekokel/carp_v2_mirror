@@ -23,3 +23,6 @@ verify-id-only:
 migrate-local:
 	./scripts/migrations_normalize.py --write || true
 	./scripts/migrate_local.sh
+# RUN TARGETS BEGIN
+include mk/local.mk
+# RUN TARGETS END
