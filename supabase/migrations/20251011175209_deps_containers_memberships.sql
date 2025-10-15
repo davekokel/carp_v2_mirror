@@ -145,15 +145,25 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: uq_containers_tank_code; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE UNIQUE INDEX uq_containers_tank_code ON public.containers USING btree (tank_code) WHERE (tank_code IS NOT NULL);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'uq_containers_tank_code' AND relkind = 'i') THEN
+    CREATE UNIQUE INDEX uq_containers_tank_code ON public.containers USING btree (tank_code) WHERE (tank_code IS NOT NULL);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: uq_ftm_fish_open; Type: INDEX; Schema: public; Owner: postgres
 --
-
-CREATE UNIQUE INDEX uq_ftm_fish_open ON public.fish_tank_memberships USING btree (fish_id) WHERE (left_at IS NULL);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'uq_ftm_fish_open' AND relkind = 'i') THEN
+    CREATE UNIQUE INDEX uq_ftm_fish_open ON public.fish_tank_memberships USING btree (fish_id) WHERE (left_at IS NULL);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
