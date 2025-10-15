@@ -169,15 +169,37 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: containers trg_containers_activate_on_label; Type: TRIGGER; Schema: public; Owner: postgres
 --
-
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE t.tgname = 'trg_containers_activate_on_label' AND n.nspname = 'public' AND c.relname = 'containers'
+  ) THEN
+    
 CREATE TRIGGER trg_containers_activate_on_label BEFORE UPDATE OF label ON public.containers FOR EACH ROW EXECUTE FUNCTION public.trg_containers_activate_on_label();
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: containers trg_containers_status_history; Type: TRIGGER; Schema: public; Owner: postgres
 --
-
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE t.tgname = 'trg_containers_status_history' AND n.nspname = 'public' AND c.relname = 'containers'
+  ) THEN
+    
 CREATE TRIGGER trg_containers_status_history AFTER UPDATE OF status ON public.containers FOR EACH ROW EXECUTE FUNCTION public.trg_log_container_status();
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
