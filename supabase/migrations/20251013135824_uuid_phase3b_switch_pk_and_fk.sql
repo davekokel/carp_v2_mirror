@@ -15,8 +15,15 @@ alter table public.clutch_instances
   drop constraint if exists clutch_instances_pkey;
 
 -- 3) add the new PK on id_uuid
-alter table public.clutch_instances
-  add constraint clutch_instances_pkey_uuid primary key (id_uuid);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_instances'::regclass AND contype='p'
+  ) THEN
+    ALTER TABLE public.clutch_instances ADD CONSTRAINT clutch_instances_pkey_uuid PRIMARY KEY (id_uuid);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 -- 4) add the new FK from bruker_mounts(selection_id_uuid) → clutch_instances(id_uuid)
 alter table public.bruker_mounts
