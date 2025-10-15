@@ -1,4 +1,6 @@
 -- Idempotent: only rename if the old index exists and the new name does not
+
+LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF to_regclass('public.idx_fish_transgene_alles_base_allele') IS NOT NULL
