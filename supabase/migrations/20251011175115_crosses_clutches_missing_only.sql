@@ -2,7 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict uUSYiIdYud9mdzCZ0gE19HZ66IY5ewzQtHZOKq90WOW9mSRaF83z3nQ684i1cRg
 
 -- Dumped from database version 16.10 (Homebrew)
 -- Dumped by pg_dump version 18.0
@@ -686,5 +685,4 @@ ALTER TABLE ONLY public.planned_crosses
 -- PostgreSQL database dump complete
 --
 
-\unrestrict uUSYiIdYud9mdzCZ0gE19HZ66IY5ewzQtHZOKq90WOW9mSRaF83z3nQ684i1cRg
 

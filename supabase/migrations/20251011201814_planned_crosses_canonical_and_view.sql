@@ -15,8 +15,8 @@ alter table public.planned_crosses
   add column if not exists updated_at        timestamptz;
 
 -- unique concept code key (idempotent)
-do $$
-begin
+DO $$
+BEGIN
   if not exists (
     select 1 from pg_indexes
     where schemaname='public' and indexname='ux_planned_crosses_cross_code'
@@ -26,8 +26,8 @@ begin
 end$$;
 
 -- Optional RLS (permissive for app_rw)
-do $$
-begin
+DO $$
+BEGIN
   execute 'alter table public.planned_crosses enable row level security';
   if not exists (select 1 from pg_policy where polrelid='public.planned_crosses'::regclass and polname='app_rw_select_planned_crosses')
   then execute 'create policy app_rw_select_planned_crosses on public.planned_crosses for select to app_rw using (true)'; end if;

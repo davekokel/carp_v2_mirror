@@ -8,8 +8,8 @@ create unique index if not exists ux_ci_cross_instance_id
   where cross_instance_id is not null;
 
 -- Safe FK (NOT VALID); validate later after orphan check
-do $$
-begin
+DO $$
+BEGIN
   if not exists (select 1 from pg_constraint where conname='fk_ci_xrun') then
     alter table public.clutch_instances
       add constraint fk_ci_xrun

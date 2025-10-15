@@ -17,8 +17,8 @@ begin
 end$$;
 
 -- bruker_mounts FK: rename only if the old name exists
-do $$
-begin
+DO $$
+BEGIN
   if exists (
     select 1 from pg_constraint
     where conrelid='public.bruker_mounts'::regclass
@@ -29,8 +29,8 @@ begin
 end$$;
 
 -- index rename: only if the old name exists
-do $$
-begin
+DO $$
+BEGIN
   if exists (select 1 from pg_class where relname='ix_bm_selection_id_uuid') then
     execute 'alter index ix_bm_selection_id_uuid rename to ix_bm_selection_id';
   end if;

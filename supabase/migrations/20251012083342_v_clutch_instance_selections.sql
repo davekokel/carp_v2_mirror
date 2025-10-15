@@ -13,8 +13,8 @@ select
 from public.clutch_instances;
 
 -- Helpful indexes on the underlying table (idempotent)
-do $$
-begin
+DO $$
+BEGIN
   if not exists (
     select 1 from pg_indexes
     where schemaname='public' and tablename='clutch_instances' and indexname='ix_ci_cross_instance_id'

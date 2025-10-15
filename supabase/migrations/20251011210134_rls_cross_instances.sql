@@ -1,5 +1,5 @@
-do $$
-begin
+DO $$
+BEGIN
   alter table public.cross_instances enable row level security;
 
   if not exists (select 1 from pg_policy where polrelid='public.cross_instances'::regclass and polname='app_rw_select_ci') then

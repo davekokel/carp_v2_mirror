@@ -6,8 +6,8 @@ alter table public.transgenes
   add column if not exists id uuid default gen_random_uuid();
 
 -- 2) keep natural key unique (assuming transgene_base_code is the natural key column name)
-do $$
-begin
+DO $$
+BEGIN
   if not exists (
     select 1 from pg_indexes
     where schemaname='public' and tablename='transgenes' and indexname='uq_transgenes_transgene_base_code'

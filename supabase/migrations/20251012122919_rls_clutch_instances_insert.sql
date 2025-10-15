@@ -1,5 +1,5 @@
-do $$
-begin
+DO $$
+BEGIN
   -- enable RLS (no-op if already enabled)
   alter table public.clutch_instances enable row level security;
 

@@ -2,7 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict lKyfwZ3hhsq2H5z0WDyt54T9QKZIjyRnyZt08SZTlPeAFBs6Mh1IQGeLplLj4iZ
 
 -- Dumped from database version 16.10 (Homebrew)
 -- Dumped by pg_dump version 18.0
@@ -181,5 +180,4 @@ ALTER TABLE ONLY public.fish_tank_memberships
 -- PostgreSQL database dump complete
 --
 
-\unrestrict lKyfwZ3hhsq2H5z0WDyt54T9QKZIjyRnyZt08SZTlPeAFBs6Mh1IQGeLplLj4iZ
 

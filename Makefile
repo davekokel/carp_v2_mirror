@@ -19,3 +19,7 @@ guard-migrations:
 verify-id-only:
 	@psql "$$DB_URL" -v ON_ERROR_STOP=1 -f scripts/verify_id_only.sql
 
+
+migrate-local:
+	./scripts/migrations_normalize.py --write || true
+	./scripts/migrate_local.sh

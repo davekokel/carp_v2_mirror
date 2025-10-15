@@ -2,7 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict PUbpKxUygW4VAwo56w6BJCIsVisvhtmZXIG3RAw3YjafYSu5cxl3Dx5aJMhG7hL
 
 -- Dumped from database version 16.10 (Homebrew)
 -- Dumped by pg_dump version 18.0
@@ -378,5 +377,4 @@ ALTER VIEW public.vw_planned_clutches_overview OWNER TO postgres;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict PUbpKxUygW4VAwo56w6BJCIsVisvhtmZXIG3RAw3YjafYSu5cxl3Dx5aJMhG7hL
 

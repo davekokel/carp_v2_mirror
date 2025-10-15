@@ -8,8 +8,8 @@ create index if not exists ix_ftm_container   on public.fish_tank_memberships(co
 create index if not exists ix_ftm_left_null   on public.fish_tank_memberships(left_at);
 
 -- add FKs as NOT VALID so we don't break if there are orphans
-do $$
-begin
+DO $$
+BEGIN
   if not exists (select 1 from pg_constraint where conname='fk_ci_cross') then
     alter table public.cross_instances
       add constraint fk_ci_cross foreign key (cross_id) references public.crosses(id_uuid) NOT VALID;

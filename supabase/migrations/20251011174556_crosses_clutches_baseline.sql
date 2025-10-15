@@ -2,7 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict goTerV3J0R2nQsf5HfNcsqbj9a8gClspGHxdLpVpQmjU330YbWEaluk9dJDZdOZ
 
 -- Dumped from database version 16.10 (Homebrew)
 -- Dumped by pg_dump version 18.0
@@ -77,12 +76,22 @@ BEGIN
     WHERE typname='container_status'
       AND typnamespace='public'::regnamespace
   ) THEN
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_type t
+    JOIN pg_namespace n ON n.oid=t.typnamespace
+    WHERE t.typname='container_status' AND n.nspname='public'
+  ) THEN
     CREATE TYPE public.container_status AS ENUM (
     'planned',
     'active',
     'to_kill',
     'retired'
 );
+  END IF;
+END
+$$ LANGUAGE plpgsql;
   END IF;
 END
 $$ LANGUAGE plpgsql;
@@ -93,12 +102,21 @@ ALTER TYPE public.container_status OWNER TO postgres;
 --
 -- Name: cross_plan_status; Type: TYPE; Schema: public; Owner: postgres
 --
-
-CREATE TYPE public.cross_plan_status AS ENUM (
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_type t
+    JOIN pg_namespace n ON n.oid=t.typnamespace
+    WHERE t.typname='cross_plan_status' AND n.nspname='public'
+  ) THEN
+    CREATE TYPE public.cross_plan_status AS ENUM (
     'planned',
     'canceled',
     'executed'
 );
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
 
 ALTER TYPE public.cross_plan_status OWNER TO postgres;
@@ -4511,5 +4529,4 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict goTerV3J0R2nQsf5HfNcsqbj9a8gClspGHxdLpVpQmjU330YbWEaluk9dJDZdOZ
 

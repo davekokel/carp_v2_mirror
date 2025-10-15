@@ -21,8 +21,8 @@ create index if not exists ix_clutch_instances_created_at    on public.clutch_in
 
 alter table public.clutch_instances enable row level security;
 
-do $$
-begin
+DO $$
+BEGIN
   if not exists (
     select 1 from pg_policy
     where polrelid='public.clutch_instances'::regclass and polname='app_rw_select_ci_annot'
