@@ -151,8 +151,6 @@ def fish_overview_minimal(conn_or_engine: Any, q: Optional[str] = None, limit: i
     if keep:
         df = df[keep]
 
-    if "id_uuid" in df.columns and df["id_uuid"].isna().all() and "id" in df.columns:
-        df["id_uuid"] = df["id"]
 
     if isinstance(limit, int) and limit > 0:
         df = df.head(limit)
