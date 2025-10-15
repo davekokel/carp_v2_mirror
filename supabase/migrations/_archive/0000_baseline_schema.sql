@@ -7452,4 +7452,3 @@ CREATE EVENT TRIGGER pgrst_drop_watch ON sql_drop
 --
 
 \unrestrict L58xS5OnVxAp5tLVRdQemQYpuEBrY1YclhPtWzQAvm5JK70CwXuzZBbyuXMg7HW
-

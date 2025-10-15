@@ -377,4 +377,3 @@ ALTER VIEW public.vw_planned_clutches_overview OWNER TO postgres;
 -- PostgreSQL database dump complete
 --
 
-

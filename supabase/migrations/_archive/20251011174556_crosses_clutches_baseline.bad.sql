@@ -79,7 +79,7 @@ BEGIN
   ) THEN
 -- DO ;  (commented: missing;
 END;
-$$ LANGUAGE plpgsql;LANGUAGE plpgsql;delimiter)
+$$ LANGUAGE plpgsql;delimiter)
 -- stray END; (commented)
 $$ LANGUAGE plpgsql;BEGIN
   IF NOT EXISTS (

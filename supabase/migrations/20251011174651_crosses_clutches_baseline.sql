@@ -638,9 +638,7 @@ ALTER VIEW public.vw_planned_clutches_overview OWNER TO postgres;
 --
 -- Name: clutch_containers clutch_containers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-
-DO 24099
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conrelid='public.clutch_containers'::regclass AND contype='p'
@@ -648,15 +646,19 @@ BEGIN
     ALTER TABLE ONLY public.clutch_containers ADD CONSTRAINT clutch_containers_pkey PRIMARY KEY (container_id);
   END IF;
 END;
-24099 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: clutch_genotype_options clutch_genotype_options_clutch_id_allele_code_transgene_bas_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.clutch_genotype_options
-    ADD CONSTRAINT clutch_genotype_options_clutch_id_allele_code_transgene_bas_key UNIQUE (clutch_id, allele_code, transgene_base_code);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='clutch_genotype_options_clutch_id_allele_code_transgene_bas_key') THEN
+    ALTER TABLE ONLY public.clutch_genotype_options ADD CONSTRAINT clutch_genotype_options_clutch_id_allele_code_transgene_bas_key UNIQUE (clutch_id, allele_code, transgene_base_code);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
@@ -718,9 +720,13 @@ ALTER TABLE ONLY public.cross_plan_genotype_alleles
 --
 -- Name: cross_plan_genotype_alleles cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_genotype_alleles
-    ADD CONSTRAINT cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key UNIQUE (plan_id, transgene_base_code, allele_number);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key') THEN
+    ALTER TABLE ONLY public.cross_plan_genotype_alleles ADD CONSTRAINT cross_plan_genotype_alleles_plan_id_transgene_base_code_all_key UNIQUE (plan_id, transgene_base_code, allele_number);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
@@ -734,9 +740,13 @@ ALTER TABLE ONLY public.cross_plan_runs
 --
 -- Name: cross_plan_runs cross_plan_runs_plan_id_seq_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plan_runs
-    ADD CONSTRAINT cross_plan_runs_plan_id_seq_key UNIQUE (plan_id, seq);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='cross_plan_runs_plan_id_seq_key') THEN
+    ALTER TABLE ONLY public.cross_plan_runs ADD CONSTRAINT cross_plan_runs_plan_id_seq_key UNIQUE (plan_id, seq);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
@@ -774,9 +784,13 @@ ALTER TABLE ONLY public.planned_crosses
 --
 -- Name: cross_plans uq_cross_plans_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
-
-ALTER TABLE ONLY public.cross_plans
-    ADD CONSTRAINT uq_cross_plans_unique UNIQUE (plan_date, tank_a_id, tank_b_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_cross_plans_unique') THEN
+    ALTER TABLE ONLY public.cross_plans ADD CONSTRAINT uq_cross_plans_unique UNIQUE (plan_date, tank_a_id, tank_b_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
@@ -1309,5 +1323,4 @@ ALTER TABLE ONLY public.planned_crosses
 --
 -- PostgreSQL database dump complete
 --
-
 

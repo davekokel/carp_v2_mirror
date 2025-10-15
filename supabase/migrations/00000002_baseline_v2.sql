@@ -5810,4 +5810,3 @@ ALTER TABLE public.transgenes ENABLE ROW LEVEL SECURITY;
 
 --
 --
-
