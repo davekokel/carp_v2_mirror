@@ -25,11 +25,18 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 4) add the new FK from bruker_mounts(selection_id_uuid) → clutch_instances(id_uuid)
-alter table public.bruker_mounts
-  add constraint fk_bm_selection_uuid
-  foreign key (selection_id_uuid)
-  references public.clutch_instances(id_uuid)
-  on delete restrict;
-
+-- 4) add the new FK from bruker_mounts(selection_id_uuid) → clutch_instances(id_uuid)DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'fk_bm_selection_uuid'
+  ) THEN
+    ALTER TABLE public.bruker_mounts
+      ADD CONSTRAINT fk_bm_selection_uuid
+      FOREIGN KEY (selection_id_uuid)
+      REFERENCES public.clutch_instances(id_uuid)
+      ON DELETE RESTRICT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 commit;
