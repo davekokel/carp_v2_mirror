@@ -6,18 +6,16 @@ alter table public.clutch_instances
 
 -- drop the current primary key (name-agnostic)
 DO $$
-DO $$
 DECLARE pk_name text;
 BEGIN
-select conname
-    into pk_name
-  from pg_constraint
-  where conrelid = 'public.clutch_instances'::regclass
-    and contype  = 'p';
+  SELECT conname INTO pk_name
+  FROM pg_constraint
+  WHERE conrelid = 'public.clutch_instances'::regclass
+    AND contype  = 'p';
 
-  if pk_name is not null then
-    execute format('alter table public.clutch_instances drop constraint %I', pk_name);
-  end if;
+  IF pk_name IS NOT NULL THEN
+    EXECUTE format('alter table public.clutch_instances drop constraint %I', pk_name);
+  END IF;
 END;
 $$ LANGUAGE plpgsql;;
 -- make id_uuid the PK
