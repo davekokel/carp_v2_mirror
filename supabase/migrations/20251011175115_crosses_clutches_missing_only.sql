@@ -718,15 +718,37 @@ $$ LANGUAGE plpgsql;
 --
 -- Name: crosses trg_cross_code; Type: TRIGGER; Schema: public; Owner: postgres
 --
-
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE t.tgname = 'trg_cross_code' AND n.nspname = 'public' AND c.relname = 'crosses'
+  ) THEN
+    
 CREATE TRIGGER trg_cross_code BEFORE INSERT ON public.crosses FOR EACH ROW EXECUTE FUNCTION public.trg_cross_code();
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
 -- Name: crosses trg_cross_name_fill; Type: TRIGGER; Schema: public; Owner: postgres
 --
-
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE t.tgname = 'trg_cross_name_fill' AND n.nspname = 'public' AND c.relname = 'crosses'
+  ) THEN
+    
 CREATE TRIGGER trg_cross_name_fill BEFORE INSERT ON public.crosses FOR EACH ROW EXECUTE FUNCTION public.trg_cross_name_fill();
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 
 --
