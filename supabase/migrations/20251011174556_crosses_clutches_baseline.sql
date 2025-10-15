@@ -85,7 +85,7 @@ BEGIN
 );
   END IF;
 END
-$ plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 ALTER TYPE public.container_status OWNER TO postgres;
