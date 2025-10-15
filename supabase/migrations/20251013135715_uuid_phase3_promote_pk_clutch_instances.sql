@@ -14,7 +14,7 @@ BEGIN
     AND contype  = 'p';
 
   IF pk_name IS NOT NULL THEN
-    EXECUTE format('alter table public.clutch_instances drop constraint %I', pk_name);
+    EXECUTE format('alter table public.clutch_instances drop constraint %I cascade', pk_name);
   END IF;
 END;
 $$ LANGUAGE plpgsql;;
