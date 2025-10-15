@@ -25,7 +25,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 4) add the new FK from bruker_mounts(selection_id_uuid) → clutch_instances(id_uuid)DO $$
+-- 4) add the new FK from bruker_mounts(selection_id_uuid) → clutch_instances(id_uuid);
+
+DO 28545 
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
