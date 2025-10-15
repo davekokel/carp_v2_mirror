@@ -9,9 +9,8 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
-
-
-$$ LANGUAGE plpgsql;BEGIN
+DO $$
+BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_type t
     JOIN pg_namespace n ON n.oid=t.typnamespace
