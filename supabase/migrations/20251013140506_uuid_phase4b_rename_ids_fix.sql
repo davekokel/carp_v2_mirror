@@ -16,9 +16,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 -- bruker_mounts: standardize FK column/constraint/index names
-alter table public.bruker_mounts
-  rename column selection_id_uuid to selection_id;
-
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='bruker_mounts' AND column_name='selection_id_uuid'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='bruker_mounts' AND column_name='selection_id'
+  ) THEN
+    EXECUTE 'ALTER TABLE public.bruker_mounts RENAME COLUMN selection_id_uuid TO selection_id';
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 alter table public.bruker_mounts
   rename constraint fk_bm_selection_uuid to fk_bm_selection_id;
 DO $$
