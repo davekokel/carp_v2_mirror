@@ -1,5 +1,8 @@
 # DB Connection Playbook — Start here
 
+**Note:** PROD pooler host = `aws-1-us-east-2.pooler.supabase.com`
+
+
 ```bash
 bash scripts/db_connect_doctor.sh
 ```
