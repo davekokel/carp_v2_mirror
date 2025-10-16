@@ -1,9 +1,9 @@
-import sys, pathlib
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
 
 from __future__ import annotations
 import sys; print("BOOT: streamlit_app start", flush=True)
 import importlib.util
+import sys, pathlib
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
 import pathlib
 import re
 import streamlit as st
