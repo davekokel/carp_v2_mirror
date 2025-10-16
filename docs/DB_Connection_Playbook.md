@@ -1,3 +1,9 @@
+# DB Connection Playbook — Start here
+
+```bash
+bash scripts/db_connect_doctor.sh
+```
+---
 # DB Connection Playbook — Quick Start (Updated)
 
 This gets you to a verified working baseline **immediately** for Local, Staging, and Production via the Supabase pooler. It uses copy‑pasteable shell blocks (no inline comments) and verifies each target in order.
@@ -86,7 +92,7 @@ psql "$PROD_DB_URL"    -Atc "select 'fish' t, count(*) from public.fish union al
 **Direct (non‑pooler) test**
 
 ```bash
-psql "postgresql://postgres@gzmbxhkckkspnefpxkgb.supabase.co:5432/postgres?sslmode=require" -Atc "select version(), current_user"
+psql "postgresql://postgres@db.gzmbxhkckkspnefpxkgb.supabase.co:5432/postgres?sslmode=require" -Atc "select version(), current_user"
 ```
 
 If the direct test works but the pooler fails, re‑check the pooler host, port 6543, and the `~/.pgpass` username line for a typo in the `<project-ref>`.
