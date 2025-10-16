@@ -7,8 +7,8 @@ export STAGING_REF="zebzrvjbalhazztvhhcm"
 export STAGING_POOLER_HOST="aws-1-us-west-1.pooler.supabase.com"
 export STAGING_DB_URL="postgresql://postgres.${STAGING_REF}@${STAGING_POOLER_HOST}:6543/postgres?sslmode=require"
 export PROD_REF="gzmbxhkckkspnefpxkgb"
-export PROD_POOLER_HOST="aws-0-us-east-2.pooler.supabase.com"
-export PROD_DIRECT_HOST="${PROD_REF}.supabase.co"
+export PROD_POOLER_HOST="aws-1-us-east-2.pooler.supabase.com"
+export PROD_DIRECT_HOST="db.${PROD_REF}.supabase.co"
 export PROD_DB_URL="postgresql://postgres.${PROD_REF}@${PROD_POOLER_HOST}:6543/postgres?sslmode=require"
 
 printf "LOCAL=%s
