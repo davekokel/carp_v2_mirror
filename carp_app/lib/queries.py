@@ -202,7 +202,7 @@ def load_containers_overview(engine: Engine, q: Optional[str] = None, limit: int
         order by status_changed_at desc nulls last, created_at desc
         limit :lim
     """
-    qpat = f"%{q}%" if q else None
+    qpat = f"%{q}%" if (q is not None and str(q).strip() != '') else None
     with engine.connect() as conn:
         return [dict(r) for r in conn.execute(text(sql), {"q": q, "qpat": qpat, "lim": limit}).mappings().all()]
 
