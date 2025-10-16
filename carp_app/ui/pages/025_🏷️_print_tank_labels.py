@@ -1,7 +1,16 @@
 from __future__ import annotations
-from carp_app.ui.auth_gate import require_auth
+import sys, pathlib
+import os
+AUTH_MODE = os.getenv('AUTH_MODE','off').lower()
+if AUTH_MODE == 'on':
+    from carp_app.ui.auth_gate import require_auth
+    sb, session, user = require_auth()
+else:
+    sb = session = user = None
+
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
+
 from carp_app.lib.config import engine as get_engine, DB_URL
-sb, session, user = require_auth()
 
 from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
