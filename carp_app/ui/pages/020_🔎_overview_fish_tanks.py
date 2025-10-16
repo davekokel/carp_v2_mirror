@@ -160,7 +160,7 @@ def main():
         submitted = st.form_submit_button("Apply")
 
     # 1) Multi-term search to get matches
-    rows = Q.load_fish_overview(_get_engine(), q=q, stages=stages, limit=limit)
+    rows = load_containers_overview(_get_engine(), q=q, limit=limit), q=q, stages=stages, limit=limit)
     match_df = pd.DataFrame(rows)
     st.caption(f"{len(match_df)} matches")
 
