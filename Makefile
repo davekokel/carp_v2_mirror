@@ -22,3 +22,14 @@ app-prod-pgpass:
 	env -u PGHOST -u PGPORT -u PGUSER -u PGPASSWORD -u DATABASE_URL \
 	DB_URL="postgresql://postgres.$$PROJ:$${ENCPW}@$(POOL):6543/postgres?sslmode=require" \
 	$(PY) -m streamlit run "$(APP)"
+.PHONY: deploy-staging promote-prod parity
+deploy-staging:
+	@git push org_mirror main:staging
+
+promote-prod:
+	@SHA=$$(git rev-parse org_mirror/staging); git push -f org_mirror $$SHA:refs/heads/prod
+
+parity:
+	@git rev-parse --short org_mirror/staging
+	@git rev-parse --short org_mirror/prod
+	@git diff --name-status org_mirror/staging..org_mirror/prod
