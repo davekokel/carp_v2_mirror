@@ -221,6 +221,12 @@ code_mask = det["clutch_code"].isin(selected_codes)
 
 det = det[date_mask & code_mask]
 
+cols = [
+    "clutch_code","cross_run_code","birthday",
+    "day_annotated","annotations_rollup",
+    "mom_code","dad_code","mother_tank_label","father_tank_label",
+]
+
 present_det = [c for c in cols if c in det.columns]
 grid_cols = present_det + (["cross_instance_id"] if "cross_instance_id" in det.columns else [])
 runs_grid = det[grid_cols].copy()
