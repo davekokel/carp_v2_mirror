@@ -137,13 +137,23 @@ with eng.begin() as cx:
     )
     runs = pd.read_sql(
         text("""
-            select
-              cross_instance_id,
-              cross_run_code,
-              cross_date::date as cross_date,
-              mom_code, dad_code,
-              mother_tank_label, father_tank_label
-            from public.vw_cross_runs_overview
+            with base as (
+                select
+                ci.id as cross_instance_id,
+                ci.cross_run_code,
+                ci.cross_date::date as cross_date,
+                x.mother_code as mom_code,
+                x.father_code as dad_code,
+                cm.label as mother_tank_label,
+                cf.label as father_tank_label
+                from public.cross_instances ci
+                join public.crosses x on x.id = ci.cross_id
+                left join public.containers cm on cm.id = ci.mother_tank_id
+                left join public.containers cf on cf.id = ci.father_tank_id
+            )
+            select b.*, cl.id as clutch_instance_id, cl.birthday
+            from base b
+            left join public.clutch_instances cl on cl.cross_instance_id = b.cross_instance_id
         """),
         cx
     )
