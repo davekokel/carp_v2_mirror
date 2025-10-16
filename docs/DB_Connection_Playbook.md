@@ -1,3 +1,21 @@
+# Connection Policy (v1)
+
+- Local → direct `127.0.0.1:5432`
+- Staging → **direct** `db.zebzrvjbalhazztvhhcm.supabase.co:5432`
+- Prod → **pooler** `aws-1-us-east-2.pooler.supabase.com:6543` with user `postgres.gzmbxhkckkspnefpxkgb`
+- Engine → **URL-first** (launch scripts ignore PG* env)
+- pgpass entries:
+  - `db.zebzrvjbalhazztvhhcm.supabase.co:5432:postgres:postgres:<staging_pw>`
+  - `aws-1-us-east-2.pooler.supabase.com:6543:postgres:postgres.gzmbxhkckkspnefpxkgb:<prod_pw>`
+
+## Launchers
+scripts/run_local.sh  
+scripts/run_staging.sh  
+scripts/run_prod.sh  
+
+Run the doctor if anything’s odd:
+bash scripts/db_connect_doctor.sh
+---
 # DB Connection Playbook — Start here
 
 **Note:** PROD pooler host = `aws-1-us-east-2.pooler.supabase.com`
