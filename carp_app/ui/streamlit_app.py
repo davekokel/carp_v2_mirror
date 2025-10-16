@@ -1,3 +1,4 @@
+import sys; print("BOOT: streamlit_app start", flush=True)
 from __future__ import annotations
 import importlib.util
 import pathlib
