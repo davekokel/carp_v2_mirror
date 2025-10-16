@@ -1,4 +1,7 @@
 from __future__ import annotations
+import sys, pathlib
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
+
 from carp_app.lib.config import engine as get_engine
 # carp_app/ui/pages/040_🧫_enter_bruker_mount.py
 

@@ -1,4 +1,7 @@
 from __future__ import annotations
+import sys, pathlib
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
+
 from carp_app.ui.auth_gate import require_auth
 from carp_app.lib.config import engine as get_engine, DB_URL
 sb, session, user = require_auth()

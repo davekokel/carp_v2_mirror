@@ -1,4 +1,7 @@
 from __future__ import annotations
+import sys, pathlib
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
+
 import os, re, sys
 import streamlit as st
 
