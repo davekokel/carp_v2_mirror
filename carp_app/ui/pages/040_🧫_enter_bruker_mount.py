@@ -1,6 +1,6 @@
+from __future__ import annotations
 from carp_app.lib.config import engine as get_engine
 # carp_app/ui/pages/040_🧫_enter_bruker_mount.py
-from __future__ import annotations
 
 import os
 import sys

@@ -1,6 +1,6 @@
+from __future__ import annotations
 from carp_app.lib.config import engine as get_engine
 from carp_app.lib.config import DB_URL
-from __future__ import annotations
 from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
