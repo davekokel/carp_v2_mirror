@@ -216,3 +216,56 @@ def load_clutch_instances_overview(engine: Engine, limit: int = 200) -> List[Map
     """
     with engine.connect() as conn:
         return [dict(r) for r in conn.execute(text(sql), {"lim": limit}).mappings().all()]
+
+from typing import Optional, Mapping, List
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+def load_fish_overview_human(engine: Engine, q: Optional[str] = None, stages: Optional[List[str]] = None, limit: int = 500) -> List[Mapping]:
+    cols = (
+        "fish_id, fish_code, fish_name, fish_nickname, genetic_background, "
+        "allele_number, allele_code, transgene, genotype_rollup, "
+        "tank_code, tank_label, tank_status, "
+        "stage, date_birth, created_at, created_by"
+    )
+
+    search_cols = [
+        "fish_code", "fish_name", "fish_nickname",
+        "genetic_background", "transgene", "genotype_rollup",
+        "tank_code", "tank_label",
+    ]
+
+    # normalize q: empty/whitespace -> None
+    q = (q.strip() if isinstance(q, str) else q) or None
+
+    clauses = []
+    params: dict = {"lim": int(limit)}
+
+    # optional stage filter
+    if stages:
+        stg = list({(s or "").strip().upper() for s in stages if (s or "").strip()})
+        if stg:
+            clauses.append("upper(coalesce(stage,'')) = ANY(:stages)")
+            params["stages"] = stg
+
+    # multi-term search
+    if q:
+        terms = [t for t in q.split() if t]
+        for i, t in enumerate(terms, 1):
+            key = f"t{i}"
+            ors = " OR ".join([f"coalesce({c},'') ILIKE :{key}" for c in search_cols])
+            clauses.append(f"({ors})")
+            params[key] = f"%{t}%"
+
+    sql = f"""
+        select {cols}
+        from public.v_fish_overview_human
+        {"where " + " AND ".join(clauses) if clauses else ""}
+        order by created_at desc nulls last
+        limit :lim
+    """
+
+    with engine.connect() as cx:
+        rows = cx.execute(text(sql), params).mappings().all()
+        return [dict(r) for r in rows]
+
