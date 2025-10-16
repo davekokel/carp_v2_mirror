@@ -1,21 +1,32 @@
-import os, re, streamlit as st
+import os, re, urllib.parse, streamlit as st
+
+_REF_RE = re.compile(r"^db\.([a-z0-9]{20})\.supabase\.co$")
+
+def _env_from_db_url(u: str):
+    p = urllib.parse.urlparse(u or "")
+    host = (p.hostname or "").lower()
+    user = (p.username or "")  # e.g., postgres.zebzrvjbalhazztvhhcm
+    # Try user-based ref first (pooler), else parse from host (direct db)
+    proj = user.split(".", 1)[1] if "." in user else ""
+    if not proj:
+        m = _REF_RE.match(host)
+        proj = m.group(1) if m else ""
+
+    prod = os.getenv("PROD_PROJECT_ID", "").lower()
+    stag = os.getenv("STAGING_PROJECT_ID", "").lower()
+
+    if proj and proj == prod:
+        env = "PROD"
+    elif proj and proj == stag:
+        env = "STAGING"
+    elif "pooler.supabase.com" in host:
+        env = "STAGING"  # pooler but unknown ref
+    else:
+        env = "LOCAL"
+
+    return env, proj or "?", host or "?"
 
 def show_env_badge():
-    db_url = os.getenv("DB_URL", "")
-    user = host = proj = "?"
-    m = re.match(r".*://([^:@]+)@([^/?]+)", db_url)
-    if m:
-        user, host = m.group(1), m.group(2)
-        proj = user.split(".", 1)[1] if "." in user else "?"
-
-    is_local = host.startswith("127.") or host.startswith("localhost")
-    env_name = (
-        "LOCAL"   if is_local else
-        ("PROD"    if ("prod" in host or proj in os.getenv("PROD_PROJECT_ID","")) else
-         "STAGING" if ("staging" in host or proj in os.getenv("STAGING_PROJECT_ID","")) else
-         "LOCAL")
-    )
-    if is_local:
-        proj = "local"
-
-    st.caption(f"Environment: {env_name} • Project: {proj} • Host: {host}")
+    u = os.getenv("DB_URL", "")
+    env, proj, host = _env_from_db_url(u)
+    st.caption(f"Environment: {env} • Project: {proj} • Host: {host}")

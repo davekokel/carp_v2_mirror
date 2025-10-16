@@ -1,7 +1,6 @@
 from __future__ import annotations
 from carp_app.ui.auth_gate import require_auth
 from carp_app.lib.db import get_engine
-from carp_app.lib.secret import db_url as DB_URL
 sb, session, user = require_auth()
 
 from carp_app.ui.email_otp_gate import require_email_otp
@@ -25,7 +24,7 @@ except Exception:
 
 st.set_page_config(page_title="CARP — Welcome", page_icon="👋", layout="wide")
 
-from carp_app.ui.lib.env_badge import show_env_badge
+from carp_app.ui.lib.env_badge import show_env_badge, _env_from_db_url
 from carp_app.lib.secret import env_info
 from carp_app.lib.config import DB_URL, AUTH_MODE, env_name
 
@@ -40,17 +39,16 @@ st.write("Browse live data, upload CSVs, and print labels — no install needed.
 
 # Compact status (derived from DB_URL)
 import re
-DB_URL = get_secret("DB_URL","")
+DB_URL = os.getenv("DB_URL","")
 m = re.match(r".*://([^:@]+)@([^/?]+)", DB_URL)
 _pguser = m.group(1) if m else os.getenv("PGUSER","")
 _pghost = m.group(2) if m else os.getenv("PGHOST","")
 _proj   = _pguser.split(".",1)[1] if "." in _pguser else "?"
 
-env_name = (
-    "PROD"    if (_proj == os.getenv("PROD_PROJECT_ID","") or "prod" in (_pghost or "")) else
-    "STAGING" if (_proj == os.getenv("STAGING_PROJECT_ID","") or "staging" in (_pghost or "")) else
-    "LOCAL"
-)
+from carp_app.ui.lib.env_badge import _env_from_db_url
+_env, _proj, _host = _env_from_db_url(DB_URL)
+env_name = _env
+_pghost = _host
 mode = os.getenv("APP_MODE") or ("readonly" if _pguser.endswith("_ro") else "write")
 
 c1, c2, c3 = st.columns(3)

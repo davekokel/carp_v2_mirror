@@ -1,9 +1,24 @@
-.PHONY: app-local app-staging
-APP ?= supabase/ui/streamlit_app.py
+.PHONY: app-staging-pgpass app-prod-pgpass
+APP ?= carp_app/ui/streamlit_app.py
 PY  ?= .venv/bin/python
+POOL ?= aws-1-us-west-1.pooler.supabase.com
+STAGING_ID ?= zebzrvjbalhazztvhhcm
+PROD_ID    ?= gzmbxhkckkspnefpxkgb
 
-app-local:
-\t@env -u PGHOST -u PGPORT -u PGUSER -u PGPASSWORD -u DATABASE_URL DB_URL="postgresql://postgres@127.0.0.1:5432/postgres?sslmode=disable" $(PY) -m streamlit run "$(APP)"
+app-staging-pgpass:
+	@PROJ="$(STAGING_ID)"; \
+	PW="$$(awk -F: -v U="postgres.$$PROJ" '$$1=="$(POOL)" && $$2=="6543" && $$3=="postgres" && $$4==U{print $$5;exit}' $$HOME/.pgpass)"; \
+	[ -n "$$PW" ] || { echo "No pgpass entry for staging"; exit 2; }; \
+	ENCPW="$$(PW="$$PW" python -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["PW"]))')"; \
+	env -u PGHOST -u PGPORT -u PGUSER -u PGPASSWORD -u DATABASE_URL \
+	DB_URL="postgresql://postgres.$$PROJ:$${ENCPW}@$(POOL):6543/postgres?sslmode=require" \
+	$(PY) -m streamlit run "$(APP)"
 
-app-staging:
-\t@env -u PGHOST -u PGPORT -u PGUSER -u PGPASSWORD -u DATABASE_URL DB_URL="postgresql://postgres.zebzrvjbalhazztvhhcm@aws-1-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require" $(PY) -m streamlit run "$(APP)"
+app-prod-pgpass:
+	@PROJ="$(PROD_ID)"; \
+	PW="$$(awk -F: -v U="postgres.$$PROJ" '$$1=="$(POOL)" && $$2=="6543" && $$3=="postgres" && $$4==U{print $$5;exit}' $$HOME/.pgpass)"; \
+	[ -n "$$PW" ] || { echo "No pgpass entry for prod"; exit 2; }; \
+	ENCPW="$$(PW="$$PW" python -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["PW"]))')"; \
+	env -u PGHOST -u PGPORT -u PGUSER -u PGPASSWORD -u DATABASE_URL \
+	DB_URL="postgresql://postgres.$$PROJ:$${ENCPW}@$(POOL):6543/postgres?sslmode=require" \
+	$(PY) -m streamlit run "$(APP)"
