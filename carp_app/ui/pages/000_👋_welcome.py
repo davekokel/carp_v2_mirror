@@ -1,30 +1,14 @@
 from __future__ import annotations
-from carp_app.lib.db import get_engine
-import os
-AUTH_MODE = os.getenv('AUTH_MODE','off').lower()
-if AUTH_MODE == 'on':
-        else:
-    sb = session = user = None
-
-
-from carp_app.ui.email_otp_gate import require_email_otp
-require_email_otp()
-
-import os, sys
-from pathlib import Path
+import os, re, sys
 import streamlit as st
 
-# Ensure repo root is importable (cloud + local)
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-# Prod/staging banner (if available)
-try:
-    from carp_app.ui.lib.prod_banner import show_prod_banner
-    show_prod_banner()
-except Exception:
-    pass
+# Gate auth: only import when AUTH_MODE=on
+AUTH_MODE = os.getenv("AUTH_MODE", "off").lower()
+if AUTH_MODE == "on":
+    from carp_app.ui.auth_gate import require_auth
+    sb, session, user = require_auth()
+else:
+    sb = session = user = None
 
 st.set_page_config(page_title="CARP — Welcome", page_icon="👋", layout="wide")
 
