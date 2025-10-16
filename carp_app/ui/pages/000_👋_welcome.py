@@ -3,9 +3,7 @@ from carp_app.lib.db import get_engine
 import os
 AUTH_MODE = os.getenv('AUTH_MODE','off').lower()
 if AUTH_MODE == 'on':
-    from carp_app.ui.auth_gate import require_auth
-    sb, session, user = require_auth()
-else:
+        else:
     sb = session = user = None
 
 
