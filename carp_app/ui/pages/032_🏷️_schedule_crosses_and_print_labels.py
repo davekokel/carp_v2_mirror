@@ -43,7 +43,7 @@ def _get_engine():
     url = os.getenv("DB_URL")
     if not url:
         st.stop()
-    _ENGINE = get_engine(url)
+    _ENGINE = get_engine()
     return _ENGINE
 
 LIVE_STATUSES = ("active", "new_tank")

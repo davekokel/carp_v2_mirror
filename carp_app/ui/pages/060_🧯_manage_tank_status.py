@@ -34,7 +34,7 @@ def _db_url() -> str:
         raise RuntimeError("DB_URL not set")
     return u
 
-ENGINE = get_engine(_db_url())
+ENGINE = get_engine())
 
 # ---------- data loaders ----------
 def _load_tanks(container_types: List[str], statuses: List[str], q: str) -> pd.DataFrame:

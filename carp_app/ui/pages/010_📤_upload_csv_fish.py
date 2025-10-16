@@ -93,7 +93,7 @@ def _get_engine() -> Engine:
     url = os.getenv("DB_URL")
     if not url:
         raise RuntimeError("DB_URL not set")
-    _ENGINE = get_engine(url)
+    _ENGINE = get_engine()
     return _ENGINE
 
 def parse_date_birth(x):
