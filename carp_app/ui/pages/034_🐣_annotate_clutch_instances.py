@@ -183,24 +183,44 @@ with eng.begin() as cx:
 if sel_mom_dad.empty or runs.empty:
     st.info("No realized clutch instances yet."); st.stop()
 
+# Build realized table
 det = sel_mom_dad.merge(runs, how="inner", on=["mom_code","dad_code"]).sort_values("cross_date", ascending=False)
+
+# Try to bring in clutch_code from clutches/plans (cl_map)
 if not cl_map.empty:
     det = det.merge(cl_map, how="left", on="cross_instance_id")
+
+# Normalize clutch_code so it always exists
+if "clutch_code_x" in det.columns and "clutch_code_y" in det.columns:
+    det["clutch_code"] = det["clutch_code_y"].fillna(det["clutch_code_x"])
+    det.drop(columns=["clutch_code_x","clutch_code_y"], inplace=True)
+elif "clutch_code_y" in det.columns:
+    det["clutch_code"] = det["clutch_code_y"]
+    det.drop(columns=["clutch_code_y"], inplace=True)
+elif "clutch_code_x" in det.columns:
+    det["clutch_code"] = det["clutch_code_x"]
+    det.drop(columns=["clutch_code_x"], inplace=True)
+elif "clutch_code" not in det.columns:
+    det["clutch_code"] = pd.Series("", index=det.index)
+
+# Attach aggregates if present
 if not agg.empty:
     det = det.merge(agg, how="left", on="cross_instance_id")
 
+# Derive birthday and clean types
 det["birthday"] = det["cross_date"]
 det["day_annotated"] = det.get("day_annotated", pd.Series([pd.NaT]*len(det))).astype("string")
 det["annotations_rollup"] = det.get("annotations_rollup", pd.Series([""]*len(det))).fillna("").astype("string")
 
-det = det[(det["cross_date"].between(d_from, d_to)) | (pd.to_datetime(det["day_annotated"], errors="coerce").dt.date.between(d_from, d_to))]
-det = det[det["clutch_code"].isin(selected_codes)]
+# Apply date filters safely (work even if day_annotated has blanks)
+_annot_dates = pd.to_datetime(det["day_annotated"], errors="coerce").dt.date
+date_mask = det["cross_date"].between(d_from, d_to) | _annot_dates.between(d_from, d_to)
 
-cols = [
-    "clutch_code","cross_run_code","birthday",
-    "day_annotated","annotations_rollup",
-    "mom_code","dad_code","mother_tank_label","father_tank_label"
-]
+# Filter by selected concept code
+code_mask = det["clutch_code"].isin(selected_codes)
+
+det = det[date_mask & code_mask]
+
 present_det = [c for c in cols if c in det.columns]
 grid_cols = present_det + (["cross_instance_id"] if "cross_instance_id" in det.columns else [])
 runs_grid = det[grid_cols].copy()
