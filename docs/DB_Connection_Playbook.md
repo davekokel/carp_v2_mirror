@@ -1,3 +1,13 @@
+# Fast recovery (3 commands)
+
+bash scripts/db_connect_doctor.sh
+scripts/run_staging.sh
+scripts/run_prod.sh
+
+If staging auth fails, ensure ~/.pgpass has:
+- db.zebzrvjbalhazztvhhcm.supabase.co:5432:postgres:postgres:<staging_pw>
+- aws-1-us-east-2.pooler.supabase.com:6543:postgres:postgres.gzmbxhkckkspnefpxkgb:<prod_pw>
+---
 # Connection Policy (v1)
 
 - Local → direct `127.0.0.1:5432`
