@@ -186,3 +186,33 @@ def load_label_rows(engine, q: str | None = None, limit: int = 500):
     """
     with engine.begin() as cx:
         return pd.read_sql_query(sql, cx, params=params)
+# ---- overview view helpers ----
+from typing import Optional, Mapping, List
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+def load_containers_overview(engine: Engine, q: Optional[str] = None, limit: int = 200) -> List[Mapping]:
+    sql = """
+        select id, container_type, label, tank_code, status, status_changed_at, created_at
+        from public.v_containers_overview
+        where (:q is null)
+           or (coalesce(label,'') ilike :qpat
+            or coalesce(tank_code,'') ilike :qpat
+            or coalesce(container_type,'') ilike :qpat)
+        order by status_changed_at desc nulls last, created_at desc
+        limit :lim
+    """
+    qpat = f"%{q}%" if q else None
+    with engine.connect() as conn:
+        return [dict(r) for r in conn.execute(text(sql), {"q": q, "qpat": qpat, "lim": limit}).mappings().all()]
+
+def load_clutch_instances_overview(engine: Engine, limit: int = 200) -> List[Mapping]:
+    sql = """
+        select cross_instance_id, cross_run_code, birthday, clutch_code,
+               clutch_instance_id, clutch_birthday, clutch_created_by
+        from public.v_clutch_instances_overview
+        order by birthday desc nulls last
+        limit :lim
+    """
+    with engine.connect() as conn:
+        return [dict(r) for r in conn.execute(text(sql), {"lim": limit}).mappings().all()]
