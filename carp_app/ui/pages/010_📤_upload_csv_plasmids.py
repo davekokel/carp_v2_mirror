@@ -16,8 +16,8 @@ import io, os
 from typing import List, Dict, Any
 import pandas as pd
 import streamlit as st
-from carp_app.lib.db import get_engine, text
-
+from carp_app.lib.db import get_engine
+from sqlalchemy import text
 # 🔒 Optional unlock
 try:
     from carp_app.ui.auth_gate import require_app_unlock

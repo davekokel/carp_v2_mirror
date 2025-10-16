@@ -17,7 +17,8 @@ from typing import List, Dict, Any, Optional
 from datetime import date, datetime, timedelta
 import pandas as pd
 import streamlit as st
-from carp_app.lib.db import get_engine, text
+from carp_app.lib.db import get_engine
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 try:
