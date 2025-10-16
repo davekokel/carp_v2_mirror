@@ -8,3 +8,5 @@ tzdata>=2023.3
 psycopg2-binary>=2.9
 
 reportlab>=4.0
+
+supabase>=2.4
