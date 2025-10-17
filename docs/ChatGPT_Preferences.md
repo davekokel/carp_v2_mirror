@@ -64,3 +64,25 @@ Treat this file as a living, iterative guide.
   ```bash
   export POOLER_AUTOREWRITE=0  # disable rewrite if you intentionally test direct host
   ```
+
+---
+
+## 8. Verify-first checklist
+Before starting any build, patch, or debug session:
+
+1. **Verify the file tree**
+   - Confirm where `streamlit_app.py` lives (`supabase/ui/streamlit_app.py`).
+   - Confirm that all page files are under `carp_app/ui/pages/`.
+   - Never assume a `supabase/ui/pages/` folder exists unless explicitly created.
+
+2. **Confirm the active branch**
+   - Run `git branch --show-current` and ensure it matches the intended feature branch.
+   - Use `git status -sb` to confirm a clean working tree before applying any edits.
+
+3. **Check the DB schema**
+   - Validate that migrations are up to date and the correct database (local/staging/prod) is in use.
+   - Use `make baseline-local` or `make baseline-staging` if schema drift is suspected.
+
+4. **General principle**
+   - Do not assume paths, branches, or schema versions.
+   - Always inspect first, then apply targeted changes.
