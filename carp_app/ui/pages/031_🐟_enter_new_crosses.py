@@ -229,6 +229,14 @@ if picked.empty:
     st.warning("Select at least one planned clutch to set up crosses.")
     st.stop()
 
+# --- Quiet landing: hide everything until selection is made or a new XR was created this run
+sel_n = len(selected_rows) if "selected_rows" in locals() else 0
+recent_created = st.session_state.get("xr_recent_created", False)
+
+if sel_n == 0 and not recent_created:
+    st.caption("Select crosses above to preview & schedule run(s).")
+    st.stop()
+
 # =================================
 # Live tanks
 # =================================

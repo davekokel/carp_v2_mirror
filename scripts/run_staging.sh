@@ -1,3 +1,12 @@
+# inject APP_COMMIT from git
+# inject APP_COMMIT from git
+# inject APP_COMMIT from git
+# inject APP_COMMIT from git
+# inject APP_COMMIT from git
+# inject APP_COMMIT from git
+# inject APP_COMMIT from git
+# inject APP_COMMIT from git
+# inject APP_COMMIT from git
 #!/usr/bin/env bash
 set -euo pipefail
 
