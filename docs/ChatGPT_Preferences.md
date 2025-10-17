@@ -161,3 +161,15 @@ Before beginning any development or debugging session:
 - There should be **no** `supabase/ui` directory or symlink; remove if it appears.
 - Run the full filetree check (section 8.1) whenever you suspect layout drift.
 - Always verify actual tree output before writing migrations, modifying paths, or editing run scripts.
+### 5.3 Staging (IPv6 direct) fallback
+Use direct host when the us-west-1 transaction pooler refuses connections.
+- Enable IPv6 on Wi-Fi.
+- DSN uses: host db.zebzrvjbalhazztvhhcm.supabase.co, port 5432, user postgres.
+- Keep password in ~/.pgpass, not in the DSN.
+- Do not set PGHOST/PGPORT/PGUSER/PGDATABASE; rely on DB_URL only.
+- To revert later, switch back to the pooler DSN (user postgres.<project-ref>, host aws-1-us-west-1.pooler.supabase.com, port 6543).
+
+### 8.2 File-tree verification (staging launch)
+- Streamlit entry: carp_app/ui/streamlit_app.py.
+- Pages live at carp_app/ui/pages/.
+- Scripts (run_staging.sh) must launch from the entry and set DB_URL; they must not rely on PG* env.
