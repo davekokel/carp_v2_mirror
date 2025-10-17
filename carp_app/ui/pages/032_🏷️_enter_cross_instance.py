@@ -19,7 +19,7 @@ import streamlit as st
 from sqlalchemy import text
 
 st.set_page_config(page_title="🐟 Deploy crosses", page_icon="🐟", layout="wide")
-st.title("🐟 Deploy crosses — select concepts → preview instance(s) → schedule")
+st.title("🐟 Encer cross_instance → schedule")
 
 try:
     from carp_app.ui.auth_gate import require_app_unlock
@@ -274,7 +274,7 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
       SELECT
         x.id            AS cross_id,
         pc.id           AS planned_cross_id,
-        pc.clutch_id         AS clutch_plan_id,
+        pc.clutch_id    AS clutch_plan_id,
         pc.mother_tank_id, pc.father_tank_id,
         ROW_NUMBER() OVER (
           PARTITION BY x.id
@@ -291,7 +291,7 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
       SELECT
         x.id            AS cross_id,
         pc.id           AS planned_cross_id,
-        pc.clutch_id         AS clutch_plan_id,
+        pc.clutch_id    AS clutch_plan_id,
         pc.mother_tank_id, pc.father_tank_id,
         ROW_NUMBER() OVER (
           PARTITION BY x.id
@@ -311,7 +311,10 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
     )
     SELECT
       v.cross_code,
-      x.cross_name, x.cross_nickname,
+
+      /* use only current columns; alias to legacy names expected by UI */
+      COALESCE(x.cross_name_code, v.cross_code)              AS cross_name,
+      COALESCE(x.cross_name_genotype, '')                    AS cross_nickname,
 
       v.mom_code, COALESCE(cm.label, cm.tank_code) AS mom_tank,
       v.dad_code, COALESCE(cf.label, cf.tank_code) AS dad_tank,
@@ -339,11 +342,15 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
       AND (:by = '' OR v.created_by ILIKE :byl)
       AND (
         :q = '' OR
-        v.cross_code ILIKE :ql OR x.cross_name ILIKE :ql OR x.cross_nickname ILIKE :ql OR
+        v.cross_code ILIKE :ql OR
+        COALESCE(x.cross_name_code,'')       ILIKE :ql OR
+        COALESCE(x.cross_name_genotype,'')   ILIKE :ql OR
         v.mom_code  ILIKE :ql OR v.dad_code  ILIKE :ql OR
         COALESCE(cm.label, cm.tank_code, '') ILIKE :ql OR
         COALESCE(cf.label, cf.tank_code, '') ILIKE :ql OR
-        COALESCE(cp.clutch_code,'') ILIKE :ql OR COALESCE(cp.planned_name,'') ILIKE :ql OR COALESCE(cp.planned_nickname,'') ILIKE :ql
+        COALESCE(cp.clutch_code,'')          ILIKE :ql OR
+        COALESCE(cp.planned_name,'')         ILIKE :ql OR
+        COALESCE(cp.planned_nickname,'')     ILIKE :ql
       )
     ORDER BY COALESCE(v.latest_cross_date, v.created_at) DESC NULLS LAST
     """)
@@ -559,7 +566,7 @@ if st.button("➕ Save scheduled cross instance(s)", type="primary", use_contain
     if created:
         st.session_state["last_scheduled_runs"].extend(new_run_codes)
         st.success(f"Scheduled {created} cross instance(s).")
-        st.experimental_rerun()
+        st.rerun()
     if errors:
         st.error("Some instances failed:\n- " + "\n- ".join(errors))
 

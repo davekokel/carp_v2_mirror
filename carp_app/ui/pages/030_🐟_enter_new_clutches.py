@@ -3,14 +3,12 @@ import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
 from carp_app.ui.auth_gate import require_auth
-from carp_app.lib.config import engine as get_engine, DB_URL
 sb, session, user = require_auth()
 
 from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
 from pathlib import Path
-import sys
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -21,6 +19,7 @@ import pandas as pd
 import streamlit as st
 from carp_app.lib.db import get_engine
 from sqlalchemy import text
+
 # ---- page config FIRST ----
 st.set_page_config(page_title="🧬 Plan crosses and treatments", page_icon="🧬", layout="wide")
 
@@ -49,6 +48,7 @@ def _get_engine():
     return _ENGINE
 
 # ---- helpers ----
+
 def _stage_choices() -> List[str]:
     sql = """
       select distinct upper(stage) as s
@@ -154,12 +154,11 @@ else:
         if st.button("Clear all"):
             st.session_state["_picker_df"].loc[:, "✓ Select"] = False
 
-    # -- after rendering the table --
     picker_cols = [
         "✓ Select",
         "fish_code","name","nickname","genotype","genetic_background",
         "stage","date_birth","age_days","created_at",
-    ]  # id intentionally omitted
+    ]
 
     edited = st.data_editor(
         st.session_state["_picker_df"],
@@ -310,16 +309,14 @@ else:
                 st.info("No genotype text available for this fish.")
                 return pd.DataFrame(columns=["element","inherit?","source"])
 
-            # Build or refresh the editable table with persistence
             state_key = f"{key_prefix}_inherit_df"
             state_sig = f"{key_prefix}_sig"
             sig = "|".join(elems)
 
-            # Initialize or refresh while preserving existing choices by 'element'
             if st.session_state.get(state_sig) != sig:
                 base = pd.DataFrame({"element": elems})
-                base["inherit?"] = True        # default selected
-                base["source"] = label.split(" ")[0]  # "Mom" or "Dad"
+                base["inherit?"] = True
+                base["source"] = label.split(" ")[0]
 
                 old = st.session_state.get(state_key)
                 if isinstance(old, pd.DataFrame) and "element" in old.columns:
@@ -349,7 +346,7 @@ else:
                 df_edit,
                 use_container_width=True,
                 hide_index=True,
-                column_order=["inherit?","element","source"],  # checkbox first
+                column_order=["inherit?","element","source"],
                 column_config={
                     "element":  st.column_config.TextColumn("element", disabled=True),
                     "inherit?": st.column_config.CheckboxColumn("inherit?", default=True),
@@ -366,7 +363,6 @@ else:
     with c2:
         dad_df = _parent_block("Dad (B)", dad_code, "dad")
 
-    # Combined selection preview (unique elements, keep source tag from first occurrence)
     st.subheader("Selected elements for clutch")
     sel_frames = []
     if isinstance(mom_df, pd.DataFrame) and not mom_df.empty:
@@ -386,16 +382,9 @@ else:
 # --------------------------------
 st.header("Step 3 — Optional treatments")
 
-# --- helpers: tiny search builders (field filters + AND semantics)
 def _plasmids_sql(q: str) -> tuple[str, Dict[str, Any]]:
     import shlex
-    field_map = {
-        "code": "v.code",
-        "name": "v.name",
-        "nickname": "v.nickname",
-        "fluors": "v.fluors",
-        "resistance": "v.resistance",
-    }
+    field_map = {"code":"v.code","name":"v.name","nickname":"v.nickname","fluors":"v.fluors","resistance":"v.resistance"}
     haystack = ("concat_ws(' ', coalesce(v.code,''),coalesce(v.name,''),coalesce(v.nickname,''),"
                 "coalesce(v.fluors,''),coalesce(v.resistance,''),coalesce(v.notes,''))")
     where, params = [], {}
@@ -406,8 +395,7 @@ def _plasmids_sql(q: str) -> tuple[str, Dict[str, Any]]:
             k,vv = core.split(":",1); k=k.strip().lower(); vv=vv.strip().strip('"')
             if k in field_map and vv:
                 params[f"t{i}"]=f"%{vv}%"
-                where.append(( "NOT " if neg else "" ) + f"({field_map[k]} ILIKE :t{i})")
-                continue
+                where.append(( "NOT " if neg else "" ) + f"({field_map[k]} ILIKE :t{i})"); continue
         params[f"t{i}"]=f"%{core}%"
         where.append(( "NOT " if neg else "" ) + f"({haystack} ILIKE :t{i})")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
@@ -431,12 +419,8 @@ def _plasmids_sql(q: str) -> tuple[str, Dict[str, Any]]:
 
 def _rnas_sql(q: str) -> tuple[str, Dict[str, Any]]:
     import shlex
-    field_map = {
-        "code": "r.code",
-        "name": "r.name",
-        "source": "p.code",
-    }
-    haystack = ("concat_ws(' ', coalesce(r.code,''),coalesce(r.name,''),coalesce(p.code,''),coalesce(p.name,''))")
+    field_map = {"code":"r.code","name":"r.name","source":"p.code"}
+    haystack  = ("concat_ws(' ', coalesce(r.code,''),coalesce(r.name,''),coalesce(p.code,''),coalesce(p.name,''))")
     where, params = [], {}
     toks = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
     for i,t in enumerate(toks):
@@ -445,8 +429,7 @@ def _rnas_sql(q: str) -> tuple[str, Dict[str, Any]]:
             k,vv = core.split(":",1); k=k.strip().lower(); vv=vv.strip().strip('"')
             if k in field_map and vv:
                 params[f"t{i}"]=f"%{vv}%"
-                where.append(( "NOT " if neg else "" ) + f"({field_map[k]} ILIKE :t{i})")
-                continue
+                where.append(( "NOT " if neg else "" ) + f"({field_map[k]} ILIKE :t{i})"); continue
         params[f"t{i}"]=f"%{core}%"
         where.append(( "NOT " if neg else "" ) + f"({haystack} ILIKE :t{i})")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
@@ -455,7 +438,7 @@ def _rnas_sql(q: str) -> tuple[str, Dict[str, Any]]:
         r.id,
         r.code,
         r.name,
-        p.code   as source_plasmid_code,
+        p.code as source_plasmid_code,
         r.created_by,
         r.created_at
       from public.rnas r
@@ -466,12 +449,11 @@ def _rnas_sql(q: str) -> tuple[str, Dict[str, Any]]:
     """
     return sql, params
 
-# --- treatment row builder (common schema)
 def _mk_treatment_rows(df: pd.DataFrame, kind: str, dose=None, units="", at_hpf=None, notes="") -> list[dict]:
     rows = []
     for _, r in df.iterrows():
         rows.append({
-            "material_type": kind,                         # 'plasmid' or 'rna'
+            "material_type": kind,
             "material_code": r["code"],
             "material_name": r.get("name") or r["code"],
             "dose": dose, "units": units, "at_hpf": at_hpf, "notes": notes,
@@ -488,26 +470,24 @@ with tab_p:
     with c1:
         qp = st.text_input("Search plasmids (code:, name:, nickname:, fluors:, resistance:)", "")
     with c2:
-        st.write("")  # spacing
-        apply_p = st.button("Apply (plasmids)")
+        st.write("")
+        add_p = st.button("Add selected plasmids to plan", use_container_width=True)
 
-    # load plasmids
     sql_p, params_p = _plasmids_sql(qp)
     with _get_engine().begin() as cx:
         dfp = pd.read_sql(text(sql_p), cx, params=params_p)
 
-    # render selectable table with treatment fields
     if dfp.empty:
         st.info("No plasmids match.")
     else:
         dfp_view = dfp.copy()
         dfp_view.insert(0, "✓ Select", False)
-        # default editable treatment columns
-        if "dose" not in dfp_view:   dfp_view["dose"] = None
-        if "units" not in dfp_view:  dfp_view["units"] = ""
-        if "at_hpf" not in dfp_view: dfp_view["at_hpf"] = None
-        if "notes" not in dfp_view:  dfp_view["notes"] = ""
-        order_p = ["✓ Select","code","name","nickname","fluors","resistance","supports_invitro_rna","dose","units","at_hpf","notes","created_by","created_at"]
+
+        for col, default in (("dose", None), ("units",""), ("at_hpf", None), ("notes","")):
+            if col not in dfp_view: dfp_view[col] = default
+
+        order_p = ["✓ Select","code","name","nickname","fluors","resistance","supports_invitro_rna",
+                   "dose","units","at_hpf","notes","created_by","created_at"]
         edited_p = st.data_editor(
             dfp_view,
             use_container_width=True, hide_index=True, column_order=order_p,
@@ -529,12 +509,6 @@ with tab_p:
             key="treat_plasmids_editor",
         )
 
-        cA, cB = st.columns([1,1])
-        with cA:
-            add_p = st.button("Add selected plasmids to plan", use_container_width=True)
-        with cB:
-            clr_p = st.button("Clear plasmid selections", use_container_width=True)
-
         if add_p:
             picked = edited_p[edited_p["✓ Select"]].copy()
             if not picked.empty:
@@ -542,7 +516,6 @@ with tab_p:
                     picked.rename(columns={"code":"code","name":"name"}),
                     kind="plasmid",
                 )
-                # carry edited dose/units/at_hpf/notes from table
                 for i, (_, rr) in enumerate(picked.iterrows()):
                     rows[i]["dose"]  = rr.get("dose")
                     rows[i]["units"] = rr.get("units")
@@ -552,9 +525,6 @@ with tab_p:
                 plan.extend(rows)
                 st.session_state["clutch_treatments"] = plan
                 st.success(f"Added {len(rows)} plasmid treatment(s) to plan.")
-        if clr_p:
-            st.session_state.pop("treat_plasmids_editor", None)
-            st.experimental_rerun()
 
 # =========================
 # RNAs tab
@@ -565,7 +535,7 @@ with tab_r:
         qr = st.text_input("Search RNAs (code:, name:, source:)", "")
     with c2:
         st.write("")
-        apply_r = st.button("Apply (RNAs)")
+        add_r = st.button("Add selected RNAs to plan", use_container_width=True)
 
     sql_r, params_r = _rnas_sql(qr)
     with _get_engine().begin() as cx:
@@ -576,15 +546,18 @@ with tab_r:
     else:
         dfr_view = dfr.rename(columns={"source_plasmid_code":"source"}).copy()
         dfr_view.insert(0, "✓ Select", False)
-        for col in ("dose","units","at_hpf","notes"):
-            if col not in dfr_view: dfr_view[col] = None if col in ("dose","at_hpf") else ""
+        dfr_view["code"] = "RNA-" + dfr_view["source"].astype(str)
+
+        for col, default in (("dose", None), ("units",""), ("at_hpf", None), ("notes","")):
+            if col not in dfr_view: dfr_view[col] = default
+
         order_r = ["✓ Select","code","name","source","dose","units","at_hpf","notes","created_by","created_at"]
         edited_r = st.data_editor(
             dfr_view,
             use_container_width=True, hide_index=True, column_order=order_r,
             column_config={
                 "✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False),
-                "code":     st.column_config.TextColumn("code", disabled=True),
+                "code":     st.column_config.TextColumn("code", disabled=True, help="RNA-<source_plasmid_code>"),
                 "name":     st.column_config.TextColumn("name", disabled=True),
                 "source":   st.column_config.TextColumn("source", disabled=True),
                 "dose":     st.column_config.NumberColumn("dose"),
@@ -596,12 +569,6 @@ with tab_r:
             },
             key="treat_rnas_editor",
         )
-
-        cA, cB = st.columns([1,1])
-        with cA:
-            add_r = st.button("Add selected RNAs to plan", use_container_width=True)
-        with cB:
-            clr_r = st.button("Clear RNA selections", use_container_width=True)
 
         if add_r:
             picked = edited_r[edited_r["✓ Select"]].copy()
@@ -619,9 +586,6 @@ with tab_r:
                 plan.extend(rows)
                 st.session_state["clutch_treatments"] = plan
                 st.success(f"Added {len(rows)} RNA treatment(s) to plan.")
-        if clr_r:
-            st.session_state.pop("treat_rnas_editor", None)
-            st.experimental_rerun()
 
 # --- Preview the combined plan (from either tab)
 plan = st.session_state.get("clutch_treatments", [])
@@ -636,7 +600,6 @@ else:
 # --------------------------------
 st.header("Step 4 — Save clutch")
 
-# parents + plan
 mom_code = st.session_state.get("mom_fish_code")
 dad_code = st.session_state.get("dad_fish_code")
 plan = st.session_state.get("clutch_treatments", [])
@@ -647,7 +610,6 @@ def _selected_genotype_elements() -> list[str]:
         df = st.session_state.get(key)
         if isinstance(df, pd.DataFrame) and {"inherit?","element"}.issubset(df.columns):
             elems.extend(df[df["inherit?"]]["element"].astype(str).tolist())
-    # unique, preserve order
     seen, out = set(), []
     for e in elems:
         if e not in seen:
@@ -655,11 +617,6 @@ def _selected_genotype_elements() -> list[str]:
     return out
 
 def _format_genotype_elements(elems: list[str]) -> str:
-    """
-    Turn pDQM005-301 / pDQM005^301 → Tg(pDQM005)301
-    Leave any non-matching element as-is.
-    Join with '; '.
-    """
     out = []
     for e in elems:
         e = (e or "").strip()
@@ -672,7 +629,6 @@ def _format_genotype_elements(elems: list[str]) -> str:
     return "; ".join(out)
 
 def _auto_clutch_name_from_state() -> str:
-    # Left side: RNAs then plasmids (comma-separated)
     p = st.session_state.get("clutch_treatments", []) or []
     rnas     = [str(r["material_code"]) for r in p if r.get("material_type") == "rna" and r.get("material_code")]
     plasmids = [str(r["material_code"]) for r in p if r.get("material_type") == "plasmid" and r.get("material_code")]
@@ -682,15 +638,11 @@ def _auto_clutch_name_from_state() -> str:
     if plasmids: left_parts.append(", ".join(plasmids))
     left = ", ".join(left_parts)
 
-    # Right side: formatted genotype elements
     right = _format_genotype_elements(_selected_genotype_elements())
 
-    if left and right:
-        return f"{left} > {right}"
-    if right:
-        return right
-    if left:
-        return left
+    if left and right: return f"{left} > {right}"
+    if right:          return right
+    if left:           return left
     return "planned-clutch"
 
 if not (mom_code and dad_code):
@@ -698,7 +650,6 @@ if not (mom_code and dad_code):
 elif not plan:
     st.info("Add at least one treatment in Step 3 to enable saving.")
 else:
-    # Auto-generated name (read-only) + editable nickname
     auto_name = _auto_clutch_name_from_state()
     colA, colB = st.columns(2)
     with colA:
@@ -709,7 +660,6 @@ else:
     save_note = st.text_input("Optional clutch note", "")
     save_btn = st.button("💾 Save clutch plan", type="primary", use_container_width=True)
 
-    # treatments insert (shared)
     ins_t = text("""
       insert into public.clutch_plan_treatments
         (clutch_id, material_type, material_code, material_name, dose, units, at_hpf, notes)
@@ -726,19 +676,17 @@ else:
           returning id
         """)
 
-        cid = None
         with _get_engine().begin() as cx:
             cid = cx.execute(ins_hdr, {
                 "mom": mom_code,
                 "dad": dad_code,
-                "xdate": pd.to_datetime(cross_date).date(),   # use the picked cross_date
+                "xdate": pd.to_datetime(cross_date).date(),
                 "note": save_note,
                 "by": (created_by or "").strip() or (os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"),
-                "pname": auto_name,                                           # always generated
-                "pnick": planned_clutch_nickname.strip() or auto_name,        # user-editable
+                "pname": auto_name,
+                "pnick": planned_clutch_nickname.strip() or auto_name,
             }).scalar()
 
-            # treatments
             for row in plan:
                 cx.execute(ins_t, {
                     "cid":   cid,
@@ -751,7 +699,6 @@ else:
                     "notes": row.get("notes"),
                 })
 
-        # Post-save banner + clear in-memory plan
         st.success(f"Saved clutch plan with {len(plan)} treatment(s).")
         st.session_state["last_clutch_plan_id"] = str(cid)
         with _get_engine().begin() as cx:
@@ -763,7 +710,6 @@ else:
             st.success(f"Clutch saved as **{row['clutch_code']}** — {row['planned_name']}")
         st.session_state.pop("clutch_treatments", None)
 
-    # Recent planned clutches (overview-style)
     with _get_engine().begin() as cx:
         df_recent = pd.read_sql(text("""
           with tx_counts as (
