@@ -49,3 +49,18 @@ Treat this file as a living, iterative guide.
 - Continually add new preferences, examples, and workflows as they evolve.
 - Update older sections whenever conventions or repo structure change.
 - Keep expanding it so a single drop into a new ChatGPT chat fully restores context and style.
+
+### 5.1 Streamlit Cloud / Production
+- Use **secrets**, not `~/.pgpass`:
+  ```toml
+  # .streamlit/secrets.toml
+  DB_URL = "postgresql://postgres.gzmbxhkckkspnefpxkgb:<PROD_PASSWORD>@aws-0-us-east-2.pooler.supabase.com:6543/postgres?sslmode=require"
+  ```
+- App reads `DB_URL` directly; nothing else required.
+
+### 5.2 Pooler auto-rewrite safety net
+- The app will auto-rewrite `db.<ref>.supabase.co:5432` → pooler host/user for known refs.
+- Toggle via env var:
+  ```bash
+  export POOLER_AUTOREWRITE=0  # disable rewrite if you intentionally test direct host
+  ```
