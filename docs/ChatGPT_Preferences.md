@@ -122,3 +122,13 @@ When starting a new conversation:
    - Add specific pages (e.g., seed kit instructions, schema snapshots) only if we’re working in that area.
 
 This pairing fully restores CARP context — no additional prompting required.
+### 8.1 Full filetree check
+Run this at the start of a session to verify the layout and entry files.
+
+`bash`
+cd ~/Documents/github/carp_v2
+printf "\n== top ==\n"; ls -la
+printf "\n== app/streamlit candidates ==\n"; rg -n --glob='**/*{app,main,streamlit_app}.py' -S | true
+printf "\n== ui roots ==\n"; ls -la carp_app/ui 2>/devnull | true; ls -la supabase/ui 2>/devnull | true
+printf "\n== pages roots ==\n"; ls -la carp_app/ui/pages 2>/devnull | true; ls -la supabase/ui/pages 2>/devnull | true
+``ash`
