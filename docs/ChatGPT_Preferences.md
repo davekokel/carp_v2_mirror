@@ -175,3 +175,14 @@ Use direct host when the us-west-1 transaction pooler refuses connections.
 - Scripts (run_staging.sh) must launch from the entry and set DB_URL; they must not rely on PG* env.
 - **Staging (IPv6 direct)**: embed the password in `DB_URL` so Streamlit never depends on `~/.pgpass`:
   `postgresql://postgres:<STAGING_PW>@db.<ref>.supabase.co:5432/postgres?sslmode=require`
+## 12. Startup routine for new chats
+
+- Generate/refresh bundle: run `scripts/start_chat.sh` – creates `dist/carp_chat_prime_${YTYMSMD_HHMMSS}.zip`.
+- In a `new ChatGPT chat`: drag the latest ZIP from `dist/` and send:
+
+  `Peake with these two docs. This is the canonical setup for CARP.`
+`
+- Editing rule: use `scripts/pywriter.py` for non-MD files; for `.md`, pipe Base64 to the appender:
+  `printf "%s" "## New Section\nDetails...\n" | base64 | scripts/md_b64_append.sh docs/SomeDoc.md`
+`
+- Guard: `scripts/verify_tree.sh` runs in `start_chat.sh` and is enforced at the top of `scripts/run_staging.sh`.
