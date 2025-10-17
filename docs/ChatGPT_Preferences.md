@@ -186,3 +186,8 @@ Use direct host when the us-west-1 transaction pooler refuses connections.
   `printf "%s" "## New Section\nDetails...\n" | base64 | scripts/md_b64_append.sh docs/SomeDoc.md`
 `
 - Guard: `scripts/verify_tree.sh` runs in `start_chat.sh` and is enforced at the top of `scripts/run_staging.sh`.
+### 12.1 Priming phrase (paste in a new ChatGPT chat)
+
+```
+Prime with these two docs. This is the canonical setup for CARP.
+```
