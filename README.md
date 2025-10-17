@@ -11,7 +11,7 @@ make run-staging
 
 **Expected on launch**
 - Yellow banner → **STAGING • Cloud**
-- `PG env → host=db.zebzrvjbalhazztvhhcm.supabase.co port=5432`
+- `PG env → 
 - Row counts load under **Diagnostics (Clean)**
 
 ---
