@@ -100,3 +100,25 @@ Before starting any build, patch, or debug session:
 - **Never auto-edit** `.pgpass` in scripts. Set/verify `DB_URL` instead (pooler DSN).
 - Prefer `DB_URL` for apps; let libpq read `.pgpass` only for local psql usage.
 - If authentication fails, check this file first—host, port, db, user, password must match exactly.
+
+---
+
+## 10. How to prime ChatGPT for new sessions
+
+When starting a new conversation:
+
+1. **Upload these two documents together**
+   - `docs/ChatGPT_Preferences.md`
+   - `docs/DB_Connection_Playbook.md`
+
+2. **Say:**  
+   > “Prime with these two docs. This is the canonical setup for CARP.”
+
+3. **Purpose**
+   - *ChatGPT_Preferences* → establishes formatting, workflow, and style conventions.  
+   - *DB_Connection_Playbook* → defines connection policy, environment layout, and pgpass hygiene.
+
+4. **Optional contextual docs**
+   - Add specific pages (e.g., seed kit instructions, schema snapshots) only if we’re working in that area.
+
+This pairing fully restores CARP context — no additional prompting required.
