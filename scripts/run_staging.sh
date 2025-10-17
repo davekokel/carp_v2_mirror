@@ -24,4 +24,4 @@ export DB_URL="postgresql://${U}:${EPW}@${H}:${P}/${D}?sslmode=require"
 
 env -u PGUSER -u PGPASSWORD -u PGHOST -u PGPORT -u PGDATABASE \
   PYTHONPATH="$(pwd)" \
-  APP_COMMIT=f9d2489 streamlit run "supabase/ui/streamlit_app.py"
+  APP_COMMIT=f9d2489 streamlit run "carp_app/ui/pages/000_👋_welcome.py"
