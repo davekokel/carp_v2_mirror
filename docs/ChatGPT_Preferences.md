@@ -88,3 +88,15 @@ Before starting any build, patch, or debug session:
 4. **General principle**
    - Do not assume paths, branches, or schema versions.
    - Always inspect first, then apply targeted changes.
+
+---
+
+## 9. `.pgpass` hygiene (do not churn this file)
+- Keep **one line per env** only:
+  - Staging: `aws-1-us-west-1.pooler.supabase.com:6543:postgres:postgres.zebzrvjbalhazztvhhcm:<staging_pw>`
+  - Prod:    `aws-1-us-east-2.pooler.supabase.com:6543:postgres:postgres.gzmbxhkckkspnefpxkgb:<prod_pw>`
+- **No placeholders** in this file. If you see `<YOUR_...>`, replace it or delete the line.
+- **Permissions** must be `0600`: `chmod 600 ~/.pgpass`.
+- **Never auto-edit** `.pgpass` in scripts. Set/verify `DB_URL` instead (pooler DSN).
+- Prefer `DB_URL` for apps; let libpq read `.pgpass` only for local psql usage.
+- If authentication fails, check this file first—host, port, db, user, password must match exactly.
