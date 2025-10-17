@@ -132,3 +132,22 @@ printf "\n== app/streamlit candidates ==\n"; rg -n --glob='**/*{app,main,streaml
 printf "\n== ui roots ==\n"; ls -la carp_app/ui 2>/devnull | true; ls -la supabase/ui 2>/devnull | true
 printf "\n== pages roots ==\n"; ls -la carp_app/ui/pages 2>/devnull | true; ls -la supabase/ui/pages 2>/devnull | true
 ``ash`
+## 11. Editing docs safely (default)
+
+Use **Base64 append** to add Markdown blocks without quoting issues.
+
+Steps:
+1) Prepare your new section as Base64 and assign to B64.
+2) Append it to the target file with this portable one-liner (macOS/Linux):
+    cd ~/Documents/github/carp_v2
+    if base64 --help 2>&1 | grep -q -- "invalid option --"; then
+        printf "%s" "$B64" | base64 -D >> <target-file>
+    else
+        printf "%s" "$B64" | base64 -d >> <target-file>
+    fi
+3) Commit:
+    git add <target-file> && git commit -m "docs: append section (base64)" && git push
+
+Notes:
+- Keep code blocks inside the appended content exactly as you want them rendered.
+- This avoids heredoc/backtick mangling in chat and terminals.
