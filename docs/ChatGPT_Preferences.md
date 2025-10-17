@@ -151,3 +151,13 @@ Steps:
 Notes:
 - Keep code blocks inside the appended content exactly as you want them rendered.
 - This avoids heredoc/backtick mangling in chat and terminals.
+
+### 8.2 File-tree verification
+Before beginning any development or debugging session:
+
+- Confirm the **canonical entry file** is `carp_app/ui/streamlit_app.py`.
+- Confirm all Streamlit pages live under `carp_app/ui/pages/`.
+- The `supabase/` folder is for backend/config only — it should **not** contain UI code.
+- There should be **no** `supabase/ui` directory or symlink; remove if it appears.
+- Run the full filetree check (section 8.1) whenever you suspect layout drift.
+- Always verify actual tree output before writing migrations, modifying paths, or editing run scripts.
