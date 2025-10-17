@@ -631,3 +631,26 @@ with _get_engine().begin() as cx:
 
 st.caption("Scheduled instances")
 st.dataframe(pd.DataFrame([dict(r) for r in inst_rows]), use_container_width=True)
+# === Exports for Workbench Run tab (non-breaking wrappers) ===
+def fetch_runnable_concepts(eng, q: str, run_date, created_by: str, limit: int = 500):
+    """
+    Return the runnable crosses table used on this page.
+    Delegates to the page's own _load_runnable_concepts(start, end, created_by, q).
+    """
+    try:
+        df = _load_runnable_concepts(run_date, run_date, created_by, q)  # function already used by this page
+        try:
+            return df.head(limit) if getattr(df, "head", None) else df
+        except Exception:
+            return df
+    except Exception:
+        # Keep Workbench resilient: return empty DF on error
+        import pandas as pd
+        return pd.DataFrame()
+
+def schedule_instance(eng, cross_id, cross_date, created_by: str, note: str = ""):
+    """
+    Schedule a single cross_instance using this page's existing scheduler.
+    """
+    # Many versions take (eng, ...) or use _get_engine() internally; we call the local one.
+    return _schedule_instance(cross_id=cross_id, cross_date=cross_date, created_by=created_by, note=note)
