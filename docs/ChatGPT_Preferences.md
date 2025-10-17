@@ -173,3 +173,5 @@ Use direct host when the us-west-1 transaction pooler refuses connections.
 - Streamlit entry: carp_app/ui/streamlit_app.py.
 - Pages live at carp_app/ui/pages/.
 - Scripts (run_staging.sh) must launch from the entry and set DB_URL; they must not rely on PG* env.
+- **Staging (IPv6 direct)**: embed the password in `DB_URL` so Streamlit never depends on `~/.pgpass`:
+  `postgresql://postgres:<STAGING_PW>@db.<ref>.supabase.co:5432/postgres?sslmode=require`
