@@ -71,6 +71,8 @@ Treat this file as a living, iterative guide.
 Before starting any build, patch, or debug session:
 
 1. **Verify the file tree**
+   - Canonical pages directory: `carp_app/ui/pages`.
+   - Do **not** create or use `supabase/ui/pages`; if present, it is a leftover symlink and can be removed.
    - Confirm where `streamlit_app.py` lives (`supabase/ui/streamlit_app.py`).
    - Confirm that all page files are under `carp_app/ui/pages/`.
    - Never assume a `supabase/ui/pages/` folder exists unless explicitly created.
