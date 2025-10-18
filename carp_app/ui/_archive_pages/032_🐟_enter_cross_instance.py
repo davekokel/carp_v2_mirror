@@ -10,7 +10,7 @@ from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
 from pathlib import Path
-import os
+import os, tempfile, subprocess
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -18,8 +18,9 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 
-st.set_page_config(page_title="🐟 Deploy crosses", page_icon="🐟", layout="wide")
-st.title("🐟 Encer cross_instance → schedule")
+# ---------------- UI ----------------
+st.set_page_config(page_title="🧬 Enter cross_instance → schedule", page_icon="🧬", layout="wide")
+st.title("🧬 Enter cross_instance → schedule")
 
 try:
     from carp_app.ui.auth_gate import require_app_unlock
@@ -27,32 +28,31 @@ except Exception:
     def require_app_unlock(): ...
 require_app_unlock()
 
+# ---------------- Engine ----------------
 _ENGINE = None
 def _get_engine():
     global _ENGINE
     if _ENGINE:
         return _ENGINE
-    url = os.getenv("DB_URL")
-    if not url:
-        st.stop()
+    if not os.getenv("DB_URL"):
+        st.error("DB_URL not set"); st.stop()
     _ENGINE = get_engine()
     return _ENGINE
 
 LIVE_STATUSES = ("active", "new_tank")
 TANK_TYPES    = ("inventory_tank","holding_tank","nursery_tank")
 
-def _has_column(schema: str, table: str, column: str) -> bool:
-    with _get_engine().begin() as cx:
-        return bool(pd.read_sql(
-            text("""
-              select 1
-              from information_schema.columns
-              where table_schema=:s and table_name=:t and column_name=:c
-              limit 1
-            """),
-            cx, params={"s": schema, "t": table, "c": column}
-        ).shape[0])
+# ---------------- Optional shared label components ----------------
+try:
+    from carp_app.lib.labels_components import (
+        build_crossing_label_pages as _ext_build_crossing_pages,
+        build_petri_label_pages as _ext_build_petri_pages,
+        make_label_pdf as _ext_make_label_pdf,
+    )
+except Exception:
+    _ext_build_crossing_pages = _ext_build_petri_pages = _ext_make_label_pdf = None
 
+# ---------------- Minimal PDF helpers (fallbacks) ----------------
 def _pdf_bytes_reportlab(title: str, lines: List[str]) -> Optional[bytes]:
     try:
         from reportlab.lib.pagesizes import letter
@@ -65,9 +65,7 @@ def _pdf_bytes_reportlab(title: str, lines: List[str]) -> Optional[bytes]:
     c = canvas.Canvas(buf, pagesize=letter)
     W, H = letter
     x, y = 18*mm, H - 18*mm
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(x, y, title)
-    y -= 8*mm
+    c.setFont("Helvetica-Bold", 14); c.drawString(x, y, title); y -= 8*mm
     c.setFont("Helvetica", 11)
     for ln in lines:
         if y < 18*mm:
@@ -111,41 +109,18 @@ def _make_pdf(title: str, lines: List[str]) -> bytes:
     pdf = _pdf_bytes_reportlab(title, lines)
     return pdf if pdf is not None else _pdf_bytes_minimal(title, lines)
 
-def _rl_or_none():
-    try:
-        from reportlab.pdfgen import canvas
-        from reportlab.pdfbase.pdfmetrics import stringWidth
-        return canvas, stringWidth
-    except Exception:
-        return None, None
-
-def _elide(text: str, maxw: float, font: str, size: float, stringWidth) -> str:
-    if not text:
-        return ""
-    if stringWidth(text, font, size) <= maxw:
-        return text
-    ell = "…"
-    if stringWidth(ell, font, size) > maxw:
-        return ""
-    lo, hi = 0, len(text)
-    while lo < hi:
-        mid = (lo + hi) // 2
-        trial = text[:mid] + ell
-        if stringWidth(trial, font, size) <= maxw:
-            lo = mid + 1
-        else:
-            hi = mid
-    return text[:max(0, lo - 1)] + ell
-
-def _pdf_bytes_minimal_pages(pages: List[List[str]]) -> bytes:
-    def esc(s: str) -> str:
-        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+def _labels_pdf_pages(pages: List[List[str]], width_in: float, height_in: float,
+                      header_pt: float, body_pt: float, leading_pt: float) -> bytes:
+    if _ext_make_label_pdf:
+        return _ext_make_label_pdf(pages, width_in, height_in, header_pt, body_pt, leading_pt)
+    # ultra-minimal fallback (one label per page)
+    def esc(s:str)->str: return s.replace("\\","\\\\").replace("(","\\(").replace(")","\\)")
     import io
     out = io.BytesIO()
     out.write(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n")
     offsets = []; objs = []; catalog_id, pages_id, font_id = 1000, 1001, 1002
     base = 2000; kids = []
-    W, H = 173, 72
+    W, H = int(width_in*72), int(height_in*72)
     for i, page in enumerate(pages):
         content = ["BT", "/F1 10 Tf", "6 60 Td"]
         if page:
@@ -172,94 +147,52 @@ def _pdf_bytes_minimal_pages(pages: List[List[str]]) -> bytes:
     out.write(f"<< /Type /Pages /Kids [ {kids_list} ] /Count {len(kids)} >>\nendobj\n".encode())
     xref = len(out); out.write(b"xref\n"); out.write(f"0 {len(offsets)+1}\n".encode())
     out.write(b"0000000000 65535 f \n")
-    for off in offsets: out.write(f"{off:010d} 00000 n \n")
+    for off in offsets: out.write(f"{off:010d} 00000 n \n".encode())
     out.write(b"trailer\n"); out.write(f"<< /Size {len(offsets)+1} /Root 1000 0 R >>\n".encode())
     out.write(b"startxref\n"); out.write(f"{xref}\n".encode()); out.write(b"%%EOF\n")
     return out.getvalue()
 
-def _labels_pdf_pages(pages: List[List[str]], width_in: float, height_in: float,
-                      header_pt: float, body_pt: float, leading_pt: float,
-                      margin_pt: float = 6.0, line_limit: int | None = None) -> bytes:
-    canvas, stringWidth = _rl_or_none()
-    if canvas is None:
-        return _pdf_bytes_minimal_pages(pages)
-    import io
-    W = width_in * 72.0
-    H = height_in * 72.0
-    maxw = W - 2 * margin_pt
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=(W, H))
-    for lines in pages:
-        x = margin_pt
-        y = H - margin_pt
-        if lines:
-            c.setFont("Helvetica-Bold", header_pt)
-            hdr = _elide(lines[0], maxw, "Helvetica-Bold", header_pt, stringWidth)
-            y -= header_pt * 0.85
-            c.drawString(x, y, hdr)
-        c.setFont("Helvetica", body_pt)
-        rendered = 0
-        for ln in lines[1:]:
-            if line_limit is not None and rendered >= line_limit:
-                break
-            y -= leading_pt
-            if y < margin_pt + body_pt:
-                break
-            ln_fit = _elide(ln, maxw, "Helvetica", body_pt, stringWidth)
-            c.drawString(x, y, ln_fit)
-            rendered += 1
-        c.showPage()
-    c.save()
-    return buf.getvalue()
-
-def _make_label_pdf(pages: List[List[str]], width_in: float, height_in: float,
-                    header_pt: float, body_pt: float, leading_pt: float) -> bytes:
-    return _labels_pdf_pages(pages, width_in, height_in, header_pt, body_pt, leading_pt)
-
-def _strip_tank_prefix(s: str | None) -> str:
-    s = (s or "").strip()
-    if s.upper().startswith("TANK "):
-        return s[5:]
-    return s
-
 def _build_crossing_label_pages(df: pd.DataFrame) -> List[List[str]]:
+    if _ext_build_crossing_pages: return _ext_build_crossing_pages(df)
     pages: List[List[str]] = []
     for r in df.itertuples(index=False):
-        cross_code = getattr(r, "cross_code", "") or ""
-        cross_date = getattr(r, "cross_date", None)
-        dt_text    = cross_date.strftime("%a %Y-%m-%d") if cross_date else ""
-        mom_tank   = _strip_tank_prefix(getattr(r, "mother_tank_label", "") or getattr(r, "mother_tank_code", ""))
-        dad_tank   = _strip_tank_prefix(getattr(r, "father_tank_label", "") or getattr(r, "father_tank_code", ""))
-        clutch_inst = getattr(r, "clutch_instance_code", "") or ""
-        clutch_name = getattr(r, "clutch_name", "") or ""
-        pages.append([
-            f"CROSS {cross_code}",
-            dt_text,
-            f"M: {mom_tank}",
-            f"D: {dad_tank}",
-            "↓",
-            f"{clutch_inst}",
-            f"{clutch_name}",
-        ])
+        dt = pd.to_datetime(getattr(r, "cross_date", None)).strftime("%a %Y-%m-%d") if getattr(r, "cross_date", None) else ""
+        mom = (getattr(r, "mother_tank_label", "") or getattr(r, "mother_tank_code", "")) or ""
+        dad = (getattr(r, "father_tank_label", "") or getattr(r, "father_tank_code", "")) or ""
+        pages.append([f"CROSS {getattr(r,'cross_code','')}", dt, f"M: {mom}", f"D: {dad}"])
     return pages
 
 def _build_petri_label_pages(df: pd.DataFrame) -> List[List[str]]:
+    if _ext_build_petri_pages: return _ext_build_petri_pages(df)
     pages: List[List[str]] = []
     for r in df.itertuples(index=False):
-        clutch_inst = getattr(r, "clutch_instance_code", "") or ""
-        clutch_name = getattr(r, "clutch_name", "") or ""
-        mom_code = getattr(r, "mom_code", "") or ""
-        dad_code = getattr(r, "dad_code", "") or ""
         dob = getattr(r, "date_birth", None)
-        dob_text = dob.strftime("%Y-%m-%d") if dob else "DOB TBD"
+        dob_text = pd.to_datetime(dob).date().isoformat() if dob else "DOB TBD"
         pages.append([
-            f"{clutch_inst}",
-            f"{clutch_name}",
-            f"{mom_code} × {dad_code}",
+            f"{getattr(r,'clutch_instance_code','')}",
+            f"{getattr(r,'clutch_name','')}",
+            f"{getattr(r,'mom_code','')} × {getattr(r,'dad_code','')}",
             f"{dob_text}",
         ])
     return pages
 
+# ---------------- Printing ----------------
+def _print_pdf_bytes(pdf_bytes: bytes, queue_name: str, media_opt: str) -> tuple[bool, str]:
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(pdf_bytes)
+            tmp_path = tmp.name
+        cmd = ["lp", "-d", queue_name, "-o", media_opt, tmp_path]
+        out = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        ok = (out.returncode == 0)
+        msg = out.stdout.strip() or out.stderr.strip() or ("sent to " + queue_name if ok else "print failed")
+        return ok, msg
+    except FileNotFoundError:
+        return False, "lp not found on host"
+    except Exception as e:
+        return False, str(e)
+
+# ---------------- Data loaders & actions ----------------
 def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.DataFrame:
     sql = text("""
     WITH live_by_fish AS (
@@ -311,20 +244,14 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
     )
     SELECT
       v.cross_code,
-
-      /* use only current columns; alias to legacy names expected by UI */
-      COALESCE(x.cross_name_code, v.cross_code)              AS cross_name,
-      COALESCE(x.cross_name_genotype, '')                    AS cross_nickname,
-
+      COALESCE(x.cross_name_code, v.cross_code)            AS cross_name,
+      COALESCE(x.cross_name_genotype, '')                  AS cross_nickname,
       v.mom_code, COALESCE(cm.label, cm.tank_code) AS mom_tank,
       v.dad_code, COALESCE(cf.label, cf.tank_code) AS dad_tank,
-
       cp.clutch_code, cp.planned_name AS clutch_name, cp.planned_nickname AS clutch_nickname,
-
       v.n_runs AS n_cross_instances,
       v.latest_cross_date AS latest,
       v.created_by, v.created_at,
-
       COALESCE(lm.n_live,0) AS mom_live,
       COALESCE(ld.n_live,0) AS dad_live,
       v.n_clutches AS clutches,
@@ -405,68 +332,7 @@ def _schedule_instance(cross_code: str, mom_code: str, dad_code: str, run_date: 
         )
     return ci_id, ci_code, clutch_id
 
-def _fetch_labels_for_instances(inst_codes: List[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    if not inst_codes:
-        return pd.DataFrame(), pd.DataFrame()
-
-    use_ci_code = _has_column("public", "clutches", "clutch_instance_code")
-    clutch_code_expr = "cl.clutch_instance_code" if use_ci_code else "left(cl.id::text, 8)"
-
-    sql = text(f"""
-      with x as (
-        select
-          ci.cross_run_code,
-          ci.cross_date,
-          x.cross_code,
-          x.mother_code as mom_code,
-          x.father_code as dad_code,
-          pc.mother_tank_id, pc.father_tank_id,
-          cp.planned_name as clutch_name,
-          {clutch_code_expr} as clutch_instance_code,
-          cl.date_birth
-        from public.cross_instances ci
-        join public.crosses x  on x.id = ci.cross_id
-        left join public.planned_crosses pc on pc.cross_id = x.id
-        left join public.clutch_plans   cp on cp.id = pc.clutch_id
-        left join public.clutches       cl on cl.cross_instance_id = ci.id
-        where ci.cross_run_code = any(:codes)
-      )
-      select
-        x.cross_run_code,
-        x.cross_code,
-        x.cross_date,
-        x.clutch_name,
-        x.clutch_instance_code,
-        x.date_birth,
-        x.mom_code, x.dad_code,
-        cm.label as mother_tank_label,
-        cf.label as father_tank_label,
-        cm.tank_code as mother_tank_code,
-        cf.tank_code as father_tank_code
-      from x
-      left join public.containers cm on cm.id = x.mother_tank_id
-      left join public.containers cf on cf.id = x.father_tank_id
-      order by x.cross_date, x.cross_run_code
-    """)
-
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"codes": inst_codes})
-
-    df_crossing = df[[
-        "cross_code","cross_date",
-        "mother_tank_label","father_tank_label","mother_tank_code","father_tank_code",
-        "clutch_instance_code","clutch_name"
-    ]].copy()
-
-    df_petri = df[[
-        "clutch_instance_code","clutch_name","mom_code","dad_code","date_birth","cross_date"
-    ]].copy()
-
-    df_crossing["mother_tank_label"] = df_crossing["mother_tank_label"].fillna(df_crossing["mother_tank_code"])
-    df_crossing["father_tank_label"] = df_crossing["father_tank_label"].fillna(df_crossing["father_tank_code"])
-
-    return df_crossing, df_petri
-
+# ---------------- Filters ----------------
 with st.form("filters", clear_on_submit=False):
     today = date.today()
     c1, c2, c3, c4 = st.columns([1,1,1,3])
@@ -480,6 +346,7 @@ with st.form("filters", clear_on_submit=False):
         q = st.text_input("Omni-search (code / mom / dad / plan)", value="")
     st.form_submit_button("Apply", use_container_width=True)
 
+# ---------------- Load, pick, preview ----------------
 df = _load_runnable_concepts(start, end, created_by, q)
 st.caption(f"{len(df)} runnable cross concept(s) (both parents have live tanks)")
 
@@ -544,12 +411,12 @@ else:
 st.dataframe(preview_df, use_container_width=True, hide_index=True)
 st.caption(f"{len(preview_df)} instance(s) in preview")
 
-st.subheader("Schedule")
+# ---------------- Schedule (Button) ----------------
 if "last_scheduled_runs" not in st.session_state:
     st.session_state["last_scheduled_runs"] = []
 
 creator = os.environ.get("USER") or os.environ.get("USERNAME") or "system"
-if st.button("➕ Save scheduled cross instance(s)", type="primary", use_container_width=True, disabled=selected.empty):
+if st.button("➕ Save scheduled cross instance(s)", type="primary", use_container_width=True, disabled=selected.empty, key="btn_schedule"):
     created = 0; errors: List[str] = []; new_run_codes: List[str] = []
     for _, r in preview_df.iterrows():
         try:
@@ -564,31 +431,54 @@ if st.button("➕ Save scheduled cross instance(s)", type="primary", use_contain
         except Exception as e:
             errors.append(f"{r['cross_code']}: {e}")
     if created:
-        st.session_state["last_scheduled_runs"].extend(new_run_codes)
+        st.session_state["last_scheduled_runs"] = new_run_codes + st.session_state["last_scheduled_runs"]
         st.success(f"Scheduled {created} cross instance(s).")
         st.rerun()
     if errors:
         st.error("Some instances failed:\n- " + "\n- ".join(errors))
 
+# ---------------- Scheduled Instances TABLE (shown immediately after save) ----------------
+st.subheader("Scheduled instances")
+with _get_engine().begin() as cx:
+    inst_rows = cx.execute(
+        text("""
+            select ci.cross_run_code, ci.cross_date, ci.created_by
+            from public.cross_instances ci
+            where ci.cross_date between :d1 and :d2
+              and (:by is null or ci.created_by = :by)
+            order by ci.created_at desc
+            limit 100
+        """),
+        {"d1": start, "d2": end, "by": (created_by or None)},
+    ).mappings().all()
+st.dataframe(pd.DataFrame([dict(r) for r in inst_rows]), use_container_width=True, hide_index=True)
+
+# ---------------- Downloads & Print (after the table) ----------------
 st.subheader("Downloads (scheduled instances)")
 sched_codes = st.session_state.get("last_scheduled_runs", [])
-report_lines = [f"{r.cross_code} | {r.mom_code} × {r.dad_code} | date {r.date}" for r in preview_df.itertuples(index=False)]
+report_lines = [f"{r.cross_code} | {getattr(r, 'mom_code', '')} × {getattr(r, 'dad_code', '')} | date {getattr(r, 'date', '')}"
+                for r in preview_df.itertuples(index=False)]
 
-df_crossing, df_petri = _fetch_labels_for_instances(sched_codes) if sched_codes else (pd.DataFrame(), pd.DataFrame())
+# Labels data
+def _fetch_labels_for_instances_safe(codes: List[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    try:
+        return _fetch_labels_for_instances(codes)
+    except Exception:
+        return (pd.DataFrame(), pd.DataFrame())
 
-cross_pdf = _make_label_pdf(
-    pages=_build_crossing_label_pages(df_crossing),
-    width_in=2.4, height_in=1.0,
-    header_pt=9.2, body_pt=7.0, leading_pt=7.2
+df_crossing, df_petri = _fetch_labels_for_instances_safe(sched_codes) if sched_codes else (pd.DataFrame(), pd.DataFrame())
+
+cross_pdf = _labels_pdf_pages(
+    _ext_build_crossing_pages(df_crossing) if _ext_build_crossing_pages else _build_crossing_label_pages(df_crossing),
+    width_in=2.4, height_in=1.0, header_pt=9.2, body_pt=7.0, leading_pt=7.2
 ) if not df_crossing.empty else b""
 
-petri_pdf = _make_label_pdf(
-    pages=_build_petri_label_pages(df_petri),
-    width_in=2.4, height_in=0.75,
-    header_pt=10.5, body_pt=7.0, leading_pt=7.1
+petri_pdf = _labels_pdf_pages(
+    _ext_build_petri_pages(df_petri) if _ext_build_petri_pages else _build_petri_label_pages(df_petri),
+    width_in=2.4, height_in=0.75, header_pt=10.5, body_pt=7.0, leading_pt=7.1
 ) if not df_petri.empty else b""
 
-c1, c2, c3 = st.columns(3)
+c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
     st.download_button(
         "📄 Crossing report (PDF)",
@@ -615,42 +505,11 @@ with c3:
         key=f"dl_petri_{start:%Y%m%d}_{end:%Y%m%d}",
         disabled=(not petri_pdf)
     )
-
-with _get_engine().begin() as cx:
-    inst_rows = cx.execute(
-        text("""
-            select cross_run_code, cross_date, created_by
-            from public.cross_instances
-            where cross_date between :d1 and :d2
-              and (:by is null or created_by = :by)
-            order by created_at desc
-            limit 50
-        """),
-        {"d1": start, "d2": end, "by": (created_by or None)},
-    ).mappings().all()
-
-st.caption("Scheduled instances")
-st.dataframe(pd.DataFrame([dict(r) for r in inst_rows]), use_container_width=True)
-# === Exports for Workbench Run tab (non-breaking wrappers) ===
-def fetch_runnable_concepts(eng, q: str, run_date, created_by: str, limit: int = 500):
-    """
-    Return the runnable crosses table used on this page.
-    Delegates to the page's own _load_runnable_concepts(start, end, created_by, q).
-    """
-    try:
-        df = _load_runnable_concepts(run_date, run_date, created_by, q)  # function already used by this page
-        try:
-            return df.head(limit) if getattr(df, "head", None) else df
-        except Exception:
-            return df
-    except Exception:
-        # Keep Workbench resilient: return empty DF on error
-        import pandas as pd
-        return pd.DataFrame()
-
-def schedule_instance(eng, cross_id, cross_date, created_by: str, note: str = ""):
-    """
-    Schedule a single cross_instance using this page's existing scheduler.
-    """
-    # Many versions take (eng, ...) or use _get_engine() internally; we call the local one.
-    return _schedule_instance(cross_id=cross_id, cross_date=cross_date, created_by=created_by, note=note)
+with c4:
+    if st.button("🖨️ Print crossing labels → Brother", use_container_width=True, disabled=(not cross_pdf), key="print_crossing"):
+        ok, msg = _print_pdf_bytes(cross_pdf, queue_name=os.getenv("BROTHER_QUEUE", "Brother_QL_1110NWB"), media_opt=os.getenv("BROTHER_MEDIA_CROSSING", "media=Custom.61x25mm"))
+        (st.success if ok else st.error)(msg)
+with c5:
+    if st.button("🖨️ Print petri labels → Brother", use_container_width=True, disabled=(not petri_pdf), key="print_petri"):
+        ok, msg = _print_pdf_bytes(petri_pdf, queue_name=os.getenv("BROTHER_QUEUE", "Brother_QL_1110NWB"), media_opt=os.getenv("BROTHER_MEDIA_PETRI", "media=Custom.61x19mm"))
+        (st.success if ok else st.error)(msg)

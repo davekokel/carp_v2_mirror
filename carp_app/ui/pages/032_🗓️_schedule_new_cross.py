@@ -14,18 +14,22 @@ from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 from carp_app.lib.config import engine as get_engine
 
+# --- Auth ---
 sb, session, user = require_auth()
 require_email_otp()
 
+# --- Page config ---
 st.set_page_config(page_title="🗓️ Schedule new cross", page_icon="🗓️", layout="wide")
 st.title("🗓️ Schedule new cross")
 
+# --- Optional unlock ---
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
 require_app_unlock()
 
+# --- Optional shared label components ---
 try:
     from carp_app.lib.labels_components import (
         build_crossing_label_pages as _ext_build_crossing_pages,
@@ -35,6 +39,7 @@ try:
 except Exception:
     _ext_build_crossing_pages = _ext_build_petri_pages = _ext_make_label_pdf = None
 
+# --- DB engine ---
 _ENGINE = None
 def _get_engine():
     global _ENGINE
@@ -48,6 +53,7 @@ def _get_engine():
 LIVE_STATUSES = ("active", "new_tank")
 TANK_TYPES    = ("inventory_tank","holding_tank","nursery_tank")
 
+# ---------------- PDF helpers (fallback) ----------------
 def _pdf_bytes_reportlab(title: str, lines: List[str]) -> Optional[bytes]:
     try:
         from reportlab.lib.pagesizes import letter
@@ -100,38 +106,36 @@ def _labels_pdf_pages(pages: List[List[str]], width_in: float, height_in: float,
                       header_pt: float, body_pt: float, leading_pt: float) -> bytes:
     if _ext_make_label_pdf:
         return _ext_make_label_pdf(pages, width_in, height_in, header_pt, body_pt, leading_pt)
+    # Minimal fallback
     def esc(s: str) -> str: return s.replace("\\","\\\\").replace("(","\\(").replace(")","\\)")
     import io
     out = io.BytesIO()
     out.write(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n")
     obj_offsets = []
-    def add_obj(s: bytes) -> int:
-        obj_offsets.append(out.tell()); out.write(s); out.write(b"\nendobj\n"); return len(obj_offsets)
-    pages_ids=[]; W,H=int(width_in*72),int(height_in*72)
-    font_id = add_obj(b"1 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    def add_obj(s: bytes): obj_offsets.append(out.tell()); out.write(s); out.write(b"\nendobj\n")
+    W,H=int(width_in*72),int(height_in*72)
+    add_obj(b"1 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    pages_ids=[]
     for lines in pages:
-        y = H - 12
-        parts = [f"BT /F1 {int(header_pt)} Tf 6 {y} Td 1 -1 scale".encode()]
-        if lines: parts += [f"( {esc(lines[0])} ) Tj".encode()]
-        parts += [f"/F1 {int(body_pt)} Tf".encode()]
-        for ln in lines[1:]:
-            parts += [b"T*", f"( {esc(ln[:120])} ) Tj".encode()]
-        parts += [b"ET"]
-        stream = b"\n".join(parts)
-        cont_id = add_obj(b"2 0 obj\n<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream")
-        page_id = add_obj(b"0 0 obj\n<< /Type /Page /Parent 3 0 R /MediaBox [0 0 " + str(W).encode() + b" " + str(H).encode() + b"] /Resources << /Font << /F1 " + str(font_id).encode() + b" 0 R >> >> /Contents " + str(cont_id).encode() + b" 0 R >>")
-        pages_ids.append(page_id)
-    kids = " ".join(f"{pid} 0 R" for pid in pages_ids).encode()
-    pages_id = add_obj(b"3 0 obj\n<< /Type /Pages /Kids [ " + kids + b" ] /Count " + str(len(pages_ids)).encode() + b" >>")
-    catalog_id = add_obj(b"4 0 obj\n<< /Type /Catalog /Pages 3 0 R >>")
-    xref = out.tell()
-    out.write(b"xref\n0 " + str(len(obj_offsets)+1).encode() + b"\n")
+        parts=[f"BT /F1 10 Tf 6 {H-12} Td 1 -1 scale".encode()]
+        if lines: parts+=[f"( {esc(lines[0])} ) Tj".encode()]
+        for ln in lines[1:]: parts+=[b"T*", f"( {esc(ln[:120])} ) Tj".encode()]
+        parts.append(b"ET"); stream=b"\n".join(parts)
+        add_obj(b"2 0 obj\n<< /Length "+str(len(stream)).encode()+b" >>\nstream\n"+stream+b"\nendstream")
+        add_obj(b"0 0 obj\n<< /Type /Page /Parent 3 0 R /MediaBox [0 0 "+str(W).encode()+b" "+str(H).encode()+b"] /Resources << /Font << /F1 1 0 R >> >> /Contents 2 0 R >>")
+        pages_ids.append(len(obj_offsets))
+    kids=b" ".join([f"{pid} 0 R".encode() for pid in pages_ids])
+    add_obj(b"3 0 obj\n<< /Type /Pages /Kids [ "+kids+b" ] /Count "+str(len(pages_ids)).encode()+b" >>")
+    add_obj(b"4 0 obj\n<< /Type /Catalog /Pages 3 0 R >>")
+    xref=out.tell()
+    out.write(b"xref\n0 "+str(len(obj_offsets)+1).encode()+b"\n")
     out.write(b"0000000000 65535 f \n")
     for off in obj_offsets: out.write(f"{off:010d} 00000 n \n".encode())
-    out.write(b"trailer\n<< /Size " + str(len(obj_offsets)+1).encode() + b" /Root " + str(catalog_id).encode() + b" 0 R >>\n")
-    out.write(b"startxref\n" + str(xref).encode() + b"\n%%EOF\n")
+    out.write(b"trailer\n<< /Size "+str(len(obj_offsets)+1).encode()+b" /Root 4 0 R >>\n")
+    out.write(b"startxref\n"+str(xref).encode()+b"\n%%EOF\n")
     return out.getvalue()
 
+# ---------------- Label page builders (fallbacks) ----------------
 def _build_crossing_label_pages(df: pd.DataFrame) -> List[List[str]]:
     if _ext_build_crossing_pages: return _ext_build_crossing_pages(df)
     pages=[]
@@ -156,6 +160,7 @@ def _build_petri_label_pages(df: pd.DataFrame) -> List[List[str]]:
         pages.append([inst, name, f"{mom} × {dad}", dob_text])
     return pages
 
+# ---------------- Printing ----------------
 def _print_pdf_bytes(pdf_bytes: bytes, queue_name: str, media_opt: str) -> tuple[bool,str]:
     try:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -168,6 +173,7 @@ def _print_pdf_bytes(pdf_bytes: bytes, queue_name: str, media_opt: str) -> tuple
     except Exception as e:
         return False, str(e)
 
+# ---------------- Cross scheduling helpers ----------------
 def _lookup_cross_id(cross_code: str) -> str:
     with _get_engine().begin() as cx:
         row = cx.execute(text("select id::text from public.crosses where cross_code = :c limit 1"), {"c": cross_code}).fetchone()
@@ -199,15 +205,10 @@ def _schedule_instance(cross_code: str, mom_code: str, dad_code: str,
             insert into public.clutches (cross_id, cross_instance_id, date_birth, created_by)
             values (:cross_id, :ci, :dob, :by) returning id::text
         """), {"cross_id": cross_id, "ci": ci_id, "dob": dob, "by": created_by}).scalar()
-        petri_label = f"PETRI {cross_code} • {dob:%Y-%m-%d}"
-        container_id = cx.execute(text("""
-            insert into public.containers (container_type, status, label, created_by)
-            values ('petri_dish', 'new_tank', :label, :by) returning id::text
-        """), {"label": petri_label, "by": created_by}).scalar()
         cx.execute(text("""
-            insert into public.clutch_containers (container_id, clutch_id, created_by)
-            values (:cid, :cl, :by)
-        """), {"cid": container_id, "cl": clutch_id, "by": created_by})
+            insert into public.containers (container_type, status, label, created_by)
+            values ('petri_dish', 'new_tank', :label, :by)
+        """), {"label": f"PETRI {cross_code} • {dob:%Y-%m-%d}", "by": created_by})
     return ci_id, ci_code, clutch_id
 
 def _fetch_labels_for_instances(inst_codes: List[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -234,16 +235,10 @@ def _fetch_labels_for_instances(inst_codes: List[str]) -> tuple[pd.DataFrame, pd
       )
       select
         x.cross_run_code,
-        x.cross_code,
-        x.cross_date,
-        x.clutch_name,
-        x.clutch_instance_code,
-        x.date_birth,
+        x.cross_code, x.cross_date, x.clutch_name, x.clutch_instance_code, x.date_birth,
         x.mom_code, x.dad_code,
-        cm.label as mother_tank_label,
-        cf.label as father_tank_label,
-        cm.tank_code as mother_tank_code,
-        cf.tank_code as father_tank_code
+        cm.label as mother_tank_label, cf.label as father_tank_label,
+        cm.tank_code as mother_tank_code, cf.tank_code as father_tank_code
       from x
       left join public.containers cm on cm.id = x.mother_tank_id
       left join public.containers cf on cf.id = x.father_tank_id
@@ -253,88 +248,97 @@ def _fetch_labels_for_instances(inst_codes: List[str]) -> tuple[pd.DataFrame, pd
         df = pd.read_sql(sql, cx, params={"codes": inst_codes})
     df_crossing = df[[
         "cross_code","cross_date",
-        "mother_tank_label","father_tank_label",
-        "mother_tank_code","father_tank_code",
+        "mother_tank_label","father_tank_label","mother_tank_code","father_tank_code",
         "clutch_instance_code","clutch_name"
     ]].copy()
     df_petri = df[[
-        "clutch_instance_code","clutch_name",
-        "mom_code","dad_code","date_birth","cross_date"
+        "clutch_instance_code","clutch_name","mom_code","dad_code","date_birth","cross_date"
     ]].copy()
     df_crossing["mother_tank_label"] = df_crossing["mother_tank_label"].fillna(df_crossing["mother_tank_code"])
     df_crossing["father_tank_label"] = df_crossing["father_tank_label"].fillna(df_crossing["father_tank_code"])
     return df_crossing, df_petri
 
+# ---------------- Genotype-token helpers (improved) ----------------
+def _norm(s: str) -> str:
+    import re
+    s = (s or "").lower()
+    s = s.replace("tg[","tg(").replace("]"," )").replace(" )",")")
+    s = s.replace("–","-").replace("—","-").replace("·",":").replace("•",":")
+    s = re.sub(r"\s+"," ",s)
+    return s.strip()
+
 def _extract_genotype_tokens(plan_rows: pd.DataFrame) -> Dict[str, List[str]]:
     import re
-    texts = []
+    texts=[]
     for col in ("planned_name","planned_nickname"):
         if col in plan_rows.columns:
-            texts += plan_rows[col].dropna().astype(str).tolist()
-    blob = " ".join(texts).strip()
-    U = blob.upper()
-    STOP = {"RNA","MRNA","SGRNA","CAS9","PLASMID","VECTOR","MORPHOLINO","MO","DYE","INJECT","INJECTION","TREAT","DOSE","EXPOSE","TRICAINE","UG","µG","MG/ML","NM","µM","UM","%","H","HPF","DPF"}
-    geno = set()
-    for m in re.findall(r"Tg[\[\(][A-Za-z0-9:_\-]+[\]\)]\d+|[A-Za-z0-9:_\-]+\^[A-Za-z0-9:_\-]+|[A-Za-z0-9:_\-]+:[A-Za-z0-9:_\-]+", blob):
-        t = m.strip()
-        if t and t.upper() not in STOP:
-            geno.add(t)
-    for m in re.findall(r"[A-Za-z0-9]{3,}[-_:]?[0-9]{2,3}", blob):
-        t = m.strip()
-        if t and t.upper() not in STOP:
-            geno.add(t)
-    strain = set()
-    for s in ["CASPER","AB","TU","TL","WIK","EK","TÜ","TÜB","NACRE","ROY"]:
-        if s in U:
-            strain.add(s)
-    return {"geno": sorted(geno), "strain": sorted(strain)}
+            texts+=plan_rows[col].dropna().astype(str).tolist()
+    blob=" ".join(texts); U=blob.upper()
+    STOP={"RNA","MRNA","SGRNA","CAS9","PLASMID","VECTOR","MORPHOLINO","MO","DYE","INJECT","INJECTION","TREAT","DOSE","EXPOSE","TRICAINE","UG","µG","MG/ML","NM","µM","UM","%","H","HPF","DPF","WATER","BUFFER"}
+    toks=set()
+    for m in re.findall(r"Tg[\[\(][A-Za-z0-9:_\-]+[\]\)]\d+", blob): toks.add(_norm(m))
+    for m in re.findall(r"[A-Za-z0-9:_\-]+:[A-Za-z0-9:_\-]+", blob):   toks.add(_norm(m))
+    for m in re.findall(r"[A-Za-z0-9:_\-]+\^[A-Za-z0-9:_\-]+", blob):  toks.add(_norm(m))
+    for m in re.findall(r"[A-Za-z0-9]{3,}[-_:]?[0-9]{2,3}", blob):     toks.add(_norm(m))
+    toks={t for t in toks if t.upper() not in STOP}
+    strain=set()
+    for s in ["CASPER","AB","TU","TL","WIK","EK","NACRE","ROY"]:
+        if s in U: strain.add(s.lower())
+    return {"geno":sorted(toks),"strain":sorted(strain)}
+
+def _tokenize_genotype(text: str) -> set:
+    import re
+    t=_norm(text); parts=set()
+    parts.update(re.findall(r"tg\([a-z0-9:_\-]+\)\d+", t))
+    parts.update(re.findall(r"[a-z0-9:_\-]+:[a-z0-9:_\-]+", t))
+    parts.update(re.findall(r"[a-z0-9:_\-]+\^[a-z0-9:_\-]+", t))
+    parts.update([p for p in re.split(r"[;\|,/\s]+", t) if len(p)>=3])
+    return parts
+
+def _match_profile(geno: str, bg: str, tokens: dict) -> tuple[list,list,int]:
+    bag=_tokenize_genotype((geno or "")+" "+(bg or ""))
+    req=tokens.get("geno",[])
+    hits=[t for t in req if t in bag]
+    misses=[t for t in req if t not in bag]
+    score=len(hits)*2
+    for s in tokens.get("strain",[]):
+        if s in bag: score+=1
+    return hits, misses, score
 
 def _fetch_fish_genotypes_and_bg(codes: List[str]) -> Dict[str, Dict[str,str]]:
     if not codes: return {}
-    uniq = list({c for c in codes if c})
+    uniq=list({c for c in codes if c})
     with _get_engine().begin() as cx:
-        has_vw = bool(pd.read_sql(
-            text("""select 1 from information_schema.tables 
-                    where table_schema='public' and table_name='vw_fish_overview' limit 1"""), cx
-        ).shape[0])
+        has_vw=bool(pd.read_sql(text("""select 1 from information_schema.tables 
+                                        where table_schema='public' and table_name='vw_fish_overview' limit 1"""),cx).shape[0])
         if has_vw:
-            df = pd.read_sql(
-                text("""select fish_code, coalesce(genotype,'') as genotype,
-                               coalesce(genetic_background,'') as genetic_background
-                        from public.vw_fish_overview
-                        where fish_code = any(:codes)"""),
-                cx, params={"codes": uniq}
-            )
+            df=pd.read_sql(text("""select fish_code,
+                                          coalesce(genotype,'') as genotype,
+                                          coalesce(genetic_background,'') as genetic_background
+                                   from public.vw_fish_overview
+                                   where fish_code = any(:codes)"""),cx,params={"codes":uniq})
         else:
-            cols = pd.read_sql(
-                text("""select column_name from information_schema.columns 
-                        where table_schema='public' and table_name='fish'"""), cx
-            )["column_name"].tolist()
-            gcol = "genotype" if "genotype" in cols else None
-            bcol = "genetic_background" if "genetic_background" in cols else None
-            if gcol or bcol:
-                df = pd.read_sql(
-                    text(f"""select fish_code,
-                                    coalesce({gcol},'') as genotype,
-                                    coalesce({bcol},'') as genetic_background
-                             from public.fish where fish_code = any(:codes)"""),
-                    cx, params={"codes": uniq}
-                )
+            cols=pd.read_sql(text("""select column_name from information_schema.columns 
+                                     where table_schema='public' and table_name='fish'"""),cx)["column_name"].tolist()
+            gcol="genotype" if "genotype" in cols else None
+            bcol="genetic_background" if "genetic_background" in cols else None
+            if gcol and bcol:
+                sql=f"""select fish_code, coalesce({gcol},'') as genotype, coalesce({bcol},'') as genetic_background
+                        from public.fish where fish_code = any(:codes)"""
+            elif gcol:
+                sql=f"""select fish_code, coalesce({gcol},'') as genotype, ''::text as genetic_background
+                        from public.fish where fish_code = any(:codes)"""
+            elif bcol:
+                sql=f"""select fish_code, ''::text as genotype, coalesce({bcol},'') as genetic_background
+                        from public.fish where fish_code = any(:codes)"""
             else:
-                df = pd.DataFrame({"fish_code": uniq, "genotype": ["" for _ in uniq], "genetic_background": ["" for _ in uniq]})
-    return {r["fish_code"]: {"genotype": r.get("genotype",""), "genetic_background": r.get("genetic_background","")} for _, r in df.iterrows()}
+                sql="""select fish_code, ''::text as genotype, ''::text as genetic_background
+                       from public.fish where fish_code = any(:codes)"""
+            df=pd.read_sql(text(sql),cx,params={"codes":uniq})
+    return {r["fish_code"]:{ "genotype": r.get("genotype","") or "", "genetic_background": r.get("genetic_background","") or "" }
+            for _,r in df.iterrows()}
 
-def _score_fish_row(geno: str, bg: str, tokens: Dict[str,List[str]]) -> int:
-    g = f"{(geno or '').upper()} {(bg or '').upper()}".strip()
-    score = 0
-    for t in tokens.get("geno", []):
-        if t.upper() in g:
-            score += 2
-    for s in tokens.get("strain", []):
-        if s in g:
-            score += 1
-    return score
-
+# ---------------- Load concepts ----------------
 def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.DataFrame:
     sql = text("""
     WITH mom_live AS (
@@ -359,14 +363,9 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
       GROUP BY clutch_id
     ),
     last_used AS (
-      SELECT
-        pc.clutch_id,
-        pc.mother_tank_id,
-        pc.father_tank_id,
-        ROW_NUMBER() OVER (
-          PARTITION BY pc.clutch_id
-          ORDER BY COALESCE(pc.cross_date::timestamp, pc.created_at) DESC NULLS LAST
-        ) AS rn
+      SELECT pc.clutch_id, pc.mother_tank_id, pc.father_tank_id,
+             ROW_NUMBER() OVER (PARTITION BY pc.clutch_id
+                                ORDER BY COALESCE(pc.cross_date::timestamp, pc.created_at) DESC NULLS LAST) AS rn
       FROM public.planned_crosses pc
     )
     SELECT
@@ -374,16 +373,14 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
       COALESCE(cp.clutch_code, cp.id::text) AS clutch_code,
       COALESCE(cp.planned_name,'')         AS planned_name,
       COALESCE(cp.planned_nickname,'')     AS planned_nickname,
-      cp.mom_code,
-      cp.dad_code,
+      cp.mom_code, cp.dad_code,
       COALESCE(ml.n_live,0)                AS mom_live,
       COALESCE(dl.n_live,0)                AS dad_live,
       (COALESCE(ml.n_live,0) * COALESCE(dl.n_live,0))::int AS pairings,
       COALESCE(tx.n_treatments,0)          AS n_treatments,
       lm.label AS last_mom_label,
       lf.label AS last_dad_label,
-      cp.created_by,
-      cp.created_at
+      cp.created_by, cp.created_at
     FROM public.clutch_plans cp
     LEFT JOIN mom_live ml ON ml.fish_code = cp.mom_code
     LEFT JOIN dad_live dl ON dl.fish_code = cp.dad_code
@@ -395,24 +392,22 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
       AND (:by = '' OR cp.created_by ILIKE :byl)
       AND (
         :q = '' OR
-        COALESCE(cp.clutch_code,'')      ILIKE :ql OR
-        COALESCE(cp.planned_name,'')     ILIKE :ql OR
+        COALESCE(cp.clutch_code,'') ILIKE :ql OR
+        COALESCE(cp.planned_name,'') ILIKE :ql OR
         COALESCE(cp.planned_nickname,'') ILIKE :ql OR
-        COALESCE(cp.mom_code,'')         ILIKE :ql OR
-        COALESCE(cp.dad_code,'')         ILIKE :ql
+        COALESCE(cp.mom_code,'') ILIKE :ql OR
+        COALESCE(cp.dad_code,'') ILIKE :ql
       )
     ORDER BY cp.created_at DESC
     """)
-    params = {
-        "live_statuses": list(LIVE_STATUSES),
-        "tank_types": list(TANK_TYPES),
-        "d1": d1, "d2": d2,
-        "by": created_by or "", "byl": f"%{created_by or ''}%",
-        "q": q or "", "ql": f"%{q or ''}%"
-    }
     with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params=params)
+        return pd.read_sql(sql, cx, params={
+            "live_statuses": list(LIVE_STATUSES), "tank_types": list(TANK_TYPES),
+            "d1": d1, "d2": d2, "by": created_by or "", "byl": f"%{created_by or ''}%",
+            "q": q or "", "ql": f"%{q or ''}%"
+        })
 
+# ---------------- Filters form ----------------
 with st.form("filters", clear_on_submit=False):
     today = date.today()
     c1, c2, c3, c4 = st.columns([1,1,1,3])
@@ -423,9 +418,11 @@ with st.form("filters", clear_on_submit=False):
     st.form_submit_button("Apply", use_container_width=True)
 
 plans = _load_clutch_concepts(start, end, created_by, q)
+# Genotype-only: hide plans with treatments
 if "n_treatments" in plans.columns:
     plans = plans[plans["n_treatments"].fillna(0) == 0]
 
+# ---------------- Table 1: Concepts ----------------
 st.markdown("### 1) Select the clutch genotype you want to generate")
 st.caption(f"{len(plans)} clutch concept(s). Showing genotype-only (no treatments).")
 
@@ -437,8 +434,7 @@ if "✓ Select" not in plan_df.columns:
 plan_table_key = f"plans_{start}_{end}_{created_by}_{q}"
 plan_edited = st.data_editor(
     plan_df[["✓ Select"] + visible_cols],
-    hide_index=True,
-    use_container_width=True,
+    hide_index=True, use_container_width=True,
     column_order=["✓ Select"] + visible_cols,
     column_config={
         "✓ Select":  st.column_config.CheckboxColumn("✓", default=False),
@@ -450,11 +446,14 @@ plan_edited = st.data_editor(
 sel_mask  = plan_edited.get("✓ Select", pd.Series(False, index=plan_edited.index)).fillna(False).astype(bool)
 sel_plans = plan_df.loc[sel_mask].reset_index(drop=True)
 
+# ---------------- Table 2: FSH pairings (scored) ----------------
 st.subheader("2) Choose FSH pairings (mother fish × father fish)")
+
 if sel_plans.empty:
     st.info("Select a clutch genotype above to see live parent candidates.")
-    fsh_pairs_selected = pd.DataFrame(columns=["mom_code","mom_live","dad_code","dad_live"])
+    fsh_pairs_selected = pd.DataFrame(columns=["mom_code","dad_code"])
 else:
+    # Load live fish candidate set
     sql_live_fish = text("""
         with live_counts as (
             select f.fish_code, count(*)::int as n_live
@@ -477,6 +476,7 @@ else:
     if mom_filter: moms_df = moms_df[moms_df["fish_code"].str.contains(mom_filter, case=False, na=False)]
     if dad_filter: dads_df = dads_df[dads_df["fish_code"].str.contains(dad_filter, case=False, na=False)]
 
+    # Enrich with genotype/background
     fish_pool = sorted(set(moms_df["fish_code"].tolist() + dads_df["fish_code"].tolist()))
     geno_map = _fetch_fish_genotypes_and_bg(fish_pool)
     moms_df["genotype"] = moms_df["fish_code"].map(lambda c: geno_map.get(c,{}).get("genotype",""))
@@ -501,52 +501,67 @@ else:
         st.caption("Parent auto-filter tokens: " + ", ".join(match_tokens["geno"] + match_tokens["strain"]))
     ignore_tokens = st.checkbox("Ignore genotype tokens for parent selection", value=False)
 
-    pairs["score_mom"] = pairs.apply(lambda r: _score_fish_row(r["mom_genotype"], r["mom_background"], match_tokens), axis=1)
-    pairs["score_dad"] = pairs.apply(lambda r: _score_fish_row(r["dad_genotype"], r["dad_background"], match_tokens), axis=1)
-    pairs["score_pair"] = pairs["score_mom"] + pairs["score_dad"]
+    # Compute hit lists and scores
+    prof = pairs.apply(
+        lambda r: (
+            *_match_profile(r["mom_genotype"], r["mom_background"], match_tokens),
+            *_match_profile(r["dad_genotype"], r["dad_background"], match_tokens)
+        ),
+        axis=1, result_type="expand"
+    )
+    pairs[["mom_hits","mom_miss","mom_score","dad_hits","dad_miss","dad_score"]] = prof
+    pairs["mom_hits"] = pairs["mom_hits"].apply(lambda xs: xs if isinstance(xs,list) else [])
+    pairs["dad_hits"] = pairs["dad_hits"].apply(lambda xs: xs if isinstance(xs,list) else [])
+    pairs["score_pair"] = pairs["mom_score"] + pairs["dad_score"]
+    pairs["hits_total"] = pairs["mom_hits"].apply(len) + pairs["dad_hits"].apply(len)
 
-    compat_mask = pd.Series(True, index=pairs.index)
+    cf1, cf2 = st.columns([1,1])
+    with cf1: min_hits = st.slider("Minimum genotype hits per pair", 0, 6, 1)
+    with cf2: top_n     = st.number_input("Limit candidates (after filter)", min_value=10, max_value=500, value=100, step=10)
+
+    mask = pd.Series(True, index=pairs.index)
     if (match_tokens["geno"] or match_tokens["strain"]) and not ignore_tokens:
-        compat_mask = (pairs["score_pair"] > 0)
-        if not compat_mask.any():
-            st.info("No parent pairs matched genotype tokens — showing all candidates. Toggle the checkbox above to bypass this filter.")
-            compat_mask[:] = True
+        mask = (pairs["hits_total"] >= min_hits)
+        if not mask.any():
+            st.info("No parent pairs matched genotype tokens — showing all candidates. Toggle the checkbox above to bypass this filter or lower the threshold.")
+            mask[:] = True
 
-    pairs = pairs[compat_mask].reset_index(drop=True)
-    pairs = pairs.sort_values(["score_pair","mom_code","dad_code"], ascending=[False, True, True]).reset_index(drop=True)
+    pairs = pairs[mask].sort_values(["hits_total","score_pair","mom_code","dad_code"], ascending=[False,False,True,True]).head(int(top_n)).reset_index(drop=True)
 
     if pairs.empty:
         st.info("No fish pairings match the filters and genotype requirements.")
-        fsh_pairs_selected = pd.DataFrame(columns=["mom_code","mom_live","dad_code","dad_live","mom_genotype","dad_genotype"])
+        fsh_pairs_selected = pd.DataFrame(columns=["mom_code","dad_code"])
     else:
         pairs.insert(0,"✓ Pair",False)
-        pairs["est_pairings"] = (pairs["mom_live"] * pairs["dad_live"]).astype(int)
         pairs_view = pairs[[
             "✓ Pair",
-            "mom_code","mom_live","mom_genotype","mom_background","score_mom",
-            "dad_code","dad_live","dad_genotype","dad_background","score_dad",
-            "score_pair","est_pairings"
+            "mom_code","mom_live","mom_genotype","mom_background","mom_hits","mom_score",
+            "dad_code","dad_live","dad_genotype","dad_background","dad_hits","dad_score",
+            "hits_total","score_pair"
         ]]
         pairs_edit = st.data_editor(
             pairs_view, hide_index=True, use_container_width=True, num_rows="fixed",
             column_config={
-                "✓ Pair":        st.column_config.CheckboxColumn("✓ Pair", default=False),
-                "mom_live":      st.column_config.NumberColumn("#mom tanks", disabled=True, width="small"),
-                "dad_live":      st.column_config.NumberColumn("#dad tanks", disabled=True, width="small"),
-                "mom_genotype":  st.column_config.TextColumn("mom genotype", disabled=True, width="large"),
-                "mom_background":st.column_config.TextColumn("mom background", disabled=True),
-                "dad_genotype":  st.column_config.TextColumn("dad genotype", disabled=True, width="large"),
-                "dad_background":st.column_config.TextColumn("dad background", disabled=True),
-                "score_mom":     st.column_config.NumberColumn("mom score", disabled=True, width="small"),
-                "score_dad":     st.column_config.NumberColumn("dad score", disabled=True, width="small"),
-                "score_pair":    st.column_config.NumberColumn("pair score", disabled=True, width="small"),
-                "est_pairings":  st.column_config.NumberColumn("est tank pairs", disabled=True, width="small"),
+                "✓ Pair":         st.column_config.CheckboxColumn("✓ Pair", default=False),
+                "mom_live":       st.column_config.NumberColumn("#mom tanks", disabled=True, width="small"),
+                "dad_live":       st.column_config.NumberColumn("#dad tanks", disabled=True, width="small"),
+                "mom_genotype":   st.column_config.TextColumn("mom genotype", disabled=True, width="large"),
+                "mom_background": st.column_config.TextColumn("mom background", disabled=True),
+                "dad_genotype":   st.column_config.TextColumn("dad genotype", disabled=True, width="large"),
+                "dad_background": st.column_config.TextColumn("dad background", disabled=True),
+                "mom_hits":       st.column_config.TextColumn("mom hits", disabled=True, help="Matched tokens in mom"),
+                "dad_hits":       st.column_config.TextColumn("dad hits", disabled=True, help="Matched tokens in dad"),
+                "mom_score":      st.column_config.NumberColumn("mom score", disabled=True, width="small"),
+                "dad_score":      st.column_config.NumberColumn("dad score", disabled=True, width="small"),
+                "hits_total":     st.column_config.NumberColumn("hits total", disabled=True, width="small"),
+                "score_pair":     st.column_config.NumberColumn("pair score", disabled=True, width="small"),
             },
             key="fsh_pairs_editor",
         )
         fsh_pairs_selected = pairs_edit[pairs_edit["✓ Pair"]].reset_index(drop=True)
         st.caption(f"{len(fsh_pairs_selected)} FSH pair(s) selected")
 
+# ---------------- Table 3: Tank pairings ----------------
 st.subheader("3) Available instance(s) (live tank pairings)")
 if sel_plans.empty or (isinstance(locals().get("fsh_pairs_selected", None), pd.DataFrame) and fsh_pairs_selected.empty):
     st.info("Pick at least one clutch genotype and at least one mother×father fish pair to see runnable tank pairings.")
@@ -613,6 +628,7 @@ else:
     inst_selected = inst_edited[inst_edited["✓ Run"]].reset_index(drop=True)
     st.caption(f"{len(inst_selected)} tank pairing(s) selected")
 
+# ---------------- Schedule ----------------
 st.subheader("4) Schedule")
 sched_date = st.date_input("Run date (applies to all selected instances)", value=date.today(), key="run_date_all")
 creator = os.environ.get("USER") or os.environ.get("USERNAME") or "system"
@@ -623,11 +639,8 @@ if st.button("➕ Save scheduled cross instance(s)", type="primary", use_contain
     for r in inst_selected.itertuples(index=False):
         try:
             _, ci_code, _ = _schedule_instance(
-                cross_code=r.cross,
-                mom_code=r.mom_code,
-                dad_code=r.dad_code,
-                run_date=sched_date,
-                created_by=creator,
+                cross_code=r.cross, mom_code=r.mom_code, dad_code=r.dad_code,
+                run_date=sched_date, created_by=creator,
                 mother_tank_id=getattr(r,"mom_tank_id",None) or None,
                 father_tank_id=getattr(r,"dad_tank_id",None) or None,
                 note=getattr(r,"note","") or "",
@@ -642,16 +655,14 @@ if st.button("➕ Save scheduled cross instance(s)", type="primary", use_contain
     if errors:
         st.error("Some instances failed:\n- " + "\n- ".join(errors))
 
+# ---------------- Scheduled instances ----------------
 st.subheader("5) Scheduled instances")
 with _get_engine().begin() as cx:
     inst_rows = cx.execute(text("""
         select
-          ci.cross_run_code,
-          ci.cross_date,
-          ci.created_by,
-          x.cross_code,
-          coalesce(x.cross_name_code, x.cross_code)    as cross_name,
-          coalesce(x.cross_name_genotype,'')           as cross_name_genotype
+          ci.cross_run_code, ci.cross_date, ci.created_by,
+          x.cross_code, coalesce(x.cross_name_code, x.cross_code) as cross_name,
+          coalesce(x.cross_name_genotype,'') as cross_name_genotype
         from public.cross_instances ci
         join public.crosses x on x.id = ci.cross_id
         where ci.cross_date between :d1 and :d2
@@ -686,51 +697,38 @@ else:
     )
     chosen_codes = sched_edit.loc[sched_edit["✓ Print"], "cross_run"].astype(str).tolist()
 
+# ---------------- Labels & print ----------------
 st.subheader("Labels & report for selected scheduled instances")
 df_crossing, df_petri = (pd.DataFrame(), pd.DataFrame())
 if chosen_codes:
     df_crossing, df_petri = _fetch_labels_for_instances(chosen_codes)
 
 cross_pdf = _labels_pdf_pages(_build_crossing_label_pages(df_crossing), 2.4, 1.0, 9.2, 7.0, 7.2) if not df_crossing.empty else b""
-petri_pdf  = _labels_pdf_pages(_build_petri_label_pages(df_petri),     2.4, 0.75, 10.5, 7.0, 7.1) if not df_petri.empty else b""
+petri_pdf  = _labels_pdf_pages(_build_petri_label_pages(df_petri),     2.4, 0.75,10.5, 7.0, 7.1) if not df_petri.empty else b""
 
-def _fmt_date(x):
+def _fmt_date(x): 
     try: return pd.to_datetime(x).date().isoformat()
     except Exception: return str(x or "")
 
-report_lines = []
+report_lines=[]
 if not sched_df.empty:
     for r in (sched_edit if "sched_edit" in locals() else sched_df).itertuples(index=False):
-        if getattr(r, "✓ Print", False):
+        if getattr(r,"✓ Print",False):
             report_lines.append(f"{getattr(r,'cross_run','')} | date {_fmt_date(getattr(r,'date',None))}")
 
 c1,c2,c3,c4,c5 = st.columns(5)
 with c1:
-    st.download_button(
-        "📄 Crossing report (PDF)",
-        data=_make_pdf("Crossing report", report_lines or ["(none selected)"]),
-        file_name=f"crossing_report_{start:%Y%m%d}_{end:%Y%m%d}.pdf",
-        mime="application/pdf",
-        key=f"dl_report_{start:%Y%m%d}_{end:%Y%m%d}",
-    )
+    st.download_button("📄 Crossing report (PDF)", data=_make_pdf("Crossing report", report_lines or ["(none selected)"]),
+                       file_name=f"crossing_report_{start:%Y%m%d}_{end:%Y%m%d}.pdf", mime="application/pdf",
+                       key=f"dl_report_{start:%Y%m%d}_{end:%Y%m%d}")
 with c2:
-    st.download_button(
-        "🏷️ Crossing tank labels (2.4\"×1.0\")",
-        data=cross_pdf,
-        file_name=f"crossing_tank_labels_{start:%Y%m%d}_{end:%Y%m%d}.pdf",
-        mime="application/pdf",
-        key=f"dl_tank_{start:%Y%m%d}_{end:%Y%m%d}",
-        disabled=(not cross_pdf),
-    )
+    st.download_button("🏷️ Crossing tank labels (2.4\"×1.0\")", data=cross_pdf,
+                       file_name=f"crossing_tank_labels_{start:%Y%m%d}_{end:%Y%m%d}.pdf", mime="application/pdf",
+                       key=f"dl_tank_{start:%Y%m%d}_{end:%Y%m%d}", disabled=(not cross_pdf))
 with c3:
-    st.download_button(
-        "⬇️ Petri dish labels (2.4\"×0.75\")",
-        data=petri_pdf,
-        file_name=f"petri_labels_{start:%Y%m%d}_{end:%Y%m%d}.pdf",
-        mime="application/pdf",
-        key=f"dl_petri_{start:%Y%m%d}_{end:%Y%m%d}",
-        disabled=(not petri_pdf),
-    )
+    st.download_button("⬇️ Petri dish labels (2.4\"×0.75\")", data=petri_pdf,
+                       file_name=f"petri_labels_{start:%Y%m%d}_{end:%Y%m%d}.pdf", mime="application/pdf",
+                       key=f"dl_petri_{start:%Y%m%d}_{end:%Y%m%d}", disabled=(not petri_pdf))
 with c4:
     if st.button("🖨️ Print crossing labels → Brother", use_container_width=True, disabled=(not cross_pdf), key="print_crossing"):
         ok,msg=_print_pdf_bytes(cross_pdf, os.getenv("BROTHER_QUEUE","Brother_QL_1110NWB"), os.getenv("BROTHER_MEDIA_CROSSING","media=Custom.61x25mm"))
