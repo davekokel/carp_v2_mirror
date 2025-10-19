@@ -1,0 +1,8 @@
+[sqlfluff]
+dialect = postgres
+templater = jinja
+# optional, but helpful:
+max_line_length = 120
+
+# If you want to temporarily silence a noisy rule during this PR, add it:
+# exclude_rules = L003,L016
