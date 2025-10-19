@@ -1,0 +1,10 @@
+[[rules.allowlist]]
+description = "Ignore unverified Postgres-style connection strings and environment vars"
+regexes = [
+  '''postgres://[A-Za-z0-9._%+-:@/]+''',
+  '''PGPASSWORD=.*''',
+  '''PGHOST=.*''',
+  '''PGUSER=.*''',
+  '''PGPORT=.*'''
+]
+paths = ["**/*"]

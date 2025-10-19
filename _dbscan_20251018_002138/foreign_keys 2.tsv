@@ -1,0 +1,21 @@
+bruker_mounts|selection_id|clutch_instances|id|NO ACTION|CASCADE
+clutch_instances|cross_instance_id|cross_instances|id|NO ACTION|RESTRICT
+clutches|run_id|cross_plan_runs|id|NO ACTION|SET NULL
+cross_instances|cross_id|crosses|id|NO ACTION|RESTRICT
+cross_plan_genotype_alleles|allele_number|transgene_alleles|allele_number|NO ACTION|RESTRICT
+cross_plan_genotype_alleles|allele_number|transgene_alleles|transgene_base_code|NO ACTION|RESTRICT
+cross_plan_genotype_alleles|plan_id|cross_plans|id|NO ACTION|CASCADE
+cross_plan_genotype_alleles|transgene_base_code|transgene_alleles|allele_number|NO ACTION|RESTRICT
+cross_plan_genotype_alleles|transgene_base_code|transgene_alleles|transgene_base_code|NO ACTION|RESTRICT
+cross_plan_runs|plan_id|cross_plans|id|NO ACTION|CASCADE
+cross_plan_treatments|plan_id|cross_plans|id|NO ACTION|CASCADE
+cross_plan_treatments|plasmid_id|plasmid_registry|id|NO ACTION|RESTRICT
+cross_plan_treatments|rna_id|rna_registry|id|NO ACTION|RESTRICT
+fish_seed_batches_map|fish_id|fish|id|NO ACTION|CASCADE
+fish_transgene_alleles|allele_number|transgene_alleles|transgene_base_code|NO ACTION|CASCADE
+fish_transgene_alleles|allele_number|transgene_alleles|allele_number|NO ACTION|CASCADE
+fish_transgene_alleles|transgene_base_code|transgene_alleles|transgene_base_code|NO ACTION|CASCADE
+fish_transgene_alleles|transgene_base_code|transgene_alleles|allele_number|NO ACTION|CASCADE
+mounts|cross_instance_id|cross_instances|id|NO ACTION|CASCADE
+planned_crosses|cross_id|crosses|id|NO ACTION|RESTRICT
+transgene_alleles|transgene_base_code|transgenes|transgene_base_code|NO ACTION|CASCADE

@@ -1,0 +1,8 @@
+public|clutch_instance_code_seq|postgres|.|
+public|cross_code_seq|postgres|.|
+public|cross_run_code_seq|postgres|.|
+public|fish_code_audit_id_seq|postgres|public.fish_code_audit|id
+public|fish_code_seq|postgres|.|
+public|seq_clutch_code|postgres|.|
+public|tank_code_seq|postgres|.|
+public|transgene_allele_number_seq|postgres|public.transgene_alleles|allele_number

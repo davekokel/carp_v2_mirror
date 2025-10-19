@@ -18,9 +18,14 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 
+<<<<<<<< HEAD:carp_app/ui/_archive_pages/032_🐟_enter_cross_instance.py
 # ---------------- UI ----------------
 st.set_page_config(page_title="🧬 Enter cross_instance → schedule", page_icon="🧬", layout="wide")
 st.title("🧬 Enter cross_instance → schedule")
+========
+st.set_page_config(page_title="🐟 Deploy crosses", page_icon="🐟", layout="wide")
+st.title("🐟 Encer cross_instance → schedule")
+>>>>>>>> f7f4e6a (chore: checkpoint before workbench refactor):carp_app/ui/pages/032_🏷️_enter_cross_instance.py
 
 try:
     from carp_app.ui.auth_gate import require_app_unlock
@@ -244,8 +249,16 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
     )
     SELECT
       v.cross_code,
+<<<<<<<< HEAD:carp_app/ui/_archive_pages/032_🐟_enter_cross_instance.py
       COALESCE(x.cross_name_code, v.cross_code)            AS cross_name,
       COALESCE(x.cross_name_genotype, '')                  AS cross_nickname,
+========
+
+      /* use only current columns; alias to legacy names expected by UI */
+      COALESCE(x.cross_name_code, v.cross_code)              AS cross_name,
+      COALESCE(x.cross_name_genotype, '')                    AS cross_nickname,
+
+>>>>>>>> f7f4e6a (chore: checkpoint before workbench refactor):carp_app/ui/pages/032_🏷️_enter_cross_instance.py
       v.mom_code, COALESCE(cm.label, cm.tank_code) AS mom_tank,
       v.dad_code, COALESCE(cf.label, cf.tank_code) AS dad_tank,
       cp.clutch_code, cp.planned_name AS clutch_name, cp.planned_nickname AS clutch_nickname,

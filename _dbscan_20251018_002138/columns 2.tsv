@@ -1,0 +1,786 @@
+allele_nicknames	01	base_code	text	NO	
+allele_nicknames	02	allele_code	text	NO	
+allele_nicknames	03	allele_nickname	text	NO	
+allele_nicknames	04	created_at	timestamp with time zone	NO	now()
+allele_nicknames	05	updated_at	timestamp with time zone	YES	now()
+bruker_mounts	01	id	uuid	NO	gen_random_uuid()
+bruker_mounts	02	selection_id	uuid	NO	
+bruker_mounts	03	mount_date	date	NO	
+bruker_mounts	04	mount_time	time without time zone	NO	
+bruker_mounts	05	n_top	integer	NO	
+bruker_mounts	06	n_bottom	integer	NO	
+bruker_mounts	07	orientation	text	NO	
+bruker_mounts	08	created_at	timestamp with time zone	NO	now()
+bruker_mounts	09	created_by	text	YES	
+bruker_mounts	10	mount_code	text	YES	
+bruker_mounts	11	updated_at	timestamp with time zone	YES	now()
+clutch_containers	01	container_id	uuid	NO	
+clutch_containers	02	clutch_id	uuid	NO	
+clutch_containers	03	is_mixed	boolean	NO	true
+clutch_containers	04	selection_label	text	YES	
+clutch_containers	05	source_container_id	uuid	YES	
+clutch_containers	06	created_at	timestamp with time zone	NO	now()
+clutch_containers	07	created_by	text	NO	
+clutch_containers	08	note	text	YES	
+clutch_containers	09	updated_at	timestamp with time zone	YES	now()
+clutch_genotype_options	01	clutch_id	uuid	NO	
+clutch_genotype_options	02	allele_code	text	YES	
+clutch_genotype_options	03	transgene_base_code	text	YES	
+clutch_genotype_options	04	created_at	timestamp with time zone	YES	now()
+clutch_genotype_options	05	updated_at	timestamp with time zone	YES	now()
+clutch_genotype_options	06	id	uuid	NO	gen_random_uuid()
+clutch_instance_seq	01	cross_instance_id	uuid	NO	
+clutch_instance_seq	02	last	integer	NO	
+clutch_instances	01	id	uuid	NO	gen_random_uuid()
+clutch_instances	02	label	text	YES	
+clutch_instances	03	phenotype	text	YES	
+clutch_instances	04	notes	text	YES	
+clutch_instances	05	red_selected	boolean	YES	
+clutch_instances	06	red_intensity	text	YES	
+clutch_instances	07	red_note	text	YES	
+clutch_instances	08	green_selected	boolean	YES	
+clutch_instances	09	green_intensity	text	YES	
+clutch_instances	10	green_note	text	YES	
+clutch_instances	11	annotated_by	text	YES	
+clutch_instances	12	annotated_at	timestamp with time zone	YES	
+clutch_instances	13	created_at	timestamp with time zone	YES	now()
+clutch_instances	14	cross_instance_id	uuid	NO	
+clutch_instances	15	updated_at	timestamp with time zone	YES	now()
+clutch_instances	16	birthday	date	YES	
+clutch_instances	17	created_by	text	YES	
+clutch_instances	18	seq	smallint	NO	
+clutch_instances	19	clutch_instance_code	text	NO	
+clutch_plan_treatments	01	clutch_id	uuid	NO	
+clutch_plan_treatments	02	material_type	text	NO	
+clutch_plan_treatments	03	material_code	text	NO	
+clutch_plan_treatments	04	material_name	text	YES	
+clutch_plan_treatments	05	dose	numeric	YES	
+clutch_plan_treatments	06	units	text	YES	
+clutch_plan_treatments	07	at_hpf	numeric	YES	
+clutch_plan_treatments	08	notes	text	YES	
+clutch_plan_treatments	09	created_at	timestamp with time zone	NO	now()
+clutch_plan_treatments	10	updated_at	timestamp with time zone	YES	now()
+clutch_plan_treatments	11	id	uuid	NO	gen_random_uuid()
+clutch_plans	01	mom_code	text	NO	
+clutch_plans	02	dad_code	text	NO	
+clutch_plans	03	cross_date	date	NO	CURRENT_DATE
+clutch_plans	04	note	text	YES	
+clutch_plans	05	created_by	text	YES	
+clutch_plans	06	created_at	timestamp with time zone	NO	now()
+clutch_plans	07	planned_name	text	YES	
+clutch_plans	08	planned_nickname	text	YES	
+clutch_plans	09	clutch_code	text	YES	
+clutch_plans	10	updated_at	timestamp with time zone	YES	now()
+clutch_plans	11	id	uuid	NO	gen_random_uuid()
+clutch_plans	12	status	USER-DEFINED	NO	'draft'::clutch_plan_status
+clutch_treatments	01	clutch_id	uuid	NO	
+clutch_treatments	02	type	text	NO	
+clutch_treatments	03	reagent_id	uuid	YES	
+clutch_treatments	04	amount	numeric	YES	
+clutch_treatments	05	units	text	YES	
+clutch_treatments	06	at_time	timestamp with time zone	YES	
+clutch_treatments	07	note	text	YES	
+clutch_treatments	08	created_by	text	NO	
+clutch_treatments	09	created_at	timestamp with time zone	NO	now()
+clutch_treatments	10	updated_at	timestamp with time zone	YES	now()
+clutch_treatments	11	id	uuid	NO	gen_random_uuid()
+clutches	01	cross_id	uuid	NO	
+clutches	02	batch_label	text	YES	
+clutches	03	seed_batch_id	text	YES	
+clutches	04	created_at	timestamp with time zone	NO	now()
+clutches	05	created_by	text	NO	
+clutches	06	note	text	YES	
+clutches	07	date_birth	date	YES	
+clutches	08	run_id	uuid	YES	
+clutches	09	planned_cross_id	uuid	YES	
+clutches	10	cross_instance_id	uuid	YES	
+clutches	11	clutch_instance_code	text	YES	
+clutches	12	updated_at	timestamp with time zone	YES	now()
+clutches	13	id	uuid	NO	gen_random_uuid()
+clutches	14	clutch_code	text	YES	
+container_status_history	01	id	uuid	NO	gen_random_uuid()
+container_status_history	02	container_id	uuid	NO	
+container_status_history	03	old_status	USER-DEFINED	NO	
+container_status_history	04	new_status	USER-DEFINED	NO	
+container_status_history	05	changed_at	timestamp with time zone	NO	now()
+container_status_history	06	changed_by	text	YES	
+container_status_history	07	reason	text	YES	
+container_status_history	08	created_at	timestamp with time zone	YES	now()
+container_status_history	09	updated_at	timestamp with time zone	YES	now()
+containers	01	container_type	text	NO	
+containers	02	label	text	YES	
+containers	03	status	text	NO	'planned'::container_status
+containers	04	created_by	text	NO	
+containers	05	created_at	timestamp with time zone	NO	now()
+containers	06	note	text	YES	
+containers	07	request_id	uuid	YES	
+containers	08	status_changed_at	timestamp with time zone	NO	now()
+containers	09	activated_at	timestamp with time zone	YES	
+containers	10	deactivated_at	timestamp with time zone	YES	
+containers	11	last_seen_at	timestamp with time zone	YES	
+containers	12	last_seen_source	text	YES	
+containers	13	tank_volume_l	integer	YES	
+containers	14	tank_code	text	YES	
+containers	15	updated_at	timestamp with time zone	YES	now()
+containers	16	id	uuid	NO	gen_random_uuid()
+cross_instances	01	cross_id	uuid	NO	
+cross_instances	02	cross_date	date	NO	CURRENT_DATE
+cross_instances	03	mother_tank_id	uuid	YES	
+cross_instances	04	father_tank_id	uuid	YES	
+cross_instances	05	note	text	YES	
+cross_instances	06	created_by	text	NO	
+cross_instances	07	created_at	timestamp with time zone	NO	now()
+cross_instances	08	cross_run_code	text	YES	
+cross_instances	09	updated_at	timestamp with time zone	YES	now()
+cross_instances	10	id	uuid	NO	gen_random_uuid()
+cross_instances	11	clutch_birthday	date	YES	
+cross_parent_aliases	01	parent_code	text	NO	
+cross_parent_aliases	02	alias	text	NO	
+cross_plan_genotype_alleles	01	id	uuid	NO	gen_random_uuid()
+cross_plan_genotype_alleles	02	plan_id	uuid	NO	
+cross_plan_genotype_alleles	03	transgene_base_code	text	NO	
+cross_plan_genotype_alleles	04	allele_number	integer	NO	
+cross_plan_genotype_alleles	05	zygosity_planned	text	YES	
+cross_plan_genotype_alleles	06	created_at	timestamp with time zone	YES	now()
+cross_plan_genotype_alleles	07	updated_at	timestamp with time zone	YES	now()
+cross_plan_runs	01	id	uuid	NO	gen_random_uuid()
+cross_plan_runs	02	plan_id	uuid	NO	
+cross_plan_runs	03	seq	integer	NO	
+cross_plan_runs	04	planned_date	date	NO	
+cross_plan_runs	05	tank_a_id	uuid	YES	
+cross_plan_runs	06	tank_b_id	uuid	YES	
+cross_plan_runs	07	status	text	NO	'planned'::text
+cross_plan_runs	08	note	text	YES	
+cross_plan_runs	09	created_by	text	YES	
+cross_plan_runs	10	created_at	timestamp with time zone	NO	now()
+cross_plan_runs	11	updated_at	timestamp with time zone	YES	now()
+cross_plan_treatments	01	id	uuid	NO	gen_random_uuid()
+cross_plan_treatments	02	plan_id	uuid	NO	
+cross_plan_treatments	03	treatment_name	text	NO	
+cross_plan_treatments	04	amount	numeric	YES	
+cross_plan_treatments	05	units	text	YES	
+cross_plan_treatments	06	timing_note	text	YES	
+cross_plan_treatments	07	injection_mix	text	YES	
+cross_plan_treatments	08	treatment_notes	text	YES	
+cross_plan_treatments	09	rna_id	uuid	YES	
+cross_plan_treatments	10	plasmid_id	uuid	YES	
+cross_plan_treatments	11	created_at	timestamp with time zone	YES	now()
+cross_plan_treatments	12	updated_at	timestamp with time zone	YES	now()
+cross_plans	01	id	uuid	NO	gen_random_uuid()
+cross_plans	02	plan_date	date	NO	
+cross_plans	03	tank_a_id	uuid	YES	
+cross_plans	04	tank_b_id	uuid	YES	
+cross_plans	05	status	USER-DEFINED	NO	'planned'::cross_plan_status
+cross_plans	06	created_by	text	NO	
+cross_plans	07	note	text	YES	
+cross_plans	08	created_at	timestamp with time zone	NO	now()
+cross_plans	09	mother_fish_id	uuid	YES	
+cross_plans	10	father_fish_id	uuid	YES	
+cross_plans	11	plan_title	text	YES	
+cross_plans	12	plan_nickname	text	YES	
+cross_plans	13	updated_at	timestamp with time zone	YES	now()
+crosses	01	mother_code	text	NO	
+crosses	02	father_code	text	NO	
+crosses	03	created_by	text	NO	
+crosses	04	created_at	timestamp with time zone	NO	now()
+crosses	05	note	text	YES	
+crosses	06	planned_for	date	YES	
+crosses	07	cross_code	text	YES	
+crosses	08	cross_name_code	text	NO	
+crosses	09	cross_name_genotype	text	YES	
+crosses	10	updated_at	timestamp with time zone	YES	now()
+crosses	11	id	uuid	NO	gen_random_uuid()
+fish	01	id	uuid	NO	gen_random_uuid()
+fish	02	fish_code	text	NO	
+fish	03	name	text	YES	
+fish	04	created_at	timestamp with time zone	NO	now()
+fish	05	created_by	text	YES	
+fish	06	date_birth	date	YES	
+fish	07	nickname	text	YES	
+fish	08	line_building_stage	text	YES	
+fish	09	genetic_background	text	YES	
+fish	10	description	text	YES	
+fish	11	notes	text	YES	
+fish	12	updated_at	timestamp with time zone	YES	now()
+fish	13	birthday	date	YES	
+fish_code_audit	01	id	bigint	NO	nextval('fish_code_audit_id_seq'::regclass)
+fish_code_audit	02	at	timestamp with time zone	NO	now()
+fish_code_audit	03	fish_id	uuid	YES	
+fish_code_audit	04	fish_code	text	YES	
+fish_code_audit	05	app_name	text	YES	
+fish_code_audit	06	client_addr	inet	YES	
+fish_code_audit	07	pid	integer	YES	
+fish_code_audit	08	note	text	YES	
+fish_code_audit	09	created_at	timestamp with time zone	YES	now()
+fish_code_audit	10	updated_at	timestamp with time zone	YES	now()
+fish_csv	01	fish_code	text	YES	
+fish_csv	02	name	text	YES	
+fish_csv	03	nickname	text	YES	
+fish_csv	04	genetic_background	text	YES	
+fish_csv	05	birthday	date	YES	
+fish_csv	06	created_by	text	YES	
+fish_csv	07	created_at	timestamp with time zone	YES	
+fish_seed_batches	01	fish_id	uuid	NO	
+fish_seed_batches	02	seed_batch_id	text	NO	
+fish_seed_batches	03	updated_at	timestamp with time zone	NO	now()
+fish_seed_batches	04	created_at	timestamp with time zone	YES	now()
+fish_seed_batches_map	01	fish_id	uuid	NO	
+fish_seed_batches_map	02	seed_batch_id	text	YES	
+fish_seed_batches_map	03	logged_at	timestamp with time zone	NO	now()
+fish_seed_batches_map	04	created_at	timestamp with time zone	NO	now()
+fish_seed_batches_map	05	id	uuid	NO	gen_random_uuid()
+fish_seed_batches_map	06	updated_at	timestamp with time zone	YES	now()
+fish_tank_memberships	01	id	uuid	NO	gen_random_uuid()
+fish_tank_memberships	02	fish_id	uuid	NO	
+fish_tank_memberships	03	container_id	uuid	NO	
+fish_tank_memberships	04	joined_at	timestamp with time zone	NO	now()
+fish_tank_memberships	05	left_at	timestamp with time zone	YES	
+fish_tank_memberships	06	note	text	YES	
+fish_tank_memberships	07	created_at	timestamp with time zone	YES	now()
+fish_tank_memberships	08	updated_at	timestamp with time zone	YES	now()
+fish_transgene_alleles	01	fish_id	uuid	NO	
+fish_transgene_alleles	02	transgene_base_code	text	NO	
+fish_transgene_alleles	03	allele_number	integer	NO	
+fish_transgene_alleles	04	zygosity	text	YES	
+fish_transgene_alleles	05	allele_nickname	text	YES	
+fish_transgene_alleles	06	created_at	timestamp with time zone	NO	now()
+fish_transgene_alleles	07	created_by	text	YES	
+fish_transgene_alleles	08	updated_at	timestamp with time zone	YES	now()
+fish_year_counters	01	year	integer	NO	
+fish_year_counters	02	n	bigint	NO	0
+fish_year_counters	03	created_at	timestamp with time zone	YES	now()
+fish_year_counters	04	updated_at	timestamp with time zone	YES	now()
+injected_plasmid_treatments	01	id	uuid	NO	gen_random_uuid()
+injected_plasmid_treatments	02	fish_id	uuid	NO	
+injected_plasmid_treatments	03	plasmid_id	uuid	NO	
+injected_plasmid_treatments	04	amount	numeric	YES	
+injected_plasmid_treatments	05	units	text	YES	
+injected_plasmid_treatments	06	at_time	timestamp with time zone	YES	
+injected_plasmid_treatments	07	note	text	YES	
+injected_plasmid_treatments	08	created_at	timestamp with time zone	YES	now()
+injected_plasmid_treatments	09	updated_at	timestamp with time zone	YES	now()
+injected_rna_treatments	01	id	uuid	NO	gen_random_uuid()
+injected_rna_treatments	02	fish_id	uuid	NO	
+injected_rna_treatments	03	rna_id	uuid	NO	
+injected_rna_treatments	04	amount	numeric	YES	
+injected_rna_treatments	05	units	text	YES	
+injected_rna_treatments	06	at_time	timestamp with time zone	YES	
+injected_rna_treatments	07	note	text	YES	
+injected_rna_treatments	08	created_at	timestamp with time zone	YES	now()
+injected_rna_treatments	09	updated_at	timestamp with time zone	YES	now()
+label_items	01	job_id	uuid	NO	
+label_items	02	seq	integer	NO	
+label_items	03	fish_code	text	YES	
+label_items	04	tank_id	uuid	YES	
+label_items	05	request_id	uuid	YES	
+label_items	06	payload	jsonb	NO	'{}'::jsonb
+label_items	07	qr_text	text	YES	
+label_items	08	rendered_at	timestamp with time zone	YES	
+label_items	09	created_at	timestamp with time zone	YES	now()
+label_items	10	updated_at	timestamp with time zone	YES	now()
+label_items	11	id	uuid	NO	gen_random_uuid()
+label_jobs	01	entity_type	text	NO	
+label_jobs	02	entity_id	uuid	YES	
+label_jobs	03	template	text	NO	'tank_2.4x1.5'::text
+label_jobs	04	media	text	NO	'2.4x1.5'::text
+label_jobs	05	status	text	NO	'queued'::text
+label_jobs	06	requested_by	text	NO	
+label_jobs	07	requested_at	timestamp with time zone	NO	now()
+label_jobs	08	started_at	timestamp with time zone	YES	
+label_jobs	09	finished_at	timestamp with time zone	YES	
+label_jobs	10	error_text	text	YES	
+label_jobs	11	num_labels	integer	NO	0
+label_jobs	12	file_url	text	YES	
+label_jobs	13	file_bytes	bytea	YES	
+label_jobs	14	source_params	jsonb	NO	'{}'::jsonb
+label_jobs	15	notes	text	YES	
+label_jobs	16	dedupe_hash	text	YES	
+label_jobs	17	created_at	timestamp with time zone	YES	now()
+label_jobs	18	updated_at	timestamp with time zone	YES	now()
+label_jobs	19	id	uuid	NO	gen_random_uuid()
+load_log_fish	01	id	uuid	NO	gen_random_uuid()
+load_log_fish	02	fish_id	uuid	NO	
+load_log_fish	03	seed_batch_id	text	NO	
+load_log_fish	04	row_key	text	NO	
+load_log_fish	05	logged_at	timestamp with time zone	NO	now()
+load_log_fish	06	created_at	timestamp with time zone	YES	now()
+load_log_fish	07	updated_at	timestamp with time zone	YES	now()
+mount_label_seq_day	01	mount_date	date	NO	
+mount_label_seq_day	02	last	integer	NO	
+mount_seq	01	cross_instance_id	uuid	NO	
+mount_seq	02	last	integer	NO	
+mounts	01	id	uuid	NO	gen_random_uuid()
+mounts	02	cross_instance_id	uuid	NO	
+mounts	03	mount_date	date	NO	
+mounts	04	sample_id	text	NO	
+mounts	05	mount_type	text	YES	
+mounts	06	notes	text	YES	
+mounts	07	created_at	timestamp with time zone	YES	now()
+mounts	08	created_by	text	YES	
+mounts	09	time_mounted	timestamp with time zone	YES	
+mounts	10	mounting_orientation	text	YES	
+mounts	11	n_top	integer	YES	0
+mounts	12	n_bottom	integer	YES	0
+mounts	13	seq	smallint	NO	
+mounts	14	mount_code	text	NO	
+mounts	15	mount_label	text	NO	
+planned_crosses	01	clutch_id	uuid	YES	
+planned_crosses	02	mom_code	text	NO	
+planned_crosses	03	dad_code	text	NO	
+planned_crosses	04	crossing_tank_id	uuid	YES	
+planned_crosses	05	cross_date	date	NO	CURRENT_DATE
+planned_crosses	06	note	text	YES	
+planned_crosses	07	created_by	text	YES	
+planned_crosses	08	created_at	timestamp with time zone	NO	now()
+planned_crosses	09	mother_tank_id	uuid	YES	
+planned_crosses	10	father_tank_id	uuid	YES	
+planned_crosses	11	cross_code	text	YES	
+planned_crosses	12	cross_id	uuid	NO	
+planned_crosses	13	cross_instance_id	uuid	YES	
+planned_crosses	14	is_canonical	boolean	NO	true
+planned_crosses	15	updated_at	timestamp with time zone	YES	now()
+planned_crosses	16	name	text	YES	
+planned_crosses	17	nickname	text	YES	
+planned_crosses	18	planned_for	date	YES	
+planned_crosses	19	status	text	YES	
+planned_crosses	20	notes	text	YES	
+planned_crosses	21	id	uuid	NO	gen_random_uuid()
+plasmid_registry	01	id	uuid	NO	gen_random_uuid()
+plasmid_registry	02	plasmid_code	text	NO	
+plasmid_registry	03	plasmid_nickname	text	YES	
+plasmid_registry	04	backbone	text	YES	
+plasmid_registry	05	insert_desc	text	YES	
+plasmid_registry	06	vendor	text	YES	
+plasmid_registry	07	lot_number	text	YES	
+plasmid_registry	08	notes	text	YES	
+plasmid_registry	09	created_at	timestamp with time zone	NO	now()
+plasmid_registry	10	created_by	text	YES	
+plasmid_registry	11	updated_at	timestamp with time zone	YES	now()
+plasmids	01	code	text	NO	
+plasmids	02	name	text	YES	
+plasmids	03	nickname	text	YES	
+plasmids	04	fluors	text	YES	
+plasmids	05	resistance	text	YES	
+plasmids	06	supports_invitro_rna	boolean	NO	false
+plasmids	07	created_by	text	YES	
+plasmids	08	notes	text	YES	
+plasmids	09	created_at	timestamp with time zone	NO	now()
+plasmids	10	updated_at	timestamp with time zone	YES	now()
+plasmids	11	id	uuid	NO	gen_random_uuid()
+rna_registry	01	id	uuid	NO	gen_random_uuid()
+rna_registry	02	rna_code	text	NO	
+rna_registry	03	rna_nickname	text	YES	
+rna_registry	04	vendor	text	YES	
+rna_registry	05	lot_number	text	YES	
+rna_registry	06	notes	text	YES	
+rna_registry	07	created_at	timestamp with time zone	NO	now()
+rna_registry	08	created_by	text	YES	
+rna_registry	09	updated_at	timestamp with time zone	YES	now()
+rnas	01	code	text	NO	
+rnas	02	name	text	YES	
+rnas	03	source_plasmid_id	uuid	YES	
+rnas	04	created_by	text	YES	
+rnas	05	notes	text	YES	
+rnas	06	created_at	timestamp with time zone	NO	now()
+rnas	07	updated_at	timestamp with time zone	YES	now()
+rnas	08	id	uuid	NO	gen_random_uuid()
+seed_batches	01	seed_batch_id	text	YES	
+seed_batches	02	batch_label	text	YES	
+selection_labels	01	code	text	NO	
+selection_labels	02	display_name	text	NO	
+selection_labels	03	color_hex	text	YES	
+selection_labels	04	created_at	timestamp with time zone	NO	now()
+selection_labels	05	created_by	text	YES	
+selection_labels	06	updated_at	timestamp with time zone	YES	now()
+selection_labels	07	id	uuid	NO	gen_random_uuid()
+tank_requests	01	fish_id	uuid	NO	
+tank_requests	02	requested_count	integer	NO	
+tank_requests	03	fulfilled_count	integer	NO	0
+tank_requests	04	requested_for	date	YES	
+tank_requests	05	note	text	YES	
+tank_requests	06	status	text	NO	'open'::text
+tank_requests	07	created_by	text	NO	
+tank_requests	08	created_at	timestamp with time zone	NO	now()
+tank_requests	09	updated_at	timestamp with time zone	YES	now()
+tank_requests	10	id	uuid	NO	gen_random_uuid()
+tank_year_counters	01	year	integer	NO	
+tank_year_counters	02	n	bigint	NO	0
+tank_year_counters	03	created_at	timestamp with time zone	YES	now()
+tank_year_counters	04	updated_at	timestamp with time zone	YES	now()
+transgene_allele_counters	01	transgene_base_code	text	NO	
+transgene_allele_counters	02	next_number	integer	NO	1
+transgene_allele_counters	03	created_at	timestamp with time zone	YES	now()
+transgene_allele_counters	04	updated_at	timestamp with time zone	YES	now()
+transgene_allele_registry	01	id	uuid	NO	gen_random_uuid()
+transgene_allele_registry	02	transgene_base_code	text	NO	
+transgene_allele_registry	03	allele_number	integer	NO	
+transgene_allele_registry	04	allele_nickname	text	NO	
+transgene_allele_registry	05	created_at	timestamp with time zone	NO	now()
+transgene_allele_registry	06	created_by	text	YES	
+transgene_allele_registry	07	base_code	text	YES	
+transgene_allele_registry	08	legacy_label	text	YES	
+transgene_allele_registry	09	updated_at	timestamp with time zone	YES	now()
+transgene_alleles	01	transgene_base_code	text	NO	
+transgene_alleles	02	allele_number	integer	NO	
+transgene_alleles	03	allele_nickname	text	YES	
+transgene_alleles	04	created_at	timestamp with time zone	YES	now()
+transgene_alleles	05	updated_at	timestamp with time zone	YES	now()
+transgene_alleles	06	allele_name	text	YES	
+transgenes	01	transgene_base_code	text	NO	
+transgenes	02	created_at	timestamp with time zone	NO	now()
+transgenes	03	created_by	text	YES	
+transgenes	04	updated_at	timestamp with time zone	YES	now()
+v_clutch_counts	01	clutch_code	text	YES	
+v_clutch_counts	02	runs_count	bigint	YES	
+v_clutch_counts	03	annotations_count	bigint	YES	
+v_clutch_counts	04	last_run_date	date	YES	
+v_clutch_counts	05	last_birthday	date	YES	
+v_clutch_counts	06	last_annotated_at	timestamp with time zone	YES	
+v_clutch_instances_annotations	01	id	uuid	YES	
+v_clutch_instances_annotations	02	label	text	YES	
+v_clutch_instances_annotations	03	phenotype	text	YES	
+v_clutch_instances_annotations	04	notes	text	YES	
+v_clutch_instances_annotations	05	red_selected	boolean	YES	
+v_clutch_instances_annotations	06	red_intensity	text	YES	
+v_clutch_instances_annotations	07	red_note	text	YES	
+v_clutch_instances_annotations	08	green_selected	boolean	YES	
+v_clutch_instances_annotations	09	green_intensity	text	YES	
+v_clutch_instances_annotations	10	green_note	text	YES	
+v_clutch_instances_annotations	11	annotated_by	text	YES	
+v_clutch_instances_annotations	12	annotated_at	timestamp with time zone	YES	
+v_clutch_instances_annotations	13	created_at	timestamp with time zone	YES	
+v_clutch_instances_overview	01	cross_instance_id	uuid	YES	
+v_clutch_instances_overview	02	cross_run_code	text	YES	
+v_clutch_instances_overview	03	birthday	date	YES	
+v_clutch_instances_overview	04	clutch_code	text	YES	
+v_clutch_instances_overview	05	clutch_instance_id	uuid	YES	
+v_clutch_instances_overview	06	clutch_birthday	date	YES	
+v_clutch_instances_overview	07	clutch_created_by	text	YES	
+v_containers_crossing_candidates	01	id	uuid	YES	
+v_containers_crossing_candidates	02	container_type	text	YES	
+v_containers_crossing_candidates	03	label	text	YES	
+v_containers_crossing_candidates	04	status	text	YES	
+v_containers_crossing_candidates	05	created_by	text	YES	
+v_containers_crossing_candidates	06	created_at	timestamp with time zone	YES	
+v_containers_crossing_candidates	07	status_changed_at	timestamp with time zone	YES	
+v_containers_crossing_candidates	08	activated_at	timestamp with time zone	YES	
+v_containers_crossing_candidates	09	deactivated_at	timestamp with time zone	YES	
+v_containers_crossing_candidates	10	last_seen_at	timestamp with time zone	YES	
+v_containers_crossing_candidates	11	note	text	YES	
+v_containers_live	01	id	uuid	YES	
+v_containers_live	02	container_type	text	YES	
+v_containers_live	03	label	text	YES	
+v_containers_live	04	status	text	YES	
+v_containers_live	05	created_by	text	YES	
+v_containers_live	06	created_at	timestamp with time zone	YES	
+v_containers_live	07	note	text	YES	
+v_containers_live	08	request_id	uuid	YES	
+v_containers_live	09	status_changed_at	timestamp with time zone	YES	
+v_containers_live	10	activated_at	timestamp with time zone	YES	
+v_containers_live	11	deactivated_at	timestamp with time zone	YES	
+v_containers_live	12	last_seen_at	timestamp with time zone	YES	
+v_containers_live	13	last_seen_source	text	YES	
+v_containers_live	14	tank_volume_l	integer	YES	
+v_containers_live	15	tank_code	text	YES	
+v_containers_overview	01	id	uuid	YES	
+v_containers_overview	02	container_type	text	YES	
+v_containers_overview	03	label	text	YES	
+v_containers_overview	04	tank_code	text	YES	
+v_containers_overview	05	status	text	YES	
+v_containers_overview	06	status_changed_at	timestamp with time zone	YES	
+v_containers_overview	07	created_at	timestamp with time zone	YES	
+v_cross_concepts_overview	01	conceptual_cross_code	text	YES	
+v_cross_concepts_overview	02	name	text	YES	
+v_cross_concepts_overview	03	nickname	text	YES	
+v_cross_concepts_overview	04	mom_code	text	YES	
+v_cross_concepts_overview	05	dad_code	text	YES	
+v_cross_concepts_overview	06	mom_code_tank	text	YES	
+v_cross_concepts_overview	07	dad_code_tank	text	YES	
+v_cross_concepts_overview	08	created_at	timestamp with time zone	YES	
+v_cross_plan_runs_enriched	01	id	uuid	YES	
+v_cross_plan_runs_enriched	02	plan_id	uuid	YES	
+v_cross_plan_runs_enriched	03	seq	integer	YES	
+v_cross_plan_runs_enriched	04	planned_date	date	YES	
+v_cross_plan_runs_enriched	05	status	text	YES	
+v_cross_plan_runs_enriched	06	note	text	YES	
+v_cross_plan_runs_enriched	07	created_by	text	YES	
+v_cross_plan_runs_enriched	08	created_at	timestamp with time zone	YES	
+v_cross_plan_runs_enriched	09	plan_title	text	YES	
+v_cross_plan_runs_enriched	10	plan_nickname	text	YES	
+v_cross_plan_runs_enriched	11	mother_fish_id	uuid	YES	
+v_cross_plan_runs_enriched	12	father_fish_id	uuid	YES	
+v_cross_plan_runs_enriched	13	mother_fish_code	text	YES	
+v_cross_plan_runs_enriched	14	father_fish_code	text	YES	
+v_cross_plan_runs_enriched	15	tank_a_label	text	YES	
+v_cross_plan_runs_enriched	16	tank_b_label	text	YES	
+v_cross_plans_enriched	01	id	uuid	YES	
+v_cross_plans_enriched	02	plan_date	date	YES	
+v_cross_plans_enriched	03	status	USER-DEFINED	YES	
+v_cross_plans_enriched	04	created_by	text	YES	
+v_cross_plans_enriched	05	note	text	YES	
+v_cross_plans_enriched	06	created_at	timestamp with time zone	YES	
+v_cross_plans_enriched	07	mother_fish_id	uuid	YES	
+v_cross_plans_enriched	08	mother_fish_code	text	YES	
+v_cross_plans_enriched	09	father_fish_id	uuid	YES	
+v_cross_plans_enriched	10	father_fish_code	text	YES	
+v_cross_plans_enriched	11	tank_a_id	uuid	YES	
+v_cross_plans_enriched	12	tank_a_label	text	YES	
+v_cross_plans_enriched	13	tank_b_id	uuid	YES	
+v_cross_plans_enriched	14	tank_b_label	text	YES	
+v_cross_plans_enriched	15	genotype_plan	text	YES	
+v_cross_plans_enriched	16	treatments_plan	text	YES	
+v_crosses_status	01	id	uuid	YES	
+v_crosses_status	02	mother_code	text	YES	
+v_crosses_status	03	father_code	text	YES	
+v_crosses_status	04	planned_for	date	YES	
+v_crosses_status	05	created_by	text	YES	
+v_crosses_status	06	created_at	timestamp with time zone	YES	
+v_crosses_status	07	status	text	YES	
+v_fish_label_fields	01	fish_code	text	YES	
+v_fish_label_fields	02	nickname	text	YES	
+v_fish_label_fields	03	name	text	YES	
+v_fish_label_fields	04	base_code	text	YES	
+v_fish_label_fields	05	tg_nick	text	YES	
+v_fish_label_fields	06	stage	text	YES	
+v_fish_label_fields	07	dob	date	YES	
+v_fish_label_fields	08	genotype	text	YES	
+v_fish_label_fields	09	genetic_background	text	YES	
+v_fish_live_counts	01	fish_code	text	YES	
+v_fish_live_counts	02	n_live	integer	YES	
+v_fish_living_tank_counts	01	fish_id	uuid	YES	
+v_fish_living_tank_counts	02	n_living_tanks	integer	YES	
+v_fish_overview	01	fish_code	text	YES	
+v_fish_overview	02	name	text	YES	
+v_fish_overview	03	nickname	text	YES	
+v_fish_overview	04	line_building_stage	text	YES	
+v_fish_overview	05	date_birth	date	YES	
+v_fish_overview	06	genetic_background	text	YES	
+v_fish_overview	07	created_at	timestamp with time zone	YES	
+v_fish_overview	08	genotype_text	text	YES	
+v_fish_overview	09	age_days	integer	YES	
+v_fish_overview_all	01	fish_code	text	YES	
+v_fish_overview_all	02	name	text	YES	
+v_fish_overview_all	03	nickname	text	YES	
+v_fish_overview_all	04	genetic_background	text	YES	
+v_fish_overview_all	05	line_building_stage	text	YES	
+v_fish_overview_all	06	description	text	YES	
+v_fish_overview_all	07	notes	text	YES	
+v_fish_overview_all	08	birthday	date	YES	
+v_fish_overview_all	09	created_by	text	YES	
+v_fish_overview_all	10	created_at	timestamp with time zone	YES	
+v_fish_overview_all	11	transgene_base	text	YES	
+v_fish_overview_all	12	allele_number	integer	YES	
+v_fish_overview_all	13	allele_name	text	YES	
+v_fish_overview_all	14	allele_nickname	text	YES	
+v_fish_overview_all	15	zygosity	text	YES	
+v_fish_overview_all	16	transgene_pretty_nickname	text	YES	
+v_fish_overview_all	17	transgene_pretty_name	text	YES	
+v_fish_overview_all	18	genotype	text	YES	
+v_fish_overview_all	19	genotype_rollup_clean	text	YES	
+v_fish_overview_all	20	transgene_base_code	text	YES	
+v_fish_overview_all	21	n_living_tanks	integer	YES	
+v_fish_overview_canonical	01	fish_code	text	YES	
+v_fish_overview_canonical	02	name	text	YES	
+v_fish_overview_canonical	03	nickname	text	YES	
+v_fish_overview_canonical	04	line_building_stage	text	YES	
+v_fish_overview_canonical	05	date_birth	date	YES	
+v_fish_overview_canonical	06	genetic_background	text	YES	
+v_fish_overview_canonical	07	created_at	timestamp with time zone	YES	
+v_fish_overview_canonical	08	genotype_text	text	YES	
+v_fish_overview_canonical	09	age_days	integer	YES	
+v_fish_overview_canonical	10	seed_batch_id	text	YES	
+v_fish_overview_human	01	fish_id	uuid	YES	
+v_fish_overview_human	02	fish_code	text	YES	
+v_fish_overview_human	03	fish_name	text	YES	
+v_fish_overview_human	04	fish_nickname	text	YES	
+v_fish_overview_human	05	genetic_background	text	YES	
+v_fish_overview_human	06	allele_number	integer	YES	
+v_fish_overview_human	07	allele_code	text	YES	
+v_fish_overview_human	08	transgene	text	YES	
+v_fish_overview_human	09	genotype_rollup	text	YES	
+v_fish_overview_human	10	tank_code	text	YES	
+v_fish_overview_human	11	tank_label	text	YES	
+v_fish_overview_human	12	tank_status	text	YES	
+v_fish_overview_human	13	stage	text	YES	
+v_fish_overview_human	14	date_birth	date	YES	
+v_fish_overview_human	15	created_at	timestamp with time zone	YES	
+v_fish_overview_human	16	created_by	text	YES	
+v_fish_search	01	fish_code	text	YES	
+v_fish_search	02	txt	text	YES	
+v_fish_search	03	genotype	text	YES	
+v_fish_search	04	genetic_background	text	YES	
+v_fish_search	05	n_live	integer	YES	
+v_fish_standard_clean	01	fish_code	text	YES	
+v_fish_standard_clean	02	name	text	YES	
+v_fish_standard_clean	03	nickname	text	YES	
+v_fish_standard_clean	04	genotype	text	YES	
+v_fish_standard_clean	05	genetic_background	text	YES	
+v_fish_standard_clean	06	birthday	date	YES	
+v_fish_standard_clean	07	transgene_base	text	YES	
+v_fish_standard_clean	08	allele_number	integer	YES	
+v_fish_standard_clean	09	allele_name	text	YES	
+v_fish_standard_clean	10	allele_nickname	text	YES	
+v_fish_standard_clean	11	transgene_pretty_nickname	text	YES	
+v_fish_standard_clean	12	transgene_pretty_name	text	YES	
+v_fish_standard_clean	13	genotype_rollup_clean	text	YES	
+v_fish_standard_clean	14	created_at	timestamp with time zone	YES	
+v_fish_standard_clean	15	created_by	text	YES	
+v_label_jobs_recent	01	id	uuid	YES	
+v_label_jobs_recent	02	entity_type	text	YES	
+v_label_jobs_recent	03	entity_id	uuid	YES	
+v_label_jobs_recent	04	template	text	YES	
+v_label_jobs_recent	05	media	text	YES	
+v_label_jobs_recent	06	status	text	YES	
+v_label_jobs_recent	07	requested_by	text	YES	
+v_label_jobs_recent	08	requested_at	timestamp with time zone	YES	
+v_label_jobs_recent	09	started_at	timestamp with time zone	YES	
+v_label_jobs_recent	10	finished_at	timestamp with time zone	YES	
+v_label_jobs_recent	11	num_labels	integer	YES	
+v_label_jobs_recent	12	has_file	boolean	YES	
+v_overview_crosses	01	clutch_code	text	YES	
+v_overview_crosses	02	name	text	YES	
+v_overview_crosses	03	nickname	text	YES	
+v_overview_crosses	04	status	text	YES	
+v_overview_crosses	05	planned_count	integer	YES	
+v_overview_crosses	06	mom_code	text	YES	
+v_overview_crosses	07	dad_code	text	YES	
+v_overview_crosses	08	mom_code_tank	text	YES	
+v_overview_crosses	09	dad_code_tank	text	YES	
+v_overview_crosses	10	created_at	timestamp with time zone	YES	
+v_overview_crosses	11	runnable	boolean	YES	
+vw_bruker_mounts_enriched	01	mount_code	text	YES	
+vw_bruker_mounts_enriched	02	selection_id	text	YES	
+vw_bruker_mounts_enriched	03	mount_date	date	YES	
+vw_bruker_mounts_enriched	04	mount_time	time without time zone	YES	
+vw_bruker_mounts_enriched	05	n_top	integer	YES	
+vw_bruker_mounts_enriched	06	n_bottom	integer	YES	
+vw_bruker_mounts_enriched	07	orientation	text	YES	
+vw_bruker_mounts_enriched	08	created_at	timestamp with time zone	YES	
+vw_bruker_mounts_enriched	09	created_by	text	YES	
+vw_clutches_concept_overview	01	clutch_plan_id	uuid	YES	
+vw_clutches_concept_overview	02	planned_cross_id	uuid	YES	
+vw_clutches_concept_overview	03	clutch_code	text	YES	
+vw_clutches_concept_overview	04	clutch_name	text	YES	
+vw_clutches_concept_overview	05	clutch_nickname	text	YES	
+vw_clutches_concept_overview	06	date_planned	date	YES	
+vw_clutches_concept_overview	07	created_by	text	YES	
+vw_clutches_concept_overview	08	created_at	timestamp with time zone	YES	
+vw_clutches_concept_overview	09	note	text	YES	
+vw_clutches_concept_overview	10	n_instances	integer	YES	
+vw_clutches_concept_overview	11	n_crosses	integer	YES	
+vw_clutches_concept_overview	12	n_containers	integer	YES	
+vw_clutches_concept_overview	13	latest_date_birth	date	YES	
+vw_clutches_overview_human	01	clutch_id	uuid	YES	
+vw_clutches_overview_human	02	date_birth	date	YES	
+vw_clutches_overview_human	03	created_by	text	YES	
+vw_clutches_overview_human	04	created_at	timestamp with time zone	YES	
+vw_clutches_overview_human	05	note	text	YES	
+vw_clutches_overview_human	06	batch_label	text	YES	
+vw_clutches_overview_human	07	seed_batch_id	text	YES	
+vw_clutches_overview_human	08	clutch_code	text	YES	
+vw_clutches_overview_human	09	clutch_name	text	YES	
+vw_clutches_overview_human	10	clutch_nickname	text	YES	
+vw_clutches_overview_human	11	mom_tank_label	text	YES	
+vw_clutches_overview_human	12	dad_tank_label	text	YES	
+vw_clutches_overview_human	13	n_instances	integer	YES	
+vw_clutches_overview_human	14	n_crosses	integer	YES	
+vw_cross_runs_overview	01	cross_instance_id	uuid	YES	
+vw_cross_runs_overview	02	cross_run_code	text	YES	
+vw_cross_runs_overview	03	cross_date	date	YES	
+vw_cross_runs_overview	04	cross_id	uuid	YES	
+vw_cross_runs_overview	05	cross_code	text	YES	
+vw_cross_runs_overview	06	mom_code	text	YES	
+vw_cross_runs_overview	07	dad_code	text	YES	
+vw_cross_runs_overview	08	mother_tank_label	text	YES	
+vw_cross_runs_overview	09	father_tank_label	text	YES	
+vw_cross_runs_overview	10	run_note	text	YES	
+vw_cross_runs_overview	11	run_created_by	text	YES	
+vw_cross_runs_overview	12	run_created_at	timestamp with time zone	YES	
+vw_cross_runs_overview	13	n_clutches	integer	YES	
+vw_cross_runs_overview	14	n_containers	integer	YES	
+vw_crosses_concept	01	cross_id	uuid	YES	
+vw_crosses_concept	02	cross_code	text	YES	
+vw_crosses_concept	03	mom_code	text	YES	
+vw_crosses_concept	04	dad_code	text	YES	
+vw_crosses_concept	05	created_by	text	YES	
+vw_crosses_concept	06	created_at	timestamp with time zone	YES	
+vw_crosses_concept	07	n_runs	integer	YES	
+vw_crosses_concept	08	latest_cross_date	date	YES	
+vw_crosses_concept	09	n_clutches	integer	YES	
+vw_crosses_concept	10	n_containers	integer	YES	
+vw_fish_overview_with_label	01	fish_code	text	YES	
+vw_fish_overview_with_label	02	name	text	YES	
+vw_fish_overview_with_label	03	nickname	text	YES	
+vw_fish_overview_with_label	04	line_building_stage	text	YES	
+vw_fish_overview_with_label	05	date_birth	date	YES	
+vw_fish_overview_with_label	06	genetic_background	text	YES	
+vw_fish_overview_with_label	07	created_by	text	YES	
+vw_fish_overview_with_label	08	created_at	timestamp with time zone	YES	
+vw_fish_overview_with_label	09	transgene_base_code_filled	text	YES	
+vw_fish_overview_with_label	10	allele_code_filled	text	YES	
+vw_fish_overview_with_label	11	allele_name_filled	text	YES	
+vw_fish_overview_with_label	12	seed_batch_id	text	YES	
+vw_fish_overview_with_label	13	batch_label	text	YES	
+vw_fish_overview_with_label	14	nickname_print	text	YES	
+vw_fish_overview_with_label	15	genetic_background_print	text	YES	
+vw_fish_overview_with_label	16	line_building_stage_print	text	YES	
+vw_fish_overview_with_label	17	date_birth_print	text	YES	
+vw_fish_overview_with_label	18	genotype_print	text	YES	
+vw_fish_overview_with_label	19	age_days	integer	YES	
+vw_fish_overview_with_label	20	age_weeks	integer	YES	
+vw_fish_overview_with_label	21	created_by_enriched	text	YES	
+vw_fish_overview_with_label	22	plasmid_injections_text	text	YES	
+vw_fish_overview_with_label	23	rna_injections_text	text	YES	
+vw_fish_standard	01	id	uuid	YES	
+vw_fish_standard	02	fish_code	text	YES	
+vw_fish_standard	03	name	text	YES	
+vw_fish_standard	04	nickname	text	YES	
+vw_fish_standard	05	genotype	text	YES	
+vw_fish_standard	06	genetic_background	text	YES	
+vw_fish_standard	07	stage	text	YES	
+vw_fish_standard	08	date_birth	date	YES	
+vw_fish_standard	09	age_days	integer	YES	
+vw_fish_standard	10	created_at	timestamp with time zone	YES	
+vw_fish_standard	11	created_by	text	YES	
+vw_fish_standard	12	batch_display	text	YES	
+vw_fish_standard	13	transgene_base_code	text	YES	
+vw_fish_standard	14	allele_code	text	YES	
+vw_fish_standard	15	treatments_rollup	text	YES	
+vw_fish_standard	16	n_living_tanks	integer	YES	
+vw_label_rows	01	id	uuid	YES	
+vw_label_rows	02	created_at	timestamp with time zone	YES	
+vw_label_rows	03	fish_code	text	YES	
+vw_label_rows	04	name	text	YES	
+vw_label_rows	05	transgene_base_code_filled	text	YES	
+vw_label_rows	06	allele_code_filled	text	YES	
+vw_label_rows	07	allele_name_filled	text	YES	
+vw_label_rows	08	batch_label	text	YES	
+vw_label_rows	09	nickname_print	text	YES	
+vw_label_rows	10	genetic_background_print	text	YES	
+vw_label_rows	11	line_building_stage_print	text	YES	
+vw_label_rows	12	date_birth_print	text	YES	
+vw_label_rows	13	genotype_print	text	YES	
+vw_planned_clutches_overview	01	clutch_plan_id	uuid	YES	
+vw_planned_clutches_overview	02	planned_cross_id	uuid	YES	
+vw_planned_clutches_overview	03	clutch_code	text	YES	
+vw_planned_clutches_overview	04	clutch_name	text	YES	
+vw_planned_clutches_overview	05	clutch_nickname	text	YES	
+vw_planned_clutches_overview	06	cross_date	date	YES	
+vw_planned_clutches_overview	07	created_by	text	YES	
+vw_planned_clutches_overview	08	created_at	timestamp with time zone	YES	
+vw_planned_clutches_overview	09	note	text	YES	
+vw_planned_clutches_overview	10	n_treatments	integer	YES	
+vw_plasmids_overview	01	id	uuid	YES	
+vw_plasmids_overview	02	code	text	YES	
+vw_plasmids_overview	03	name	text	YES	
+vw_plasmids_overview	04	nickname	text	YES	
+vw_plasmids_overview	05	fluors	text	YES	
+vw_plasmids_overview	06	resistance	text	YES	
+vw_plasmids_overview	07	supports_invitro_rna	boolean	YES	
+vw_plasmids_overview	08	created_by	text	YES	
+vw_plasmids_overview	09	notes	text	YES	
+vw_plasmids_overview	10	created_at	timestamp with time zone	YES	
+vw_plasmids_overview	11	rna_id	uuid	YES	
+vw_plasmids_overview	12	rna_code	text	YES	
+vw_plasmids_overview	13	rna_name	text	YES	
+vw_plasmids_overview	14	source_plasmid_id	uuid	YES	
