@@ -37,7 +37,7 @@ $$;
 
 -- 3) Ensure a UNIQUE index over given column list
 create or replace function util_mig.ensure_unique(
-  p_schema text, p_table text, p_index_name text, p_cols text[]
+    p_schema text, p_table text, p_index_name text, p_cols text []
 ) returns void language plpgsql as $$
 declare
   exists_idx boolean;
@@ -56,9 +56,9 @@ $$;
 
 -- 4) Ensure a FOREIGN KEY constraint (idempotent) with optional ON DELETE action
 create or replace function util_mig.ensure_fk(
-  p_schema text, p_table text, p_cols text[],
-  p_ref_schema text, p_ref_table text, p_ref_cols text[],
-  p_constraint_name text, p_on_delete text default null
+    p_schema text, p_table text, p_cols text [],
+    p_ref_schema text, p_ref_table text, p_ref_cols text [],
+    p_constraint_name text, p_on_delete text default null
 ) returns void language plpgsql as $$
 declare
   exists_fk boolean;

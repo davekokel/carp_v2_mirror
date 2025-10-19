@@ -1,7 +1,7 @@
 begin;
 
 -- Drop the mistaken unique-on-name if present (idempotent);
-DO $$
+do $$
 begin
   if exists (
     select 1
@@ -15,9 +15,9 @@ begin
 end $$;
 
 -- Ensure fish_code remains the unique identity (idempotent)
-create unique index if not exists uq_fish_code on public.fish(fish_code);
+create unique index if not exists uq_fish_code on public.fish (fish_code);
 
 -- Optional: keep name searchable without enforcing uniqueness
-create index if not exists ix_fish_name on public.fish(name);
+create index if not exists ix_fish_name on public.fish (name);
 
 commit;

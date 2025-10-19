@@ -2,7 +2,7 @@ BEGIN;
 
 -- Ensure date_birth exists
 ALTER TABLE public.clutches
-  ADD COLUMN IF NOT EXISTS date_birth date;
+ADD COLUMN IF NOT EXISTS date_birth date;
 
 -- If you still have date_fertilized with data, migrate it once
 UPDATE public.clutches
@@ -11,11 +11,11 @@ WHERE date_birth IS NULL;
 
 -- Drop date_fertilized (we'll use only date_birth going forward)
 ALTER TABLE public.clutches
-  DROP COLUMN IF EXISTS date_fertilized;
+DROP COLUMN IF EXISTS date_fertilized;
 
 -- Add run_id column (FK to cross_plan_runs) if missing
 ALTER TABLE public.clutches
-  ADD COLUMN IF NOT EXISTS run_id uuid;
+ADD COLUMN IF NOT EXISTS run_id uuid;
 
 -- Add the FK if it doesn't already exist
 DO $$
@@ -36,6 +36,6 @@ BEGIN
 END$$;
 
 -- Index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_clutches_run_id ON public.clutches(run_id);
+CREATE INDEX IF NOT EXISTS idx_clutches_run_id ON public.clutches (run_id);
 
 COMMIT;

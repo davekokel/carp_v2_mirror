@@ -2,11 +2,11 @@ BEGIN;
 
 -- helper: ensure RNA exists for a plasmid; DEFAULT suffix now '-RNA'
 CREATE OR REPLACE FUNCTION public.ensure_rna_for_plasmid(
-  p_plasmid_code text,
-  p_suffix       text DEFAULT '-RNA',
-  p_name         text DEFAULT NULL,
-  p_created_by   text DEFAULT NULL,
-  p_notes        text DEFAULT NULL
+    p_plasmid_code text,
+    p_suffix text DEFAULT '-RNA',
+    p_name text DEFAULT NULL,
+    p_created_by text DEFAULT NULL,
+    p_notes text DEFAULT NULL
 )
 RETURNS TABLE (rna_id uuid, rna_code text)
 LANGUAGE plpgsql
@@ -38,22 +38,24 @@ $$;
 
 -- data fix: convert codes like 'XYZRNA' -> 'XYZ-RNA' where safe
 WITH candidates AS (
-  SELECT
-    r.id_uuid,
-    r.code              AS old_code,
-    regexp_replace(r.code, 'RNA$', '-RNA') AS new_code
-  FROM public.rnas r
-  WHERE r.code ~ '^[^-]+RNA$'           -- ends with RNA and has no dash before it
+    SELECT
+        r.id_uuid,
+        r.code AS old_code,
+        regexp_replace(r.code, 'RNA$', '-RNA') AS new_code
+    FROM public.rnas AS r
+    WHERE r.code ~ '^[^-]+RNA$'           -- ends with RNA and has no dash before it
 ),
+
 safe AS (
-  SELECT c.*
-  FROM candidates c
-  LEFT JOIN public.rnas r2 ON r2.code = c.new_code
-  WHERE r2.id_uuid IS NULL              -- only when no collision
+    SELECT c.*
+    FROM candidates AS c
+    LEFT JOIN public.rnas AS r2 ON c.new_code = r2.code
+    WHERE r2.id_uuid IS NULL              -- only when no collision
 )
+
 UPDATE public.rnas r
 SET code = s.new_code
-FROM safe s
+FROM safe AS s
 WHERE r.id_uuid = s.id_uuid;
 
 COMMIT;

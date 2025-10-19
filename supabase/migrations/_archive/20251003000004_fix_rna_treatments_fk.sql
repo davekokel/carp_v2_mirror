@@ -1,5 +1,5 @@
 begin;
-DO $$
+do $$
 declare
   fish_pk text := util_mig.pk_col('public','fish');
   rna_pk  text := util_mig.pk_col('public','rnas');

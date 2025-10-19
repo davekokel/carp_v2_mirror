@@ -5,9 +5,9 @@ DROP FUNCTION IF EXISTS public.ensure_transgene_allele(text, text);
 
 -- Recreate with non-ambiguous OUT names
 CREATE FUNCTION public.ensure_transgene_allele(
-  p_base text,
-  p_nickname text
-) RETURNS TABLE(ret_allele_number int, ret_allele_nickname text)
+    p_base text,
+    p_nickname text
+) RETURNS TABLE (ret_allele_number int, ret_allele_nickname text)
 LANGUAGE plpgsql AS $$
 DECLARE
   v_digits   text;

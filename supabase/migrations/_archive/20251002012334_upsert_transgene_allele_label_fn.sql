@@ -1,7 +1,7 @@
 CREATE OR REPLACE FUNCTION public.upsert_transgene_allele_label(
-  p_base text,
-  p_label text,
-  OUT out_allele_number integer
+    p_base text,
+    p_label text,
+    OUT out_allele_number integer
 )
 LANGUAGE plpgsql AS $$
 DECLARE

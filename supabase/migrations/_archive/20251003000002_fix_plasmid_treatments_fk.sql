@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgcrypto;
-DO $$
+do $$
 declare
   fish_pk_col text := case
     when exists (

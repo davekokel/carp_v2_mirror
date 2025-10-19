@@ -1,10 +1,10 @@
 -- Ensure shape + constraints
 CREATE TABLE IF NOT EXISTS public.transgene_alleles (
-  transgene_base_code text NOT NULL,
-  allele_number       integer NOT NULL,
-  allele_name         text,
-  description         text,
-  PRIMARY KEY (transgene_base_code, allele_number)
+    transgene_base_code text NOT NULL,
+    allele_number integer NOT NULL,
+    allele_name text,
+    description text,
+    PRIMARY KEY (transgene_base_code, allele_number)
 );
 
 -- Fast lookups of names per base (case/trim insensitive)

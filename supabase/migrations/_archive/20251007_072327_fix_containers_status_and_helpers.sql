@@ -27,18 +27,18 @@ BEGIN
 END$$;
 
 CREATE TABLE IF NOT EXISTS public.fish_tank_memberships (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  fish_id       uuid NOT NULL REFERENCES public.fish(id) ON DELETE CASCADE,
-  container_id  uuid NOT NULL REFERENCES public.containers(id_uuid) ON DELETE RESTRICT,
-  joined_at     timestamptz NOT NULL DEFAULT now(),
-  left_at       timestamptz NULL,
-  note          text NULL
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    fish_id uuid NOT NULL REFERENCES public.fish (id) ON DELETE CASCADE,
+    container_id uuid NOT NULL REFERENCES public.containers (id_uuid) ON DELETE RESTRICT,
+    joined_at timestamptz NOT NULL DEFAULT now(),
+    left_at timestamptz NULL,
+    note text NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_ftm_fish ON public.fish_tank_memberships(fish_id);
-CREATE INDEX IF NOT EXISTS idx_ftm_container ON public.fish_tank_memberships(container_id);
+CREATE INDEX IF NOT EXISTS idx_ftm_fish ON public.fish_tank_memberships (fish_id);
+CREATE INDEX IF NOT EXISTS idx_ftm_container ON public.fish_tank_memberships (container_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ftm_fish_open
-  ON public.fish_tank_memberships(fish_id) WHERE left_at IS NULL;
+ON public.fish_tank_memberships (fish_id) WHERE left_at IS NULL;
 
 CREATE OR REPLACE FUNCTION public.mark_container_active(p_id uuid, p_by text)
 RETURNS void LANGUAGE plpgsql AS $$
@@ -60,7 +60,9 @@ BEGIN
   WHERE id_uuid=p_id;
 END$$;
 
-CREATE OR REPLACE FUNCTION public.ensure_inventory_tank(p_label text, p_by text, p_status container_status DEFAULT 'active')
+CREATE OR REPLACE FUNCTION public.ensure_inventory_tank(
+    p_label text, p_by text, p_status container_status DEFAULT 'active'
+)
 RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE
   rid uuid;
@@ -84,7 +86,9 @@ BEGIN
   RETURN rid;
 END$$;
 
-CREATE OR REPLACE FUNCTION public.assign_fish_to_tank(p_fish_id uuid, p_container_id uuid, p_by text, p_note text DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.assign_fish_to_tank(
+    p_fish_id uuid, p_container_id uuid, p_by text, p_note text DEFAULT NULL
+)
 RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE
   rid uuid;

@@ -1,19 +1,19 @@
 BEGIN;
 
 ALTER TABLE public.containers
-  ADD COLUMN IF NOT EXISTS tank_volume_l integer NULL;
+ADD COLUMN IF NOT EXISTS tank_volume_l integer NULL;
 
 ALTER TABLE public.containers
-  DROP CONSTRAINT IF EXISTS chk_containers_volume_allowed,
-  ADD CONSTRAINT chk_containers_volume_allowed
-  CHECK (tank_volume_l IS NULL OR tank_volume_l IN (2,4,8,16));
+DROP CONSTRAINT IF EXISTS chk_containers_volume_allowed,
+ADD CONSTRAINT chk_containers_volume_allowed
+CHECK (tank_volume_l IS NULL OR tank_volume_l IN (2, 4, 8, 16));
 
 -- helper that creates (or reuses) an inventory tank with a volume and status
 CREATE OR REPLACE FUNCTION public.ensure_inventory_tank_v(
-  p_label text,
-  p_by text,
-  p_status container_status DEFAULT 'active',
-  p_volume_l integer DEFAULT NULL
+    p_label text,
+    p_by text,
+    p_status container_status DEFAULT 'active',
+    p_volume_l integer DEFAULT NULL
 ) RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE
   rid uuid;
@@ -44,7 +44,7 @@ END$$;
 
 -- text wrapper (for clean SQLAlchemy calls)
 CREATE OR REPLACE FUNCTION public.ensure_inventory_tank_v_text(
-  p_label text, p_by text, p_status text, p_volume_l integer
+    p_label text, p_by text, p_status text, p_volume_l integer
 ) RETURNS uuid LANGUAGE plpgsql AS $$
 BEGIN
   RETURN public.ensure_inventory_tank_v(p_label, p_by, p_status::container_status, p_volume_l);

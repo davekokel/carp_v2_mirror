@@ -2,7 +2,7 @@ BEGIN;
 
 -- 1) Drop any legacy DEFAULT that creates FSH-###### codes
 ALTER TABLE public.fish
-  ALTER COLUMN fish_code DROP DEFAULT;
+ALTER COLUMN fish_code DROP DEFAULT;
 
 -- 2) Base-36 trigger: FSH-YYXXXX (UTC year + 4-char base36, left-padded)
 CREATE SEQUENCE IF NOT EXISTS public.fish_code_seq;

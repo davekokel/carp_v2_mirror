@@ -7,4 +7,4 @@ BEGIN
 END $$;
 
 ALTER TABLE public.fish
-  ALTER COLUMN date_birth SET NOT NULL;
+ALTER COLUMN date_birth SET NOT NULL;

@@ -2,12 +2,12 @@ BEGIN;
 
 -- 1) Add the column if missing
 ALTER TABLE public.crosses
-  ADD COLUMN IF NOT EXISTS cross_code text;
+ADD COLUMN IF NOT EXISTS cross_code text;
 
 -- Optional: keep codes unique when present
 CREATE UNIQUE INDEX IF NOT EXISTS uq_crosses_cross_code
-  ON public.crosses (cross_code)
-  WHERE cross_code IS NOT NULL;
+ON public.crosses (cross_code)
+WHERE cross_code IS NOT NULL;
 
 -- 2) Sequence to generate compact incremental codes
 CREATE SEQUENCE IF NOT EXISTS public.cross_code_seq START 10000;

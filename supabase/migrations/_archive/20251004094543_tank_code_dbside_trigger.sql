@@ -1,9 +1,9 @@
 BEGIN;
 
-create sequence if not exists public.tank_code_seq start 1;
+CREATE SEQUENCE IF NOT EXISTS public.tank_code_seq START 1;
 
-create or replace function public._to_base36(n bigint, pad int)
-returns text language plpgsql immutable as $$
+CREATE OR REPLACE FUNCTION public._to_base36(n bigint, pad int)
+RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
 declare
   chars constant text := '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   x bigint := n;
@@ -29,10 +29,10 @@ begin
 end
 $$;
 
-create or replace function public.make_tank_code_compact()
-returns text
-language sql
-as $$
+CREATE OR REPLACE FUNCTION public.make_tank_code_compact()
+RETURNS text
+LANGUAGE sql
+AS $$
   select 'TANK-' || to_char(current_date,'YY') || public._to_base36(nextval('public.tank_code_seq'), 4)
 $$;
 DO $$

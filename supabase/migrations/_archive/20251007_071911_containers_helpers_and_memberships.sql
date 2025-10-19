@@ -9,28 +9,28 @@ BEGIN
 END$$;
 
 ALTER TABLE public.containers
-  ALTER COLUMN status TYPE container_status USING
-    CASE
-      WHEN status IN ('planned','active','inactive','retired','unknown') THEN status::container_status
-      ELSE 'unknown'::container_status
-    END,
-  ALTER COLUMN status SET DEFAULT 'planned';
+ALTER COLUMN status TYPE container_status USING
+CASE
+    WHEN status IN ('planned', 'active', 'inactive', 'retired', 'unknown') THEN status::container_status
+    ELSE 'unknown'::container_status
+END,
+ALTER COLUMN status SET DEFAULT 'planned';
 
 -- fish ↔ tank link with one open membership per fish
 CREATE TABLE IF NOT EXISTS public.fish_tank_memberships (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  fish_id       uuid NOT NULL REFERENCES public.fish(id) ON DELETE CASCADE,
-  container_id  uuid NOT NULL REFERENCES public.containers(id_uuid) ON DELETE RESTRICT,
-  joined_at     timestamptz NOT NULL DEFAULT now(),
-  left_at       timestamptz NULL,
-  note          text NULL
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    fish_id uuid NOT NULL REFERENCES public.fish (id) ON DELETE CASCADE,
+    container_id uuid NOT NULL REFERENCES public.containers (id_uuid) ON DELETE RESTRICT,
+    joined_at timestamptz NOT NULL DEFAULT now(),
+    left_at timestamptz NULL,
+    note text NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_ftm_fish ON public.fish_tank_memberships(fish_id);
-CREATE INDEX IF NOT EXISTS idx_ftm_container ON public.fish_tank_memberships(container_id);
+CREATE INDEX IF NOT EXISTS idx_ftm_fish ON public.fish_tank_memberships (fish_id);
+CREATE INDEX IF NOT EXISTS idx_ftm_container ON public.fish_tank_memberships (container_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ftm_fish_open
-  ON public.fish_tank_memberships(fish_id)
-  WHERE left_at IS NULL;
+ON public.fish_tank_memberships (fish_id)
+WHERE left_at IS NULL;
 
 -- mark active/inactive helpers (no-op if already that state)
 CREATE OR REPLACE FUNCTION public.mark_container_active(p_id uuid, p_by text)
@@ -54,7 +54,9 @@ BEGIN
 END$$;
 
 -- ensure or create an inventory tank by label; return id
-CREATE OR REPLACE FUNCTION public.ensure_inventory_tank(p_label text, p_by text, p_status container_status DEFAULT 'active')
+CREATE OR REPLACE FUNCTION public.ensure_inventory_tank(
+    p_label text, p_by text, p_status container_status DEFAULT 'active'
+)
 RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE
   rid uuid;
@@ -79,7 +81,9 @@ BEGIN
 END$$;
 
 -- assign fish → tank (closes previous open membership, marks tank active)
-CREATE OR REPLACE FUNCTION public.assign_fish_to_tank(p_fish_id uuid, p_container_id uuid, p_by text, p_note text DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.assign_fish_to_tank(
+    p_fish_id uuid, p_container_id uuid, p_by text, p_note text DEFAULT NULL
+)
 RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE
   rid uuid;

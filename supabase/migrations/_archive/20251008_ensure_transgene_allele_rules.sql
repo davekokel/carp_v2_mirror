@@ -16,8 +16,8 @@ SET allele_number = NULL
 WHERE allele_number = 0;
 
 CREATE OR REPLACE FUNCTION public.ensure_transgene_allele(
-  p_transgene_base_code text,
-  p_allele_nickname     text DEFAULT NULL
+    p_transgene_base_code text,
+    p_allele_nickname text DEFAULT NULL
 )
 RETURNS TABLE (ret_allele_number int, ret_allele_nickname text)
 LANGUAGE plpgsql

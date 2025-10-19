@@ -1,13 +1,13 @@
 BEGIN;
 
-create or replace view public.v_containers_live as
-select *
-from public.containers
-where status in ('active','new_tank');
+CREATE OR REPLACE VIEW public.v_containers_live AS
+SELECT *
+FROM public.containers
+WHERE status IN ('active', 'new_tank');
 
 -- optional helper if you like function form
-create or replace function public.is_container_live(s text)
-returns boolean language sql immutable as $$
+CREATE OR REPLACE FUNCTION public.is_container_live(s text)
+RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
   select s in ('active','new_tank')
 $$;
 

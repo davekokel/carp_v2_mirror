@@ -1,17 +1,17 @@
 BEGIN;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fsbm_batch_fish
-  ON public.fish_seed_batches_map (seed_batch_id, fish_id);
+ON public.fish_seed_batches_map (seed_batch_id, fish_id);
 
 CREATE OR REPLACE FUNCTION public.upsert_fish_by_batch_name_dob(
-  p_seed_batch_id      text,
-  p_name               text,
-  p_date_birth         date,
-  p_genetic_background text DEFAULT NULL,
-  p_nickname           text DEFAULT NULL,
-  p_line_building_stage text DEFAULT NULL,
-  p_description        text DEFAULT NULL,
-  p_notes              text DEFAULT NULL,
-  p_created_by         text DEFAULT NULL
+    p_seed_batch_id text,
+    p_name text,
+    p_date_birth date,
+    p_genetic_background text DEFAULT NULL,
+    p_nickname text DEFAULT NULL,
+    p_line_building_stage text DEFAULT NULL,
+    p_description text DEFAULT NULL,
+    p_notes text DEFAULT NULL,
+    p_created_by text DEFAULT NULL
 )
 RETURNS TABLE (fish_id uuid, fish_code text) AS
 $$

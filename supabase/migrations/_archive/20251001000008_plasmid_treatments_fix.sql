@@ -21,7 +21,7 @@ begin
 end$$;
 
 -- 2) Add plasmid_id if missing (should exist already, but keep it safe);
-DO $$
+do $$
 begin
   if not exists (
     select 1 from information_schema.columns
@@ -39,7 +39,7 @@ begin
 end$$;
 
 -- 3) Add optional detail columns if missing (amount, units, at_time, note);
-DO $$
+do $$
 begin
   if not exists (
     select 1 from information_schema.columns
@@ -73,4 +73,4 @@ end$$;
 -- 4) Recreate the natural de-dupe index (safe replace)
 drop index if exists uq_ipt_natural;
 create unique index if not exists uq_ipt_natural
-  on public.injected_plasmid_treatments (fish_id, plasmid_id, at_time, amount, units, note);
+on public.injected_plasmid_treatments (fish_id, plasmid_id, at_time, amount, units, note);

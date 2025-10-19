@@ -90,31 +90,30 @@ DROP VIEW IF EXISTS public.vw_fish_overview_with_label;
 
 CREATE VIEW public.vw_fish_overview_with_label AS
 SELECT
-  v.id,
-  v.fish_code,
-  v.name,
-  v.transgene_base_code_filled,
-  v.allele_code_filled,
-  v.allele_name_filled,
-  v.created_at,
-  v.created_by,
-  -- pretty string using numeric or nickname if you prefer later
-  CASE
-    WHEN v.transgene_base_code_filled IS NOT NULL AND v.allele_code_filled IS NOT NULL
-      THEN v.transgene_base_code_filled || ' : ' || v.allele_code_filled
-    ELSE NULL
-  END AS transgene_pretty,
-  f.nickname,
-  f.line_building_stage,
-  f.date_birth,
-  NULL::text        AS batch_label,
-  NULL::text        AS created_by_enriched,
-  NULL::timestamptz AS last_plasmid_injection_at,
-  NULL::text        AS plasmid_injections_text,
-  NULL::timestamptz AS last_rna_injection_at,
-  NULL::text        AS rna_injections_text
-FROM public.v_fish_overview v
-LEFT JOIN public.fish f
-  ON f.id = v.id;
+    v.id,
+    v.fish_code,
+    v.name,
+    v.transgene_base_code_filled,
+    v.allele_code_filled,
+    v.allele_name_filled,
+    v.created_at,
+    v.created_by,
+    -- pretty string using numeric or nickname if you prefer later
+    f.nickname,
+    f.line_building_stage,
+    f.date_birth,
+    NULL::text AS batch_label,
+    NULL::text AS created_by_enriched,
+    NULL::timestamptz AS last_plasmid_injection_at,
+    NULL::text AS plasmid_injections_text,
+    NULL::timestamptz AS last_rna_injection_at,
+    NULL::text AS rna_injections_text,
+    CASE
+        WHEN v.transgene_base_code_filled IS NOT NULL AND v.allele_code_filled IS NOT NULL
+            THEN v.transgene_base_code_filled || ' : ' || v.allele_code_filled
+    END AS transgene_pretty
+FROM public.v_fish_overview AS v
+LEFT JOIN public.fish AS f
+    ON v.id = f.id;
 
 COMMIT;

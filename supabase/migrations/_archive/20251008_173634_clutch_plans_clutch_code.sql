@@ -2,7 +2,7 @@ BEGIN;
 
 -- 1) Add column if missing
 ALTER TABLE public.clutch_plans
-  ADD COLUMN IF NOT EXISTS clutch_code text;
+ADD COLUMN IF NOT EXISTS clutch_code text;
 
 -- 2) Sequence for daily-ish incremental code (monotonic, not strictly per-day)
 CREATE SEQUENCE IF NOT EXISTS public.seq_clutch_code;
@@ -54,6 +54,6 @@ WHERE clutch_code IS NULL OR btrim(clutch_code) = '';
 
 -- 6) Uniqueness
 CREATE UNIQUE INDEX IF NOT EXISTS uq_clutch_plans_clutch_code
-  ON public.clutch_plans(clutch_code);
+ON public.clutch_plans (clutch_code);
 
 COMMIT;

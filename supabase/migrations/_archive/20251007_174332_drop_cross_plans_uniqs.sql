@@ -14,7 +14,7 @@ BEGIN
 END$$;
 
 -- (Optional) replace with non-unique helpers for search speed
-CREATE INDEX IF NOT EXISTS idx_cross_plans_day_mother ON public.cross_plans(plan_date, mother_fish_id);
-CREATE INDEX IF NOT EXISTS idx_cross_plans_day_father ON public.cross_plans(plan_date, father_fish_id);
+CREATE INDEX IF NOT EXISTS idx_cross_plans_day_mother ON public.cross_plans (plan_date, mother_fish_id);
+CREATE INDEX IF NOT EXISTS idx_cross_plans_day_father ON public.cross_plans (plan_date, father_fish_id);
 
 COMMIT;

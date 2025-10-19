@@ -10,6 +10,7 @@ from sqlalchemy.exc import OperationalError
 from carp_app.lib.db import get_engine
 from carp_app.ui.lib.env_badge import show_env_badge, _env_from_db_url
 from carp_app.lib.secret import env_info
+import importlib.metadata as md
 
 AUTH_MODE = os.getenv("AUTH_MODE", "off").lower()
 if AUTH_MODE == "on":
@@ -138,4 +139,29 @@ else:
     st.success("Uploads and edits are enabled in this deployment.")
 
 build = os.getenv("APP_COMMIT", "unknown")
-st.caption(f"Build: {build}")
+deps = f"SQLAlchemy {md.version('SQLAlchemy')} • Streamlit {md.version('streamlit')}"
+st.caption(f"Build: {build} • Deps: {deps}")
+
+
+with st.expander("⚙️ DB Trigger & Constraint Status (debug)"):
+    try:
+        with get_engine().connect() as conn:
+            result = conn.execute(text("""
+                select
+                  (select count(*)
+                     from pg_trigger t
+                     join pg_class c on t.tgrelid=c.oid
+                    where c.relname='fish'
+                      and t.tgenabled='O'
+                      and t.tgname like '%fish_autotank%') as autotank_triggers,
+                  (select pg_get_constraintdef(oid)
+                     from pg_constraint
+                    where conrelid='public.containers'::regclass
+                      and conname='chk_tank_code_shape') as tank_code_check;
+            """)).mappings().one()
+
+            st.write("**Auto-tank triggers enabled:**", result["autotank_triggers"])
+            st.write("**Tank code check constraint:**")
+            st.code(result["tank_code_check"] or "(none)")
+    except Exception as e:
+        st.error(f"Health query failed: {type(e).__name__}: {e}")

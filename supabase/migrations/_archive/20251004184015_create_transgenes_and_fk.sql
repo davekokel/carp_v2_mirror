@@ -2,9 +2,9 @@ BEGIN;
 
 -- 1) Base table for transgenes (minimal; add columns later if needed)
 CREATE TABLE IF NOT EXISTS public.transgenes (
-  transgene_base_code text PRIMARY KEY,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  created_by text
+    transgene_base_code text PRIMARY KEY,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    created_by text
 );
 
 -- 2) Add FK from transgene_alleles -> transgenes if it isn't present

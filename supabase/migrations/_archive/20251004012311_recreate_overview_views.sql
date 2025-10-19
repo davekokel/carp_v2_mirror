@@ -3,36 +3,40 @@ begin;
 drop view if exists public.v_fish_overview cascade;
 create view public.v_fish_overview as
 select
-  f.id,
-  f.fish_code,
-  f.name,
-  (
-    select array_to_string(array_agg(x.base), ', ')
-    from (
-      select distinct t.transgene_base_code as base
-      from public.fish_transgene_alleles t
-      where t.fish_id = f.id
-      order by base
-    ) x
-  ) as transgene_base_code_filled,
-  (
-    select array_to_string(array_agg(x.an), ', ')
-    from (
-      select distinct (t.allele_number::text) as an
-      from public.fish_transgene_alleles t
-      where t.fish_id = f.id
-      order by an
-    ) x
-  ) as allele_code_filled,
-  null::text as allele_name_filled,
-  f.created_at,
-  f.created_by
-from public.fish f
-where exists (select 1 from public.fish_transgene_alleles t where t.fish_id = f.id)
+    f.id,
+    f.fish_code,
+    f.name,
+    null::text as allele_name_filled,
+    f.created_at,
+    f.created_by,
+    (
+        select array_to_string(array_agg(x.base), ', ')
+        from (
+            select distinct t.transgene_base_code as base
+            from public.fish_transgene_alleles as t
+            where t.fish_id = f.id
+            order by base
+        ) as x
+    ) as transgene_base_code_filled,
+    (
+        select array_to_string(array_agg(x.an), ', ')
+        from (
+            select distinct t.allele_number::text as an
+            from public.fish_transgene_alleles as t
+            where t.fish_id = f.id
+            order by an
+        ) as x
+    ) as allele_code_filled
+from public.fish as f
+where
+    exists (
+        select 1 from public.fish_transgene_alleles as t
+        where t.fish_id = f.id
+    )
 order by f.created_at desc;
 
 drop view if exists public.vw_fish_overview_with_label cascade;
-DO $$
+do $$
 declare
   has_nickname boolean;
   has_line     boolean;

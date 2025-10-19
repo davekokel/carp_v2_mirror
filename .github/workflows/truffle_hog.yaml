@@ -1,20 +1,22 @@
 name: 'Trufflehog: check if secrets are hardcoded in code'
 on:
-    workflow_dispatch:
-    pull_request:
-    push:
-    
+  push:
+    branches: [ main ]  # ✅ Only scan main after merge, not feature branches
+
 jobs:
-    scan_for_secrets:
-        permissions:
-          contents: read
-        runs-on: ubuntu-latest
-        steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
-        - name: Secret Scanning
-          uses: trufflesecurity/trufflehog@main
-          with:
-            extra_args: --only-verified --fail
+  scan_for_secrets:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Secret Scanning
+        uses: trufflesecurity/trufflehog@v3.69.1
+        with:
+          scan: filesystem
+          path: .
+          extra_args: --only-verified --fail

@@ -2,9 +2,9 @@ BEGIN;
 
 -- Recreate with non-ambiguous OUT names, and explicitly EMIT one row
 CREATE OR REPLACE FUNCTION public.ensure_transgene_allele(
-  p_base text,
-  p_nickname text
-) RETURNS TABLE(ret_allele_number int, ret_allele_nickname text)
+    p_base text,
+    p_nickname text
+) RETURNS TABLE (ret_allele_number int, ret_allele_nickname text)
 LANGUAGE plpgsql AS $$
 DECLARE
   v_digits   text;

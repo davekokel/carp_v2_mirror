@@ -2,9 +2,9 @@ BEGIN;
 
 -- 1) Create table if missing
 CREATE TABLE IF NOT EXISTS public.fish_seed_batches (
-  fish_id       uuid PRIMARY KEY,
-  seed_batch_id text NOT NULL,
-  updated_at    timestamptz NOT NULL DEFAULT now()
+    fish_id uuid PRIMARY KEY,
+    seed_batch_id text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- 2) Ensure FK → fish(id), DEFERRABLE INITIALLY DEFERRED

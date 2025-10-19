@@ -1,15 +1,16 @@
 BEGIN;
 
-create or replace view public.v_fish_living_tank_counts as
-select
-  m.fish_id,
-  count(*)::int as n_living_tanks
-from public.fish_tank_memberships m
-join public.containers c on c.id_uuid = m.container_id
-where m.left_at is null
-  and c.status in ('active','new_tank')
-group by m.fish_id;
+CREATE OR REPLACE VIEW public.v_fish_living_tank_counts AS
+SELECT
+    m.fish_id,
+    count(*)::int AS n_living_tanks
+FROM public.fish_tank_memberships AS m
+INNER JOIN public.containers AS c ON m.container_id = c.id_uuid
+WHERE
+    m.left_at IS null
+    AND c.status IN ('active', 'new_tank')
+GROUP BY m.fish_id;
 
-create index if not exists idx_ftm_fish_id on public.fish_tank_memberships(fish_id);
+CREATE INDEX IF NOT EXISTS idx_ftm_fish_id ON public.fish_tank_memberships (fish_id);
 
 COMMIT;

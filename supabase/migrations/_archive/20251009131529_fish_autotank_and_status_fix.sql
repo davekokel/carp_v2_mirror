@@ -1,12 +1,14 @@
 begin;
-DO $$
+do $$
 declare cname text := containers_status_check;
 begin
   if exists (select 1 from pg_constraint where conname = cname and conrelid = public.containers::regclass) then
     execute alter table public.containers drop constraint  || quote_ident(cname);
   end if;
 end $$;
-alter table public.containers add constraint containers_status_check check (status in (planned,new_tank,active,ready_to_kill,inactive));
+alter table public.containers add constraint containers_status_check check (
+    status in (planned, new_tank, active, ready_to_kill, inactive)
+);
 
 create or replace function public.trg_fish_autotank() returns trigger language plpgsql as $$
 declare v_container_id uuid; v_label text;

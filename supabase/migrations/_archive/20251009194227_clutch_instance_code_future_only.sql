@@ -2,12 +2,12 @@ BEGIN;
 
 -- Add the column (nullable: we are not backfilling)
 ALTER TABLE public.clutches
-  ADD COLUMN IF NOT EXISTS clutch_instance_code text;
+ADD COLUMN IF NOT EXISTS clutch_instance_code text;
 
 -- Unique when present
 CREATE UNIQUE INDEX IF NOT EXISTS uq_clutches_instance_code
-  ON public.clutches (clutch_instance_code)
-  WHERE clutch_instance_code IS NOT NULL;
+ON public.clutches (clutch_instance_code)
+WHERE clutch_instance_code IS NOT NULL;
 
 -- Generator CI-YYnnnnn
 CREATE SEQUENCE IF NOT EXISTS public.clutch_instance_code_seq START 10000;

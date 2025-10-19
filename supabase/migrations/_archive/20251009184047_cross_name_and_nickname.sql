@@ -2,8 +2,8 @@ BEGIN;
 
 -- 1) Add columns on the concept table
 ALTER TABLE public.crosses
-  ADD COLUMN IF NOT EXISTS cross_name text,
-  ADD COLUMN IF NOT EXISTS cross_nickname text;
+ADD COLUMN IF NOT EXISTS cross_name text,
+ADD COLUMN IF NOT EXISTS cross_nickname text;
 
 -- 2) Helper: best-effort "genotype" string for a fish_code
 --    Try fish.genotype, then fish.name, then the fish_code itself
@@ -43,7 +43,8 @@ FOR EACH ROW EXECUTE FUNCTION public.trg_cross_name_fill();
 
 -- 5) One-off backfill for existing rows
 UPDATE public.crosses x
-SET cross_name = COALESCE(x.cross_name, public.gen_cross_name(x.mother_code, x.father_code)),
+SET
+    cross_name = COALESCE(x.cross_name, public.gen_cross_name(x.mother_code, x.father_code)),
     cross_nickname = COALESCE(x.cross_nickname, COALESCE(x.cross_name, public.gen_cross_name(x.mother_code, x.father_code)));
 
 COMMIT;

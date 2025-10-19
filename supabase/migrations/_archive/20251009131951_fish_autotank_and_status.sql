@@ -12,8 +12,8 @@ BEGIN
 END $$;
 
 ALTER TABLE public.containers
-  ADD CONSTRAINT containers_status_check
-  CHECK (status IN ('planned','new_tank','active','ready_to_kill','inactive'));
+ADD CONSTRAINT containers_status_check
+CHECK (status IN ('planned', 'new_tank', 'active', 'ready_to_kill', 'inactive'));
 
 CREATE OR REPLACE FUNCTION public.trg_fish_autotank()
 RETURNS trigger

@@ -25,32 +25,32 @@ BEGIN
 END$$;
 
 -- Make sure id_uuid is unique (ok even if it’s already PK)
-CREATE UNIQUE INDEX IF NOT EXISTS treatments_id_uuid_key ON public.treatments(id_uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS treatments_id_uuid_key ON public.treatments (id_uuid);
 
 -- (Re)create fish_treatments with FKs to fish(id_uuid) and treatments(id_uuid)
 DROP TABLE IF EXISTS public.fish_treatments CASCADE;
 CREATE TABLE public.fish_treatments (
-  id_uuid      uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  fish_id      uuid NOT NULL REFERENCES public.fish(id_uuid) ON DELETE CASCADE,
-  treatment_id uuid NOT NULL REFERENCES public.treatments(id_uuid),
-  applied_at   timestamptz,
-  created_at   timestamptz NOT NULL DEFAULT now(),
-  created_by   text
+    id_uuid uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    fish_id uuid NOT NULL REFERENCES public.fish (id_uuid) ON DELETE CASCADE,
+    treatment_id uuid NOT NULL REFERENCES public.treatments (id_uuid),
+    applied_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    created_by text
 );
 
 -- Rebuild the summary view
 DROP VIEW IF EXISTS public.v_fish_treatment_summary;
 CREATE VIEW public.v_fish_treatment_summary AS
 SELECT
-  ft.fish_id,
-  f.fish_code,
-  t.treatment_type::text AS treatment_type,
-  t.treatment_type::text AS treatment_name,
-  NULL::treatment_route  AS route,
-  ft.applied_at          AS started_at,
-  NULL::timestamptz      AS ended_at,
-  NULL::numeric          AS dose,
-  NULL::text             AS vehicle
-FROM public.fish_treatments ft
-JOIN public.fish f        ON f.id_uuid = ft.fish_id
-JOIN public.treatments t  ON t.id_uuid = ft.treatment_id;
+    ft.fish_id,
+    f.fish_code,
+    t.treatment_type::text AS treatment_type,
+    t.treatment_type::text AS treatment_name,
+    NULL::treatment_route AS route,
+    ft.applied_at AS started_at,
+    NULL::timestamptz AS ended_at,
+    NULL::numeric AS dose,
+    NULL::text AS vehicle
+FROM public.fish_treatments AS ft
+INNER JOIN public.fish AS f ON ft.fish_id = f.id_uuid
+INNER JOIN public.treatments AS t ON ft.treatment_id = t.id_uuid;

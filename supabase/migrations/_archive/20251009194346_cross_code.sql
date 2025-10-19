@@ -1,6 +1,6 @@
 BEGIN;
 ALTER TABLE public.crosses ADD COLUMN IF NOT EXISTS cross_code text;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_crosses_cross_code ON public.crosses(cross_code) WHERE cross_code IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_crosses_cross_code ON public.crosses (cross_code) WHERE cross_code IS NOT NULL;
 CREATE SEQUENCE IF NOT EXISTS public.cross_code_seq START 10000;
 CREATE OR REPLACE FUNCTION public.gen_cross_code() RETURNS text LANGUAGE plpgsql AS $$
 DECLARE y text := to_char(current_date,'YY'); n bigint;

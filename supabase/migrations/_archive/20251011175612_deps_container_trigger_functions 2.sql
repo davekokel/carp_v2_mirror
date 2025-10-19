@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION public.trg_containers_activate_on_label()
- RETURNS trigger
- LANGUAGE plpgsql
+RETURNS trigger
+LANGUAGE plpgsql
 AS $function$
 BEGIN
   IF TG_OP = 'UPDATE'

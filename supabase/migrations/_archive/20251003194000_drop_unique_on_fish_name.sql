@@ -1,5 +1,5 @@
 begin;
-DO $$
+do $$
 begin
   if exists (
     select 1
@@ -12,7 +12,7 @@ begin
   end if;
 end $$;
 
-create unique index if not exists uq_fish_code on public.fish(fish_code);
-create index if not exists ix_fish_name on public.fish(name);
+create unique index if not exists uq_fish_code on public.fish (fish_code);
+create index if not exists ix_fish_name on public.fish (name);
 
 commit;

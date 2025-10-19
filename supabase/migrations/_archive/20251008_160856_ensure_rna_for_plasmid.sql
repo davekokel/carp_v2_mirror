@@ -2,11 +2,11 @@ BEGIN;
 
 -- helper: ensure RNA exists for a plasmid (suffix defaults to 'RNA')
 CREATE OR REPLACE FUNCTION public.ensure_rna_for_plasmid(
-  p_plasmid_code text,
-  p_suffix       text DEFAULT 'RNA',
-  p_name         text DEFAULT NULL,
-  p_created_by   text DEFAULT NULL,
-  p_notes        text DEFAULT NULL
+    p_plasmid_code text,
+    p_suffix text DEFAULT 'RNA',
+    p_name text DEFAULT NULL,
+    p_created_by text DEFAULT NULL,
+    p_notes text DEFAULT NULL
 )
 RETURNS TABLE (rna_id uuid, rna_code text)
 LANGUAGE plpgsql

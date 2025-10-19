@@ -39,3 +39,5 @@ snapshots/*_data_*.sql
 *.bak*
 
 *.bak*
+dist/*.zip
+dist/

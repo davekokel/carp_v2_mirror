@@ -5,11 +5,11 @@ set session_replication_role = replica;
 
 -- Truncate everything cascade
 truncate table
-  public.fish,
-  public.fish_transgene_alleles,
-  public.transgene_alleles,
-  public.transgene_allele_registry,
-  public.transgene_allele_counters
+public.fish,
+public.fish_transgene_alleles,
+public.transgene_alleles,
+public.transgene_allele_registry,
+public.transgene_allele_counters
 restart identity cascade;
 
 -- Reset all sequences explicitly
@@ -26,6 +26,6 @@ begin
   end loop;
 end$$;
 
-set session_replication_role = DEFAULT;
+set session_replication_role = default;
 
 commit;

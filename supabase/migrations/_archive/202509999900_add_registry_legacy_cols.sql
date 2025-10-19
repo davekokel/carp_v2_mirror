@@ -2,8 +2,8 @@ BEGIN;
 
 -- Add legacy columns if missing (safe/idempotent)
 ALTER TABLE public.transgene_allele_registry
-  ADD COLUMN IF NOT EXISTS base_code text,
-  ADD COLUMN IF NOT EXISTS legacy_label text;
+ADD COLUMN IF NOT EXISTS base_code text,
+ADD COLUMN IF NOT EXISTS legacy_label text;
 
 -- Create the unique index only when both columns exist
 DO $$

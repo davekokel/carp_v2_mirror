@@ -3,9 +3,9 @@ import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
 import os
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from datetime import date, datetime, time, timezone
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
@@ -29,325 +29,222 @@ if not DB_URL:
 eng = get_engine()
 
 # ───────────────────────── helpers ─────────────────────────
-def _exists(schema_dot_name: str) -> bool:
-    sch, tab = schema_dot_name.split(".", 1)
-    q = text("""
-      with t as (
-        select table_schema as s, table_name as t from information_schema.tables
-        union all
-        select table_schema as s, table_name as t from information_schema.views
-      )
-      select exists(select 1 from t where s=:s and t=:t) as ok
-    """)
+def _view_exists(schema: str, name: str) -> bool:
     with eng.begin() as cx:
-        return bool(pd.read_sql(q, cx, params={"s": sch, "t": tab})["ok"].iloc[0])
+        q = text("select 1 from information_schema.views where table_schema=:s and table_name=:t limit 1")
+        return bool(pd.read_sql(q, cx, params={"s": schema, "t": name}).shape[0])
 
-def _load_concepts(q: str, limit: int) -> pd.DataFrame:
-    if not _exists("public.v_cross_concepts_overview"):
-        st.error("Missing view public.v_cross_concepts_overview."); st.stop()
-    base = """
-      select
-        conceptual_cross_code as clutch_code,
-        name                  as clutch_name,
-        nickname              as clutch_nickname,
-        mom_code, dad_code, mom_code_tank, dad_code_tank,
-        created_at
-      from public.v_cross_concepts_overview
-    """
-    where = ""
-    params = {}
-    if q:
-        where = """
-          where (conceptual_cross_code ilike %(q)s
-             or name ilike %(q)s
-             or nickname ilike %(q)s
-             or mom_code ilike %(q)s
-             or dad_code ilike %(q)s)
-        """
-        params["q"] = f"%{q.strip()}%"
-    sql = f"""
-      {base}
-      {where}
-      order by created_at desc nulls last, conceptual_cross_code
-      limit %(lim)s
-    """
-    params["lim"] = int(limit)
+def _table_exists(schema: str, name: str) -> bool:
+    with eng.begin() as cx:
+        q = text("select 1 from information_schema.tables where table_schema=:s and table_name=:t limit 1")
+        return bool(pd.read_sql(q, cx, params={"s": schema, "t": name}).shape[0])
+
+def _load_instances(d1: date, d2: date, created_by: str, q: str, ignore_dates: bool) -> pd.DataFrame:
+    if not _view_exists("public","v_clutches_overview_final"):
+        st.error("Missing view public.v_clutches_overview_final."); st.stop()
+
+    where_bits, params = [], {}
+    if not ignore_dates:
+        where_bits.append("coalesce(clutch_birthday, date_planned) between :d1 and :d2")
+        params["d1"], params["d2"] = d1, d2
+    if (created_by or "").strip():
+        where_bits.append("(created_by_instance ilike :byl or created_by_plan ilike :byl)")
+        params["byl"] = f"%{created_by.strip()}%"
+    if (q or "").strip():
+        where_bits.append("""(
+          coalesce(clutch_code,'') ilike :ql or
+          coalesce(cross_name_pretty,'') ilike :ql or
+          coalesce(clutch_name,'') ilike :ql or
+          coalesce(clutch_genotype_pretty,'') ilike :ql or
+          coalesce(treatments_pretty,'') ilike :ql or
+          coalesce(annotation_rollup,'') ilike :ql or
+          coalesce(mom_strain,'') ilike :ql or coalesce(dad_strain,'') ilike :ql
+        )""")
+        params["ql"] = f"%{q.strip()}%"
+    where_sql = " AND ".join(where_bits) if where_bits else "true"
+
+    sql = text(f"""
+      select *
+      from public.v_clutches_overview_final
+      where {where_sql}
+      order by created_at_instance desc nulls last, clutch_birthday desc nulls last
+      limit 500
+    """)
     with eng.begin() as cx:
         return pd.read_sql(sql, cx, params=params)
 
-def _runs_for_clutch(clutch_code: str, limit: int = 100) -> pd.DataFrame:
-    sql = """
-      select
-        ci.cross_run_code,
-        ci.clutch_birthday as birthday,
-        cm.tank_code as mother_tank_label,
-        cf.tank_code as father_tank_label,
-        count(sel.id)::int as selections_rollup
-      from public.clutch_plans cp
-      join public.planned_crosses pc  on pc.clutch_id = cp.id
-      join public.crosses x           on x.id = pc.cross_id
-      join public.cross_instances ci  on ci.cross_id = x.id
-      left join public.containers cm  on cm.id = coalesce(ci.mother_tank_id, pc.mother_tank_id)
-      left join public.containers cf  on cf.id = coalesce(ci.father_tank_id, pc.father_tank_id)
-      left join public.clutch_instances sel on sel.cross_instance_id = ci.id
-      where cp.clutch_code = %(code)s
-      group by ci.id, ci.cross_run_code, ci.clutch_birthday, cm.tank_code, cf.tank_code
-      order by ci.clutch_birthday desc, ci.created_at desc nulls last
-      limit %(lim)s
-    """
+def _load_recent_bruker_mounts(limit: int = 200) -> pd.DataFrame:
+    if not _table_exists("public","bruker_mount"):
+        return pd.DataFrame()
     with eng.begin() as cx:
-        return pd.read_sql(sql, cx, params={"code": clutch_code, "lim": int(limit)})
+        return pd.read_sql(text("""
+          select
+            mount_code,
+            mount_date,
+            mount_time,
+            mount_orientation,
+            mount_top_n,
+            mount_bottom_n,
+            mount_notes,
+            -- optional: a computed timestamp for display/sorting
+            (mount_date::timestamp + coalesce(mount_time, time '00:00')) as mount_ts
+          from public.bruker_mount
+          order by (mount_date::timestamp + coalesce(mount_time, time '00:00')) desc nulls last
+          limit :lim
+        """), cx, params={"lim": int(limit)})
 
-def _resolve_cross_instance_id(run_code: str) -> Optional[str]:
-    with eng.begin() as cx:
-        xid = pd.read_sql(
-            "select id::text as cross_instance_id from public.cross_instances where cross_run_code = %(rc)s limit 1",
-            cx, params={"rc": run_code}
-        )
-    return None if xid.empty else xid["cross_instance_id"].iloc[0]
+# ───────────────────────── top filter bar ─────────────────────────
+st.caption(
+    f"DB: {(getattr(getattr(eng, 'url', None), 'host', None) or os.getenv('PGHOST', '(unknown)'))}"
+    f" • role={getattr(user, 'role', None) or 'none'}"
+    f" • user={getattr(user, 'email', None) or 'postgres'}"
+)
 
-def _load_mounts_for_run(run_code: str) -> pd.DataFrame:
-    sql = """
-      select
-        mount_code,
-        mount_date, time_mounted, mounting_orientation,
-        n_top, n_bottom,
-        sample_id, mount_type, notes,
-        created_at, created_by
-      from public.mounts
-      where cross_instance_id = (
-        select id from public.cross_instances where cross_run_code = %(rc)s limit 1
-      )
-      order by coalesce(time_mounted, mount_date::timestamptz, created_at) desc nulls last
-    """
-    with eng.begin() as cx:
-        return pd.read_sql(sql, cx, params={"rc": run_code})
+with st.form("filters", clear_on_submit=False):
+    today = date.today()
+    c1,c2,c3,c4 = st.columns([1,1,1,3])
+    with c1: d1 = st.date_input("From", value=today - timedelta(days=120))
+    with c2: d2 = st.date_input("To",   value=today + timedelta(days=14))
+    with c3: created_by = st.text_input("Created by (plan/instance)", value="")
+    with c4: q = st.text_input("Search (code/cross/clutch/genotype/strain/annotation)", value="")
+    r1, r2 = st.columns([1,3])
+    with r1: ignore_dates = st.checkbox("Most recent (ignore dates)", value=False)
+    with r2: st.form_submit_button("Apply", use_container_width=True)
 
-# ───────────────────────── page layout ─────────────────────────
-st.caption("DB: " + (getattr(getattr(eng, "url", None), "host", None) or os.getenv("PGHOST", "(unknown)"))
-           + " • role=" + (getattr(user, "role", None) or "none")
-           + " • user=" + (getattr(user, "email", None) or "postgres"))
+# ───────────────────────── 1) Choose clutch instance (from v_clutches_overview_final) ─────────────────────────
+instances = _load_instances(d1, d2, created_by, q, ignore_dates)
+st.header("1) Choose clutch instance")
+st.caption(f"{len(instances)} clutch instance(s)")
 
-# 1) Choose clutch concept
-st.header("1) Choose clutch concept")
-with st.form("concept_filters"):
-    c1, c2 = st.columns([3,1])
-    q  = c1.text_input("Filter concepts (code/name/mom/dad)", placeholder="e.g., CL-25 or MGCO or FSH-250001")
-    lim = int(c2.number_input("Show up to", min_value=10, max_value=2000, value=500, step=10))
-    _ = st.form_submit_button("Apply")
+if instances.empty:
+    st.info("No instances match the current filters."); st.stop()
 
-concepts = _load_concepts(q or "", lim)
-if concepts.empty:
-    st.info("No clutch concepts match."); st.stop()
+grid = instances.copy()
+if "✓" not in grid.columns:
+    grid.insert(0, "✓", False)
 
-key_concepts = "_bruker_concepts"
-if key_concepts not in st.session_state:
-    t = concepts.copy()
-    t.insert(0, "✓", False)
-    st.session_state[key_concepts] = t
-else:
-    base = st.session_state[key_concepts].set_index("clutch_code")
-    now  = concepts.set_index("clutch_code")
-    for i in now.index:
-        if i not in base.index:
-            base.loc[i] = now.loc[i]
-        else:
-            for col in now.columns:
-                if col != "✓":
-                    base.at[i, col] = now.at[i, col]
-    base = base.loc[now.index]
-    st.session_state[key_concepts] = base.reset_index()
+view_cols = [
+    "✓",
+    "clutch_code","clutch_birthday","cross_name_pretty",
+    "genotype_treatment_rollup",
+    "clutch_genotype_pretty","clutch_genotype_canonical",
+    "mom_strain","dad_strain","clutch_strain_pretty",
+    "treatments_count","treatments_pretty",
+    "annotations_count","annotation_rollup",
+    "created_by_instance","created_at_instance",
+]
+present = [c for c in view_cols if c in grid.columns]
 
-present = ["✓","clutch_code","clutch_name","clutch_nickname","mom_code","dad_code","created_at"]
-edited_concepts = st.data_editor(
-    st.session_state[key_concepts][present],
-    hide_index=True, use_container_width=True,
+edited_instances = st.data_editor(
+    grid[present],
+    hide_index=True,
+    use_container_width=True,
+    num_rows="fixed",
     column_order=present,
     column_config={
         "✓": st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_code": st.column_config.TextColumn("clutch_code", disabled=True),
-        "clutch_name": st.column_config.TextColumn("clutch_name", disabled=True),
-        "clutch_nickname": st.column_config.TextColumn("clutch_nickname", disabled=True),
-        "mom_code": st.column_config.TextColumn("mom_code", disabled=True),
-        "dad_code": st.column_config.TextColumn("dad_code", disabled=True),
-        "created_at": st.column_config.DatetimeColumn("created_at", disabled=True),
+        "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True),
+        "created_at_instance": st.column_config.DatetimeColumn("created_at_instance", disabled=True),
+        "genotype_treatment_rollup": st.column_config.TextColumn(
+            "genotype_treatment_rollup", help="treatments_pretty > clutch_genotype_pretty"
+        ),
+        "annotations_count": st.column_config.NumberColumn("# annotations", help="Count of selection rows"),
+        "annotation_rollup": st.column_config.TextColumn(
+            "annotation_rollup", help="Latest selection: red/green intensities and note"
+        ),
     },
-    key="concepts_editor",
+    key="bruker_instances_editor",
 )
-st.session_state[key_concepts].loc[edited_concepts.index, "✓"] = edited_concepts["✓"]
+grid.loc[edited_instances.index, "✓"] = edited_instances["✓"]
 
-sel_codes = edited_concepts.loc[edited_concepts["✓"] == True, "clutch_code"].astype(str).tolist()
-if not sel_codes:
-    st.info("Tick a clutch concept to continue."); st.stop()
-if len(sel_codes) > 1:
-    st.warning("Tick exactly **one** clutch concept to continue."); st.stop()
-
-clutch_code = sel_codes[0]
-
-# reset runs state if selected clutch changes
-if st.session_state.get("_bruker_runs_clutch") != clutch_code:
-    st.session_state["_bruker_runs_clutch"] = clutch_code
-    st.session_state.pop("_bruker_runs", None)
-
-# 2) Choose cross instance (run) for the concept
-st.header("2) Choose cross instance (run) for the concept")
-runs = _runs_for_clutch(clutch_code, limit=200)
-st.caption(f"DBG • clutch={clutch_code} • runs_found={len(runs)}")
-if runs.empty:
-    st.caption("empty")
-    st.info("No realized runs exist for this concept yet.")
-    st.stop()
-
-key_runs = "_bruker_runs"
-if key_runs not in st.session_state or st.session_state[key_runs].empty:
-    t = runs.copy()
-    t.insert(0, "✓", False)
-    st.session_state[key_runs] = t
-else:
-    base = st.session_state[key_runs].set_index("cross_run_code")
-    now  = runs.set_index("cross_run_code")
-    for i in now.index:
-        if i not in base.index:
-            base.loc[i] = now.loc[i]
-        else:
-            for col in now.columns:
-                if col != "✓":
-                    base.at[i, col] = now.at[i, col]
-    base = base.loc[now.index]
-    st.session_state[key_runs] = base.reset_index()
-
-present_runs = ["✓","cross_run_code","birthday","mother_tank_label","father_tank_label","selections_rollup"]
-edited_runs = st.data_editor(
-    st.session_state[key_runs][present_runs],
-    hide_index=True, use_container_width=True,
-    column_order=present_runs,
-    column_config={
-        "✓": st.column_config.CheckboxColumn("✓", default=False),
-        "cross_run_code":   st.column_config.TextColumn("cross_run_code", disabled=True),
-        "birthday":         st.column_config.DateColumn("clutch_birthday", disabled=True),
-        "mother_tank_label":st.column_config.TextColumn("mother_tank_label", disabled=True),
-        "father_tank_label":st.column_config.TextColumn("father_tank_label", disabled=True),
-        "selections_rollup":st.column_config.NumberColumn("# selections", disabled=True, step=1, format="%d"),
-    },
-    key="runs_editor",
-)
-st.session_state[key_runs].loc[edited_runs.index, "✓"] = edited_runs["✓"]
-
-picked = edited_runs.loc[edited_runs["✓"] == True, "cross_run_code"].astype(str).tolist()
-if len(picked) == 0:
-    st.info("Tick exactly one run to continue."); st.stop()
+picked = grid.loc[grid["✓"] == True].reset_index(drop=True)
+if picked.empty:
+    st.info("Tick exactly one clutch instance to continue."); st.stop()
 if len(picked) > 1:
-    st.warning("Tick exactly one run to continue."); st.stop()
+    st.warning("Tick exactly **one** clutch instance to continue."); st.stop()
 
-run_code = picked[0]
+clutch_row = picked.iloc[0]
+clutch_id  = str(clutch_row.get("clutch_id","") or "")
+if not clutch_id:
+    st.error("Selected row is missing clutch_id; please refresh."); st.stop()
 
-# 3) Enter mount metadata (all requested fields)
-st.header("3) Enter mount metadata")
-if not _exists("public.mounts"):
-    st.error("Table public.mounts not found. Add it before using this page.")
-    st.caption("""Expected columns:
-      id uuid PK, cross_instance_id uuid FK → cross_instances(id),
-      mount_date date, time_mounted timestamptz, mounting_orientation text,
-      n_top int, n_bottom int, sample_id text, mount_type text, notes text,
-      created_at timestamptz default now(), created_by text""")
+st.caption(
+    "Selected: "
+    f"{clutch_row.get('clutch_code','')} • "
+    f"{clutch_row.get('cross_name_pretty','')} • "
+    f"geno: {clutch_row.get('clutch_genotype_pretty','')} • "
+    f"treat: {clutch_row.get('treatments_pretty','')} • "
+    f"anno: {clutch_row.get('annotation_rollup','')}"
+)
+
+# ───────────────────────── 2) Enter Bruker mount (exact fields) ─────────────────────────
+st.header("2) Enter Bruker mount")
+
+if not _table_exists("public","bruker_mount"):
+    st.error("Table public.bruker_mount not found.")
+    st.caption("Expected columns: mount_code, mount_date, mount_time, mount_orientation, mount_top_n, mount_bottom_n, mount_notes")
     st.stop()
 
-c1, c2, c3 = st.columns([1,1,2])
-with c1:
-    mount_date = st.date_input("Mount date", value=date.today())
-with c2:
-    mount_type = st.selectbox("Mount type", ["larva","juvenile","adult","other"])
-with c3:
-    sample_id = st.text_input("Sample identifier (Bruker slide or series)", value="", placeholder="e.g., SLIDE-20251016-01")
+m1, m2 = st.columns([2,1])
+with m1:
+    mount_code = st.text_input("mount_code", value="", placeholder="e.g., MT-2025-10-18-01")
+with m2:
+    mount_orientation = st.selectbox("mount_orientation", ["dorsal_up","ventral_up","lateral_left","lateral_right","other"])
 
-c4, c5, c6 = st.columns([1,1,1])
-with c4:
-    mount_time = st.time_input("Time mounted (optional)", value=time(0, 0))
-with c5:
-    mounting_orientation = st.selectbox("Mounting orientation", ["dorsal_up","ventral_up","lateral_left","lateral_right","other"])
-with c6:
-    n_top = st.number_input("n_top (optional)", min_value=0, value=0, step=1)
-    n_bottom = st.number_input("n_bottom (optional)", min_value=0, value=0, step=1)
+m3, m4, m5 = st.columns([1,1,2])
+with m3:
+    mount_date = st.date_input("mount_date", value=date.today())
+with m4:
+    mount_time = st.time_input("mount_time (optional)", value=time(0, 0))
+with m5:
+    mount_notes = st.text_input("mount_notes", value="", placeholder="optional")
 
-notes = st.text_area("Notes", value="", placeholder="Mount prep, imaging settings, etc.")
+m6, m7 = st.columns([1,1])
+with m6:
+    mount_top_n = st.number_input("mount_top_n", min_value=0, value=0, step=1)
+with m7:
+    mount_bottom_n = st.number_input("mount_bottom_n", min_value=0, value=0, step=1)
 
-can_save = bool(run_code and mount_date and (sample_id.strip() != ""))
+can_save = bool(mount_code.strip() and mount_date)
 save_btn = st.button("Save mount", type="primary", use_container_width=True, disabled=not can_save)
 
 if save_btn:
-    xid = _resolve_cross_instance_id(run_code)
-    if not xid:
-        st.error(f"Couldn’t resolve cross_instance_id for {run_code}")
-    else:
-        tm_ts = None
-        try:
-            dt_local = datetime.combine(mount_date, mount_time or time(0, 0))
-            tm_ts = dt_local.replace(tzinfo=timezone.utc)  # change TZ here if you prefer local
-        except Exception:
-            tm_ts = None
+    # Compose timestamptz if you ever add a timestamptz column; for now we only send date + time textually
+    with eng.begin() as cx:
+        cx.execute(
+            text("""
+              insert into public.bruker_mount (
+                mount_code, mount_date, mount_time,
+                mount_orientation, mount_top_n, mount_bottom_n, mount_notes
+              )
+              values (
+                :mount_code, :mount_date, :mount_time,
+                :mount_orientation, :mount_top_n, :mount_bottom_n, :mount_notes
+              )
+            """),
+            {
+                "mount_code": mount_code.strip(),
+                "mount_date": mount_date,
+                "mount_time": mount_time,  # stored as time type if the table is time; else text is acceptable
+                "mount_orientation": mount_orientation,
+                "mount_top_n": int(mount_top_n or 0),
+                "mount_bottom_n": int(mount_bottom_n or 0),
+                "mount_notes": mount_notes.strip(),
+            }
+        )
+    st.success(f"✅ Bruker mount saved: {mount_code}")
+    st.rerun()
 
-        with eng.begin() as cx:
-            cx.execute(
-                text("""
-                  insert into public.mounts (
-                    cross_instance_id, mount_date, time_mounted,
-                    sample_id, mount_type, mounting_orientation,
-                    n_top, n_bottom, notes, created_by
-                  )
-                  values (
-                    cast(:xid as uuid), :mount_date, :time_mounted,
-                    :sample_id, :mount_type, :mounting_orientation,
-                    :n_top, :n_bottom, :notes,
-                    coalesce(current_setting('app.user', true), :by)
-                  )
-                """),
-                {
-                    "xid": xid,
-                    "mount_date": mount_date,
-                    "time_mounted": tm_ts,
-                    "sample_id": sample_id.strip(),
-                    "mount_type": mount_type,
-                    "mounting_orientation": mounting_orientation,
-                    "n_top": int(n_top or 0),
-                    "n_bottom": int(n_bottom or 0),
-                    "notes": notes.strip(),
-                    "by": (getattr(user, "email", "") or "unknown"),
-                }
-            )
-        st.success(f"✅ Mount saved for run {run_code}")
-        st.rerun()
-
-# 4) Existing mounts for this run (show all requested fields incl. mount_code)
-# 4) Existing mounts for this run (show all requested fields incl. mount_label)
-st.subheader("Existing mounts for this run")
-mounts = pd.read_sql(
-    """
-      select
-        mount_label,                                  -- ← human label MT-YYYY-MM-DD #N
-        mount_date, time_mounted, mounting_orientation,
-        n_top, n_bottom,
-        sample_id, mount_type, notes,
-        created_at, created_by
-      from public.mounts
-      where cross_instance_id = (
-        select id from public.cross_instances
-        where cross_run_code = %(rc)s
-        limit 1
-      )
-      order by coalesce(time_mounted, mount_date::timestamptz, created_at) desc nulls last
-    """,
-    eng, params={"rc": run_code}
-)
-
-if mounts.empty:
-    st.caption("No mounts logged for this run yet.")
+# ───────────────────────── 3) Existing Bruker mounts (latest) ─────────────────────────
+st.subheader("Existing Bruker mounts (latest)")
+bm = _load_recent_bruker_mounts(limit=200)
+if bm.empty:
+    st.caption("No Bruker mounts recorded yet.")
 else:
     cols = [
-        "mount_label",
-        "mount_date","time_mounted","mounting_orientation",
-        "n_top","n_bottom",
-        "sample_id","mount_type","notes",
-        "created_at","created_by"
+        "mount_code",
+        "mount_date","mount_time","mount_orientation",
+        "mount_top_n","mount_bottom_n","mount_notes",
     ]
-    st.dataframe(mounts[[c for c in cols if c in mounts.columns]],
+    st.dataframe(bm[[c for c in cols if c in bm.columns]],
                  hide_index=True, use_container_width=True)

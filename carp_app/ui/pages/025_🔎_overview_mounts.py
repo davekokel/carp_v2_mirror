@@ -56,40 +56,31 @@ except Exception:
 
 # ───────────────────────── helpers ─────────────────────────
 def _load_mounts_for_day(d: date) -> pd.DataFrame:
+    """
+    Load Bruker mounts for a given day from public.bruker_mount.
+    Uses a computed timestamp for proper sorting regardless of NULL time.
+    """
     sql = text("""
       select
-        m.id::text                       as mount_id,
-        m.mount_label,
-        m.mount_code,
-        m.mount_date,
-        m.time_mounted,
-        m.mounting_orientation,
-        m.n_top, m.n_bottom,
-        m.sample_id, m.mount_type, m.notes,
-        m.created_at, m.created_by,
-        ci.cross_run_code,
-        cp.clutch_code,
-        cp.planned_name      as clutch_name,
-        cp.planned_nickname  as clutch_nickname
-      from public.mounts m
-      join public.cross_instances ci  on ci.id = m.cross_instance_id
-      join public.planned_crosses pc  on pc.cross_id = ci.cross_id
-      join public.clutch_plans cp     on cp.id = pc.clutch_id
-      where m.mount_date = :d
-      order by coalesce(m.time_mounted, m.mount_date::timestamptz, m.created_at) desc nulls last
+        bm.mount_code,
+        bm.mount_date,
+        bm.mount_time,
+        bm.mount_orientation,
+        bm.mount_top_n,
+        bm.mount_bottom_n,
+        bm.mount_notes,
+        (bm.mount_date::timestamp + coalesce(bm.mount_time, time '00:00')) as mount_ts
+      from public.bruker_mount bm
+      where bm.mount_date = :d
+      order by (bm.mount_date::timestamp + coalesce(bm.mount_time, time '00:00')) desc nulls last
     """)
     with eng.begin() as cx:
-        # pass a real date object; no string, no cast needed
         return pd.read_sql(sql, cx, params={"d": d})
 
 def _kpis(df: pd.DataFrame) -> None:
     total = len(df)
-    embryos = int(df.get("n_top", 0).fillna(0).sum() + df.get("n_bottom", 0).fillna(0).sum())
-    last_ts = None
-    if "time_mounted" in df.columns and df["time_mounted"].notna().any():
-        last_ts = df["time_mounted"].max()
-    elif df["created_at"].notna().any():
-        last_ts = df["created_at"].max()
+    embryos = int(df.get("mount_top_n", 0).fillna(0).sum() + df.get("mount_bottom_n", 0).fillna(0).sum())
+    last_ts = df["mount_ts"].max() if "mount_ts" in df.columns and df["mount_ts"].notna().any() else None
 
     c1, c2, c3 = st.columns([1,1,1])
     c1.metric("Mounts", f"{total}")
@@ -113,28 +104,25 @@ _kpis(df)
 st.markdown("### Mounts for the selected day")
 
 display_cols = [
-    "mount_label",        # human label (MT-YYYY-MM-DD #N)
-    "cross_run_code",
-    "clutch_code",
-    "clutch_name",
-    "mount_date","time_mounted","mounting_orientation",
-    "n_top","n_bottom",
-    "sample_id","mount_type","notes",
-    "created_by","created_at",
+    "mount_code",
+    "mount_date","mount_time","mount_orientation",
+    "mount_top_n","mount_bottom_n",
+    "mount_notes",
 ]
 present = [c for c in display_cols if c in df.columns]
-view = df[["mount_id"] + present].copy()
+view = df[present].copy()
 
-# maintain checked set in session
+# maintain checked set in session (use mount_code as selection key)
 checked_key = "_overview_mounts_checked"
 chk: Set[str] = st.session_state.get(checked_key, set())
 if not isinstance(chk, set):
     chk = set(chk)
+
 # add ✓ column
-view.insert(1, "✓", view["mount_id"].isin(chk))
+view.insert(0, "✓", view["mount_code"].isin(chk))
 
 grid = st.data_editor(
-    view.drop(columns=["mount_id"]),
+    view,
     hide_index=True, use_container_width=True,
     column_order=["✓"] + present,
     column_config={"✓": st.column_config.CheckboxColumn("✓", default=False)},
@@ -142,23 +130,23 @@ grid = st.data_editor(
 )
 
 # reconcile checked set
-visible_ids = view["mount_id"].tolist()
+visible_codes = view["mount_code"].tolist()
 edited_checked = grid["✓"].tolist()
-new_checked_ids = {mid for mid, ok in zip(visible_ids, edited_checked) if ok}
-chk = (chk - set(visible_ids)) | new_checked_ids
+new_checked_codes = {code for code, ok in zip(visible_codes, edited_checked) if ok}
+chk = (chk - set(visible_codes)) | new_checked_codes
 st.session_state[checked_key] = chk
 
 lcol, rcol = st.columns([1,1])
 with lcol:
     if st.button("Select all"):
-        st.session_state[checked_key] |= set(visible_ids)
+        st.session_state[checked_key] |= set(visible_codes)
         st.rerun()
 with rcol:
     if st.button("Clear"):
-        st.session_state[checked_key] -= set(visible_ids)
+        st.session_state[checked_key] -= set(visible_codes)
         st.rerun()
 
-chosen = df[df["mount_id"].isin(st.session_state[checked_key])].copy()
+chosen = df[df["mount_code"].isin(st.session_state[checked_key])].copy()
 
 # ───────────────────────── PDF generation ─────────────────────────
 st.markdown("### 📄 Download 1-page PDF")
@@ -192,16 +180,16 @@ else:
     elements.append(Spacer(1, 8))
 
     pdf_cols = [
-        "mount_label", "cross_run_code", "clutch_code",
-        "clutch_name", "n_top", "n_bottom",
-        "mounting_orientation", "sample_id", "mount_type", "notes",
+        "mount_code",
+        "mount_date","mount_time","mount_orientation",
+        "mount_top_n","mount_bottom_n","mount_notes",
     ]
-    widths = [105, 90, 80, 150, 40, 50, 90, 120, 70, 160]
+    widths = [120, 70, 70, 110, 70, 90, 240]
     scale = INNER_W / sum(widths)
     if abs(scale - 1.0) > 0.02:
         widths = [w * scale for w in widths]
 
-    texty = {"mount_label","cross_run_code","clutch_code","clutch_name","mounting_orientation","sample_id","mount_type","notes"}
+    texty = {"mount_code","mount_orientation","mount_notes"}
     present_pdf = [c for c in pdf_cols if c in chosen.columns]
     header = present_pdf[:]
 

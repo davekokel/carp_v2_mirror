@@ -1,7 +1,7 @@
 -- Sidecar: keep the human label as allele_name (and optionally allele_code if you want to show a custom code)
 ALTER TABLE public.seed_last_upload_links
-  ADD COLUMN IF NOT EXISTS allele_name  text,
-  ADD COLUMN IF NOT EXISTS allele_code  text;
+ADD COLUMN IF NOT EXISTS allele_name text,
+ADD COLUMN IF NOT EXISTS allele_code text;
 
 -- Helper: derive a short code prefix from a base (letters only, lowercased, trailing digits stripped)
 CREATE OR REPLACE FUNCTION public.code_prefix(p_base text)

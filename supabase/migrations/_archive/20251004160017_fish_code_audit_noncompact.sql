@@ -1,14 +1,14 @@
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.fish_code_audit (
-  id bigserial primary key,
-  at timestamptz not null default now(),
-  fish_id uuid,
-  fish_code text,
-  app_name text,
-  client_addr inet,
-  pid int,
-  note text
+    id bigserial PRIMARY KEY,
+    at timestamptz NOT NULL DEFAULT now(),
+    fish_id uuid,
+    fish_code text,
+    app_name text,
+    client_addr inet,
+    pid int,
+    note text
 );
 
 -- Log ONLY when client supplies a non-compact code on INSERT

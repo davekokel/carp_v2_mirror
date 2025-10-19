@@ -25,14 +25,14 @@ END$$;
 
 -- Create the TABLE (idempotent)
 CREATE TABLE IF NOT EXISTS public.fish_seed_batches_map (
-  fish_id       uuid        NOT NULL REFERENCES public.fish(id_uuid) ON DELETE CASCADE,
-  seed_batch_id text        NULL,
-  logged_at     timestamptz NOT NULL DEFAULT now(),
-  created_at    timestamptz NOT NULL DEFAULT now()
+    fish_id uuid NOT NULL REFERENCES public.fish (id_uuid) ON DELETE CASCADE,
+    seed_batch_id text NULL,
+    logged_at timestamptz NOT NULL DEFAULT now(),
+    created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_fsbm_fish_id       ON public.fish_seed_batches_map(fish_id);
-CREATE INDEX IF NOT EXISTS idx_fsbm_seed_batch_id ON public.fish_seed_batches_map(seed_batch_id);
+CREATE INDEX IF NOT EXISTS idx_fsbm_fish_id ON public.fish_seed_batches_map (fish_id);
+CREATE INDEX IF NOT EXISTS idx_fsbm_seed_batch_id ON public.fish_seed_batches_map (seed_batch_id);
 
 -- Now drop batch_label if a legacy table still has it
 DO $$

@@ -6,15 +6,15 @@ BEGIN;
 
 -- 1) New table: cross_instances (a specific run on a date with specific tanks)
 CREATE TABLE IF NOT EXISTS public.cross_instances (
-  id_uuid         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  cross_id        uuid NOT NULL REFERENCES public.crosses(id_uuid) ON DELETE CASCADE,
-  cross_date      date NOT NULL DEFAULT CURRENT_DATE,
-  mother_tank_id  uuid NULL REFERENCES public.containers(id_uuid),
-  father_tank_id  uuid NULL REFERENCES public.containers(id_uuid),
-  note            text NULL,
-  created_by      text NOT NULL,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  cross_run_code  text NULL
+    id_uuid uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    cross_id uuid NOT NULL REFERENCES public.crosses (id_uuid) ON DELETE CASCADE,
+    cross_date date NOT NULL DEFAULT current_date,
+    mother_tank_id uuid NULL REFERENCES public.containers (id_uuid),
+    father_tank_id uuid NULL REFERENCES public.containers (id_uuid),
+    note text NULL,
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    cross_run_code text NULL
 );
 
 -- 2) Friendly run codes: XR-YYnnnnn
@@ -48,12 +48,12 @@ FOR EACH ROW EXECUTE FUNCTION public.trg_cross_run_code();
 
 -- 3) Backward-compat links for clutches: keep cross_id, add cross_instance_id (nullable)
 ALTER TABLE public.clutches
-  ADD COLUMN IF NOT EXISTS cross_instance_id uuid NULL
-  REFERENCES public.cross_instances(id_uuid) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS cross_instance_id uuid NULL
+REFERENCES public.cross_instances (id_uuid) ON DELETE SET NULL;
 
 -- 4) Optional: planned_crosses may also reference the instance that fulfilled it
 ALTER TABLE public.planned_crosses
-  ADD COLUMN IF NOT EXISTS cross_instance_id uuid NULL
-  REFERENCES public.cross_instances(id_uuid) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS cross_instance_id uuid NULL
+REFERENCES public.cross_instances (id_uuid) ON DELETE SET NULL;
 
 COMMIT;

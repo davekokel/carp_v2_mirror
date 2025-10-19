@@ -4,30 +4,34 @@ BEGIN;
 DROP VIEW IF EXISTS public.v_fish_overview CASCADE;
 CREATE VIEW public.v_fish_overview AS
 SELECT
-  f.id,
-  f.fish_code,
-  f.name,
-  (
-    SELECT array_to_string(array_agg(x.base ORDER BY x.base), ', ')
-    FROM (
-      SELECT DISTINCT t.transgene_base_code AS base
-      FROM public.fish_transgene_alleles t
-      WHERE t.fish_id = f.id
-    ) x
-  ) AS transgene_base_code_filled,
-  (
-    SELECT array_to_string(array_agg(x.num::text ORDER BY x.num), ', ')
-    FROM (
-      SELECT DISTINCT t.allele_number AS num
-      FROM public.fish_transgene_alleles t
-      WHERE t.fish_id = f.id
-    ) x
-  ) AS allele_code_filled,
-  NULL::text AS allele_name_filled,
-  f.created_at,
-  f.created_by
-FROM public.fish f
-WHERE EXISTS (SELECT 1 FROM public.fish_transgene_alleles t WHERE t.fish_id = f.id)
+    f.id,
+    f.fish_code,
+    f.name,
+    NULL::text AS allele_name_filled,
+    f.created_at,
+    f.created_by,
+    (
+        SELECT array_to_string(array_agg(x.base ORDER BY x.base), ', ')
+        FROM (
+            SELECT DISTINCT t.transgene_base_code AS base
+            FROM public.fish_transgene_alleles AS t
+            WHERE t.fish_id = f.id
+        ) AS x
+    ) AS transgene_base_code_filled,
+    (
+        SELECT array_to_string(array_agg(x.num::text ORDER BY x.num), ', ')
+        FROM (
+            SELECT DISTINCT t.allele_number AS num
+            FROM public.fish_transgene_alleles AS t
+            WHERE t.fish_id = f.id
+        ) AS x
+    ) AS allele_code_filled
+FROM public.fish AS f
+WHERE
+    EXISTS (
+        SELECT 1 FROM public.fish_transgene_alleles AS t
+        WHERE t.fish_id = f.id
+    )
 ORDER BY f.created_at DESC;
 
 -- Label view: adapt to optional columns on public.fish

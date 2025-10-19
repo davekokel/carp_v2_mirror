@@ -1,17 +1,17 @@
 BEGIN;
 
 ALTER TABLE public.transgene_alleles
-  ADD COLUMN IF NOT EXISTS allele_nickname text;
+ADD COLUMN IF NOT EXISTS allele_nickname text;
 
 CREATE INDEX IF NOT EXISTS idx_ta_base_nick_ci
-  ON public.transgene_alleles (transgene_base_code, lower(allele_nickname));
+ON public.transgene_alleles (transgene_base_code, lower(allele_nickname));
 
 DROP FUNCTION IF EXISTS public.ensure_transgene_allele(text, text) CASCADE;
 
 CREATE OR REPLACE FUNCTION public.ensure_transgene_allele(
-  p_base text,
-  p_nickname text
-) RETURNS TABLE(allele_number int, allele_nickname text)
+    p_base text,
+    p_nickname text
+) RETURNS TABLE (allele_number int, allele_nickname text)
 LANGUAGE plpgsql AS $$
 DECLARE
   v_digits   text;

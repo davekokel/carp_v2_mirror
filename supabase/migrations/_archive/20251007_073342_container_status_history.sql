@@ -7,30 +7,30 @@ BEGIN
 END$$;
 
 ALTER TABLE public.containers
-  ADD COLUMN IF NOT EXISTS status_changed_at timestamptz NOT NULL DEFAULT now(),
-  ADD COLUMN IF NOT EXISTS activated_at timestamptz NULL,
-  ADD COLUMN IF NOT EXISTS deactivated_at timestamptz NULL,
-  ADD COLUMN IF NOT EXISTS last_seen_at timestamptz NULL,
-  ADD COLUMN IF NOT EXISTS last_seen_source text NULL;
+ADD COLUMN IF NOT EXISTS status_changed_at timestamptz NOT NULL DEFAULT now(),
+ADD COLUMN IF NOT EXISTS activated_at timestamptz NULL,
+ADD COLUMN IF NOT EXISTS deactivated_at timestamptz NULL,
+ADD COLUMN IF NOT EXISTS last_seen_at timestamptz NULL,
+ADD COLUMN IF NOT EXISTS last_seen_source text NULL;
 
 CREATE TABLE IF NOT EXISTS public.container_status_history (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  container_id  uuid NOT NULL REFERENCES public.containers(id_uuid) ON DELETE CASCADE,
-  old_status    container_status NOT NULL,
-  new_status    container_status NOT NULL,
-  changed_at    timestamptz NOT NULL DEFAULT now(),
-  changed_by    text NULL,
-  reason        text NULL
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    container_id uuid NOT NULL REFERENCES public.containers (id_uuid) ON DELETE CASCADE,
+    old_status container_status NOT NULL,
+    new_status container_status NOT NULL,
+    changed_at timestamptz NOT NULL DEFAULT now(),
+    changed_by text NULL,
+    reason text NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_csh_container ON public.container_status_history(container_id);
-CREATE INDEX IF NOT EXISTS idx_csh_changed_at ON public.container_status_history(changed_at);
+CREATE INDEX IF NOT EXISTS idx_csh_container ON public.container_status_history (container_id);
+CREATE INDEX IF NOT EXISTS idx_csh_changed_at ON public.container_status_history (changed_at);
 
 CREATE OR REPLACE FUNCTION public.set_container_status(
-  p_id uuid,
-  p_new container_status,
-  p_by text,
-  p_reason text DEFAULT NULL
+    p_id uuid,
+    p_new container_status,
+    p_by text,
+    p_reason text DEFAULT NULL
 ) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE
   v_old container_status;

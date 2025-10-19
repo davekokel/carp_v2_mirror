@@ -6,15 +6,15 @@ begin;
 
 -- 1) Registry table (idempotent)
 create table if not exists public.transgene_allele_registry (
-  base_code      text    not null,
-  allele_number  integer not null,
-  legacy_label   text,
-  created_at     timestamptz not null default now(),
-  primary key (base_code, allele_number)
+    base_code text not null,
+    allele_number integer not null,
+    legacy_label text,
+    created_at timestamptz not null default now(),
+    primary key (base_code, allele_number)
 );
 
 -- Optional: keep legacy labels unique per base_code (NULLs allowed multiple);
-DO $$
+do $$
 begin
   if not exists (
     select 1
@@ -29,7 +29,7 @@ end$$;
 
 -- Helpful indexes
 create index if not exists ix_registry_base_code
-  on public.transgene_allele_registry (base_code);
+on public.transgene_allele_registry (base_code);
 
 -- 2) Allocation function (resolve or allocate a canonical integer)
 create or replace function public.allocate_allele_number(p_base_code text, p_legacy_label text default null)

@@ -1,6 +1,8 @@
 BEGIN;
 ALTER TABLE public.clutches ADD COLUMN IF NOT EXISTS clutch_instance_code text;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_clutches_instance_code ON public.clutches(clutch_instance_code) WHERE clutch_instance_code IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_clutches_instance_code ON public.clutches (
+    clutch_instance_code
+) WHERE clutch_instance_code IS NOT NULL;
 CREATE SEQUENCE IF NOT EXISTS public.clutch_instance_code_seq START 10000;
 CREATE OR REPLACE FUNCTION public.gen_clutch_instance_code() RETURNS text LANGUAGE plpgsql AS $$
 DECLARE y text := to_char(current_date,'YY'); n bigint;

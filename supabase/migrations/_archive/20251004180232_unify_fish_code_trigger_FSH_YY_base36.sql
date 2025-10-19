@@ -22,8 +22,8 @@ END $$;
 
 -- Per-year counters (idempotent)
 CREATE TABLE IF NOT EXISTS public.fish_year_counters (
-  year int PRIMARY KEY,
-  n    bigint NOT NULL DEFAULT 0
+    year int PRIMARY KEY,
+    n bigint NOT NULL DEFAULT 0
 );
 
 -- Generator: FSH-YY + base36(per-year), min 4 chars

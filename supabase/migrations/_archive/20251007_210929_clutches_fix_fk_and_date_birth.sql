@@ -2,7 +2,7 @@ BEGIN;
 
 -- 1) Ensure date_birth exists
 ALTER TABLE public.clutches
-  ADD COLUMN IF NOT EXISTS date_birth date;
+ADD COLUMN IF NOT EXISTS date_birth date;
 
 -- 2) If date_fertilized exists, backfill date_birth from it, then drop it
 DO $do$
@@ -25,7 +25,7 @@ $do$;
 
 -- 3) Add run_id column if missing
 ALTER TABLE public.clutches
-  ADD COLUMN IF NOT EXISTS run_id uuid;
+ADD COLUMN IF NOT EXISTS run_id uuid;
 
 -- 4) Add FK if missing (to cross_plan_runs.id)
 DO $do$
@@ -47,6 +47,6 @@ END
 $do$;
 
 -- 5) Index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_clutches_run_id ON public.clutches(run_id);
+CREATE INDEX IF NOT EXISTS idx_clutches_run_id ON public.clutches (run_id);
 
 COMMIT;

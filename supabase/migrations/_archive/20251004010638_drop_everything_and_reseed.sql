@@ -1,7 +1,7 @@
 begin;
 
 -- 1. Drop everything (safe if missing);
-DO $$
+do $$
 declare
   rec record;
 begin
@@ -16,25 +16,25 @@ end$$;
 
 -- 2. Recreate allocator core
 create table public.transgene_allele_registry (
-  id uuid primary key default gen_random_uuid(),
-  transgene_base_code text not null,
-  allele_number int not null,
-  allele_nickname text not null,
-  created_at timestamptz not null default now(),
-  created_by text null,
-  unique (transgene_base_code, allele_number),
-  unique (transgene_base_code, allele_nickname)
+    id uuid primary key default gen_random_uuid(),
+    transgene_base_code text not null,
+    allele_number int not null,
+    allele_nickname text not null,
+    created_at timestamptz not null default now(),
+    created_by text null,
+    unique (transgene_base_code, allele_number),
+    unique (transgene_base_code, allele_nickname)
 );
 
 create table public.transgene_allele_counters (
-  transgene_base_code text primary key,
-  next_number int not null default 1
+    transgene_base_code text primary key,
+    next_number int not null default 1
 );
 
 create table public.transgene_alleles (
-  transgene_base_code text not null,
-  allele_number int not null,
-  primary key (transgene_base_code, allele_number)
+    transgene_base_code text not null,
+    allele_number int not null,
+    primary key (transgene_base_code, allele_number)
 );
 
 commit;

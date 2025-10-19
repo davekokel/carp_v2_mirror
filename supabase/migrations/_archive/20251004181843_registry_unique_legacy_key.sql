@@ -2,16 +2,20 @@ BEGIN;
 
 -- Ensure legacy columns exist
 ALTER TABLE public.transgene_allele_registry
-  ADD COLUMN IF NOT EXISTS base_code text,
-  ADD COLUMN IF NOT EXISTS legacy_label text;
+ADD COLUMN IF NOT EXISTS base_code text,
+ADD COLUMN IF NOT EXISTS legacy_label text;
 
 -- Dedupe any existing duplicates where both legacy columns are set (keep earliest created_at/id)
 WITH d AS (
-  SELECT id, base_code, legacy_label,
-         row_number() OVER (PARTITION BY base_code, legacy_label ORDER BY created_at NULLS LAST, id) AS rn
-  FROM public.transgene_allele_registry
-  WHERE base_code IS NOT NULL AND legacy_label IS NOT NULL
+    SELECT
+        id,
+        base_code,
+        legacy_label,
+        row_number() OVER (PARTITION BY base_code, legacy_label ORDER BY created_at NULLS LAST, id) AS rn
+    FROM public.transgene_allele_registry
+    WHERE base_code IS NOT NULL AND legacy_label IS NOT NULL
 )
+
 DELETE FROM public.transgene_allele_registry t
 USING d
 WHERE t.id = d.id AND d.rn > 1;

@@ -7,7 +7,7 @@ BEGIN
 END$$;
 
 ALTER TABLE public.containers
-  ALTER COLUMN status DROP DEFAULT;
+ALTER COLUMN status DROP DEFAULT;
 DO $$
 BEGIN
   IF (SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='containers' AND column_name='status') <> 'USER-DEFINED' THEN
@@ -21,14 +21,14 @@ BEGIN
 END$$;
 
 ALTER TABLE public.containers
-  ALTER COLUMN status SET DEFAULT 'planned';
+ALTER COLUMN status SET DEFAULT 'planned';
 
 ALTER TABLE public.containers
-  ADD COLUMN IF NOT EXISTS status_changed_at timestamptz NOT NULL DEFAULT now(),
-  ADD COLUMN IF NOT EXISTS activated_at timestamptz NULL,
-  ADD COLUMN IF NOT EXISTS deactivated_at timestamptz NULL,
-  ADD COLUMN IF NOT EXISTS last_seen_at timestamptz NULL,
-  ADD COLUMN IF NOT EXISTS last_seen_source text NULL;
+ADD COLUMN IF NOT EXISTS status_changed_at timestamptz NOT NULL DEFAULT now(),
+ADD COLUMN IF NOT EXISTS activated_at timestamptz NULL,
+ADD COLUMN IF NOT EXISTS deactivated_at timestamptz NULL,
+ADD COLUMN IF NOT EXISTS last_seen_at timestamptz NULL,
+ADD COLUMN IF NOT EXISTS last_seen_source text NULL;
 
 CREATE OR REPLACE FUNCTION public.mark_container_active(p_id uuid, p_by text)
 RETURNS void LANGUAGE plpgsql AS $$
