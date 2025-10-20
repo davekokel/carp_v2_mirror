@@ -7,6 +7,7 @@ import os, re, time
 import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.engine.url import make_url
 from carp_app.lib.db import get_engine
 from carp_app.ui.lib.env_badge import show_env_badge, _env_from_db_url
 from carp_app.lib.secret import env_info
@@ -41,7 +42,6 @@ def _connect_with_retry(eng, tries: int = 5, base_delay: float = 0.5, max_delay:
     raise last
 
 from carp_app.lib.config import DB_URL
-expect_pooler_user = "pooler.supabase.com" in DB_URL
 issues: list[str] = []
 
 try:
@@ -62,12 +62,22 @@ try:
             where extname in ('pgcrypto','uuid-ossp','pg_stat_statements','pg_graphql','supabase_vault')
         """)).scalars().all())
 
-    if expect_pooler_user and "." not in row["usr"]:
-        issues.append(f"Pooler user should look like postgres.<project-ref>, got '{row['usr']}'")
     if not DB_URL:
         issues.append("DB_URL not set")
-    if "pooler.supabase.com" in DB_URL and "sslmode=require" not in DB_URL:
-        issues.append("Pooler URL missing sslmode=require")
+
+    u = make_url(DB_URL)
+    host = (u.host or "")
+    user_in_dsn = (u.username or "")
+    is_pooler_host = "pooler.supabase.com" in host
+
+    if is_pooler_host:
+        if not user_in_dsn.startswith("postgres.") or len(user_in_dsn.split(".", 1)) != 2:
+            issues.append(f"Pooler DSN user should be 'postgres.<project-ref>', got '{user_in_dsn or '<empty>'}'")
+        if "sslmode=require" not in DB_URL:
+            issues.append("Pooler URL missing sslmode=require")
+    else:
+        if user_in_dsn != "postgres":
+            issues.append(f"Direct DSN user should be 'postgres', got '{user_in_dsn or '<empty>'}'")
 
     required_exts = {"pgcrypto", "uuid-ossp"}
     missing = sorted(required_exts - exts)
@@ -141,7 +151,6 @@ else:
 build = os.getenv("APP_COMMIT", "unknown")
 deps = f"SQLAlchemy {md.version('SQLAlchemy')} • Streamlit {md.version('streamlit')}"
 st.caption(f"Build: {build} • Deps: {deps}")
-
 
 with st.expander("⚙️ DB Trigger & Constraint Status (debug)"):
     try:
