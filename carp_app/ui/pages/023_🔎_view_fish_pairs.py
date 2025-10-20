@@ -196,8 +196,8 @@ def _load_tank_pairs_for_fish_pair(fish_pair_id: str, status: t.Optional[str]=No
           join public.fish mf on mf.id = fp.mom_fish_id
           join public.fish df on df.id = fp.dad_fish_id
           left join public.clutch_plans cp on cp.id = tp.concept_id
-          join public.containers mt on mt.id = tp.mother_tank_id
-          join public.containers dt on dt.id = tp.father_tank_id
+          join public.v_tanks_for_fish vt_m on vt_m.tank_id = tp.mother_tank_id
+          join public.v_tanks_for_fish vt_f on vt_f.tank_id = tp.father_tank_id
           where tp.fish_pair_id = :fp
           { "and tp.status = :st" if status else "" }
           order by tp.created_at desc
