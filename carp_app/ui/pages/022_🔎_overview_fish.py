@@ -100,16 +100,9 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
         NULL::timestamptz,
         NULL::timestamptz,
         NULL::timestamptz
-      from public.fish f
-      join public.fish_tank_memberships m
-        on m.fish_id = f.id
-      join public.v_tanks_for_fish vt
-        on vt.tank_id = m.container_id
+      from public.fish f      join public.v_tanks_for_fish vt
+        on vt.fish_id = f.id
       where f.fish_code = any(:codes)
-        and coalesce(
-              nullif(to_jsonb(m)->>'left_at','')::timestamptz,
-              nullif(to_jsonb(m)->>'ended_at','')::timestamptz
-            ) is null
       order by f.fish_code, vt.tank_created_at desc nulls last
     """
     loc_expr = "coalesce(c.location,'')" if has_loc else "''::text"
