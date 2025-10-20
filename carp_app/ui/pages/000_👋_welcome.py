@@ -40,7 +40,7 @@ def _connect_with_retry(eng, tries: int = 5, base_delay: float = 0.5, max_delay:
             time.sleep(min(max_delay, base_delay * (2 ** i)))
     raise last
 
-DB_URL = os.getenv("DB_URL", "")
+from carp_app.lib.config import DB_URL
 expect_pooler_user = "pooler.supabase.com" in DB_URL
 issues: list[str] = []
 
