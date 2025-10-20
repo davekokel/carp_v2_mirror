@@ -16,7 +16,7 @@ if [ -z "${FEATURE_BRANCH}" ]; then
 fi
 printf "%s\n" "$FEATURE_BRANCH" > "$OUTDIR/feature_branch.txt"
 { echo "# repo tree (depth 3)"; date; } > "$OUTDIR/repo_tree.txt"
-find . -path ./.git -prune -o -maxdepth 3 -print | sed 's|^\./||' >> "$OUTDIR/repo_tree.txt"
+find . -print | awk -F/ 'NF<=4' | sed 's|^\./||' | grep -Ev '^\.git(/|$)|^\.venv(/|$)|/__pycache__/' >> "$OUTDIR/repo_tree.txt"
 {
   echo "# git summary"; date
   echo "branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'n/a')"

@@ -3,7 +3,7 @@ from __future__ import annotations
 # --- sys.path prime for app imports ---
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
-
+import streamlit as st
 # --- std/3p imports ---
 import os, re, time
 import streamlit as st

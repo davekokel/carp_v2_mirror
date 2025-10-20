@@ -1,13 +1,21 @@
-from carp_app.lib.time import utc_today
 from __future__ import annotations
 
-# ── sys.path prime ───────────────────────────────────────────────────────────
-import sys, pathlib
+import os
+import sys
+import pathlib
+from typing import Optional
+
+import pandas as pd
+import streamlit as st
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+# sys.path prime
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# ── auth gates ───────────────────────────────────────────────────────────────
+# auth gates
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 try:
@@ -18,21 +26,15 @@ sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-# ── std/3p ───────────────────────────────────────────────────────────────────
-import os
-import pandas as pd
-import streamlit as st
-from sqlalchemy import text
-from sqlalchemy.engine import Engine
-
-# ── app libs ─────────────────────────────────────────────────────────────────
+# app libs
 from carp_app.lib.db import get_engine as _create_engine
+from carp_app.lib.time import utc_today
 
-# ── page config ──────────────────────────────────────────────────────────────
+# page config
 st.set_page_config(page_title="CARP — 🔎 Overview Mounts", page_icon="🔎", layout="wide")
 st.title("🔎 Overview Mounts")
 
-# ── engine cache ─────────────────────────────────────────────────────────────
+# engine cache
 @st.cache_resource(show_spinner=False)
 def _cached_engine() -> Engine:
     url = os.getenv("DB_URL", "")
@@ -43,7 +45,7 @@ def _cached_engine() -> Engine:
 def _eng() -> Engine:
     return _cached_engine()
 
-# ── helpers ─────────────────────────────────────────────────────────────────
+# helpers
 def _view_exists(schema: str, name: str) -> bool:
     q = text("""
       select 1
@@ -73,19 +75,18 @@ def _columns(schema: str, name: str) -> list[str]:
     """)
     with _eng().begin() as cx:
         df = pd.read_sql(q, cx, params={"s": schema, "n": name})
-    return [c for c in df["column_name"].tolist()]
+    return df["column_name"].tolist()
 
-def _fetch_mounts(source_schema: str, source_name: str, day: pd.Timestamp | None) -> pd.DataFrame:
-    cols = _columns(source_schema, source_name)
-    # Try to find a sensible date/timestamp column to filter by
+def _fetch_mounts(schema: str, name: str, day: Optional[pd.Timestamp]) -> pd.DataFrame:
+    cols = _columns(schema, name)
     date_candidates = ["mounted_at", "imaged_at", "created_at", "event_at", "date", "timestamp"]
     date_col = next((c for c in date_candidates if c in cols), None)
 
-    base_ident = f'{source_schema}.{source_name}'
+    ident = f"{schema}.{name}"
     if day is not None and date_col is not None:
         sql = text(f"""
           select *
-          from {base_ident}
+          from {ident}
           where date({date_col}) = :d
           order by {date_col} desc nulls last
           limit 1000
@@ -94,18 +95,16 @@ def _fetch_mounts(source_schema: str, source_name: str, day: pd.Timestamp | None
     else:
         sql = text(f"""
           select *
-          from {base_ident}
+          from {ident}
           order by 1
           limit 1000
         """)
         params = {}
 
     with _eng().begin() as cx:
-        df = pd.read_sql(sql, cx, params=params)
-    return df
+        return pd.read_sql(sql, cx, params=params)
 
-# ── filters ─────────────────────────────────────────────────────────────────
-# UTC-safe "today" (works across pandas versions)
+# filters
 today = utc_today()
 with st.form("filters"):
     c1, c2 = st.columns([1, 1])
@@ -119,7 +118,7 @@ with st.form("filters"):
         )
     submitted = st.form_submit_button("Apply")
 
-# ── source resolution ────────────────────────────────────────────────────────
+# source resolution
 src_schema, src_name, resolved = "public", None, None
 if source_pref.startswith("view"):
     src_name = "v_overview_mounts"
@@ -138,7 +137,6 @@ if resolved is None and source_pref.startswith("table"):
         src_name = None
 
 if resolved is None:
-    # auto: prefer a view if present, else the table
     if _view_exists("public", "v_overview_mounts"):
         resolved = ("view", "public", "v_overview_mounts")
     elif _table_exists("public", "bruker_mounts"):
@@ -151,13 +149,12 @@ if resolved is None:
 kind, s, n = resolved
 st.caption(f"Source: **{kind}** `{s}.{n}`")
 
-# ── data fetch & display ────────────────────────────────────────────────────
+# data fetch & display
 try:
     df = _fetch_mounts(s, n, day)
     if df.empty:
         st.info("No rows for the selected day (or source). Try another day or remove day filter.")
     else:
-        # Light column prettifying if common columns exist
         rename_map = {
             "mounted_at": "Mounted at",
             "imaged_at": "Imaged at",
@@ -169,7 +166,7 @@ try:
             "notes": "Notes",
         }
         view = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns}).copy()
-        st.dataframe(view, use_container_width=True)
+        st.dataframe(view, width="stretch")
         st.caption(f"{len(df)} row(s)")
 except Exception as e:
     st.error(f"Query failed: {type(e).__name__}: {e}")
