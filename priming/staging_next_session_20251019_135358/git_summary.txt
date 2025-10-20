@@ -1,0 +1,39 @@
+# git summary
+Sun Oct 19 13:53:58 PDT 2025
+branch: feature/streamlit-deploy-prod-staging
+## feature/streamlit-deploy-prod-staging...origin/feature/streamlit-deploy-prod-staging
+?? priming/
+?? scripts/new_staging_terminal.sh
+?? scripts/prime_next_session.sh
+?? scripts/prime_schema.sh
+mirror	https://github.com/davekokel/carp_v2_mirror.git (fetch)
+mirror	https://github.com/davekokel/carp_v2_mirror.git (push)
+org_mirror	git@github.com:davekokel/carp_v2_mirror.git (fetch)
+org_mirror	git@github.com:davekokel/carp_v2_mirror.git (push)
+origin	https://github.com/cell-observatory/carp_v2.git (fetch)
+origin	https://github.com/cell-observatory/carp_v2.git (push)
+3a684ee ui(pages): reorganize pages; move/rename files
+ace1821 Promote local main checkpoint (v2025.10.17-workbench-prep) (#26)
+e62f2ad feature/workbench crosses clutches (#27)
+a1ee3a2 Feature/workbench crosses clutches-- made new fish_view and clutch_view, all pages seem to work (#25)
+b6d6e91 Update truffle_hog.yaml
+56af5f9 feat(mounts): full Bruker mount workflow + overview PDF export; day-global label MT-YYYY-MM-DD #N; schema alignment + UTC fix
+0ea63ef ui: add 022 Search Fish → Tanks (checkbox selector + current tanks)
+0fac1b5 fix(queries): clean load_fish_overview_human helper (proper indentation, robust search)
+6c4b529 feat(queries): add load_fish_overview_human for v_fish_overview_human
+b50b8d1 ui(overview): use v_containers_overview via helper
+f9154d1 feat(queries): helpers for v_containers_overview and v_clutch_instances_overview
+2a7bd0c docs(db): add Fast recovery (doctor → staging → prod)
+e1468e2 chore(run): inject APP_COMMIT into launchers
+f9d2489 docs(db): pin connection policy and launchers (staging=direct, prod=pooler, URL-first)
+eb4ac70 refactor(queries): move canonical module to carp_app/lib/queries.py and update imports
+e904810 chore(ui): remove accidental nested ui/lib/lib duplicate
+67b9c9b chore(ui): update pages manifest
+7c72c18 chore(run): inject APP_COMMIT env into run scripts
+103df8d chore(run): add run_prod.sh and run_local.sh
+331ecff chore(run): add scripts/run_staging.sh to launch with clean env
+954ee0e docs(db): add explicit PROD pooler host note
+da77243 docs(db): add Start-here (doctor script) and fix direct host to db.<ref>.supabase.co
+83db4a2 docs(db): canonicalize DB_Connection_Playbook filename
+3eb5fe2 chore(db): set PROD pooler=aws-1-us-east-2 and direct=db.<ref>.supabase.co
+98ec4eb chore(db): add one-shot db_connect_doctor.sh
