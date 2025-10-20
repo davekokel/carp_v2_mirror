@@ -1,3 +1,4 @@
+from carp_app.lib.time import utc_today
 from __future__ import annotations
 import pandas as pd
 import streamlit as st
