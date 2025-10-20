@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from carp_app.lib.time import utc_now
-from __future__ import annotations
-
 # --- path shim (preserve original behavior) ---
 import sys, pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -24,10 +21,14 @@ require_app_unlock()
 import os
 from datetime import datetime, timezone
 from typing import List, Mapping, Optional
-
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
+
+# --- app libs ---
+from carp_app.lib.db import get_engine as _create_engine
+from carp_app.lib.time import utc_now
+from carp_app.lib.queries import load_containers_overview
 
 # --- engine (URL-first, cached) ---
 from carp_app.lib.db import get_engine as _create_engine
@@ -67,14 +68,19 @@ def _render_containers(rows: list[Mapping]) -> None:
         return
     df = pd.DataFrame(rows)
 
-    # derive a “since (days)” column from status_changed_at or created_at
+    # derive a “since (days)” column
     since = []
     for _, r in df.iterrows():
         ts = r.get("status_changed_at") or r.get("created_at")
         since.append(_since_days(ts))
     df["since_days"] = since
 
-    # order + relabel for humans
+    # cast UUID-ish cols to text before rename (prevents Arrow errors)
+    for col in ("id", "container_id", "tank_id"):
+        if col in df.columns:
+            df[col] = df[col].astype(str)
+
+    # order + relabel
     order = [c for c in [
         "tank_code", "label", "container_type", "status",
         "since_days", "status_changed_at", "created_at", "id"
@@ -91,7 +97,7 @@ def _render_containers(rows: list[Mapping]) -> None:
     })
 
     st.caption(f"{len(df)} matches")
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 # ---------- page ----------
 def main():
