@@ -189,23 +189,23 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     with _get_engine().begin() as cx:
         has_loc = pd.read_sql(text("""
           select 1 from information_schema.columns
-          where table_schema='public' and table_name='containers' and column_name='location'
+          where table_schema='public' and table_name='tanks' and column_name='location'
           limit 1
         """), cx).shape[0] > 0
     loc_expr = "''::text" if has_loc else "''::text"
     sql = text(f"""
       select
         f.fish_code,
-        c.tank_code,
-        c.id::text            as container_id,
+        vt.tank_code,
+        vt.tank_id::text            as container_id,
         ''  as label,
         coalesce(vt.status,'') as status,
-        c.container_type,
+        'holding_tank',
         {loc_expr}            as location,
-        c.created_at,
-        c.activated_at,
-        c.deactivated_at,
-        c.last_seen_at
+        vt.tank_created_at,
+        NULL::timestamptz,
+        NULL::timestamptz,
+        NULL::timestamptz
       from public.fish f
       join public.fish_tank_memberships m on m.fish_id = f.id
       join public.containers c            on c.id = m.container_id
