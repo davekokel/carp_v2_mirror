@@ -13,7 +13,7 @@ def get_secret(key: str, default: str = "") -> str:
 def db_url() -> str:
     v = get_secret("DB_URL", "")
     if v: return v
-    return "postgresql://postgres@127.0.0.1:5432/postgres?sslmode=disable"
+    return ""
 def env_info() -> tuple[str,str,str,str]:
     url = db_url()
     m = re.match(r".*://([^:@]+)@([^/?]+)", url or "")
