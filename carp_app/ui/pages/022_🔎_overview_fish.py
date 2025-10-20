@@ -1,5 +1,5 @@
-from carp_app.lib.time import utc_now
 from __future__ import annotations
+from carp_app.lib.time import utc_now
 
 import sys, pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[3]
