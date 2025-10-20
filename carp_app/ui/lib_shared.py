@@ -188,10 +188,14 @@ def db_picker(show_ui: bool = False) -> Tuple[Engine, str]:
     Returns (engine, effective_db_url).
     """
     if "DB_URL" not in st.session_state:
-        env_url = os.environ.get("DB_URL") or os.environ.get("DATABASE_URL")
-        if not env_url:
-            _, env_url = pick_environment()
-        st.session_state.DB_URL = env_url or "postgresql://postgres@localhost:5432/postgres?sslmode=disable"
+        # Prefer env, then Streamlit secrets; avoid localhost fallback in Cloud
+        try:
+            import streamlit as _st_mod
+            _S = dict(getattr(_st_mod, "secrets", {}))
+        except Exception:
+            _S = {}
+        env_url = os.environ.get("DB_URL") or os.environ.get("DATABASE_URL") or _S.get("DB_URL", "")
+        st.session_state.DB_URL = env_url
 
     db_url = st.session_state.DB_URL
 
