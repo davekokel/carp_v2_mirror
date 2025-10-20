@@ -30,8 +30,7 @@ def _load_mounts_for_day(d: date) -> pd.DataFrame:
             df[c] = df[c].astype(str)
     return df
 
-today = pd.Timestamp.utcnow().tz_localize("UTC").date()
-day = st.date_input("Day", value=today)
+today = pd.Timestamp.now(tz="UTC").date()day = st.date_input("Day", value=today)
 df = _load_mounts_for_day(day)
 if df.empty:
     st.warning("No mounts found for the selected day.", icon="⚠️")
