@@ -27,7 +27,7 @@ SET default_table_access_method = heap;
 -- Name: fish; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.fish (
+CREATE TABLE IF NOT EXISTS public.fish (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     fish_code text NOT NULL,
     name text,
