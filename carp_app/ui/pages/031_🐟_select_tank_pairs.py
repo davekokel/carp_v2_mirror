@@ -208,7 +208,7 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
         NULL::timestamptz
       from public.fish f
       join public.fish_tank_memberships m on m.fish_id = f.id
-      join public.containers c            on c.id = m.container_id
+      join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
       where f.fish_code = any(:codes)
         and coalesce(
               nullif(to_jsonb(m)->>'left_at','')::timestamptz,
