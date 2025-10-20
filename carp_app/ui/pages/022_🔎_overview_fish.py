@@ -1,3 +1,4 @@
+from carp_app.lib.time import utc_now
 from __future__ import annotations
 
 import sys, pathlib
@@ -433,7 +434,7 @@ def main():
         st.download_button(
             "⬇️ Download PDF labels (2.4×1.5 • QR)",
             data=(pdf_bytes if pdf_bytes else b""),
-            file_name=f"tank_labels_2_4x1_5_{pd.Timestamp.utcnow().strftime('%Y%m%d_%H%M%S')}.pdf",
+            file_name=f"tank_labels_2_4x1_5_{utc_now().strftime('%Y%m%d_%H%M%S')}.pdf",
             mime="application/pdf",
             type="primary",
             use_container_width=True,
