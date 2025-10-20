@@ -1,18 +1,19 @@
 do $$
 declare
+  r record;
   def text;
 begin
-  select pg_get_functiondef(oid)
-    into def
-  from pg_proc
-  where proname='upsert_fish_by_batch_name_dob'
-  order by oid desc
-  limit 1;
-
-  if def is null then
-    raise notice 'function upsert_fish_by_batch_name_dob not found';
-  else
-    def := replace(def, 'id_uuid', 'id');
-    execute def;
-  end if;
+  for r in
+    select p.oid
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public'
+      and p.proname='upsert_fish_by_batch_name_dob'
+  loop
+    select pg_get_functiondef(r.oid) into def;
+    if def is not null then
+      def := replace(def, 'id_uuid', 'id');
+      execute def;
+    end if;
+  end loop;
 end$$;
