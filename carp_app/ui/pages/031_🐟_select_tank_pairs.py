@@ -128,7 +128,7 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
       from public.fish f
       join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
       join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
-      where c.status = any(:live) and c.container_type = any(:types)
+      where vt.status = any(:live)
       group by f.fish_code
     ),
     dad_live as (
@@ -136,7 +136,7 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
       from public.fish f
       join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
       join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
-      where c.status = any(:live) and c.container_type = any(:types)
+      where vt.status = any(:live)
       group by f.fish_code
     ),
     tx_counts as (
@@ -192,14 +192,14 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
           where table_schema='public' and table_name='containers' and column_name='location'
           limit 1
         """), cx).shape[0] > 0
-    loc_expr = "coalesce(c.location,'')" if has_loc else "''::text"
+    loc_expr = "''::text" if has_loc else "''::text"
     sql = text(f"""
       select
         f.fish_code,
         c.tank_code,
         c.id::text            as container_id,
-        coalesce(c.label,'')  as label,
-        coalesce(c.status,'') as status,
+        ''  as label,
+        coalesce(vt.status,'') as status,
         c.container_type,
         {loc_expr}            as location,
         c.created_at,
@@ -214,7 +214,7 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
               nullif(to_jsonb(m)->>'left_at','')::timestamptz,
               nullif(to_jsonb(m)->>'ended_at','')::timestamptz
             ) is null
-      order by f.fish_code, c.created_at desc nulls last
+      order by f.fish_code, vt.tank_created_at desc nulls last
     """)
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params={"codes": list({c for c in codes if c})})
