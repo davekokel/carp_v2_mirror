@@ -2,40 +2,31 @@ from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
-from carp_app.ui.auth_gate import require_auth
-from carp_app.lib.config import engine as get_engine, DB_URL
-sb, session, user = require_auth()
-
-from carp_app.ui.email_otp_gate import require_email_otp
-require_email_otp()
-
 from pathlib import Path
-import sys
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from carp_app.ui.auth_gate import require_auth
+from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     from auth_gate import require_app_unlock
-require_app_unlock()
 
-import os, json, uuid
-from datetime import datetime
+require_email_otp()
+require_app_unlock()
+sb, session, user = require_auth()
+
+import os
 from typing import List, Optional, Dict
 import pandas as pd
 import streamlit as st
-from carp_app.lib.db import get_engine
 from sqlalchemy import text
-st.set_page_config(page_title="Manage Tank Status", page_icon="🧯")
-st.title("🧯 Manage Tank Status")
+from carp_app.lib.db import get_engine
 
-def _db_url() -> str:
-    u = os.environ.get("DB_URL", "")
-    if not u:
-        raise RuntimeError("DB_URL not set")
-    return u
+st.set_page_config(page_title="🧯 Manage Tank Status", page_icon="🧯", layout="wide")
+st.title("🧯 Manage Tank Status")
 
 ENGINE = get_engine()
 
@@ -56,7 +47,7 @@ def _load_tanks(container_types: List[str], statuses: List[str], q: str) -> pd.D
         params["qq"] = f"%{q.strip()}%"
     sql = f"""
       select
-        id as id,
+        id,
         coalesce(label,'') as label,
         tank_code,
         container_type,
@@ -128,7 +119,6 @@ def _bulk_set_status(ids: List[str], action: str, by: str, reason: Optional[str]
         "retired": "public.mark_container_retired",
     }[action]
     with ENGINE.begin() as c:
-        # call the function once per id (keeps triggers/history correct)
         for cid in ids:
             if reason is not None:
                 c.execute(text(f"select {fn}(:id, :by, :rsn)"), dict(id=cid, by=by, rsn=reason))
@@ -191,9 +181,13 @@ table = df.rename(columns={
     "created_at":"Created at",
     "status_changed_at":"Status changed",
 })
-st.dataframe(table[["id","Tank label","Code","Type","Status","Vol (L)","Created at","Status changed"]], use_container_width=True, hide_index=True)
+st.dataframe(
+    table[["id","Tank label","Code","Type","Status","Vol (L)","Created at","Status changed"]],
+    width='stretch',
+    hide_index=True
+)
 
-# === Bulk actions (on filtered set) — INSERT START ===
+# === Bulk actions (on filtered set) ===
 st.markdown("### Bulk actions (on filtered set)")
 
 _opts = [f"{r['label'] or '—'} · {r['status']} · {r['id'].split('-')[0]}" for _, r in df.iterrows()]
@@ -201,9 +195,9 @@ _opt_to_id = dict(zip(_opts, df["id"].tolist()))
 
 col_sel1, col_sel2 = st.columns([3,1])
 with col_sel1:
-    picked_opts = st.multiselect("Pick tanks (type to search)", _opts, default=[])
+    picked_opts = st.multiselect("Pick tanks (type to search)", _opts, default=[], key="bulk_pick")
 with col_sel2:
-    if st.button("Select all shown"):
+    if st.button("Select all shown", key="bulk_select_all"):
         picked_opts = _opts  # local var; shows count below
 
 picked_ids = [_opt_to_id[o] for o in picked_opts]
@@ -211,31 +205,30 @@ st.caption(f"{len(picked_ids)} selected")
 
 a1, a2, a3, a4 = st.columns([1,1,1,2])
 with a1:
-    if st.button("Mark Active", use_container_width=True, disabled=not picked_ids):
+    if st.button("Mark Active", key="bulk_mark_active", disabled=not picked_ids):
         n = _bulk_set_status(picked_ids, "active", created_by)
         st.success(f"Set {n} tank(s) to active")
 with a2:
     rsn_k = st.text_input("Reason (to_kill)", key="bulk_kill_reason")
-    if st.button("Mark To-Kill", use_container_width=True, disabled=not picked_ids):
+    if st.button("Mark To-Kill", key="bulk_mark_kill", disabled=not picked_ids):
         n = _bulk_set_status(picked_ids, "to_kill", created_by, (rsn_k or "").strip() or None)
         st.warning(f"Marked {n} tank(s) to_kill")
 with a3:
     rsn_r = st.text_input("Reason (retired)", key="bulk_retire_reason")
-    if st.button("Retire", use_container_width=True, disabled=not picked_ids):
+    if st.button("Retire", key="bulk_mark_retire", disabled=not picked_ids):
         n = _bulk_set_status(picked_ids, "retired", created_by, (rsn_r or "").strip() or None)
         st.info(f"Retired {n} tank(s)")
 with a4:
     src = st.text_input("Seen source", value="manual", key="bulk_seen_src")
     also_act = st.checkbox("Also mark Active", value=True, key="bulk_seen_act")
-    if st.button("Last seen → now", use_container_width=True, disabled=not picked_ids):
+    if st.button("Last seen → now", key="bulk_seen_now", disabled=not picked_ids):
         n = _bulk_touch_last_seen(picked_ids, (src or "").strip(), also_act, created_by)
         st.success(f"Stamped last_seen for {n} tank(s)")
-# === Bulk actions — INSERT END ===
 
 # ---------- pick a tank ----------
 opt_labels = [f"{row['label'] or '—'} · {row['status']} · {row['id'].split('-')[0]}" for _, row in df.iterrows()]
 opt_to_id = dict(zip(opt_labels, df["id"].tolist()))
-pick = st.selectbox("Pick a tank", [""] + opt_labels)
+pick = st.selectbox("Pick a tank", [""] + opt_labels, key="pick_single")
 
 if pick:
     tank_id = opt_to_id[pick]
@@ -259,22 +252,22 @@ if pick:
 
         a1, a2, a3, a4 = st.columns([1,1,1,2])
         with a1:
-            if st.button("Mark Active", use_container_width=True):
+            if st.button("Mark Active", key="single_mark_active"):
                 _set_status(tank_id, "active", created_by)
                 st.success("Set to active")
         with a2:
-            reason_k = st.text_input("Reason (to_kill)", key=f"rsn_k_{tank_id}")
-            if st.button("Mark To-Kill", use_container_width=True):
+            reason_k = st.text_input("Reason (to_kill)", key=f"single_rsn_k_{tank_id}")
+            if st.button("Mark To-Kill", key="single_mark_kill"):
                 _set_status(tank_id, "to_kill", created_by, (reason_k or "").strip() or None)
                 st.warning("Marked to_kill")
         with a3:
-            reason_r = st.text_input("Reason (retired)", key=f"rsn_r_{tank_id}")
-            if st.button("Retire", use_container_width=True):
+            reason_r = st.text_input("Reason (retired)", key=f"single_rsn_r_{tank_id}")
+            if st.button("Retire", key="single_mark_retire"):
                 _set_status(tank_id, "retired", created_by, (reason_r or "").strip() or None)
                 st.info("Retired")
         with a4:
-            src = st.text_input("Seen source (optional)", value="manual", key=f"src_{tank_id}")
-            if st.button("Last seen → now (and activate)", use_container_width=True):
+            src = st.text_input("Seen source (optional)", value="manual", key=f"single_src_{tank_id}")
+            if st.button("Last seen → now (and activate)", key="single_seen_now"):
                 _touch_last_seen(tank_id, src.strip(), True, created_by)
                 st.success("Stamped last_seen_at and activated")
 
@@ -291,7 +284,7 @@ if pick:
                 "changed_by":"By",
                 "reason":"Reason"
             }),
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
         st.download_button(
@@ -299,5 +292,5 @@ if pick:
             hist.to_csv(index=False).encode("utf-8"),
             file_name=f"tank_{row.get('tank_code') or row['label'] or tank_id}_status_history.csv",
             mime="text/csv",
-            use_container_width=True
+            use_container_width=True  # download_button has no width kw
         )
