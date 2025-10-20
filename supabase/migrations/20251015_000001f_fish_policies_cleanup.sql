@@ -1,11 +1,2 @@
-DO $$
-DECLARE pol text;
-BEGIN
-  FOR pol IN
-    SELECT polname
-    FROM pg_policies
-    WHERE schemaname='public' AND tablename='fish'
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.fish', pol);
-  END LOOP;
-END$$;
+-- no-op: superseded by 20251015_000001g_fish_policies_cleanup_fix.sql
+DO $$ BEGIN /* noop */ END $$;
