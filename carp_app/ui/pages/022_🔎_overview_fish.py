@@ -90,27 +90,27 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
     base_sql = """
       select
         f.fish_code,
-        c.tank_code,
-        c.id::text             as container_id,
-        coalesce(c.label,'')   as label,
-        coalesce(c.status,'')  as status,
+        vt.tank_code,
+        vt.tank_id::text             as container_id,
+        ''   as label,
+        coalesce(vt.status,'' )  as status,
         'holding_tank',
         {loc_expr}             as location,
-        c.created_at,
-        c.activated_at,
-        c.deactivated_at,
-        c.last_seen_at
+        vt.tank_created_at,
+        NULL::timestamptz,
+        NULL::timestamptz,
+        NULL::timestamptz
       from public.fish f
       join public.fish_tank_memberships m
         on m.fish_id = f.id
       join public.v_tanks_for_fish vt
-        on c.id = m.container_id
+        on vt.tank_id = m.container_id
       where f.fish_code = any(:codes)
         and coalesce(
               nullif(to_jsonb(m)->>'left_at','')::timestamptz,
               nullif(to_jsonb(m)->>'ended_at','')::timestamptz
             ) is null
-      order by f.fish_code, c.created_at desc nulls last
+      order by f.fish_code, vt.tank_created_at desc nulls last
     """
     loc_expr = "coalesce(c.location,'')" if has_loc else "''::text"
     sql = text(base_sql.format(loc_expr=loc_expr))
@@ -155,7 +155,7 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             """), cx
         ).shape[0] > 0
 
-    loc_expr = "c.location::text" if has_location else "''::text"
+    loc_expr = "''::text" if has_location else "''::text"
     use_label_view = _view_exists("public", "v_fish_label_fields")
 
     if use_label_view:
@@ -167,16 +167,16 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             where m.left_at is null
           )
           select
-            c.id::text                   as container_id,
-            c.tank_code::text            as tank_code,
-            coalesce(c.label,'')         as label,
-            coalesce(c.status,'')        as status,
+            vt.tank_id::text                   as container_id,
+            vt.tank_code::text            as tank_code,
+            ''         as label,
+            coalesce(vt.status,'' )        as status,
             'holding_tank'::text       as container_type,
             {loc_expr}                   as location,
-            c.created_at::timestamptz    as created_at,
-            c.activated_at,
-            c.deactivated_at,
-            c.last_seen_at,
+            vt.tank_created_at::timestamptz    as created_at,
+            NULL::timestamptz,
+            NULL::timestamptz,
+            NULL::timestamptz,
             f.fish_code::text            as fish_code,
             coalesce(v.nickname,'')      as nickname,
             coalesce(v.name,'')          as name,
@@ -185,11 +185,11 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             coalesce(v.stage,'')         as stage,
             v.dob                        as dob
           from picked p
-          join public.v_tanks_for_fish vt on c.id = p.container_id
-          left join live L on L.container_id = c.id
+          join public.v_tanks_for_fish vt on vt.tank_id = p.container_id
+          left join live L on L.container_id = vt.tank_id
           left join public.fish f on f.id = L.fish_id
           left join public.v_fish_label_fields v on v.fish_code = f.fish_code
-          order by c.created_at asc, c.tank_code asc
+          order by vt.tank_created_at asc, vt.tank_code asc
         """)
     else:
         sql = text(f"""
@@ -200,16 +200,16 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             where m.left_at is null
           )
           select
-            c.id::text                   as container_id,
-            c.tank_code::text            as tank_code,
-            coalesce(c.label,'')         as label,
-            coalesce(c.status,'')        as status,
+            vt.tank_id::text                   as container_id,
+            vt.tank_code::text            as tank_code,
+            ''         as label,
+            coalesce(vt.status,'' )        as status,
             'holding_tank'::text       as container_type,
             {loc_expr}                   as location,
-            c.created_at::timestamptz    as created_at,
-            c.activated_at,
-            c.deactivated_at,
-            c.last_seen_at,
+            vt.tank_created_at::timestamptz    as created_at,
+            NULL::timestamptz,
+            NULL::timestamptz,
+            NULL::timestamptz,
             f.fish_code::text            as fish_code,
             ''::text                     as nickname,
             ''::text                     as name,
@@ -218,10 +218,10 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             ''::text                     as stage,
             null::date                   as dob
           from picked p
-          join public.v_tanks_for_fish vt on c.id = p.container_id
-          left join live L on L.container_id = c.id
+          join public.v_tanks_for_fish vt on vt.tank_id = p.container_id
+          left join live L on L.container_id = vt.tank_id
           left join public.fish f on f.id = L.fish_id
-          order by c.created_at asc, c.tank_code asc
+          order by vt.tank_created_at asc, vt.tank_code asc
         """)
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params={"ids": container_ids})
