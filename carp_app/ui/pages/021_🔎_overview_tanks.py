@@ -1,3 +1,4 @@
+from carp_app.lib.time import utc_now
 from __future__ import annotations
 
 # --- path shim (preserve original behavior) ---
@@ -56,7 +57,7 @@ def _since_days(ts) -> Optional[float]:
             return None
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
-    return round((datetime.now(timezone.utc) - ts).total_seconds() / 86400, 1)
+    return round((utc_now() - ts).total_seconds() / 86400, 1)
 
 def _render_containers(rows: list[Mapping]) -> None:
     if not rows:
