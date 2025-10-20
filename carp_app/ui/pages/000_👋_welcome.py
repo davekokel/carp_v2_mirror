@@ -120,7 +120,7 @@ except Exception as e:
 # --- required views presence ---
 required_views = [
     ("public", "v_fish_overview"),
-    ("public", "v_containers_overview"),
+    ("public", "v_tanks_for_fish"),
     ("public", "v_crosses_status"),
     ("public", "v_clutch_instances_overview"),
 ]
@@ -190,7 +190,7 @@ with st.expander("⚙️ DB Trigger & Constraint Status (debug)"):
                       and t.tgname like '%fish_autotank%') as autotank_triggers,
                   (select pg_get_constraintdef(oid)
                      from pg_constraint
-                    where conrelid='public.containers'::regclass
+                    where conrelid='public.tanks'::regclass
                       and conname='chk_tank_code_shape') as tank_code_check;
             """)).mappings().one()
             st.write("**Auto-tank triggers enabled:**", result["autotank_triggers"])
