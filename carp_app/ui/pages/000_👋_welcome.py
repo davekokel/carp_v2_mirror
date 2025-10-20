@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import pathlib, hashlib
+_src = pathlib.Path(__file__).resolve()
+st.caption("SRC=" + str(_src) + " • SHA256=" + hashlib.sha256(_src.read_bytes()).hexdigest()[:12] + " • DSNCHK=v2")
+
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
