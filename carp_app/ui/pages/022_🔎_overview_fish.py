@@ -81,7 +81,7 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
               select 1
               from information_schema.columns
               where table_schema='public'
-                and table_name='containers'
+                and table_name='tanks'
                 and column_name='location'
               limit 1
             """),
@@ -103,7 +103,7 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
       from public.fish f
       join public.fish_tank_memberships m
         on m.fish_id = f.id
-      join public.containers c
+      join public.v_tanks_for_fish vt
         on c.id = m.container_id
       where f.fish_code = any(:codes)
         and coalesce(
@@ -149,7 +149,7 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
               select 1
               from information_schema.columns
               where table_schema='public'
-                and table_name='containers'
+                and table_name='tanks'
                 and column_name='location'
               limit 1
             """), cx
@@ -185,7 +185,7 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             coalesce(v.stage,'')         as stage,
             v.dob                        as dob
           from picked p
-          join public.containers c on c.id = p.container_id
+          join public.v_tanks_for_fish vt on c.id = p.container_id
           left join live L on L.container_id = c.id
           left join public.fish f on f.id = L.fish_id
           left join public.v_fish_label_fields v on v.fish_code = f.fish_code
@@ -218,7 +218,7 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             ''::text                     as stage,
             null::date                   as dob
           from picked p
-          join public.containers c on c.id = p.container_id
+          join public.v_tanks_for_fish vt on c.id = p.container_id
           left join live L on L.container_id = c.id
           left join public.fish f on f.id = L.fish_id
           order by c.created_at asc, c.tank_code asc
