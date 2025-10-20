@@ -1,3 +1,5 @@
+SET search_path = public, pg_catalog;
+
 create or replace view public.fish_csv as  SELECT fish_code,
     COALESCE(row_to_json(f.*)::jsonb ->> 'name'::text, ''::text) AS name,
     COALESCE(row_to_json(f.*)::jsonb ->> 'nickname'::text, ''::text) AS nickname,
