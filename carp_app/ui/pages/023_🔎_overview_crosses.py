@@ -189,8 +189,8 @@ def _fetch_instances_for_concept(code: str) -> Tuple[pd.DataFrame, str | None]:
                 from public.planned_crosses pc
                 join public.crosses x          on x.id = pc.cross_id
                 join public.cross_instances ci on ci.cross_id = x.id
-                left join public.containers cm on cm.id = coalesce(ci.mother_tank_id, pc.mother_tank_id)
-                left join public.containers cf on cf.id = coalesce(ci.father_tank_id, pc.father_tank_id)
+                left join public.v_tanks_for_fish vt_m on vt_m.tank_id = coalesce(ci.mother_tank_id, pc.mother_tank_id)
+                left join public.v_tanks_for_fish vt_f on vt_f.tank_id = coalesce(ci.father_tank_id, pc.father_tank_id)
                 where pc.clutch_id = :cid
                 order by coalesce(ci.created_at, pc.created_at) desc nulls last,
                          ci.cross_date desc nulls last
