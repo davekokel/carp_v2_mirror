@@ -1,3 +1,4 @@
+from carp_app.lib.time import utc_today
 from __future__ import annotations
 
 # ── sys.path prime ───────────────────────────────────────────────────────────
@@ -105,7 +106,7 @@ def _fetch_mounts(source_schema: str, source_name: str, day: pd.Timestamp | None
 
 # ── filters ─────────────────────────────────────────────────────────────────
 # UTC-safe "today" (works across pandas versions)
-today = pd.Timestamp.now(tz="UTC").date()
+today = utc_today()
 with st.form("filters"):
     c1, c2 = st.columns([1, 1])
     with c1:
