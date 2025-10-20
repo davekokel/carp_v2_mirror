@@ -1,0 +1,44 @@
+# git summary
+Mon Oct 20 11:44:12 PDT 2025
+branch: main
+## main...mirror/main
+ D priming/priming_staging_next_session_20251019_135358.zip
+ D priming/staging_next_session_20251019_135358/README.txt
+ D priming/staging_next_session_20251019_135358/feature_branch.txt
+ D priming/staging_next_session_20251019_135358/git_summary.txt
+ D priming/staging_next_session_20251019_135358/repo_tree.txt
+ M scripts/prime_next_session.sh
+?? priming/staging_next_session_20251020_114412/
+mirror	https://github.com/davekokel/carp_v2_mirror.git (fetch)
+mirror	https://github.com/davekokel/carp_v2_mirror.git (push)
+mirror22	https://github.com/davekokel/carp_v22_mirror.git (fetch)
+mirror22	https://github.com/davekokel/carp_v22_mirror.git (push)
+org_mirror	git@github.com:davekokel/carp_v2_mirror.git (fetch)
+org_mirror	git@github.com:davekokel/carp_v2_mirror.git (push)
+origin	https://github.com/cell-observatory/carp_v2.git (fetch)
+origin	https://github.com/cell-observatory/carp_v2.git (push)
+d0cddf1 merge: centralize timezone helpers across pages
+197bba8 overview_tanks: use centralized utc_now()
+5b1b025 overview_fish: use utc_now() for filename timestamps
+b6804fd overview_mounts: use utc_today() from centralized time helper
+a88dcb3 lib(time): add centralized timezone helpers (utc_now, utc_today, now_in, to_tz)
+b0853cd overview_mounts: full drop-in replacement (tz fix + view/table auto)
+0c73e0a lib(time): add utc helpers; overview_mounts: use utc_today()
+0667b23 overview_mounts: fix tz handling (use pd.Timestamp.now(tz='UTC'))
+f0f41ab welcome: fix fingerprint order; DSN-based pooler check; clean page config
+5a9cbb7 diagnostics(clean): lock Danger zone to LOCAL; welcome: DSN-based pooler check
+d98995b migrations(ledger): apply each migration once via public.migrations_applied ledger
+6c961cd migrations(baseline): capture public schema after full prod sync
+216d035 migrations(core): noop planned_crosses create (already exists)
+b585403 migrations(core): add public.crosses before planned_crosses/UI views
+5d54650 migrations(core): add public.planned_crosses before UI views
+432b635 migrations(core): noop clutch_plans create (already exists)
+9acaed4 migrations(core): add trg_cp_require_planned_crosses() needed by clutch_plans
+f67f02f migrations(core): define public.clutch_plan_status enum idempotently
+23eea09 migrations(core): add enum clutch_plan_status; run before clutch_plans create
+742d30f migrations(core): add enum public.clutch_plan_status before clutch_plans
+cf27d69 migrations(core): add public.clutch_plans before UI views
+8410990 migrations(core): add public.clutch_plans before UI views
+c162435 migrations(core): add clutch_instances.cross_instance_id with FK to cross_instances
+4785bb9 migrations(core): noop cross_instances create (table already exists)
+08e933e migrations(core): add ensure_clutch_for_cross_instance() from staging
