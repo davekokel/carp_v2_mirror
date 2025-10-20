@@ -128,7 +128,7 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
       from public.fish f
       join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
       join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
-      where vt.status = any(:live)
+      where vt.status::text = any(:live)
       group by f.fish_code
     ),
     dad_live as (
@@ -136,7 +136,7 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
       from public.fish f
       join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
       join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
-      where vt.status = any(:live)
+      where vt.status::text = any(:live)
       group by f.fish_code
     ),
     tx_counts as (

@@ -99,7 +99,7 @@ def load_tanks(q: str | None, statuses: list[str], limit: int) -> pd.DataFrame:
         params["q"] = f"%{q.upper()}%"
         where.append("(upper(fish_code) like :q or upper(tank_code) like :q)")
     if statuses:
-        where.append("status = any(:statuses)")
+        where.append("status::text = any(:statuses)")
         params["statuses"] = statuses
 
     sql = """
