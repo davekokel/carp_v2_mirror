@@ -16,8 +16,66 @@ require_email_otp()
 
 st.set_page_config(page_title="Overview — Tanks", page_icon="🧪", layout="wide")
 st.title("🔎 Overview — Tanks")
+_qp = st.query_params
+_q_default = (_qp.get("fish", [None])[0] or "").strip().upper()
+
 
 eng = get_engine()
+
+# --- DB diagnostics + ensure view exists ---
+with eng.begin() as cx:
+    db_row = cx.execute(text("select current_database() db, inet_server_addr()::text host, current_user usr")).fetchone()
+    tz = cx.execute(text("select current_setting('TimeZone')")).scalar()
+    try:
+        url = getattr(eng, "url", None)
+        url_str = str(url) if url else "(no url)"
+    except Exception:
+        url_str = "(no url)"
+
+with st.expander("DB diagnostics", expanded=False):
+    st.code(f"DB_URL (engine): {url_str}\nDB: {db_row.db}  host: {db_row.host}  user: {db_row.usr}  tz: {tz}")
+
+def _view_exists() -> bool:
+    with eng.begin() as cx:
+        return bool(cx.execute(text("""
+            select 1
+            from information_schema.views
+            where table_schema='public' and table_name='v_tanks_for_fish'
+            limit 1
+        """)).fetchone())
+
+def _create_view_now():
+    sql = """
+    create or replace view public.v_tanks_for_fish as
+    select
+      t.id as tank_id,
+      t.tank_code,
+      t.status,
+      t.capacity,
+      t.created_at as tank_created_at,
+      t.updated_at as tank_updated_at,
+      f.id as fish_id,
+      f.fish_code
+    from public.tanks t
+    join public.fish f on f.id = t.fish_id;
+    """
+    with eng.begin() as cx:
+        cx.execute(text(sql))
+
+cols = st.columns([1,1,6])
+with cols[0]:
+    if st.button("Check view"):
+        st.info("v_tanks_for_fish exists ✅" if _view_exists() else "v_tanks_for_fish is missing ❌")
+with cols[1]:
+    if st.button("Create view now"):
+        try:
+            _create_view_now()
+            st.success("Created public.v_tanks_for_fish ✅")
+            st.cache_data.clear()
+        except Exception as e:
+            st.error(f"Create view failed: {e}")
+# --- end diagnostics ---
+
 STATUSES = ["new_tank","active","quarantined","retired","cleaning","broken","decommissioned"]
 
 def _assert_view_exists():
@@ -72,7 +130,7 @@ def add_active_tank_for_fish(fish_code: str, capacity: int | None):
         ).scalar()
 
 with st.sidebar:
-    q = st.text_input("Search (fish_code or tank_code)").strip()
+    q = st.text_input("Search (fish_code or tank_code)", value=_q_default).strip()
     statuses = st.multiselect("Statuses", STATUSES, default=["active","new_tank"])
     limit = st.number_input("Limit", min_value=1, max_value=5000, value=200, step=50)
     fish_for_new = st.text_input("Add active tank for fish_code").strip().upper()
