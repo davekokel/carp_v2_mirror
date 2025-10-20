@@ -20,17 +20,21 @@ st.title("🔎 Overview — Tanks")
 eng = get_engine()
 STATUSES = ["new_tank","active","quarantined","retired","cleaning","broken","decommissioned"]
 
-def _view_exists() -> bool:
+def _assert_view_exists():
     with eng.begin() as cx:
-        return bool(cx.execute(text("""
+        row = cx.execute(text("""
             select 1
             from information_schema.views
             where table_schema='public' and table_name='v_tanks_for_fish'
             limit 1
-        """)).fetchone())
+        """)).fetchone()
+    if not row:
+        st.error("Required view public.v_tanks_for_fish is missing. Run the migration supabase/migrations/20251020_v_tanks_for_fish.sql.")
+        st.stop()
 
 @st.cache_data(ttl=5, show_spinner=False)
 def load_tanks(q: str | None, statuses: list[str], limit: int) -> pd.DataFrame:
+    _assert_view_exists()
     where = []
     params: dict[str, object] = {"limit": int(limit)}
     if q:
@@ -40,30 +44,10 @@ def load_tanks(q: str | None, statuses: list[str], limit: int) -> pd.DataFrame:
         where.append("status = any(:statuses)")
         params["statuses"] = statuses
 
-    if _view_exists():
-        base = """
-        select fish_code, tank_id, tank_code, status, capacity, tank_created_at, tank_updated_at
-        from public.v_tanks_for_fish
-        """
-    else:
-        base = """
-        with vt as (
-          select
-            t.id as tank_id,
-            t.tank_code,
-            t.status,
-            t.capacity,
-            t.created_at as tank_created_at,
-            t.updated_at as tank_updated_at,
-            f.fish_code
-          from public.tanks t
-          join public.fish f on f.id=t.fish_id
-        )
-        select fish_code, tank_id, tank_code, status, capacity, tank_created_at, tank_updated_at
-        from vt
-        """
-
-    sql = base + (" where " + " and ".join(where) if where else "") + " order by tank_created_at desc nulls last limit :limit"
+    sql = """
+    select fish_code, tank_id, tank_code, status, capacity, tank_created_at, tank_updated_at
+    from public.v_tanks_for_fish
+    """ + (" where " + " and ".join(where) if where else "") + " order by tank_created_at desc nulls last limit :limit"
 
     with eng.begin() as cx:
         return pd.read_sql(text(sql), cx, params=params)
