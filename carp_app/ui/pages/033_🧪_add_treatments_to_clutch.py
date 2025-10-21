@@ -47,7 +47,7 @@ def _safe_date(v):
 
 def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
     """
-    Source of truth: public.v_clutches_overview_final
+    Source of truth: public.v_clutches
     Columns expected by the page:
       clutch_code, cross_name_pretty, clutch_name,
       clutch_genotype_pretty, clutch_genotype_canonical,
@@ -99,7 +99,7 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
         treatments_count, treatments_pretty,
         clutch_birthday,
         created_by_instance, created_at_instance
-      FROM public.v_clutches_overview_final
+      FROM public.v_clutches
       {where_sql}
       ORDER BY created_at_instance DESC NULLS LAST, clutch_birthday DESC NULLS LAST
       LIMIT 1000
@@ -288,8 +288,8 @@ def _insert_instance_treatments(clutch_instance_id: str, created_by: str, items:
     return inserted, errs
 
 def _load_run_overview(ci_code: str) -> pd.DataFrame:
-    view = "public.v_clutches_overview_final"
-    if not _view_exists("public", "v_clutches_overview_final"):
+    view = "public.v_clutches"
+    if not _view_exists("public", "v_clutches"):
         return pd.DataFrame()
 
     with _eng().begin() as cx:
