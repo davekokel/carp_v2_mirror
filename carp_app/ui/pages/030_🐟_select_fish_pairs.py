@@ -50,12 +50,12 @@ def _view_exists(schema: str, name: str) -> bool:
     return n > 0
 
 def _stage_choices() -> List[str]:
-    if not _view_exists("public", "v_fish_overview_all"):
+    if not _view_exists("public", "v_fish"):
         return []
     with _get_engine().begin() as cx:
         df = pd.read_sql(text("""
             select distinct line_building_stage
-            from public.v_fish_overview_all
+            from public.v_fish
             where coalesce(line_building_stage,'') <> ''
             order by 1
         """), cx)
@@ -379,7 +379,7 @@ def _fetch_parent_rows(codes: list[str]) -> pd.DataFrame:
     try:
         clean = pd.read_sql(text("""
             select fish_code, transgene_pretty_name
-            from public.v_fish_standard_clean
+            from public.v_fish
             where fish_code = any(:codes)
         """), _get_engine(), params={"codes": codes})
     except Exception:
@@ -559,7 +559,7 @@ else:
         st.session_state["last_clutch_plan_id"] = str(cid)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Planned clutches (recent) — read from v_clutches_overview
+# Planned clutches (recent) — read from v_clutches
 # ─────────────────────────────────────────────────────────────────────────────
 st.subheader("Planned clutches (recent)")
 
@@ -600,7 +600,7 @@ sql = text(f"""
     n_treatments,
     created_by,
     created_at
-  from public.v_clutches_overview
+  from public.v_clutches
   {where_sql}
   order by created_at desc nulls last
   limit :lim

@@ -69,8 +69,8 @@ def _exists(schema_dot_name: str) -> bool:
         return bool(pd.read_sql(q, cx, params={"s": sch, "t": tab})["ok"].iloc[0])
 
 def _load_concepts() -> pd.DataFrame:
-    if not _exists("public.v_cross_concepts_overview"):
-        st.error("Missing view public.v_cross_concepts_overview."); st.stop()
+    if not _exists("public.v_clutches"):
+        st.error("Missing view public.v_clutches."); st.stop()
     with eng.begin() as cx:
         return pd.read_sql(
             """
@@ -80,7 +80,7 @@ def _load_concepts() -> pd.DataFrame:
               nickname              as clutch_nickname,
               mom_code, dad_code, mom_code_tank, dad_code_tank,
               created_at
-            from public.v_cross_concepts_overview
+            from public.v_clutches
             order by created_at desc nulls last, conceptual_cross_code
             limit 2000
             """,

@@ -46,7 +46,7 @@ with _get_engine().begin() as cx:
 st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers (single-source fish details from v_fish_overview_all)
+# Helpers (single-source fish details from v_fish)
 # ─────────────────────────────────────────────────────────────────────────────
 def _view_exists(schema: str, name: str) -> bool:
     with _get_engine().begin() as cx:
@@ -63,7 +63,7 @@ def _fetch_fish_details(codes: List[str]) -> Dict[str, Dict[str, str]]:
       name, nickname, genetic_background, birthday, allelecode, transgene
     - allelecode: first Tg(base)guN if present (else "")
     - transgene:  first base_code if present (else "")
-    No dependency on v_fish_overview_all’s allele columns.
+    No dependency on v_fish’s allele columns.
     """
     if not codes:
         return {}
