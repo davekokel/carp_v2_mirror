@@ -24,7 +24,7 @@ from sqlalchemy.engine import Engine
 
 from carp_app.lib.db import get_engine as _create_engine
 from carp_app.lib.queries import load_fish_overview_human
-from carp_app.ui.lib.labels_components import build_tank_labels_pdf  # 2.4"×1.5" + QR
+from carp_app.ui.lib.labels_components import build_tank_labels_pdf
 
 @st.cache_resource(show_spinner=False)
 def _cached_engine() -> Engine:
@@ -38,9 +38,6 @@ def _get_engine() -> Engine:
 
 st.set_page_config(page_title="CARP — Search Fish → Tanks", page_icon="🔎", layout="wide")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
 def _normalize_q(q_raw: str) -> str | None:
     q = (q_raw or "").strip()
     return q or None
@@ -75,40 +72,27 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
             "fish_code","tank_code","container_id","label","status","container_type",
             "location","created_at","activated_at","deactivated_at","last_seen_at"
         ])
-    with _get_engine().begin() as cx:
-        has_loc = pd.read_sql(
-            text("""
-              select 1
-              from information_schema.columns
-              where table_schema='public'
-                and table_name='tanks'
-                and column_name='location'
-              limit 1
-            """),
-            cx,
-        ).shape[0] > 0
     base_sql = """
       select
         f.fish_code,
         vt.tank_code,
         vt.tank_id::text             as container_id,
-        ''   as label,
-        coalesce(vt.status::text,'')  as status,
-        'holding_tank',
-        {loc_expr}             as location,
-        vt.tank_created_at,
-        NULL::timestamptz,
-        NULL::timestamptz,
-        NULL::timestamptz
-      from public.fish f      join public.v_tanks_for_fish vt
+        ''                           as label,
+        coalesce(vt.status::text,'') as status,
+        'holding_tank'               as container_type,
+        ''::text                     as location,
+        vt.tank_created_at           as created_at,
+        NULL::timestamptz            as activated_at,
+        NULL::timestamptz            as deactivated_at,
+        NULL::timestamptz            as last_seen_at
+      from public.fish f
+      join public.v_tanks_for_fish vt
         on vt.fish_id = f.id
       where f.fish_code = any(:codes)
       order by f.fish_code, vt.tank_created_at desc nulls last
     """
-    loc_expr = "coalesce(c.location,'')" if has_loc else "''::text"
-    sql = text(base_sql.format(loc_expr=loc_expr))
     with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params={"codes": codes})
+        return pd.read_sql(text(base_sql), cx, params={"codes": codes})
 
 def _view_exists(schema: str, view: str) -> bool:
     with _get_engine().begin() as cx:
@@ -124,10 +108,6 @@ def _view_exists(schema: str, view: str) -> bool:
     return n > 0
 
 def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
-    """
-    Enrichment for tank labels: resolves nickname, name, genotype, etc.
-    Uses public.v_fish_label_fields if present; otherwise returns minimal fields.
-    """
     if not container_ids:
         cols = [
             "container_id","tank_code","label","status","container_type","location",
@@ -136,23 +116,10 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
         ]
         return pd.DataFrame(columns=cols)
 
-    with _get_engine().begin() as cx:
-        has_location = pd.read_sql(
-            text("""
-              select 1
-              from information_schema.columns
-              where table_schema='public'
-                and table_name='tanks'
-                and column_name='location'
-              limit 1
-            """), cx
-        ).shape[0] > 0
-
-    loc_expr = "''::text" if has_location else "''::text"
     use_label_view = _view_exists("public", "v_fish_label_fields")
 
     if use_label_view:
-        sql = text(f"""
+        sql = text("""
           with picked as (select unnest(cast(:ids as uuid[])) as container_id),
           live as (
             select m.container_id, m.fish_id
@@ -160,23 +127,23 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             where m.left_at is null
           )
           select
-            vt.tank_id::text                   as container_id,
-            vt.tank_code::text            as tank_code,
-            ''         as label,
-            coalesce(vt.status::text,'')        as status,
-            'holding_tank'::text       as container_type,
-            {loc_expr}                   as location,
-            vt.tank_created_at::timestamptz    as created_at,
-            NULL::timestamptz,
-            NULL::timestamptz,
-            NULL::timestamptz,
-            f.fish_code::text            as fish_code,
-            coalesce(v.nickname,'')      as nickname,
-            coalesce(v.name,'')          as name,
-            coalesce(v.genotype,'')      as genotype,
-            coalesce(v.genetic_background,'') as genetic_background,
-            coalesce(v.stage,'')         as stage,
-            v.dob                        as dob
+            vt.tank_id::text                 as container_id,
+            vt.tank_code::text               as tank_code,
+            ''                               as label,
+            coalesce(vt.status::text,'')     as status,
+            'holding_tank'::text             as container_type,
+            ''::text                         as location,
+            vt.tank_created_at::timestamptz  as created_at,
+            NULL::timestamptz                as activated_at,
+            NULL::timestamptz                as deactivated_at,
+            NULL::timestamptz                as last_seen_at,
+            f.fish_code::text                as fish_code,
+            coalesce(v.nickname,'')          as nickname,
+            coalesce(v.name,'')              as name,
+            coalesce(v.genotype,'')          as genotype,
+            coalesce(v.genetic_background,'')as genetic_background,
+            coalesce(v.stage,'')             as stage,
+            v.dob                            as dob
           from picked p
           join public.v_tanks_for_fish vt on vt.tank_id = p.container_id
           left join live L on L.container_id = vt.tank_id
@@ -185,7 +152,7 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
           order by vt.tank_created_at asc, vt.tank_code asc
         """)
     else:
-        sql = text(f"""
+        sql = text("""
           with picked as (select unnest(cast(:ids as uuid[])) as container_id),
           live as (
             select m.container_id, m.fish_id
@@ -193,23 +160,23 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             where m.left_at is null
           )
           select
-            vt.tank_id::text                   as container_id,
-            vt.tank_code::text            as tank_code,
-            ''         as label,
-            coalesce(vt.status::text,'')        as status,
-            'holding_tank'::text       as container_type,
-            {loc_expr}                   as location,
-            vt.tank_created_at::timestamptz    as created_at,
-            NULL::timestamptz,
-            NULL::timestamptz,
-            NULL::timestamptz,
-            f.fish_code::text            as fish_code,
-            ''::text                     as nickname,
-            ''::text                     as name,
-            ''::text                     as genotype,
-            ''::text                     as genetic_background,
-            ''::text                     as stage,
-            null::date                   as dob
+            vt.tank_id::text                 as container_id,
+            vt.tank_code::text               as tank_code,
+            ''                               as label,
+            coalesce(vt.status::text,'')     as status,
+            'holding_tank'::text             as container_type,
+            ''::text                         as location,
+            vt.tank_created_at::timestamptz  as created_at,
+            NULL::timestamptz                as activated_at,
+            NULL::timestamptz                as deactivated_at,
+            NULL::timestamptz                as last_seen_at,
+            f.fish_code::text                as fish_code,
+            ''::text                         as nickname,
+            ''::text                         as name,
+            ''::text                         as genotype,
+            ''::text                         as genetic_background,
+            ''::text                         as stage,
+            null::date                       as dob
           from picked p
           join public.v_tanks_for_fish vt on vt.tank_id = p.container_id
           left join live L on L.container_id = vt.tank_id
@@ -219,13 +186,10 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params={"ids": container_ids})
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Printing (CUPS)
-# ─────────────────────────────────────────────────────────────────────────────
 def _detect_default_queue() -> str:
     try:
         p = subprocess.run(["lpstat", "-d"], capture_output=True, text=True, check=False)
-        line = p.stdout.strip()  # "system default destination: Brother_QL_1110NWB"
+        line = p.stdout.strip()
         if ":" in line:
             return line.split(":", 1)[1].strip()
     except Exception:
@@ -233,7 +197,7 @@ def _detect_default_queue() -> str:
     return ""
 
 PRINTER_QUEUE_DEFAULT = os.getenv("LABEL_PRINTER_QUEUE", "").strip() or _detect_default_queue()
-PRINTER_MEDIA_DEFAULT = os.getenv("LABEL_MEDIA_NAME", "Custom.61x38mm")  # 2.4" x 1.5"
+PRINTER_MEDIA_DEFAULT = os.getenv("LABEL_MEDIA_NAME", "Custom.61x38mm")
 
 def _print_pdf_to_cups(pdf_bytes: bytes, queue: str, media: str) -> tuple[bool, str]:
     if not pdf_bytes:
@@ -254,13 +218,9 @@ def _print_pdf_to_cups(pdf_bytes: bytes, queue: str, media: str) -> tuple[bool, 
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Page
-# ─────────────────────────────────────────────────────────────────────────────
 def main():
     st.title("🔎 Search Fish → Tanks")
 
-    # Filters
     with st.form("filters"):
         c1, c2 = st.columns([3,1])
         with c1:
@@ -285,7 +245,6 @@ def main():
 
     fish_df = pd.DataFrame(fish_rows)
 
-    # counts and base view
     codes = fish_df["fish_code"].astype(str).tolist()
     counts_df = _open_membership_counts_for_codes(codes)
     fish_df = fish_df.merge(counts_df, on="fish_code", how="left")
@@ -340,7 +299,6 @@ def main():
 
     selected_codes = edited.loc[edited["✓ Select"], "Fish code"].astype(str).tolist()
 
-    # Tanks for selected fish
     st.subheader("Current tanks for selected fish")
     if not selected_codes:
         st.info("Select one or more fish above to see their current tanks.")
@@ -348,7 +306,7 @@ def main():
 
     tanks_df = _load_tanks_for_codes(selected_codes)
     if tanks_df.empty:
-        st.info("No active memberships / tanks for selected fish.")
+        st.info("No tanks found for selected fish.")
         return
 
     tanks_view = tanks_df.rename(columns={
@@ -365,17 +323,20 @@ def main():
         "last_seen_at":"Last seen",
     }).copy()
 
-    # Add print-selection column and grid
-    tanks_view.insert(0, "✓ Print", False)
+    _df = tanks_view.copy()
+    for k in ["Type","Label","Created","Activated","Deactivated","Last seen"]:
+        if k not in _df.columns:
+            _df[k] = None
+    _df.insert(0, "✓ Print", False)
 
     cols = ["✓ Print","Fish code","Tank code","Label","Status","Type","Created","Activated","Deactivated","Last seen","Container ID"]
-    if "Location" in tanks_view.columns:
+    if "Location" in _df.columns and "Location" not in cols:
         cols.insert(5, "Location")
 
-    tanks_sig = "|".join(tanks_view["Container ID"].astype(str).tolist())
+    tanks_sig = "|".join(_df["Container ID"].astype(str).tolist())
     if st.session_state.get("_sft_tanks_sig") != tanks_sig:
         st.session_state["_sft_tanks_sig"] = tanks_sig
-        st.session_state["_sft_tanks_table"] = tanks_view.copy()
+        st.session_state["_sft_tanks_table"] = _df[cols].copy()
 
     ctp_a, ctp_b, _ = st.columns([1,1,6])
     with ctp_a:
@@ -388,7 +349,7 @@ def main():
             st.rerun()
 
     tanks_edited = st.data_editor(
-        st.session_state["_sft_tanks_table"][cols],
+        st.session_state["_sft_tanks_table"],
         use_container_width=True,
         hide_index=True,
         key="sft_tanks_editor",
@@ -396,7 +357,6 @@ def main():
     )
     st.session_state["_sft_tanks_table"] = tanks_edited.copy()
 
-    # Print section
     st.subheader("Print labels")
     to_print = tanks_edited.loc[tanks_edited["✓ Print"] == True]
     st.caption(f"{len(to_print)} tank(s) selected for labels")
@@ -422,7 +382,6 @@ def main():
             pdf_bytes = build_tank_labels_pdf(rows)
 
     left, right = st.columns([1,1])
-
     with left:
         st.download_button(
             "⬇️ Download PDF labels (2.4×1.5 • QR)",
@@ -433,7 +392,6 @@ def main():
             use_container_width=True,
             disabled=(pdf_bytes == b""),
         )
-
     with right:
         with st.expander("Printer settings", expanded=(PRINTER_QUEUE_DEFAULT == "")):
             queue = st.text_input("CUPS queue", value=PRINTER_QUEUE_DEFAULT, placeholder="Brother_QL_1110NWB")

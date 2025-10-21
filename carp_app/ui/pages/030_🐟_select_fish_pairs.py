@@ -62,45 +62,103 @@ def _stage_choices() -> List[str]:
     return [s for s in df["line_building_stage"].astype(str).tolist() if s]
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Single-source fish search from v_fish_overview_all
+# Enriched fish search (same join used by CSV upsert results)
 # ─────────────────────────────────────────────────────────────────────────────
-def _search_fish_from_view(q: str | None, stages: List[str], limit: int) -> pd.DataFrame:
+def _search_fish_enriched(q: str | None, stages: List[str], limit: int) -> pd.DataFrame:
     where = []
     params: Dict[str, Any] = {"lim": int(limit)}
     if q and q.strip():
         params["qq"] = f"%{q.strip()}%"
         where.append("""
-          (fish_code ilike :qq
-           or name ilike :qq
-           or nickname ilike :qq
-           or genetic_background ilike :qq
-           or genotype ilike :qq
-           or transgene_base_code ilike :qq
-           or allele_nickname ilike :qq)
+          (f.fish_code ilike :qq
+           or f.name ilike :qq
+           or f.nickname ilike :qq
+           or f.genetic_background ilike :qq
+           or ta.allele_nickname ilike :qq
+           or fta.transgene_base_code ilike :qq
+           or ('Tg(' || fta.transgene_base_code || ')' || ta.allele_name) ilike :qq)
         """)
     if stages:
         params["stages"] = [s.strip() for s in stages if s.strip()]
         if params["stages"]:
-            where.append("coalesce(line_building_stage,'') <> '' and line_building_stage = any(:stages)")
+            where.append("coalesce(f.line_building_stage,'') <> '' and f.line_building_stage = any(:stages)")
     where_sql = (" where " + " and ".join(where)) if where else ""
+
     sql = text(f"""
-      select *
-      from public.v_fish_overview_all
+      with alleles as (
+        select
+          f.id                           as fish_id,
+          f.fish_code,
+          f.name,
+          f.nickname,
+          f.genetic_background,
+          f.line_building_stage,
+          f.date_birth                  as birthday,
+          f.created_at,
+          f.created_by,
+          fta.transgene_base_code,
+          fta.allele_number,
+          ta.allele_name,
+          ta.allele_nickname::text      as allele_nickname,
+          ('Tg(' || fta.transgene_base_code || ')' || ta.allele_name) as transgene_pretty
+        from public.fish f
+        left join public.fish_transgene_alleles fta on fta.fish_id = f.id
+        left join public.transgene_alleles ta
+               on ta.transgene_base_code = fta.transgene_base_code
+              and ta.allele_number       = fta.allele_number
+      ),
+      geno as (
+        select
+          a.fish_code,
+          string_agg(a.transgene_pretty, '; ' order by a.transgene_pretty) as genotype_rollup
+        from alleles a
+        group by a.fish_code
+      ),
+      tanks as (
+        select
+          f.id as fish_id,
+          vt.tank_code::text as tank_code,
+          vt.status::text    as tank_status
+        from public.fish f
+        left join public.v_tanks_for_fish vt on vt.fish_id = f.id
+      )
+      select
+        a.fish_code,
+        a.name,
+        a.nickname,
+        a.genetic_background,
+        a.line_building_stage,
+        a.birthday,
+        a.created_at,
+        a.created_by,
+        a.transgene_base_code   as transgene_base,
+        a.allele_number,
+        a.allele_name,
+        a.allele_nickname,
+        a.transgene_pretty      as transgene_pretty_name,
+        a.transgene_pretty      as transgene_pretty_nickname,
+        g.genotype_rollup       as genotype_rollup_clean,
+        coalesce(t.tank_code, '')   as tank_code,
+        coalesce(t.tank_status, '') as tank_status,
+        0::int as n_living_tanks
+      from alleles a
+      left join geno  g on g.fish_code = a.fish_code
+      left join tanks t on t.fish_id = a.fish_id
       {where_sql}
-      order by created_at desc nulls last, fish_code
+      order by a.created_at desc nulls last, a.fish_code
       limit :lim
     """)
+
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
     # display hygiene
     SAFE_TEXT = [
         "fish_code","name","nickname","genetic_background",
-        "line_building_stage","description","notes",
-        "created_by","transgene_base_code","allele_nickname","zygosity",
-        "transgene_base","allele_name",
+        "line_building_stage","created_by",
+        "transgene_base","allele_name","allele_nickname",
         "transgene_pretty_nickname","transgene_pretty_name",
-        "genotype","genotype_rollup_clean",
+        "genotype_rollup_clean","tank_code","tank_status",
     ]
     for c in SAFE_TEXT:
         if c in df.columns:
@@ -140,22 +198,21 @@ with st.form("fish_filters"):
     with c3:
         limit = int(st.number_input("Limit", min_value=1, max_value=5000, value=500, step=100))
     with c4:
-        reload_click = st.form_submit_button("Reload from DB")
-    submitted = st.form_submit_button("Apply")
+        action = st.radio("Action", ("Apply", "Reload"), horizontal=True, label_visibility="collapsed")
+    submitted = st.form_submit_button("Run")
 
-# version token so cache invalidates when view changes
-with _get_engine().begin() as cx:
-    ver = pd.read_sql(text("select count(*)::int as n, coalesce(max(created_at)::text,'') as mx from public.v_fish_overview_all"), cx).iloc[0]
-version_token = f"{ver['n']}|{ver['mx']}"
-sig_now = f"{q}|{','.join(stage_vals)}|{limit}|{version_token}"
-
-if reload_click:
+if submitted and action == "Reload":
     st.session_state.pop("_picker_sig", None)
     st.session_state.pop("_picker_src", None)
 
+with _get_engine().begin() as cx:
+    ver = pd.read_sql(text("select count(*)::int as n, coalesce(max(created_at)::text,'') as mx from public.fish"), cx).iloc[0]
+version_token = f"{ver['n']}|{ver['mx']}"
+sig_now = f"{q}|{','.join(stage_vals)}|{limit}|{version_token}"
+
 # fetch raw source df when needed
 if submitted or st.session_state.get("_picker_sig") != sig_now or "_picker_src" not in st.session_state:
-    src = _search_fish_from_view(q, stage_vals, limit)
+    src = _search_fish_enriched(q, stage_vals, limit)
     st.session_state["_picker_sig"] = sig_now
     st.session_state["_picker_src"] = src
 else:
@@ -181,11 +238,11 @@ else:
     view.insert(0, "✓ Select", view["fish_code"].astype(str).isin(sel_set))
     view = view.rename(columns={
         "fish_code":"Fish code",
-        "name":"Name",
-        "nickname":"Nickname",
-        "genetic_background":"Background",
-        "transgene_base":"Transgene base",
-        "allele_number":"Allele #",
+        "name":"Fish name",
+        "nickname":"Fish nickname",
+        "genetic_background":"Genetic background",
+        "transgene_base":"Transgene base code",
+        "allele_number":"Allele number",
         "allele_name":"Allele name",
         "allele_nickname":"Allele nickname",
         "transgene_pretty_nickname":"Transgene (pretty nickname)",
@@ -214,12 +271,12 @@ else:
         column_config={
             "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
             "Fish code": st.column_config.TextColumn("Fish code", disabled=True),
-            "Name": st.column_config.TextColumn("Name", disabled=True),
-            "Nickname": st.column_config.TextColumn("Nickname", disabled=True),
-            "Background": st.column_config.TextColumn("Background", disabled=True),
+            "Fish name": st.column_config.TextColumn("Fish name", disabled=True),
+            "Fish nickname": st.column_config.TextColumn("Fish nickname", disabled=True),
+            "Genetic background": st.column_config.TextColumn("Genetic background", disabled=True),
             "Stage": st.column_config.TextColumn("Stage", disabled=True),
-            "Transgene base": st.column_config.TextColumn("Transgene base", disabled=True),
-            "Allele #": st.column_config.TextColumn("Allele #", disabled=True),
+            "Transgene base code": st.column_config.TextColumn("Transgene base code", disabled=True),
+            "Allele number": st.column_config.TextColumn("Allele number", disabled=True),
             "Allele name": st.column_config.TextColumn("Allele name", disabled=True),
             "Allele nickname": st.column_config.TextColumn("Allele nickname", disabled=True),
             "Transgene (pretty nickname)": st.column_config.TextColumn("Transgene (pretty nickname)", disabled=True),
@@ -284,7 +341,7 @@ else:
     st.write(f"**Dad (B) — fish:** {st.session_state.get('dad_fish_code','—')}")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 2 — Genotype inheritance (same logic as before)
+# Step 2 — Genotype inheritance
 # ─────────────────────────────────────────────────────────────────────────────
 st.header("Step 2 — Genotype inheritance")
 
@@ -502,57 +559,76 @@ else:
         st.session_state["last_clutch_plan_id"] = str(cid)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Planned clutches (recent) — mom/dad details from the same view
+# Planned clutches (recent) — read from v_clutches_overview
 # ─────────────────────────────────────────────────────────────────────────────
-with _get_engine().begin() as cx:
-    base = pd.read_sql(text("""
-      with tx_counts as (
-        select clutch_id, count(*) as n_treatments
-        from public.clutch_plan_treatments
-        group by clutch_id
-      )
-      select
-        coalesce(p.clutch_code, p.id::text) as clutch_code,
-        coalesce(p.planned_name,'')         as name,
-        coalesce(p.planned_nickname,'')     as nickname,
-        p.mom_code,
-        p.dad_code,
-        coalesce(t.n_treatments,0)          as n_treatments,
-        p.created_by,
-        p.created_at
-      from public.clutch_plans p
-      left join tx_counts t on t.clutch_id = p.id
-      order by p.created_at desc
-      limit 100
-    """), cx)
-
 st.subheader("Planned clutches (recent)")
-if base.empty:
+
+# optional quick filters
+cc1, cc2 = st.columns([2,1])
+with cc1:
+    clutch_q = st.text_input("Filter (clutch code / mom / dad / name / nickname)", "")
+with cc2:
+    lim = int(st.number_input("Limit", min_value=1, max_value=1000, value=100, step=50))
+
+where_sql = ""
+params: Dict[str, Any] = {"lim": lim}
+if clutch_q.strip():
+    params["qq"] = f"%{clutch_q.strip()}%"
+    where_sql = """
+      where (clutch_code ilike :qq
+         or name ilike :qq
+         or nickname ilike :qq
+         or mom_code ilike :qq
+         or dad_code ilike :qq)
+    """
+
+sql = text(f"""
+  select
+    clutch_code,
+    name,
+    nickname,
+    mom_code,
+    mom_background,
+    mom_genotype_rollup,
+    mom_n_living_tanks,
+    mom_birth,
+    dad_code,
+    dad_background,
+    dad_genotype_rollup,
+    dad_n_living_tanks,
+    dad_birth,
+    n_treatments,
+    created_by,
+    created_at
+  from public.v_clutches_overview
+  {where_sql}
+  order by created_at desc nulls last
+  limit :lim
+""")
+
+with _get_engine().begin() as cx:
+    out = pd.read_sql(sql, cx, params=params)
+
+if out.empty:
     st.info("No planned clutches yet.")
 else:
-    codes = sorted(set(base["mom_code"].dropna().astype(str).tolist() + base["dad_code"].dropna().astype(str).tolist()))
-    if codes:
-        with _get_engine().begin() as cx:
-            mom = pd.read_sql(text("""
-              select fish_code,
-                     genetic_background as mom_background,
-                     genotype_rollup_clean as mom_genotype_rollup,
-                     n_living_tanks as mom_n_living_tanks,
-                     birthday as mom_birth
-              from public.v_fish_overview_all
-              where fish_code = any(:codes)
-            """), cx, params={"codes": codes})
-            dad = mom.rename(columns={
-                "fish_code":"dad_code",
-                "mom_background":"dad_background",
-                "mom_genotype_rollup":"dad_genotype_rollup",
-                "mom_n_living_tanks":"dad_n_living_tanks",
-                "mom_birth":"dad_birth",
-            }).copy()
-            mom = mom.rename(columns={"fish_code":"mom_code"})
-        out = base.merge(mom, on="mom_code", how="left").merge(dad, on="dad_code", how="left").fillna({"mom_n_living_tanks":0, "dad_n_living_tanks":0})
-    else:
-        out = base.copy()
+    # hygiene: cast textual cols to string so nothing shows as float/NaN
+    text_cols = [
+        "clutch_code","name","nickname",
+        "mom_code","mom_background","mom_genotype_rollup",
+        "dad_code","dad_background","dad_genotype_rollup",
+        "created_by"
+    ]
+    for c in text_cols:
+        if c in out.columns:
+            out[c] = out[c].astype("string").fillna("")
+
+    # numeric defaults
+    for c in ("mom_n_living_tanks","dad_n_living_tanks","n_treatments"):
+        if c in out.columns:
+            out[c] = pd.to_numeric(out[c], errors="coerce").fillna(0).astype(int)
+
+    # exact columns & friendly headings
     show_cols = [
         "clutch_code","name","nickname",
         "mom_code","mom_background","mom_genotype_rollup","mom_n_living_tanks","mom_birth",
@@ -578,4 +654,5 @@ else:
         "created_by":"Created by",
         "created_at":"Created",
     })
+
     st.dataframe(view2, use_container_width=True, hide_index=True)
