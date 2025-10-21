@@ -58,68 +58,80 @@ def _view_exists(schema: str, name: str) -> bool:
     return n > 0
 
 def _fetch_fish_details(codes: List[str]) -> Dict[str, Dict[str, str]]:
+    """
+    Returns per-fish details keyed by fish_code:
+      name, nickname, genetic_background, birthday, allelecode, transgene
+    - allelecode: first Tg(base)guN if present (else "")
+    - transgene:  first base_code if present (else "")
+    No dependency on v_fish_overview_all’s allele columns.
+    """
     if not codes:
         return {}
-    uniq = list({c for c in codes if c})
-    if _view_exists("public", "v_fish_overview_all"):
-        sql = text("""
-          select
-            fish_code,
-            coalesce(name,'')                as name,
-            coalesce(nickname,'')            as nickname,
-            coalesce(genetic_background,'')  as genetic_background,
-            birthday,
-            coalesce(transgene_base_code,'') as transgene,
-            allele_number,
-            coalesce(allele_name,'')         as allele_name
-          from public.v_fish_overview_all
-          where fish_code = any(:codes)
-        """)
-        with _get_engine().begin() as cx:
-            df = pd.read_sql(sql, cx, params={"codes": uniq})
 
-        def _allelecode_row(r):
-            base = (r.get("transgene") or "").strip()
-            num  = r.get("allele_number")
-            nm   = (r.get("allele_name") or "").strip()
-            if nm: return nm
-            if base and pd.notna(num):
-                try: return f"Tg({base}){int(num)}"
-                except Exception: return ""
-            return ""
-
-        out = {}
-        for _, r in df.iterrows():
-            out[str(r["fish_code"])] = {
-                "name": r["name"] or "",
-                "nickname": r["nickname"] or "",
-                "genetic_background": r["genetic_background"] or "",
-                "birthday": (pd.to_datetime(r["birthday"]).date().isoformat()
-                             if pd.notna(r["birthday"]) else ""),
-                "allelecode": _allelecode_row(r),
-                "transgene": r["transgene"] or "",
-            }
-        return out
-    # minimal fallback from fish
     with _get_engine().begin() as cx:
-        cols = pd.read_sql(
-            text("""select column_name from information_schema.columns
-                    where table_schema='public' and table_name='fish'"""), cx
-        )["column_name"].tolist()
-        sel = ["fish_code"]
-        sel.append("coalesce(name,'') as name" if "name" in cols else "''::text as name")
-        sel.append("coalesce(nickname,'') as nickname" if "nickname" in cols else "''::text as nickname")
-        sel.append("coalesce(genetic_background,'') as genetic_background" if "genetic_background" in cols else "''::text as genetic_background")
-        sel.append("to_char(date_birth::date,'YYYY-MM-DD') as birthday" if "date_birth" in cols else "''::text as birthday")
-        sql = text(f"select {', '.join(sel)} from public.fish where fish_code = any(:codes)")
-        df = pd.read_sql(sql, cx, params={"codes": uniq})
-    return {r["fish_code"]: {
-        "name": r.get("name","") or "",
-        "nickname": r.get("nickname","") or "",
-        "genetic_background": r.get("genetic_background","") or "",
-        "birthday": r.get("birthday","") or "",
-        "allelecode": "", "transgene": "",
-    } for _, r in df.iterrows()}
+        df = pd.read_sql(text("""
+            with src as (
+              select
+                f.id,
+                f.fish_code,
+                coalesce(f.name,'')               as name,
+                coalesce(f.nickname,'')           as nickname,
+                coalesce(f.genetic_background,'') as genetic_background,
+                f.date_birth                      as birthday
+              from public.fish f
+              where f.fish_code = any(:codes)
+            ),
+            alleles as (
+              select
+                fta.fish_id,
+                fta.transgene_base_code                           as base_code,
+                coalesce(ta.allele_name, '')                      as allele_name,
+                ('Tg(' || fta.transgene_base_code || ')' ||
+                  coalesce(ta.allele_name, ''))                  as transgene_pretty,
+                row_number() over (partition by fta.fish_id
+                                   order by fta.transgene_base_code, ta.allele_name) rn
+              from public.fish_transgene_alleles fta
+              join public.transgene_alleles ta
+                on ta.transgene_base_code = fta.transgene_base_code
+               and ta.allele_number       = fta.allele_number
+            ),
+            pick as (
+              -- pick the first allele per fish for allelecode/transgene summary
+              select
+                a.fish_id,
+                a.base_code,
+                a.allele_name,
+                a.transgene_pretty
+              from alleles a
+              where a.rn = 1
+            )
+            select
+              s.fish_code,
+              s.name,
+              s.nickname,
+              s.genetic_background,
+              s.birthday,
+              coalesce(p.base_code,'')        as transgene,
+              coalesce(p.transgene_pretty,'') as allelecode
+            from src s
+            left join pick p on p.fish_id = s.id
+        """), cx, params={"codes": list({c for c in codes if c})})
+
+    out: Dict[str, Dict[str, str]] = {}
+    if df.empty:
+        return out
+
+    for _, r in df.iterrows():
+        out[str(r["fish_code"])] = {
+            "name":               (r.get("name") or ""),
+            "nickname":           (r.get("nickname") or ""),
+            "genetic_background": (r.get("genetic_background") or ""),
+            "birthday":           (pd.to_datetime(r["birthday"]).date().isoformat()
+                                   if pd.notna(r.get("birthday")) else ""),
+            "allelecode":         (r.get("allelecode") or ""),   # e.g., Tg(pDQM005)gu1
+            "transgene":          (r.get("transgene") or ""),    # e.g., pDQM005
+        }
+    return out
 
 def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.DataFrame:
     sql = text("""
