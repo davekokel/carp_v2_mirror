@@ -3,462 +3,285 @@ import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
 import os
-from datetime import date, timedelta
-import typing as t
+from datetime import date
+from typing import Optional, List
 
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 
+from carp_app.lib.db import get_engine
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
-from carp_app.lib.config import engine as get_engine
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Auth + page
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Auth ─────────────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 
-st.set_page_config(page_title="🗓️ Schedule new cross", page_icon="🗓️", layout="wide")
-st.title("🗓️ Schedule new cross")
+st.set_page_config(page_title="🗓 Schedule new cross", page_icon="🗓", layout="wide")
+st.title("🗓 Schedule new cross")
 
-_msg = st.session_state.get("schedule_result")
-if _msg:
-    if _msg.get("made"):
-        st.success(f"Scheduled {len(_msg['made'])} instance(s): {', '.join(_msg['made'])}")
-    if _msg.get("dupes"):
-        st.warning("Some selections were already scheduled for that date:\n- " + "\n- ".join(_msg["dupes"]))
+DB_URL = os.getenv("DB_URL")
+if not DB_URL:
+    st.error("DB_URL not set"); st.stop()
+eng = get_engine()
 
-try:
-    from carp_app.ui.auth_gate import require_app_unlock
-except Exception:
-    def require_app_unlock(): ...
-require_app_unlock()
+VIEW_CLUTCHES = "v_clutches"       # canonical clutch concepts
+VIEW_TANK_PAIRS = "v_tank_pairs"   # friendly tank-pair details
+TABLE_TANK_PAIRS = "tank_pairs"    # mother_tank_id / father_tank_id source
+TABLE_CLUTCH_PLANS = "clutch_plans"
+TABLE_CROSS_INSTANCES = "cross_instances"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DB
-# ─────────────────────────────────────────────────────────────────────────────
-@st.cache_resource(show_spinner=False)
-def _cached_engine(url: str):
-    return get_engine()
+# ── Helpers ──────────────────────────────────────────────────────────────────
+def _safe_df(cx, sql: str, params: Optional[dict] = None) -> pd.DataFrame:
+    try:
+        return pd.read_sql(text(sql), cx, params=params or {})
+    except Exception as e:
+        st.error(f"Query failed: {e}")
+        return pd.DataFrame()
 
-def _get_engine():
-    url = os.getenv("DB_URL")
-    if not url:
-        st.error("DB_URL not set"); st.stop()
-    return _cached_engine(url)
-
-def _view_exists(schema: str, name: str) -> bool:
-    with _get_engine().begin() as cx:
-        n = pd.read_sql(
-            text("select 1 from information_schema.views where table_schema=:s and table_name=:t limit 1"),
-            cx, params={"s": schema, "t": name}
-        ).shape[0]
-    return n > 0
-
-def _table_cols(schema: str, name: str) -> t.List[str]:
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(text("""
-          select column_name
-          from information_schema.columns
-          where table_schema=:s and table_name=:t
-          order by ordinal_position
-        """), cx, params={"s": schema, "t": name})
+def _get_schema_columns(cx, schema: str, name: str) -> list[str]:
+    df = pd.read_sql(
+        text("""select column_name
+                from information_schema.columns
+                where table_schema=:s and table_name=:t
+                order by ordinal_position"""),
+        cx, params={"s": schema, "t": name}
+    )
     return df["column_name"].tolist()
 
-def _db_banner():
-    try:
-        with _get_engine().begin() as cx:
-            dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
-        st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
-    except Exception:
-        pass
+def _table_has_columns(cx, schema: str, name: str, *cols: str) -> bool:
+    have = set(_get_schema_columns(cx, schema, name))
+    return all(c in have for c in cols)
 
-_db_banner()
+# ── Filters for concepts (clutches to produce) ───────────────────────────────
+with st.form("filters"):
+    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+    q = c1.text_input("Search (code/name/nickname/FSH)")
+    d_from = c2.date_input("From", value=None)
+    d_to   = c3.date_input("To", value=None)
+    created_by = c4.text_input("Created by")
+    most_recent = st.toggle("Most recent (ignore dates)", value=True)
+    _ = st.form_submit_button("Apply")
 
-LIVE_STATUSES = ("active","new_tank")
+where, params = [], {}
+if not most_recent:
+    if d_from: where.append("c.created_at >= :d1"); params["d1"] = str(d_from)
+    if d_to:   where.append("c.created_at <= :d2"); params["d2"] = str(d_to)
+if created_by:
+    where.append("c.created_by ilike :cb"); params["cb"] = f"%{created_by}%"
+if q:
+    params["q"] = f"%{q.strip()}%"
+    where.append("""(
+      c.clutch_code ilike :q or c.name ilike :q or c.nickname ilike :q or
+      c.mom_code ilike :q or c.dad_code ilike :q
+    )""")
+where_sql = (" where " + " AND ".join(where)) if where else ""
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Section 1 — load clutch concepts (with parents + genotypes)
-# ─────────────────────────────────────────────────────────────────────────────
-def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
-    """
-    Returns one row per clutch plan with parents + genotypes visible.
-    Uses v_clutches_overview_final for enrichment; shows latest instance per plan if any.
-    Also shows a simple 'pairings' count from tank_pairs per concept.
-    """
-    if not _view_exists("public", "v_clutches_overview_final"):
-        st.error("Required view public.v_clutches_overview_final is missing."); st.stop()
+# ── Step 1: Select the clutch concept(s) you want to generate ────────────────
+with eng.begin() as cx:
+    df_concepts = _safe_df(cx, f"""
+      select c.*
+      from public.{VIEW_CLUTCHES} c
+      {where_sql}
+      order by c.created_at desc nulls last
+      limit 500
+    """, params)
+st.subheader("1) Select the clutch genotype you want to generate")
+if df_concepts.empty:
+    st.info("No clutch concepts match."); st.stop()
 
-    where = []
-    params: dict = {}
-
-    if not most_recent:
-        where.append("cp.created_at::date between :d1 and :d2")
-        params["d1"] = d1; params["d2"] = d2
-
-    if created_by:
-        where.append("cp.created_by ilike :byl")
-        params["byl"] = f"%{created_by}%"
-
-    if q:
-        where.append("""
-          (coalesce(cp.clutch_code,'') ilike :ql
-           or coalesce(cp.planned_name,'') ilike :ql
-           or coalesce(cp.planned_nickname,'') ilike :ql
-           or coalesce(cp.mom_code,'') ilike :ql
-           or coalesce(cp.dad_code,'') ilike :ql)
-        """)
-        params["ql"] = f"%{q}%"
-
-    where_sql = " AND ".join(where) if where else "true"
-
-    sql = text(f"""
-      with tp as (
-        select concept_id, count(*)::int as pairings
-        from public.tank_pairs
-        group by concept_id
-      ),
-      v as (
-        -- latest enriched row per plan
-        select distinct on (v.clutch_plan_id)
-               v.clutch_plan_id,
-               v.mom_code, v.mom_genotype,
-               v.dad_code, v.dad_genotype,
-               v.created_at_instance
-        from public.v_clutches_overview_final v
-        order by v.clutch_plan_id, v.created_at_instance desc nulls last
-      )
-      select
-        cp.id::text                           as clutch_id,
-        coalesce(cp.clutch_code, cp.id::text) as clutch_code,
-        coalesce(cp.planned_name,'')          as planned_name,
-        coalesce(cp.planned_nickname,'')      as planned_nickname,
-        coalesce(v.mom_code, cp.mom_code)     as mom_code,
-        coalesce(v.mom_genotype,'')           as mom_genotype,
-        coalesce(v.dad_code, cp.dad_code)     as dad_code,
-        coalesce(v.dad_genotype,'')           as dad_genotype,
-        coalesce(tp.pairings,0)               as pairings,
-        cp.created_by, cp.created_at
-      from public.clutch_plans cp
-      left join v  on v.clutch_plan_id = cp.id
-      left join tp on tp.concept_id    = cp.id
-      where {where_sql}
-      order by cp.created_at desc
-    """)
-    with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params=params)
-
-def _get_concept_id(sel: pd.DataFrame) -> t.Optional[str]:
-    return str(sel.iloc[0]["clutch_id"]) if (isinstance(sel, pd.DataFrame) and not sel.empty and "clutch_id" in sel.columns) else None
-
-def _ensure_cross_id(mom_code: str, dad_code: str, created_by_val: str) -> str:
-    cols = _table_cols("public","crosses")
-    with _get_engine().begin() as cx:
-        cross_id = None
-        if "mother_code" in cols and "father_code" in cols:
-            cross_id = cx.execute(text("""
-                select id::text from public.crosses
-                where mother_code=:m and father_code=:d
-                limit 1
-            """), {"m": mom_code, "d": dad_code}).scalar()
-        if cross_id:
-            return str(cross_id)
-        fields, params = [], {}
-        if "mother_code" in cols:
-            fields.append("mother_code"); params["mother_code"] = mom_code
-        if "father_code" in cols:
-            fields.append("father_code"); params["father_code"] = dad_code
-        if "cross_name" in cols:
-            fields.append("cross_name"); params["cross_name"] = f"{mom_code} x {dad_code}"
-        if "created_by" in cols:
-            fields.append("created_by"); params["created_by"] = created_by_val
-        sql = text(f"""
-            insert into public.crosses ({", ".join(fields)})
-            values ({", ".join(":"+k for k in params.keys())})
-            returning id::text
-        """)
-        return str(cx.execute(sql, params).scalar())
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Filters
-# ─────────────────────────────────────────────────────────────────────────────
-with st.form("filters", clear_on_submit=False):
-    today = date.today()
-    c1, c2, c3, c4 = st.columns([1,1,1,3])
-    with c1: start = st.date_input("From", value=today - timedelta(days=120))
-    with c2: end   = st.date_input("To",   value=today + timedelta(days=14))
-    with c3: created_by = st.text_input("Created by", value="")
-    with c4: q = st.text_input("Search (code/name/nickname/FSH)", value="")
-    r1, r2 = st.columns([1,3])
-    with r1: most_recent = st.checkbox("Most recent (ignore dates)", value=False)
-    with r2: st.form_submit_button("Apply", use_container_width=True)
-
-plans = _load_clutch_concepts(start, end, created_by, q, most_recent)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Section 1 — Select the clutch genotype (with parents)
-# ─────────────────────────────────────────────────────────────────────────────
-st.markdown("### 1) Select the clutch genotype you want to generate")
-st.caption(f"{len(plans)} clutch concept(s).")
-
-plan_df = plans.copy() if not plans.empty else pd.DataFrame()
-if "✓ Select" not in plan_df.columns:
-    plan_df.insert(0, "✓ Select", False)
-
-section1_cols = [
-    "✓ Select",
-    "clutch_code",
-    "planned_name",
-    "planned_nickname",
-    "mom_code", "mom_genotype",
-    "dad_code", "dad_genotype",
-    "pairings",
-    "created_by","created_at",
-]
-have1 = [c for c in section1_cols if c in plan_df.columns]
-
-plan_edited = st.data_editor(
-    plan_df[have1],
-    hide_index=True,
-    use_container_width=True,
-    column_config={
-        "✓ Select":            st.column_config.CheckboxColumn("✓", default=False),
-        "pairings":            st.column_config.NumberColumn("pairings", disabled=True, width="small"),
-        "created_at":          st.column_config.DatetimeColumn("created_at", disabled=True),
-        "mom_code":            st.column_config.TextColumn("Mom FSH", disabled=True),
-        "mom_genotype":        st.column_config.TextColumn("Mom genotype", disabled=True),
-        "dad_code":            st.column_config.TextColumn("Dad FSH", disabled=True),
-        "dad_genotype":        st.column_config.TextColumn("Dad genotype", disabled=True),
-        "planned_name":        st.column_config.TextColumn("Planned name", disabled=True),
-        "planned_nickname":    st.column_config.TextColumn("Planned nickname", disabled=True),
-        "clutch_code":         st.column_config.TextColumn("Clutch", disabled=True),
-    },
-    key="plan_picker",
+concept_vis = df_concepts.copy()
+sel_key = "clutch_code" if "clutch_code" in concept_vis.columns else concept_vis.columns[0]
+concept_vis.insert(0, "✓ Select", False)
+concept_pick = st.data_editor(
+    concept_vis,
+    hide_index=True, use_container_width=True,
+    column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
+    key="concept_editor",
 )
+mask_concept = concept_pick.get("✓ Select", pd.Series(False, index=concept_pick.index)).astype(bool)
+selected_concepts: List[str] = concept_pick.loc[mask_concept, sel_key].astype(str).tolist()
 
-sel_mask  = plan_edited.get("✓ Select", pd.Series(False, index=plan_edited.index)).fillna(False).astype(bool)
-sel_plans = plan_df.loc[sel_mask].reset_index(drop=True)
-concept_id = _get_concept_id(sel_plans)
+# Guard: require one concept (we’ll keep it simple)
+if not selected_concepts:
+    st.warning("Pick one clutch concept above, then scroll down."); st.stop()
+concept_code = selected_concepts[0]
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Section 2 — Saved tank_pairs for selected concept
-# ─────────────────────────────────────────────────────────────────────────────
-st.markdown("### 2) Schedule candidates (saved tank_pairs for this concept)")
-if not concept_id:
-    st.info("Pick a clutch concept above.")
-    tp_edit = pd.DataFrame()
-else:
-    if not _view_exists("public","v_tank_pairs"):
-        st.error("View public.v_tank_pairs not found."); st.stop()
-    with _get_engine().begin() as cx:
-        tp = pd.read_sql(text("""
-          select *
-          from public.v_tank_pairs
-          where concept_id = :concept
-          order by created_at desc
-          limit 500
-        """), cx, params={"concept": concept_id})
-    if tp.empty:
-        st.info("No saved tank_pairs for this concept yet.")
-        tp_edit = pd.DataFrame()
+# ── Step 2: Show schedule candidates (saved tank_pairs for this concept) ─────
+st.subheader("2) Schedule candidates (saved tank_pairs for this concept)")
+with eng.begin() as cx:
+    # Resolve the clutch_plan row by code
+    cp = _safe_df(cx, f"""
+      select id as clutch_plan_id, clutch_code, created_by, created_at,
+             tank_pair_id
+      from public.{TABLE_CLUTCH_PLANS}
+      where clutch_code = :code
+      limit 1
+    """, {"code": concept_code})
+
+    if cp.empty:
+        st.error(f"No clutch_plan found for {concept_code}."); st.stop()
+
+    clutch_plan_id = cp["clutch_plan_id"].iloc[0]
+    tank_pair_id = cp["tank_pair_id"].iloc[0] if "tank_pair_id" in cp.columns else None
+
+    # If we have a saved tank_pair for this concept, show it; else show all pairs for manual choice
+    if pd.notna(tank_pair_id):
+        df_pairs = _safe_df(cx, f"""
+          select
+            tp.id as tank_pair_id,
+            tp.tank_pair_code,
+            vtp.mom_fish_code as mom_fish_code,
+            vtp.mom_tank_code as mom_tank_code,
+            vtp.dad_fish_code as dad_fish_code,
+            vtp.dad_tank_code as dad_tank_code,
+            tp.mother_tank_id, tp.father_tank_id,
+            :code as clutch_code,
+            'selected'::text as status
+          from public.{TABLE_TANK_PAIRS} tp
+          left join public.{VIEW_TANK_PAIRS} vtp
+            on vtp.mother_tank_id = tp.mother_tank_id
+           and vtp.father_tank_id = tp.father_tank_id
+          where tp.id = :tpid
+        """, {"tpid": tank_pair_id, "code": concept_code})
     else:
-        tp = tp.copy()
-        tp.insert(0, "✓ Reschedule", False)
-        cols = ["✓ Reschedule","tank_pair_code","clutch_code","status",
-                "mom_fish_code","mom_tank_code","dad_fish_code","dad_tank_code",
-                "id","mother_tank_id","father_tank_id","created_by","created_at"]
-        cols = [c for c in cols if c in tp.columns]
-        tp_edit = st.data_editor(
-            tp[cols], use_container_width=True, hide_index=True, num_rows="fixed",
-            column_config={
-                "✓ Reschedule":    st.column_config.CheckboxColumn("✓", default=False),
-                "tank_pair_code":  st.column_config.TextColumn("tank_pair_code", disabled=True),
-                "status":          st.column_config.TextColumn("status", disabled=True),
-                "clutch_code":     st.column_config.TextColumn("clutch_code", disabled=True),
-                "mom_fish_code":   st.column_config.TextColumn("mom_fish_code", disabled=True),
-                "mom_tank_code":   st.column_config.TextColumn("mom_tank_code", disabled=True),
-                "dad_fish_code":   st.column_config.TextColumn("dad_fish_code", disabled=True),
-                "dad_tank_code":   st.column_config.TextColumn("dad_tank_code", disabled=True),
-                "id":              st.column_config.TextColumn("id", disabled=True),
-                "mother_tank_id":  st.column_config.TextColumn("mother_tank_id", disabled=True),
-                "father_tank_id":  st.column_config.TextColumn("father_tank_id", disabled=True),
-                "created_by":      st.column_config.TextColumn("created_by", disabled=True),
-                "created_at":      st.column_config.DatetimeColumn("created_at", disabled=True),
-            },
-            key="tank_pair_candidates",
-        )
+        df_pairs = _safe_df(cx, f"""
+          select
+            tp.id as tank_pair_id,
+            tp.tank_pair_code,
+            vtp.mom_fish_code as mom_fish_code,
+            vtp.mom_tank_code as mom_tank_code,
+            vtp.dad_fish_code as dad_fish_code,
+            vtp.dad_tank_code as dad_tank_code,
+            tp.mother_tank_id, tp.father_tank_id,
+            null::text as clutch_code,
+            'candidate'::text as status
+          from public.{TABLE_TANK_PAIRS} tp
+          left join public.{VIEW_TANK_PAIRS} vtp
+            on vtp.mother_tank_id = tp.mother_tank_id
+           and vtp.father_tank_id = tp.father_tank_id
+          order by tp.created_at desc nulls last
+          limit 200
+        """)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Section 3 — Reschedule selected tank_pair(s) → new cross instance(s)
-# ─────────────────────────────────────────────────────────────────────────────
-st.markdown("### 3) Reschedule selected tank_pair(s) → new cross instance(s)")
-run_date_all = st.date_input("Run date", value=date.today(), key="run_date_all")
-creator_val  = os.environ.get("USER") or os.environ.get("USERNAME") or "system"
-
-flash_here = st.empty()
-if _msg:
-    if _msg.get("made"):
-        flash_here.success(f"Scheduled {len(_msg['made'])} instance(s): {', '.join(_msg['made'])}")
-    elif _msg.get("dupes"):
-        flash_here.warning("Already scheduled for that date:\n- " + "\n- ".join(_msg["dupes"]))
-
-def _reschedule(rows: pd.DataFrame, concept_id: str, run_date: date, created_by_val: str) -> t.Tuple[t.List[str], t.List[str]]:
-    if rows is None or not isinstance(rows, pd.DataFrame) or rows.empty:
-        return [], []
-    ci_cols = _table_cols("public", "cross_instances")
-    have_note = "note" in ci_cols
-    have_by   = "created_by" in ci_cols
-    have_mom  = "mother_tank_id" in ci_cols
-    have_dad  = "father_tank_id" in ci_cols
-    have_date = "cross_date" in ci_cols
-    have_code = "cross_run_code" in ci_cols
-    have_tp   = "tank_pair_id" in ci_cols
-    made, dupes = [], []
-    with _get_engine().begin() as cx:
-        base = pd.read_sql(text("""
-          select * from public.v_tank_pairs where concept_id = :c
-        """), cx, params={"c": concept_id})
-        by_id = {str(r["id"]): r for _, r in base.iterrows()} if not base.empty else {}
-        for _, r in rows.iterrows():
-            tp = by_id.get(str(r.get("id","")))
-            if tp is None:
-                continue
-            mom_code = str(tp.get("mom_fish_code","") or "")
-            dad_code = str(tp.get("dad_fish_code","") or "")
-            mom_id   = str(tp.get("mother_tank_id","") or "")
-            dad_id   = str(tp.get("father_tank_id","") or "")
-            tp_id    = str(tp.get("id","") or "")
-            cross_id = _ensure_cross_id(mom_code, dad_code, created_by_val)
-            params = {"cross_id": cross_id, "tp_id": tp_id,
-                      "mom_id": mom_id, "dad_id": dad_id,
-                      "run_date": run_date, "by": created_by_val}
-            cols, vals = ["cross_id"], ["cast(:cross_id as uuid)"]
-            if have_tp and tp_id: cols += ["tank_pair_id"];   vals += ["cast(:tp_id as uuid)"]
-            if have_mom and mom_id: cols += ["mother_tank_id"]; vals += ["cast(:mom_id as uuid)"]
-            if have_dad and dad_id: cols += ["father_tank_id"]; vals += ["cast(:dad_id as uuid)"]
-            if have_date: cols += ["cross_date"]; vals += [":run_date"]
-            if have_by:   cols += ["created_by"]; vals += [":by"]
-            if have_note: cols += ["note"];       vals += ["''"]
-            insert_sql = f"""
-with ins as (
-  insert into public.cross_instances ({", ".join(cols)})
-  select {", ".join(vals)}
-  where not exists (
-    select 1 from public.cross_instances ci
-    where {"ci.tank_pair_id = cast(:tp_id as uuid) and " if have_tp else ""}ci.cross_date = :run_date
-  )
-  returning id::uuid as ci_id,
-            coalesce({"cross_run_code" if have_code else "id::text"}, id::text) as cross_run_code
-)
-select * from ins
-"""
-            res = cx.execute(text(insert_sql), params).mappings().first()
-            if not res:
-                dupes.append(f"{tp.get('tank_pair_code','')} already scheduled for {run_date}.")
-                continue
-            ci_id = res["ci_id"]; cr_code = str(res["cross_run_code"])
-            cx.execute(text("""
-              insert into public.clutches (cross_id, cross_instance_id, date_birth, planned_cross_id, created_by)
-              values (cast(:cross_id as uuid), cast(:ci_id as uuid), (:dt + interval '1 day')::date, cast(:pid as uuid), :by)
-              on conflict do nothing
-            """), {"cross_id": cross_id, "ci_id": ci_id, "dt": run_date, "pid": concept_id, "by": created_by_val})
-            if tp_id:
-                cx.execute(text("""
-                  update public.tank_pairs
-                     set status = 'scheduled', updated_at = now()
-                   where id = cast(:id as uuid) and status <> 'scheduled'
-                """), {"id": tp_id})
-            made.append(cr_code)
-    return made, dupes
-
-if concept_id and isinstance(tp_edit, pd.DataFrame) and not tp_edit.empty:
-    to_run = tp_edit[tp_edit["✓ Reschedule"] == True].reset_index(drop=True)
-    if st.button("↻ Schedule selected tank_pair(s)", type="primary", use_container_width=True, disabled=to_run.empty):
-        made, dupes = _reschedule(to_run, concept_id, run_date_all, creator_val)
-        if made:
-            st.success(f"Scheduled {len(made)} instance(s): {', '.join(made)}")
-        if dupes:
-            st.warning("Already scheduled for that date:\n- " + "\n- ".join(dupes))
-        st.session_state["schedule_result"] = {"made": made, "dupes": dupes}
-        st.session_state["last_run_date"] = run_date_all
-        st.session_state["last_plan_id"]  = concept_id
-        st.rerun()
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Section 4 — Scheduled instances
-# ─────────────────────────────────────────────────────────────────────────────
-st.markdown("### 4) Scheduled instances")
-last_dt  = st.session_state.pop("last_run_date", None)
-last_pid = st.session_state.pop("last_plan_id", None)
-d1 = min(start, last_dt) if last_dt else start
-d2 = max(end,   last_dt) if last_dt else end
-only_this_concept = st.checkbox("Only this concept", value=True, key="only_this_concept")
-
-def _load_recent_clutches(plan_id: t.Optional[str], d1: date, d2: date, ignore_dates: bool, only_this: bool) -> pd.DataFrame:
-    if not _view_exists("public","v_clutches_overview_final"):
-        return pd.DataFrame()
-    where = []
-    params: dict = {}
-    if plan_id and only_this:
-        where.append("clutch_plan_id = cast(:pid as uuid)")
-        params["pid"] = plan_id
-    if not ignore_dates:
-        where.append("coalesce(clutch_birthday, date_planned) between :d1 and :d2")
-        params["d1"] = d1; params["d2"] = d2
-    where_sql = " AND ".join(where) if where else "true"
-    sql = text(f"""
-      select
-        clutch_code,
-        cross_name_pretty,
-        clutch_name,
-        clutch_genotype_pretty,
-        clutch_genotype_canonical,
-        mom_genotype, dad_genotype,
-        mom_strain, dad_strain, clutch_strain_pretty,
-        treatments_count, treatments_pretty,
-        clutch_birthday,
-        created_by_instance, created_at_instance,
-        -- convenience rollup
-        (coalesce(treatments_pretty,'') || case when treatments_pretty<>'' and clutch_genotype_pretty<>'' then ' > ' else '' end
-         || coalesce(clutch_genotype_pretty,'')) as genotype_treatment_rollup
-      from public.v_clutches_overview_final
-      where {where_sql}
-      order by created_at_instance desc nulls last, clutch_birthday desc nulls last
-      limit 200
-    """)
-    with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params=params)
-
-ci = _load_recent_clutches(concept_id, d1, d2, most_recent, only_this_concept)
-if ci.empty and only_this_concept:
-    st.info("No scheduled instances for this concept with the current filters. Showing most recent across all concepts.")
-    ci = _load_recent_clutches(None, d1, d2, True, False)
-
-if ci.empty:
-    st.info("No scheduled instances match the filters.")
+if df_pairs.empty:
+    st.info("No saved tank_pairs for this concept. Use “select tank pairs” first, or pick from all pairs above.")
 else:
-    show_cols = [
-        "clutch_code","clutch_birthday","cross_name_pretty",
-        "genotype_treatment_rollup",  # visible combined rollup
-        "clutch_genotype_pretty","clutch_genotype_canonical",
-        "mom_genotype","dad_genotype",
-        "mom_strain","dad_strain","clutch_strain_pretty",
-        "treatments_count","treatments_pretty",
-        "created_by_instance","created_at_instance",
-    ]
-    have_cols = [c for c in show_cols if c in ci.columns]
-    st.dataframe(
-        ci[have_cols],
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "clutch_birthday": st.column_config.DateColumn("clutch_birthday", format="YYYY-MM-DD"),
-            "created_at_instance": st.column_config.DatetimeColumn("created_at_instance"),
-            "genotype_treatment_rollup": st.column_config.TextColumn(
-                "genotype_treatment_rollup",
-                help="Formatted as: treatments_pretty > clutch_genotype_pretty"
-            ),
-        },
+    pairs_vis = df_pairs.copy()
+    if "tank_pair_id" not in pairs_vis.columns:
+        st.error("Expected column tank_pair_id missing."); st.stop()
+    pairs_vis.insert(0, "✓ Select", False)
+    pairs_pick = st.data_editor(
+        pairs_vis,
+        hide_index=True, use_container_width=True,
+        column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
+        key="pairs_editor",
     )
+    mask_pairs = pairs_pick.get("✓ Select", pd.Series(False, index=pairs_pick.index)).astype(bool)
+    selected_pair_ids: List[str] = pairs_pick.loc[mask_pairs, "tank_pair_id"].astype(str).tolist()
+
+# ── Step 3: Reschedule selected tank_pair(s) → new cross instance(s) ─────────
+st.subheader("3) Reschedule selected tank_pair(s) → new cross instance(s)")
+c1, c2 = st.columns([1, 3])
+run_date: date = c1.date_input("Run date", value=date.today())
+note = c2.text_input("Note (optional)")
+
+btn = st.button("⏱ Schedule selected tank_pair(s)", type="primary", use_container_width=True)
+
+def _schedule_pairs(pairs: list[str], run_date: date, created_by: str, note: str) -> tuple[int, list[str], list[str]]:
+    if not pairs:
+        return 0, [], ["No tank pairs selected."]
+    ok, skipped, errors = 0, [], []
+    with eng.begin() as cx:
+        # detect schema support for tank_pair_id on cross_instances
+        has_tpid = False
+        try:
+            has_tpid = pd.read_sql(
+                text("""
+                  select 1
+                  from information_schema.columns
+                  where table_schema='public' and table_name='cross_instances' and column_name='tank_pair_id'
+                  limit 1
+                """),
+                cx
+            ).shape[0] == 1
+        except Exception:
+            has_tpid = False
+
+        for pid in pairs:
+            try:
+                if has_tpid:
+                    # Insert using tank_pair_id with NOT EXISTS guard (no ON CONFLICT)
+                    row = pd.read_sql(
+                        text("""
+                          with tp as (
+                            select id, mother_tank_id, father_tank_id
+                            from public.tank_pairs
+                            where id = cast(:pid as uuid)
+                            limit 1
+                          )
+                          insert into public.cross_instances (tank_pair_id, cross_date, note, created_by)
+                          select tp.id, :d, nullif(:note,'')::text, :by
+                          from tp
+                          where not exists (
+                            select 1 from public.cross_instances ci
+                            where ci.tank_pair_id = tp.id
+                              and ci.cross_date   = :d
+                          )
+                          returning id
+                        """),
+                        cx, params={"pid": pid, "d": str(run_date), "by": created_by, "note": note}
+                    )
+                else:
+                    # Fallback: insert using mother/father tank ids with NOT EXISTS guard
+                    row = pd.read_sql(
+                        text("""
+                          with tp as (
+                            select mother_tank_id, father_tank_id
+                            from public.tank_pairs
+                            where id = cast(:pid as uuid)
+                            limit 1
+                          )
+                          insert into public.cross_instances (mother_tank_id, father_tank_id, cross_date, note, created_by)
+                          select tp.mother_tank_id, tp.father_tank_id, :d, nullif(:note,'')::text, :by
+                          from tp
+                          where not exists (
+                            select 1 from public.cross_instances ci
+                            where ci.mother_tank_id = tp.mother_tank_id
+                              and ci.father_tank_id = tp.father_tank_id
+                              and ci.cross_date     = :d
+                          )
+                          returning id
+                        """),
+                        cx, params={"pid": pid, "d": str(run_date), "by": created_by, "note": note}
+                    )
+
+                if row.empty:
+                    skipped.append(pid)  # already scheduled for this date
+                else:
+                    ok += 1
+            except Exception as e:
+                errors.append(f"{pid}: {e}")
+    return ok, skipped, errors
+
+if btn:
+    n_ok, skipped, errs = _schedule_pairs(selected_pair_ids, run_date, user.get('email') or user.get('id') or "unknown", note)
+    if n_ok:
+        st.success(f"Saved {n_ok} cross_instance row(s).")
+    if skipped:
+        st.warning(f"Skipped {len(skipped)} (already scheduled for {run_date}).")
+    if errs:
+        st.error("Errors:\n" + "\n".join(errs))
+
+# ── After-action: quick preview of what exists now ───────────────────────────
+with eng.begin() as cx:
+    preview = _safe_df(cx, """
+      select *
+      from public.v_crosses
+      order by created_at desc nulls last
+      limit 20
+    """)
+if not preview.empty:
+    st.caption("Recent crosses (from v_crosses)")
+    st.dataframe(preview, use_container_width=True, hide_index=True)
