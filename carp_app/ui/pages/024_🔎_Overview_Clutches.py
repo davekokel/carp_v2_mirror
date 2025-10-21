@@ -35,18 +35,18 @@ def _annotations_for_clutches(selected_codes: List[str], limit: int = 100) -> pd
     sql = """
       select
         cp.clutch_code,
-        ci.clutch_instance_code,
-        cinst.clutch_birthday as birthday,
+        ci.id::text                    as clutch_instance_code,
+        ci.birthday                    as birthday,
         ci.red_intensity,
         ci.green_intensity,
         ci.notes,
         ci.annotated_by,
         ci.annotated_at
       from public.clutch_plans cp
-      join public.planned_crosses pc   on pc.clutch_id = cp.id
-      join public.crosses x            on x.id = pc.cross_id
+      join public.planned_crosses pc    on pc.clutch_id = cp.id
+      join public.crosses x             on x.id = pc.cross_id
       join public.cross_instances cinst on cinst.cross_id = x.id
-      join public.clutch_instances ci  on ci.cross_instance_id = cinst.id
+      join public.clutch_instances ci   on ci.cross_instance_id = cinst.id
       where cp.clutch_code = any(%(codes)s::text[])
       order by coalesce(ci.annotated_at, ci.created_at) desc,
                ci.created_at desc
@@ -75,13 +75,14 @@ def _load_concepts() -> pd.DataFrame:
         return pd.read_sql(
             """
             select
-              conceptual_cross_code as clutch_code,
-              name                  as clutch_name,
-              nickname              as clutch_nickname,
-              mom_code, dad_code, mom_code_tank, dad_code_tank,
+              clutch_code,
+              name       as clutch_name,
+              nickname   as clutch_nickname,
+              mom_code,
+              dad_code,
               created_at
             from public.v_clutches
-            order by created_at desc nulls last, conceptual_cross_code
+            order by created_at desc nulls last, clutch_code
             limit 2000
             """,
             cx,

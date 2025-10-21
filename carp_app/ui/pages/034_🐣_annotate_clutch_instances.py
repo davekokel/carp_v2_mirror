@@ -43,55 +43,59 @@ def _exists(full: str) -> bool:
         return bool(pd.read_sql(q, cx, params={"s": sch, "t": tab})["ok"].iloc[0])
 
 def _load_clutches_filtered(d1: date, d2: date, created_by: str, qtxt: str, ignore_dates: bool) -> pd.DataFrame:
-    view = "public.v_clutches_overview_effective"
+    view = "public.v_clutches"
     if not _exists(view):
         st.error(f"Required view {view} not found."); st.stop()
 
     where_bits, params = [], {}
     if not ignore_dates:
-        where_bits.append("coalesce(clutch_birthday, date_planned) between :d1 and :d2")
+        where_bits.append("created_at::date between :d1 and :d2")
         params["d1"], params["d2"] = d1, d2
     if (created_by or "").strip():
-        where_bits.append("(created_by_instance ilike :byl or created_by_plan ilike :byl)")
+        where_bits.append("(coalesce(created_by,'') ilike :byl)")
         params["byl"] = f"%{created_by.strip()}%"
     if (qtxt or "").strip():
         where_bits.append("""(
           coalesce(clutch_code,'') ilike :ql or
-          coalesce(cross_name_pretty,'') ilike :ql or
-          coalesce(cross_name,'') ilike :ql or
-          coalesce(clutch_name,'') ilike :ql or
-          coalesce(clutch_nickname,'') ilike :ql or
-          coalesce(clutch_genotype_pretty,'') ilike :ql or
-          coalesce(clutch_genotype_canonical,'') ilike :ql or
-          coalesce(mom_strain,'') ilike :ql or
-          coalesce(dad_strain,'') ilike :ql or
-          coalesce(clutch_strain,'') ilike :ql
+          coalesce(name,'')        ilike :ql or
+          coalesce(nickname,'')    ilike :ql or
+          coalesce(mom_code,'')    ilike :ql or
+          coalesce(dad_code,'')    ilike :ql
         )""")
         params["ql"] = f"%{qtxt.strip()}%"
     where_sql = " AND ".join(where_bits) if where_bits else "true"
 
     sql = text(f"""
-      select b.*
-      from {view} b
+      select
+        clutch_code,
+        name     as clutch_name,
+        nickname as clutch_nickname,
+        mom_code,
+        dad_code,
+        created_by         as created_by_instance,
+        created_at         as created_at_instance
+      from {view}
       where {where_sql}
-      order by created_at_instance desc nulls last, clutch_birthday desc nulls last
+      order by created_at desc nulls last, clutch_code
       limit 500
     """)
     with eng.begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    if "treatments_count_effective_eff" in df.columns:
-        df["treatments_count_effective"] = df["treatments_count_effective_eff"]
-    if "treatments_pretty_effective_eff" in df.columns:
-        df["treatments_pretty_effective"] = df["treatments_pretty_effective_eff"]
-    if "genotype_treatment_rollup_effective_eff" in df.columns:
-        df["genotype_treatment_rollup_effective"] = df["genotype_treatment_rollup_effective_eff"]
+    # add optional columns the grid references (as empty) so the rest of the page doesn't break
+    for missing in [
+        "cross_name_pretty",
+        "clutch_genotype_pretty",
+        "genotype_treatment_rollup_effective",
+        "treatments_count_effective",
+        "treatments_pretty_effective",
+        "clutch_birthday",
+    ]:
+        if missing not in df.columns:
+            df[missing] = pd.NA
 
     if "treatments_count_effective" in df.columns:
         df["treatments_count_effective"] = pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
-
-    if "clutch_code" not in df.columns:
-        df["clutch_code"] = ""
 
     df = df.loc[:, ~df.columns.duplicated()]
     return df

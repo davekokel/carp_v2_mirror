@@ -47,25 +47,17 @@ def _safe_date(v):
 
 def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
     """
-    Source of truth: public.v_clutches
-    Columns expected by the page:
-      clutch_code, cross_name_pretty, clutch_name,
-      clutch_genotype_pretty, clutch_genotype_canonical,
-      mom_genotype, dad_genotype,
-      mom_strain, dad_strain, clutch_strain_pretty,
-      treatments_count, treatments_pretty,
-      clutch_birthday,
-      created_by_instance, created_at_instance
+    Source of truth: public.v_clutches (canonical).
+    We pull the minimal columns and alias to what the grid expects.
     """
-    where = []
-    params: dict = {}
+    where, params = [], {}
 
     if not most_recent:
-        where.append("coalesce(clutch_birthday, created_at_instance::date) between :d1 and :d2")
+        where.append("created_at::date between :d1 and :d2")
         params.update({"d1": d_from, "d2": d_to})
 
     if created_by.strip():
-        where.append("coalesce(created_by_instance,'') ilike :by")
+        where.append("coalesce(created_by,'') ilike :by")
         params["by"] = f"%{created_by.strip()}%"
 
     if q.strip():
@@ -73,61 +65,44 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
         where.append("""
           (
             coalesce(clutch_code,'') ilike :q OR
-            coalesce(cross_name_pretty,'') ilike :q OR
-            coalesce(clutch_name,'') ilike :q OR
-            coalesce(clutch_genotype_pretty,'') ilike :q OR
-            coalesce(clutch_genotype_canonical,'') ilike :q OR
-            coalesce(mom_genotype,'') ilike :q OR
-            coalesce(dad_genotype,'') ilike :q OR
-            coalesce(mom_strain,'') ilike :q OR
-            coalesce(dad_strain,'') ilike :q OR
-            coalesce(clutch_strain_pretty,'') ilike :q
+            coalesce(name,'')        ilike :q OR
+            coalesce(nickname,'')    ilike :q OR
+            coalesce(mom_code,'')    ilike :q OR
+            coalesce(dad_code,'')    ilike :q
           )
         """)
 
-    where_sql = ("WHERE " + " AND ".join(w for w in where if w.strip())) if where else ""
+    where_sql = ("where " + " AND ".join(where)) if where else ""
 
     sql = text(f"""
-      SELECT
+      select
         clutch_code,
-        cross_name_pretty,
-        clutch_name,
-        clutch_genotype_pretty,
-        clutch_genotype_canonical,
-        mom_genotype, dad_genotype,
-        mom_strain, dad_strain, clutch_strain_pretty,
-        treatments_count, treatments_pretty,
-        clutch_birthday,
-        created_by_instance, created_at_instance
-      FROM public.v_clutches
+        name     as clutch_name,
+        nickname as clutch_nickname,
+        mom_code,
+        dad_code,
+        created_by,
+        created_at
+      from public.v_clutches
       {where_sql}
-      ORDER BY created_at_instance DESC NULLS LAST, clutch_birthday DESC NULLS LAST
-      LIMIT 1000
+      order by created_at desc nulls last, clutch_code
+      limit 1000
     """)
 
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    # hygiene so the grid renders nicely
-    for c in [
-        "clutch_code","cross_name_pretty","clutch_name",
-        "clutch_genotype_pretty","clutch_genotype_canonical",
-        "mom_genotype","dad_genotype","mom_strain","dad_strain","clutch_strain_pretty",
-        "treatments_pretty","created_by_instance"
-    ]:
+    # hygiene for grid
+    for c in ["clutch_code","clutch_name","clutch_nickname","mom_code","dad_code","created_by"]:
         if c in df.columns:
             df[c] = df[c].fillna("").astype(str)
 
-    if "treatments_count" in df.columns:
-        df["treatments_count"] = pd.to_numeric(df["treatments_count"], errors="coerce").fillna(0).astype(int)
-
-    # dates
-    for c in ["clutch_birthday","created_at_instance"]:
-        if c in df.columns:
-            try:
-                df[c] = pd.to_datetime(df[c], errors="coerce")
-            except Exception:
-                pass
+    # keep shape the rest of the page tolerates
+    for c in ["treatments_count","treatments_pretty","created_by_instance","created_at_instance","clutch_birthday"]:
+        if c not in df.columns:
+            df[c] = pd.NA
+    if "created_at" in df.columns:
+        df["created_at_instance"] = df["created_at"]
 
     return df
 
@@ -297,7 +272,7 @@ def _load_run_overview(ci_code: str) -> pd.DataFrame:
             select *
             from {view}
             where clutch_code = :cc
-            order by created_at_instance desc nulls last
+            order by created_at desc nulls last
             limit 1
         """), cx, params={"cc": ci_code})
 

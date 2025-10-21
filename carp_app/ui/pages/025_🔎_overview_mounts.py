@@ -1,5 +1,5 @@
-from carp_app.lib.time import utc_today
 from __future__ import annotations
+from carp_app.lib.time import utc_today
 
 # ── sys.path prime ───────────────────────────────────────────────────────────
 import sys, pathlib

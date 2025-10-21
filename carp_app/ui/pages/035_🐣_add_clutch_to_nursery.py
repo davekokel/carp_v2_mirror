@@ -38,37 +38,46 @@ def _table_exists(schema: str, table: str) -> bool:
         return bool(pd.read_sql(q, cx, params={"s": schema, "t": table}).shape[0])
 
 def _load_instances(d1: date, d2: date, created_by: str, q: str) -> pd.DataFrame:
+    # Pair-centric: cross_instances ⟶ tank_pairs ⟶ v_tanks (labels)
     sql = text("""
-      select
-        ci.id::text         as cross_instance_id,
-        ci.cross_run_code   as cross_run,
-        ci.cross_date,
-        x.cross_code,
-        coalesce(x.cross_name_code, x.cross_code)    as cross_name,
-        coalesce(x.cross_name_genotype,'')           as cross_name_genotype,
-        cl.id::text         as clutch_id,
-        coalesce(cl.clutch_instance_code, left(cl.id::text,8)) as clutch_code,
-        cl.date_birth,
-        ci.created_by,
-        ci.created_at
-      from public.cross_instances ci
-      join public.crosses x on x.id = ci.cross_id
-      left join public.clutches cl on cl.cross_instance_id = ci.id
-      where (ci.cross_date between :d1 and :d2)
-        and (:by = '' or ci.created_by ilike :byl)
-        and (
-          :q = '' or
-          ci.cross_run_code ilike :ql or
-          x.cross_code ilike :ql or
-          coalesce(x.cross_name_code,'') ilike :ql or
-          coalesce(x.cross_name_genotype,'') ilike :ql or
-          coalesce(cl.clutch_instance_code, left(cl.id::text,8)) ilike :ql
-        )
-      order by ci.cross_date desc, ci.created_at desc
+      with base as (
+        select
+          ci.id::text                                        as cross_instance_id,
+          coalesce(nullif(ci.cross_run_code,''), ci.id::text) as cross_run,
+          ci.cross_date,
+          tp.tank_pair_code                                   as cross_code,
+          vt_m.fish_code || ' x ' || vt_f.fish_code           as cross_name,
+          null::text                                          as cross_name_genotype,
+          cl.id::text                                         as clutch_id,
+          coalesce(cl.clutch_instance_code, left(cl.id::text,8)) as clutch_code,
+          cl.date_birth,
+          ci.created_by,
+          ci.created_at
+        from public.cross_instances ci
+        left join public.tank_pairs tp on tp.id = ci.tank_pair_id
+        left join public.v_tanks vt_m  on vt_m.tank_id = tp.mother_tank_id
+        left join public.v_tanks vt_f  on vt_f.tank_id = tp.father_tank_id
+        left join public.clutches cl   on cl.cross_instance_id = ci.id
+        where ci.cross_date between :d1 and :d2
+      )
+      select *
+      from base
+      where (:by = '' or created_by ilike :byl)
+        and (:q = '' or
+             cross_run ilike :ql or
+             cross_code ilike :ql or
+             cross_name ilike :ql or
+             coalesce(clutch_code,'') ilike :ql)
+      order by cross_date desc, created_at desc
       limit 500
     """)
+    params = {
+      "d1": d1, "d2": d2,
+      "by": created_by or "", "byl": f"%{created_by or ''}%",
+      "q": q or "", "ql": f"%{q or ''}%"
+    }
     with _eng().begin() as cx:
-        return pd.read_sql(sql, cx, params={"d1": d1, "d2": d2, "by": created_by or "", "byl": f"%{created_by or ''}%", "q": q or "", "ql": f"%{q or ''}%"})
+        return pd.read_sql(sql, cx, params=params)
 
 with st.form("filters", clear_on_submit=False):
     today = date.today()
