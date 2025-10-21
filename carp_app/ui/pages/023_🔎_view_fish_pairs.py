@@ -93,14 +93,18 @@ def _load_fish_pairs_overview(d1: date, d2: date, q: str) -> pd.DataFrame:
         join public.fish df on df.id = fp.dad_fish_id
       ),
       mom_clean as (
-        select fish_code, coalesce(genetic_background,'') as mom_background,
-               coalesce(genotype_rollup_clean,'') as mom_rollup
-        from public.v_fish_standard_clean
+        select
+          fish_code,
+          coalesce(genetic_background,'') as mom_background,
+          coalesce(genotype,'')           as mom_rollup
+        from public.v_fish
       ),
       dad_clean as (
-        select fish_code, coalesce(genetic_background,'') as dad_background,
-               coalesce(genotype_rollup_clean,'') as dad_rollup
-        from public.v_fish_standard_clean
+        select
+          fish_code,
+          coalesce(genetic_background,'') as dad_background,
+          coalesce(genotype,'')           as dad_rollup
+        from public.v_fish
       ),
       tps as (
         select
@@ -171,56 +175,69 @@ def _load_fish_pairs_overview(d1: date, d2: date, q: str) -> pd.DataFrame:
         })
     return df
 
-def _load_tank_pairs_for_fish_pair(fish_pair_id: str, status: t.Optional[str]=None) -> pd.DataFrame:
+def _load_tank_pairs_for_fish_pair(fish_pair_id: str, status: t.Optional[str] = None) -> pd.DataFrame:
     if _view_exists("public", "v_tank_pairs"):
-        sql = "select * from public.v_tank_pairs where fish_pair_id = :fp " + ("and status = :st " if status else "") + "order by created_at desc"
+        sql = f"""
+          select v.*, tp.id::uuid as tank_pair_id
+          from public.v_tank_pairs v
+          join public.tank_pairs tp
+            on tp.mother_tank_id = v.mother_tank_id
+           and tp.father_tank_id = v.father_tank_id
+          where tp.fish_pair_id = cast(:fp as uuid)
+          { "and v.status = :st" if status else "" }
+          order by coalesce(v.created_at, tp.created_at) desc nulls last
+        """
         with _get_engine().begin() as cx:
             return pd.read_sql(text(sql), cx, params={"fp": fish_pair_id, **({"st": status} if status else {})})
+
+    # Fallback: build from base tables if v_tank_pairs is missing
     with _get_engine().begin() as cx:
         return pd.read_sql(text(f"""
           select
-            tp.id::uuid               as id,
+            tp.id::uuid               as tank_pair_id,
             coalesce(tp.tank_pair_code,'') as tank_pair_code,
             tp.concept_id,
             coalesce(cp.clutch_code, cp.id::text) as clutch_code,
             tp.status,
             tp.created_by,
             tp.created_at,
-            fp.id::uuid               as fish_pair_id,
             mf.fish_code              as mom_fish_code,
+            vt_m.tank_code            as mom_tank_code,
             df.fish_code              as dad_fish_code,
-            tp.mother_tank_id, mt.tank_code as mom_tank_code,
-            tp.father_tank_id, dt.tank_code as dad_tank_code
+            vt_f.tank_code            as dad_tank_code
           from public.tank_pairs tp
           join public.fish_pairs fp on fp.id = tp.fish_pair_id
           join public.fish mf on mf.id = fp.mom_fish_id
           join public.fish df on df.id = fp.dad_fish_id
           left join public.clutch_plans cp on cp.id = tp.concept_id
-          join public.v_tanks vt_m on vt_m.tank_id = tp.mother_tank_id
-          join public.v_tanks vt_f on vt_f.tank_id = tp.father_tank_id
-          where tp.fish_pair_id = :fp
+          left join public.v_tanks vt_m on vt_m.tank_id = tp.mother_tank_id
+          left join public.v_tanks vt_f on vt_f.tank_id = tp.father_tank_id
+          where tp.fish_pair_id = cast(:fp as uuid)
           { "and tp.status = :st" if status else "" }
-          order by tp.created_at desc
+          order by tp.created_at desc nulls last
         """), cx, params={"fp": fish_pair_id, **({"st": status} if status else {})})
 
 def _load_cross_instances_for_fish_pair(fish_pair_id: str, d1: date, d2: date) -> pd.DataFrame:
-    if _has_col("public", "cross_instances", "tank_pair_id"):
-        with _get_engine().begin() as cx:
-            return pd.read_sql(text("""
-              select
-                ci.cross_run_code as cross_run,
-                ci.cross_date     as date,
-                ci.created_by,
-                x.cross_code
-              from public.cross_instances ci
-              join public.crosses x on x.id = ci.cross_id
-              where ci.tank_pair_id in (select id from public.tank_pairs where fish_pair_id = :fp)
-                and ci.cross_date between :d1 and :d2
-              order by ci.created_at desc
-              limit 200
-            """), cx, params={"fp": fish_pair_id, "d1": d1, "d2": d2})
-    return pd.DataFrame(columns=["cross_run","date","created_by","cross_code"])
-
+    sql = """
+      with pairs as (
+        select id as tank_pair_id
+        from public.tank_pairs
+        where fish_pair_id = cast(:fp as uuid)
+      )
+      select
+        coalesce(nullif(ci.cross_run_code,''), ci.id::text) as cross_run,
+        ci.cross_date                                       as date,
+        ci.created_by,
+        tp.tank_pair_code                                   as cross_code
+      from public.cross_instances ci
+      join pairs p          on p.tank_pair_id = ci.tank_pair_id
+      left join public.tank_pairs tp on tp.id = ci.tank_pair_id
+      where ci.cross_date between :d1 and :d2
+      order by ci.created_at desc
+      limit 200
+    """
+    with _get_engine().begin() as cx:
+        return pd.read_sql(text(sql), cx, params={"fp": fish_pair_id, "d1": d1, "d2": d2})
 # ─────────────────────────────────────────────────────────────────────────────
 # Filters
 # ─────────────────────────────────────────────────────────────────────────────
@@ -284,7 +301,8 @@ edit = st.data_editor(
     key="fish_pairs_editor",
 )
 
-opened = edit[edit["✓ Open"]].reset_index(drop=True)
+mask_open = edit.get("✓ Open", pd.Series(False, index=edit.index)).fillna(False).astype(bool)
+opened = edit[mask_open].reset_index(drop=True)
 if opened.empty:
     st.info("Select one or more fish pairs to drill down.")
     st.stop()
@@ -310,8 +328,12 @@ for tab, r in zip(tabs, opened.itertuples(index=False)):
         if tps.empty:
             st.info("No tank_pairs match the filter.")
         else:
-            disp_cols = ["tank_pair_code","clutch_code","status","mom_fish_code","mom_tank_code","dad_fish_code","dad_tank_code","created_by","created_at"]
+            disp_cols = ["tank_pair_code","clutch_code","status",
+                        "mom_fish_code","mom_tank_code","dad_fish_code","dad_tank_code",
+                        "created_by","created_at"]
             disp_cols = [c for c in disp_cols if c in tps.columns]
+            if "tank_pair_id" in tps.columns and "tank_pair_id" not in disp_cols:
+              disp_cols.append("tank_pair_id")
             st.dataframe(tps[disp_cols], use_container_width=True, hide_index=True)
 
         # recent instances

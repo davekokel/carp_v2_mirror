@@ -174,7 +174,7 @@ if "✓ Select" in edited.columns:
     st.session_state[key].loc[edited.index, "✓ Select"] = edited["✓ Select"]
 
 mask = edited.get("✓ Select", pd.Series(False, index=edited.index)).fillna(False).astype(bool)
-sel_keys: List[str] = edited.loc[mask, sel_key].astype(str).tolist()
+sel_keys = edited.loc[mask, sel_key].astype(str).tolist()
 if not sel_keys:
     st.info("Select one or more crosses to show runs."); st.stop()
 
