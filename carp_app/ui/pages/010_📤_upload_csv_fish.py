@@ -30,8 +30,7 @@ st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
 st.title(PAGE_TITLE)
 st.caption(
     "Upserts by (seed_batch_id, name, birthday). Fish codes are assigned automatically. "
-    "Founders (F0) with a base code and no nickname will mint a new allele. "
-    "CSV must use the 'birthday' column."
+    "Founders (F0) may mint new alleles per rules. CSV must include the 'birthday' column."
 )
 
 _ENGINE: Optional[Engine] = None
@@ -41,7 +40,7 @@ def _get_engine() -> Engine:
         return _ENGINE
     url = os.getenv("DB_URL")
     if not url:
-        raise RuntimeError("DB_URL not set")
+        st.error("DB_URL not set"); st.stop()
     _ENGINE = get_engine()
     return _ENGINE
 
@@ -53,7 +52,7 @@ def _example_fish_csv_bytes() -> bytes:
         "line_building_stage": "F0",
         "description": "",
         "transgene_base_code": "pDQM005",
-        "allele_nickname": "301",
+        "allele_nickname": "505",
         "zygosity": "",
         "birthday": "2025-01-15",
         "created_by": os.environ.get("USER") or os.environ.get("USERNAME") or "system",
@@ -70,6 +69,15 @@ st.download_button(
 )
 
 LEGACY_DATE_ALIASES = {"date_birth", "dob"}
+_NUM_NICK_RE = re.compile(r"^[0-9]+(\.0+)?$")
+
+def _canon_nickname(s: str) -> str:
+    s = (s or "").strip()
+    if not s:
+        return ""
+    if _NUM_NICK_RE.match(s):
+        return re.sub(r"\.0+$", "", s)  # keep literal string like "301"
+    return s
 
 def _parse_birthday(x) -> Optional[date]:
     if x is None:
@@ -78,11 +86,9 @@ def _parse_birthday(x) -> Optional[date]:
     if s == "":
         return None
     if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
-        y, m, d = map(int, s.split("-"))
-        return date(y, m, d)
+        y, m, d = map(int, s.split("-")); return date(y, m, d)
     if re.match(r"^\d{8}$", s):
-        y, m, d = int(s[:4]), int(s[4:6]), int(s[6:8])
-        return date(y, m, d)
+        y, m, d = int(s[:4]), int(s[4:6]), int(s[6:8]); return date(y, m, d)
     try:
         n = float(s)
         if not math.isnan(n):
@@ -97,8 +103,7 @@ def _parse_birthday(x) -> Optional[date]:
 
 uploaded = st.file_uploader("Upload fish CSV", type=["csv"])
 if not uploaded:
-    st.info("Choose a CSV to preview.")
-    st.stop()
+    st.info("Choose a CSV to preview."); st.stop()
 
 default_batch = Path(getattr(uploaded, "name", "")).stem
 seed_batch_id = st.text_input("Seed batch ID", value=default_batch)
@@ -107,42 +112,34 @@ created_by = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
 try:
     df = pd.read_csv(io.BytesIO(uploaded.getvalue()))
 except Exception as e:
-    st.error(f"Failed to read CSV: {e}")
-    st.stop()
+    st.error(f"Failed to read CSV: {e}"); st.stop()
 
 df.columns = [c.strip().lower() for c in df.columns]
-
 for alias in LEGACY_DATE_ALIASES:
     if alias in df.columns and "birthday" not in df.columns:
         df.rename(columns={alias: "birthday"}, inplace=True)
-
 if "birthday" not in df.columns:
-    st.error("CSV must include a 'birthday' column (YYYY-MM-DD recommended).")
-    st.stop()
+    st.error("CSV must include a 'birthday' column (YYYY-MM-DD recommended)."); st.stop()
 
 df["birthday"] = df["birthday"].apply(_parse_birthday)
-
 if "fish_code" in df.columns:
     df = df.drop(columns=["fish_code"])
-
 for col in (
-    "name", "nickname", "genetic_background", "line_building_stage",
-    "description", "transgene_base_code", "allele_nickname", "zygosity", "created_by", "notes"
+    "name","nickname","genetic_background","line_building_stage","description",
+    "transgene_base_code","allele_nickname","zygosity","created_by","notes"
 ):
     if col in df.columns:
         df[col] = df[col].fillna("").astype(str)
 
 df_preview = df.copy()
-df_preview["_preview_birthday"] = df_preview["birthday"].apply(
-    lambda d: d.isoformat() if isinstance(d, date) else ""
-)
+df_preview["_preview_birthday"] = df_preview["birthday"].apply(lambda d: d.isoformat() if isinstance(d, date) else "")
 st.subheader("Preview (first 50 rows)")
 st.dataframe(df_preview.head(50), use_container_width=True, hide_index=True)
 
 ALIASES = {
-    "transgene_base_code": ["transgene_base_code", "base_code", "tg_base_code", "transgene_base", "tg_base"],
-    "allele_nickname":     ["allele_nickname", "allele_nick", "allele_name", "allele"],
-    "zygosity":            ["zygosity", "zyg", "allele_zygosity"],
+    "transgene_base_code": ["transgene_base_code","base_code","tg_base_code","transgene_base","tg_base"],
+    "allele_nickname":     ["allele_nickname","allele_nick","allele_name","allele"],
+    "zygosity":            ["zygosity","zyg","allele_zygosity"],
 }
 def _resolve_col(pdf: pd.DataFrame, keys: List[str]) -> Optional[str]:
     for k in keys:
@@ -161,6 +158,69 @@ with st.expander("Detected allele-link columns"):
         "zygosity": col_zyg or "—",
     })
 
+def _build_upsert_results(fish_codes: List[str]) -> pd.DataFrame:
+    if not fish_codes:
+        return pd.DataFrame(columns=[
+            "fish_code","name","nickname","genetic_background",
+            "transgene_base_code","allele_number","allele_name","allele_nickname",
+            "transgene_pretty","tank_code","tank_status","genotype_rollup"
+        ])
+
+    sql = text("""
+      with alleles as (
+        select
+          f.fish_code,
+          fta.transgene_base_code,
+          fta.allele_number,
+          ta.allele_name,
+          ta.allele_nickname::text as allele_nickname,
+          ('Tg(' || fta.transgene_base_code || ')' || ta.allele_name) as transgene_pretty
+        from public.fish f
+        left join public.fish_transgene_alleles fta on fta.fish_id = f.id
+        left join public.transgene_alleles ta
+          on ta.transgene_base_code = fta.transgene_base_code
+         and ta.allele_number       = fta.allele_number
+        where f.fish_code = any(:codes)
+      ),
+      tanks as (
+        select
+          f.fish_code,
+          vt.tank_code::text as tank_code,
+          vt.status::text    as tank_status
+        from public.fish f
+        left join public.v_tanks_for_fish vt on vt.fish_id = f.id
+        where f.fish_code = any(:codes)
+      ),
+      geno as (
+        select
+          a.fish_code,
+          string_agg(a.transgene_pretty, '; ' order by a.transgene_pretty) as genotype_rollup
+        from alleles a
+        group by a.fish_code
+      )
+      select
+        f.fish_code,
+        f.name,
+        f.nickname,
+        f.genetic_background,
+        a.transgene_base_code,
+        a.allele_number,
+        a.allele_name,
+        a.allele_nickname,
+        a.transgene_pretty,
+        t.tank_code,
+        t.tank_status,
+        g.genotype_rollup
+      from public.fish f
+      left join alleles a on a.fish_code = f.fish_code
+      left join tanks  t on t.fish_code = f.fish_code
+      left join geno   g on g.fish_code = f.fish_code
+      where f.fish_code = any(:codes)
+      order by f.fish_code, a.allele_number nulls last
+    """)
+    with _get_engine().begin() as cx:
+        return pd.read_sql(sql, cx, params={"codes": fish_codes})
+
 inserted: List[Dict[str, Any]] = []
 if st.button("Upsert fish batch", type="primary", use_container_width=True):
     linked = 0
@@ -171,16 +231,16 @@ if st.button("Upsert fish batch", type="primary", use_container_width=True):
             :batch, :name, :dob, :bg, :nick, :stage, :desc, :notes, :by
         )
     """)
-    fn_ensure = text("""
-        select * from public.ensure_transgene_allele(:transgene_base_code, :allele_nickname)
+    fn_ingest = text("""
+        select public.fn_ingest_allele_row_csv(:base, :csv_nick) as allele_number
     """)
     stmt_link = text("""
         insert into public.fish_transgene_alleles(fish_id, transgene_base_code, allele_number, zygosity)
         values (:fish_id, :base, :allele_number, :zyg)
-        on conflict (fish_id, transgene_base_code) do update
-          set allele_number = excluded.allele_number,
-              zygosity      = coalesce(excluded.zygosity, public.fish_transgene_alleles.zygosity)
+        on conflict do nothing
     """)
+
+    batch_fish_codes: List[str] = []
 
     with _get_engine().begin() as cx:
         for _, r in df.iterrows():
@@ -199,35 +259,23 @@ if st.button("Upsert fish batch", type="primary", use_container_width=True):
             if not got:
                 continue
             inserted.append(dict(got))
+            batch_fish_codes.append(got["fish_code"])
             fish_id = got["fish_id"]
 
             if col_tg:
-                tg  = (str(r.get(col_tg)).strip()   if pd.notna(r.get(col_tg))   else "")
-                nn  = (str(r.get(col_nick)).strip() if (col_nick and pd.notna(r.get(col_nick))) else "")
-                if nn and (nn.isdigit() or nn.endswith(".0")):
-                    try:
-                        nn = str(int(float(nn)))
-                    except Exception:
-                        pass
-                zy  = (str(r.get(col_zyg)).strip()  if (col_zyg and pd.notna(r.get(col_zyg)))  else "")
-
-                stg_raw = r.get("line_building_stage")
-                stg_val = (str(stg_raw).strip().lower() if pd.notna(stg_raw) and stg_raw is not None else "")
-
-                if tg and not nn and stg_val in {"founder", "f0"}:
-                    nn = "new"
+                tg = (str(r.get(col_tg)).strip() if pd.notna(r.get(col_tg)) else "")
+                raw_nn = str(r.get(col_nick)).strip() if (col_nick and pd.notna(r.get(col_nick))) else ""
+                nn = _canon_nickname(raw_nn)
+                zy = (str(r.get(col_zyg)).strip() if (col_zyg and pd.notna(r.get(col_zyg))) else "")
 
                 if tg:
-                    alle = cx.execute(fn_ensure, {
-                        "transgene_base_code": tg,
-                        "allele_nickname": nn or None,
-                    }).mappings().first()
-                    if alle and alle.get("ret_allele_number") is not None:
+                    n = cx.execute(fn_ingest, {"base": tg, "csv_nick": nn}).scalar()
+                    if n is not None:
                         cx.execute(stmt_link, {
                             "fish_id": fish_id,
                             "base": tg,
-                            "allele_number": int(alle["ret_allele_number"]),
-                            "zyg": zy or None
+                            "allele_number": int(n),
+                            "zyg": (zy or None),
                         })
                         linked += 1
                     else:
@@ -237,37 +285,44 @@ if st.button("Upsert fish batch", type="primary", use_container_width=True):
 
     if inserted:
         st.subheader("Upsert results")
+        results_df = _build_upsert_results(batch_fish_codes)
 
-        codes = [row["fish_code"] for row in inserted if row.get("fish_code")]
-        order = {c: i for i, c in enumerate(codes)}
+        # Cast to string for clean display and exact headings/order the user wants
+        for col in ("allele_nickname","allele_name","transgene_pretty","tank_code","tank_status"):
+            if col in results_df.columns:
+                results_df[col] = results_df[col].astype("string")
 
-        with _get_engine().begin() as cx:
-            df_view = pd.read_sql(
-                text("""
-                    select *
-                    from public.v_fish_overview_all
-                    where fish_code = any(:codes)
-                """),
-                cx,
-                params={"codes": codes},
-            )
-
-        display_cols = [
+        cols_exact = [
             "fish_code",
-            "name","nickname","genetic_background","line_building_stage","description",
-            "birthday","created_by",
-            "transgene_base_code","allele_nickname","zygosity",
-            "transgene_base","allele_number","allele_name",
-            "transgene_pretty_nickname","transgene_pretty_name",
-            "genotype","genotype_rollup_clean",
-            "n_living_tanks","created_at",
+            "name",
+            "nickname",
+            "genetic_background",
+            "transgene_base_code",
+            "allele_number",
+            "allele_name",
+            "allele_nickname",
+            "transgene_pretty",
+            "genotype_rollup",
+            "tank_code",
+            "tank_status",
         ]
-        for c in display_cols:
-            if c not in df_view.columns:
-                df_view[c] = "" if c != "n_living_tanks" else 0
+        for c in cols_exact:
+            if c not in results_df.columns:
+                results_df[c] = pd.Series(dtype="string")
 
-        if "fish_code" in df_view.columns:
-            df_view["__ord"] = df_view["fish_code"].map(order).fillna(len(order)).astype(int)
-            df_view = df_view.sort_values("__ord").drop(columns="__ord")
+        show = results_df[cols_exact].rename(columns={
+            "fish_code":           "Fish code",
+            "name":                "Fish name",
+            "nickname":            "Fish nickname",
+            "genetic_background":  "Genetic background",
+            "transgene_base_code": "Transgene base code",
+            "allele_number":       "Allele number",
+            "allele_name":         "Allele name",
+            "allele_nickname":     "Allele nickname",
+            "transgene_pretty":    "Transgene pretty",
+            "genotype_rollup":     "Genotype rollup",
+            "tank_code":           "Tank code",
+            "tank_status":         "Tank status",
+        })
 
-        st.dataframe(df_view[display_cols], use_container_width=True, hide_index=True)
+        st.dataframe(show, use_container_width=True, hide_index=True)
