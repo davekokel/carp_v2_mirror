@@ -85,10 +85,10 @@
 - rnas
 - selection_labels
 - tank_requests
-- v_containers_crossing_candidates
-- v_containers_live
+- v_containers_candidates
+- v_containers
 - v_crosses_status
-- v_label_jobs_recent
-- vw_fish_standard
-- vw_label_rows
-- vw_plasmids_overview
+- v_labels_recent
+- v_fish_standard
+- v_label_rows
+- v_plasmids

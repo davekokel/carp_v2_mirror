@@ -1,7 +1,7 @@
 -- Drop then recreate the view to add tank_pair_code.
-drop view if exists public.v_tank_pairs_overview;
+drop view if exists public.v_tank_pairs;
 
-create view public.v_tank_pairs_overview as
+create view public.v_tank_pairs as
 select
     tp.id,
     tp.tank_pair_code,                                      -- NEW column

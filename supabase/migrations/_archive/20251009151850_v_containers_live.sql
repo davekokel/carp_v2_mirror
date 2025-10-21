@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE OR REPLACE VIEW public.v_containers_live AS
+CREATE OR REPLACE VIEW public.v_containers AS
 SELECT *
 FROM public.containers
 WHERE status IN ('active', 'new_tank');

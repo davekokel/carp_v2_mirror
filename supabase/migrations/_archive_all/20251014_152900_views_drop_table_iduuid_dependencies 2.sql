@@ -1,6 +1,6 @@
 -- Compat rewrites: remove hard table dependency on id_uuid by aliasing id AS id_uuid
--- v_containers_crossing_candidates
-CREATE OR REPLACE VIEW public.v_containers_crossing_candidates AS
+-- v_containers_candidates
+CREATE OR REPLACE VIEW public.v_containers_candidates AS
 SELECT
   c.id              AS id_uuid,
   c.container_type,
@@ -16,8 +16,8 @@ SELECT
 FROM public.containers c
 WHERE c.container_type IN ('inventory_tank','crossing_tank','holding_tank','nursery_tank','petri_dish');
 
--- v_containers_live
-CREATE OR REPLACE VIEW public.v_containers_live AS
+-- v_containers
+CREATE OR REPLACE VIEW public.v_containers AS
 SELECT
   c.id              AS id_uuid,
   c.container_type,
@@ -49,8 +49,8 @@ SELECT
   CASE WHEN EXISTS (SELECT 1 FROM public.clutches c WHERE c.cross_id = x.id) THEN 'realized' ELSE 'planned' END AS status
 FROM public.crosses x;
 
--- v_label_jobs_recent
-CREATE OR REPLACE VIEW public.v_label_jobs_recent AS
+-- v_labels_recent
+CREATE OR REPLACE VIEW public.v_labels_recent AS
 SELECT
   j.id              AS id_uuid,
   j.entity_type,
@@ -67,8 +67,8 @@ SELECT
 FROM public.label_jobs j
 ORDER BY j.requested_at DESC;
 
--- vw_fish_standard (minimal, id-only compatible projection)
-CREATE OR REPLACE VIEW public.vw_fish_standard AS
+-- v_fish_standard (minimal, id-only compatible projection)
+CREATE OR REPLACE VIEW public.v_fish_standard AS
 WITH base AS (
   SELECT
     f.id                       AS id_uuid,
@@ -106,8 +106,8 @@ SELECT
 FROM base b
 LEFT JOIN tank_counts t ON t.fish_id = b.id_uuid;
 
--- vw_label_rows (compact, id-only compatible)
-CREATE OR REPLACE VIEW public.vw_label_rows AS
+-- v_label_rows (compact, id-only compatible)
+CREATE OR REPLACE VIEW public.v_label_rows AS
 SELECT
   f.id_uuid,
   f.created_at,
@@ -125,8 +125,8 @@ SELECT
 FROM public.fish f
 ORDER BY f.fish_code;
 
--- vw_plasmids_overview
-CREATE OR REPLACE VIEW public.vw_plasmids_overview AS
+-- v_plasmids
+CREATE OR REPLACE VIEW public.v_plasmids AS
 SELECT
   p.id          AS id_uuid,
   p.code,

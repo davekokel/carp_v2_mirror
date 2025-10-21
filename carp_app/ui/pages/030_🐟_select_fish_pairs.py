@@ -120,7 +120,7 @@ def _search_fish_enriched(q: str | None, stages: List[str], limit: int) -> pd.Da
           vt.tank_code::text as tank_code,
           vt.status::text    as tank_status
         from public.fish f
-        left join public.v_tanks_for_fish vt on vt.fish_id = f.id
+        left join public.v_tanks vt on vt.fish_id = f.id
       )
       select
         a.fish_code,
@@ -356,7 +356,7 @@ def _fetch_parent_rows(codes: list[str]) -> pd.DataFrame:
         ])
     sql_base = text("""
       select fish_code, name, nickname, genotype, genetic_background, stage, date_birth, created_at
-      from public.vw_fish_standard
+      from public.v_fish_standard
       where fish_code = any(:codes)
     """)
     with _get_engine().begin() as cx:
@@ -373,7 +373,7 @@ def _fetch_parent_rows(codes: list[str]) -> pd.DataFrame:
                   coalesce(line_building_stage, line_building_stage_print) as stage,
                   date_birth_print::date as date_birth,
                   created_at
-                from public.vw_fish_overview_with_label
+                from public.v_fish_overview_with_label
                 where fish_code = any(:codes)
             """), cx, params={"codes": codes})
     try:

@@ -1,9 +1,9 @@
--- Fix v_fish_search to use vw_fish_standard (compat), not vw_fish_overview
+-- Fix v_fish_search to use v_fish_standard (compat), not vw_fish_overview
 
 -- Drop dependent objects in safe order if present
 drop function if exists public.possible_parents_by_tokens(text [], int) cascade;
 
--- Recreate v_fish_search using vw_fish_standard
+-- Recreate v_fish_search using v_fish_standard
 create or replace view public.v_fish_search as
 select
     f.fish_code,
@@ -13,10 +13,10 @@ select
     coalesce(l.n_live, 0) as n_live
 from public.fish AS f
 left join public.v_fish_live_counts AS l on f.fish_code = l.fish_code
-left join public.vw_fish_standard AS vs on f.fish_code = vs.fish_code;
+left join public.v_fish_standard AS vs on f.fish_code = vs.fish_code;
 
 comment on view public.v_fish_search is
-'Unified per-fish search text (genotype + background) plus n_live. Built on vw_fish_standard for compatibility.';
+'Unified per-fish search text (genotype + background) plus n_live. Built on v_fish_standard for compatibility.';
 
 -- Rebuild indexes (no-op if they already exist)
 create index if not exists idx_v_fish_search_txt_trgm

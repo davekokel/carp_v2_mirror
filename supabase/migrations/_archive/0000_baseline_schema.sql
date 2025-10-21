@@ -311,7 +311,7 @@ DROP TABLE IF EXISTS raw.fish_links_has_treatment_injected_plasmid_csv;
 DROP TABLE IF EXISTS raw.fish_links_has_treatment_dye_csv;
 DROP TABLE IF EXISTS raw.fish_links_has_transgenes_csv;
 DROP TABLE IF EXISTS raw.fish_csv;
-DROP VIEW IF EXISTS public.vw_fish_overview_with_label;
+DROP VIEW IF EXISTS public.v_fish_overview_with_label;
 DROP VIEW IF EXISTS public.vw_fish_overview;
 DROP VIEW IF EXISTS public.v_treatments_with_code;
 DROP VIEW IF EXISTS public.v_rna_treatments;
@@ -4500,10 +4500,10 @@ CREATE VIEW public.vw_fish_overview AS
 
 
 --
--- Name: vw_fish_overview_with_label; Type: VIEW; Schema: public; Owner: -
+-- Name: v_fish_overview_with_label; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.vw_fish_overview_with_label AS
+CREATE VIEW public.v_fish_overview_with_label AS
  WITH first_link AS (
          SELECT f_1.id_uuid AS fish_id_uuid,
             f_1.id AS fish_id_int,

@@ -188,7 +188,7 @@ def _build_upsert_results(fish_codes: List[str]) -> pd.DataFrame:
           vt.tank_code::text as tank_code,
           vt.status::text    as tank_status
         from public.fish f
-        left join public.v_tanks_for_fish vt on vt.fish_id = f.id
+        left join public.v_tanks vt on vt.fish_id = f.id
         where f.fish_code = any(:codes)
       ),
       geno as (

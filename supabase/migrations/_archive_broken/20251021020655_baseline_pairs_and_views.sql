@@ -123,7 +123,7 @@ left join dad_roll  dr  on dr.dad_code      = p.dad_code
 order by p.created_at desc;
 
 -- Canonical tank pair overview (exact columns the page reads)
-create or replace view public.v_tank_pairs_overview as
+create or replace view public.v_tank_pairs as
 with base as (
   select
     tp.id,
@@ -155,11 +155,11 @@ dad_fish as (
 ),
 mtank as (
   select vt.tank_id::uuid as mother_tank_id, vt.tank_code::text as mom_tank_code, vt.status::text as mom_tank_status
-  from public.v_tanks_for_fish vt
+  from public.v_tanks vt
 ),
 dtank as (
   select vt.tank_id::uuid as father_tank_id, vt.tank_code::text as dad_tank_code, vt.status::text as dad_tank_status
-  from public.v_tanks_for_fish vt
+  from public.v_tanks vt
 )
 select
   b.tank_pair_code,

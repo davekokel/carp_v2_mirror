@@ -1,6 +1,6 @@
 begin;
 
--- v_tank_pairs_overview
+-- v_tank_pairs
 -- Purpose: canonical read-model for recent/selected tank pairs, with clutch, fish, and tank codes.
 -- Columns:
 --   tank_pair_code, clutch_code, status, created_by, created_at,
@@ -12,9 +12,9 @@ begin;
 --   clutch_plans          (id → clutch_code)
 --   fish_pairs            (id → mom_fish_id, dad_fish_id)
 --   fish                  (id → fish_code)
---   v_tanks_for_fish      (tank_id → tank_code/status; we join by tank_id, not fish)
+--   v_tanks      (tank_id → tank_code/status; we join by tank_id, not fish)
 
-create or replace view public.v_tank_pairs_overview as
+create or replace view public.v_tank_pairs as
 with base as (
   select
     tp.id,
@@ -54,14 +54,14 @@ mtank as (
     vt.tank_id::uuid           as mother_tank_id,
     vt.tank_code::text         as mom_tank_code,
     vt.status::text            as mom_tank_status
-  from public.v_tanks_for_fish vt
+  from public.v_tanks vt
 ),
 dtank as (
   select
     vt.tank_id::uuid           as father_tank_id,
     vt.tank_code::text         as dad_tank_code,
     vt.status::text            as dad_tank_status
-  from public.v_tanks_for_fish vt
+  from public.v_tanks vt
 )
 select
   b.tank_pair_code,

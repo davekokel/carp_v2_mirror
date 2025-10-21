@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW public.vw_fish_standard AS
+CREATE OR REPLACE VIEW public.v_fish_standard AS
 WITH base AS (
   SELECT
     f.id                             AS id,
@@ -23,7 +23,7 @@ label AS (
     v.created_by_enriched,
     NULLIF(v.plasmid_injections_text, ''::text)            AS plasmid_injections_text,
     NULLIF(v.rna_injections_text, ''::text)                AS rna_injections_text
-  FROM public.vw_fish_overview_with_label v
+  FROM public.v_fish_overview_with_label v
 ),
 tank_counts AS (
   SELECT

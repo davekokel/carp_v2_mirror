@@ -139,7 +139,7 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
       select f.fish_code, count(*)::int as n_live
       from public.fish f
       join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
-      join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
+      join public.v_tanks vt on vt.tank_id = m.container_id
       where vt.status::text = any(:live)
       group by f.fish_code
     ),
@@ -147,7 +147,7 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
       select f.fish_code, count(*)::int as n_live
       from public.fish f
       join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
-      join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
+      join public.v_tanks vt on vt.tank_id = m.container_id
       where vt.status::text = any(:live)
       group by f.fish_code
     ),
@@ -194,7 +194,7 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
 
 def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     """
-    Live tanks for the given fish_code list, straight from v_tanks_for_fish.
+    Live tanks for the given fish_code list, straight from v_tanks.
     Live = vt.status IN ('active','new_tank') (enum→text cast).
     """
     if not codes:
@@ -226,7 +226,7 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
         null::timestamptz                           as deactivated_at,
         null::timestamptz                           as last_seen_at
       from public.fish f
-      join public.v_tanks_for_fish vt on vt.fish_id = f.id
+      join public.v_tanks vt on vt.fish_id = f.id
       where f.fish_code = any(:codes)
         and vt.status::text = any(:live)            -- only active/new_tank
       order by f.fish_code, vt.tank_created_at desc nulls last
@@ -562,7 +562,7 @@ def _list_tank_pairs_for_selection() -> pd.DataFrame:
             return pd.read_sql(
                 text("""
                   select *
-                  from public.v_tank_pairs_overview
+                  from public.v_tank_pairs
                   where concept_id = :concept
                   order by created_at desc
                   limit 500
@@ -585,7 +585,7 @@ def _list_tank_pairs_for_selection() -> pd.DataFrame:
             values {vals_sql}
           )
           select *
-          from public.v_tank_pairs_overview
+          from public.v_tank_pairs
           where ( :concept is null or concept_id = :concept )
             and (mother_tank_id in (select uuid_id from ids)
                  or father_tank_id in (select uuid_id from ids))

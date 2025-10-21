@@ -6,7 +6,7 @@ BEGIN
   END IF;
 END$$;
 
-DROP VIEW IF EXISTS public.v_containers_crossing_candidates;
+DROP VIEW IF EXISTS public.v_containers_candidates;
 
 ALTER TABLE public.containers ALTER COLUMN status DROP DEFAULT;
 
@@ -19,7 +19,7 @@ END;
 
 ALTER TABLE public.containers ALTER COLUMN status SET DEFAULT 'planned'::container_status;
 
-CREATE OR REPLACE VIEW public.v_containers_crossing_candidates AS
+CREATE OR REPLACE VIEW public.v_containers_candidates AS
 SELECT
     id_uuid,
     container_type,

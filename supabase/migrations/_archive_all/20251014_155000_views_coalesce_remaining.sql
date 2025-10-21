@@ -58,8 +58,8 @@ WHERE m.left_at IS NULL
   AND c.status IN ('active','new_tank')
 GROUP BY m.fish_id;
 
--- vw_cross_runs_overview
-CREATE OR REPLACE VIEW public.vw_cross_runs_overview AS
+-- v_cross_runs
+CREATE OR REPLACE VIEW public.v_cross_runs AS
 WITH cl AS (
   SELECT clutches.cross_instance_id, COUNT(*)::int AS n_clutches
   FROM public.clutches

@@ -27,5 +27,5 @@ select
     hum.mom_tank_label as mom_code_tank,
     hum.dad_tank_label as dad_code_tank,
     cp.created_at
-from vw_clutches_concept_overview AS cp
-left join vw_clutches_overview_human AS hum on cp.clutch_code = hum.clutch_code;
+from v_clutches_concept_overview AS cp
+left join v_clutches_overview_human AS hum on cp.clutch_code = hum.clutch_code;

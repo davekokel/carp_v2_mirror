@@ -1,8 +1,8 @@
 -- Replace the runs overview to provide mother/father tank labels robustly
 -- (explicit container ids first, then live membership fallback)
-drop view if exists public.vw_cross_runs_overview;
+drop view if exists public.v_cross_runs;
 
-create view public.vw_cross_runs_overview as
+create view public.v_cross_runs as
 select
   ci.id_uuid                   as cross_instance_id,
   ci.cross_run_code            as cross_run_code,               -- if you have this; else ci.cross_run_code

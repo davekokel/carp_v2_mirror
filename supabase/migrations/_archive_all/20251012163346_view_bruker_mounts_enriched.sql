@@ -18,7 +18,7 @@ r as (
     cross_run_code,
     mom_code,
     dad_code
-  from public.vw_cross_runs_overview
+  from public.v_cross_runs
 ),
 c as (
   select

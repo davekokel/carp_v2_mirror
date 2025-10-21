@@ -7,14 +7,14 @@ CREATE OR REPLACE VIEW public.v_cross_concepts_overview AS
 WITH mom_counts AS (
   SELECT f.fish_code, COUNT(*)::int AS mom_live_tanks_count
   FROM public.fish f
-  JOIN public.v_tanks_for_fish vt ON vt.fish_id = f.id
+  JOIN public.v_tanks vt ON vt.fish_id = f.id
   WHERE vt.status::text IN ('active','new_tank')
   GROUP BY f.fish_code
 ),
 dad_counts AS (
   SELECT f.fish_code, COUNT(*)::int AS dad_live_tanks_count
   FROM public.fish f
-  JOIN public.v_tanks_for_fish vt ON vt.fish_id = f.id
+  JOIN public.v_tanks vt ON vt.fish_id = f.id
   WHERE vt.status::text IN ('active','new_tank')
   GROUP BY f.fish_code
 ),

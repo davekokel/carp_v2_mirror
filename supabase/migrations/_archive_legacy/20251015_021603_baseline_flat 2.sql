@@ -1954,7 +1954,7 @@ CREATE TABLE IF NOT EXISTS "public"."transgenes" (
 ALTER TABLE "public"."transgenes" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_planned_clutches_overview" AS
+CREATE OR REPLACE VIEW "public"."v_planned_clutches_overview" AS
  WITH "x" AS (
          SELECT "cp"."id_uuid" AS "clutch_plan_id",
             "pc"."id_uuid" AS "planned_cross_id",
@@ -1988,7 +1988,7 @@ CREATE OR REPLACE VIEW "public"."vw_planned_clutches_overview" AS
   ORDER BY COALESCE((("x"."cross_date")::timestamp without time zone)::timestamp with time zone, "x"."created_at") DESC NULLS LAST;
 
 
-ALTER VIEW "public"."vw_planned_clutches_overview" OWNER TO "postgres";
+ALTER VIEW "public"."v_planned_clutches_overview" OWNER TO "postgres";
 
 
 CREATE OR REPLACE VIEW "public"."v_cross_concepts_overview" AS
@@ -2019,14 +2019,14 @@ CREATE OR REPLACE VIEW "public"."v_cross_concepts_overview" AS
     COALESCE("v"."n_treatments", 0) AS "n_treatments",
     COALESCE("v"."created_by", ''::"text") AS "created_by",
     "v"."created_at"
-   FROM ("public"."vw_planned_clutches_overview" "v"
+   FROM ("public"."v_planned_clutches_overview" "v"
      LEFT JOIN "public"."planned_crosses" "pc" ON (("pc"."cross_code" = "v"."clutch_code")));
 
 
 ALTER VIEW "public"."v_cross_concepts_overview" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_cross_runs_overview" AS
+CREATE OR REPLACE VIEW "public"."v_cross_runs" AS
  SELECT "ci"."id_uuid" AS "cross_instance_id",
     "ci"."cross_run_code",
     "ci"."cross_date",
@@ -2061,7 +2061,7 @@ CREATE OR REPLACE VIEW "public"."vw_cross_runs_overview" AS
      JOIN "public"."crosses" "cr" ON (("cr"."id_uuid" = "ci"."cross_id")));
 
 
-ALTER VIEW "public"."vw_cross_runs_overview" OWNER TO "postgres";
+ALTER VIEW "public"."v_cross_runs" OWNER TO "postgres";
 
 
 CREATE OR REPLACE VIEW "public"."v_bruker_mounts_enriched" AS
@@ -2084,11 +2084,11 @@ CREATE OR REPLACE VIEW "public"."v_bruker_mounts_enriched" AS
             COALESCE("clutch_instances"."label", ''::"text") AS "selection_label"
            FROM "public"."clutch_instances"
         ), "r" AS (
-         SELECT "vw_cross_runs_overview"."cross_instance_id",
-            "vw_cross_runs_overview"."cross_run_code",
-            "vw_cross_runs_overview"."mom_code",
-            "vw_cross_runs_overview"."dad_code"
-           FROM "public"."vw_cross_runs_overview"
+         SELECT "v_cross_runs"."cross_instance_id",
+            "v_cross_runs"."cross_run_code",
+            "v_cross_runs"."mom_code",
+            "v_cross_runs"."dad_code"
+           FROM "public"."v_cross_runs"
         ), "c" AS (
          SELECT "v_cross_concepts_overview"."mom_code",
             "v_cross_concepts_overview"."dad_code",
@@ -2174,7 +2174,7 @@ CREATE OR REPLACE VIEW "public"."v_clutch_instances_annotations" AS
 ALTER VIEW "public"."v_clutch_instances_annotations" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."v_containers_crossing_candidates" AS
+CREATE OR REPLACE VIEW "public"."v_containers_candidates" AS
  SELECT "id_uuid",
     "container_type",
     "label",
@@ -2190,10 +2190,10 @@ CREATE OR REPLACE VIEW "public"."v_containers_crossing_candidates" AS
   WHERE ("container_type" = ANY (ARRAY['inventory_tank'::"text", 'crossing_tank'::"text", 'holding_tank'::"text", 'nursery_tank'::"text", 'petri_dish'::"text"]));
 
 
-ALTER VIEW "public"."v_containers_crossing_candidates" OWNER TO "postgres";
+ALTER VIEW "public"."v_containers_candidates" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."v_containers_live" AS
+CREATE OR REPLACE VIEW "public"."v_containers" AS
  SELECT "id_uuid",
     "container_type",
     "label",
@@ -2213,7 +2213,7 @@ CREATE OR REPLACE VIEW "public"."v_containers_live" AS
   WHERE ("status" = ANY (ARRAY['active'::"text", 'new_tank'::"text"]));
 
 
-ALTER VIEW "public"."v_containers_live" OWNER TO "postgres";
+ALTER VIEW "public"."v_containers" OWNER TO "postgres";
 
 
 CREATE OR REPLACE VIEW "public"."v_cross_plan_runs_enriched" AS
@@ -2337,7 +2337,7 @@ CREATE OR REPLACE VIEW "public"."v_fish_living_tank_counts" AS
 ALTER VIEW "public"."v_fish_living_tank_counts" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_fish_overview_with_label" AS
+CREATE OR REPLACE VIEW "public"."v_fish_overview_with_label" AS
  WITH "base" AS (
          SELECT "f"."fish_code",
             "f"."name",
@@ -2404,7 +2404,7 @@ CREATE OR REPLACE VIEW "public"."vw_fish_overview_with_label" AS
   ORDER BY "b"."fish_code";
 
 
-ALTER VIEW "public"."vw_fish_overview_with_label" OWNER TO "postgres";
+ALTER VIEW "public"."v_fish_overview_with_label" OWNER TO "postgres";
 
 
 CREATE OR REPLACE VIEW "public"."v_fish_overview" AS
@@ -2420,7 +2420,7 @@ CREATE OR REPLACE VIEW "public"."v_fish_overview" AS
     COALESCE("batch_label", ''::"text") AS "batch_display",
     COALESCE(''::"text", ''::"text", "allele_name_filled", "allele_code_filled", ''::"text") AS "genotype_print",
     NULL::"text" AS "genetic_background_print"
-   FROM "public"."vw_fish_overview_with_label" "v";
+   FROM "public"."v_fish_overview_with_label" "v";
 
 
 ALTER VIEW "public"."v_fish_overview" OWNER TO "postgres";
@@ -2451,7 +2451,7 @@ CREATE OR REPLACE VIEW "public"."v_fish_overview_canonical" AS
 ALTER VIEW "public"."v_fish_overview_canonical" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."v_label_jobs_recent" AS
+CREATE OR REPLACE VIEW "public"."v_labels_recent" AS
  SELECT "id_uuid",
     "entity_type",
     "entity_id",
@@ -2468,10 +2468,10 @@ CREATE OR REPLACE VIEW "public"."v_label_jobs_recent" AS
   ORDER BY "requested_at" DESC;
 
 
-ALTER VIEW "public"."v_label_jobs_recent" OWNER TO "postgres";
+ALTER VIEW "public"."v_labels_recent" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_bruker_mounts_enriched" AS
+CREATE OR REPLACE VIEW "public"."v_bruker_mounts_enriched" AS
  SELECT ((('BRUKER '::"text" || "to_char"(("mount_date")::timestamp with time zone, 'YYYY-MM-DD'::"text")) || ' #'::"text") || "row_number"() OVER (PARTITION BY "mount_date" ORDER BY "mount_time", "created_at")) AS "mount_code",
     "selection_id",
     "mount_date",
@@ -2484,10 +2484,10 @@ CREATE OR REPLACE VIEW "public"."vw_bruker_mounts_enriched" AS
    FROM "public"."bruker_mounts";
 
 
-ALTER VIEW "public"."vw_bruker_mounts_enriched" OWNER TO "postgres";
+ALTER VIEW "public"."v_bruker_mounts_enriched" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_clutches_concept_overview" AS
+CREATE OR REPLACE VIEW "public"."v_clutches_concept_overview" AS
  WITH "base" AS (
          SELECT "cp"."id_uuid" AS "clutch_plan_id",
             "pc"."id_uuid" AS "planned_cross_id",
@@ -2533,10 +2533,10 @@ CREATE OR REPLACE VIEW "public"."vw_clutches_concept_overview" AS
   ORDER BY COALESCE((("b"."date_planned")::timestamp without time zone)::timestamp with time zone, "b"."created_at") DESC NULLS LAST;
 
 
-ALTER VIEW "public"."vw_clutches_concept_overview" OWNER TO "postgres";
+ALTER VIEW "public"."v_clutches_concept_overview" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_clutches_overview_human" AS
+CREATE OR REPLACE VIEW "public"."v_clutches_overview_human" AS
  WITH "base" AS (
          SELECT "c"."id_uuid" AS "clutch_id",
             "c"."date_birth",
@@ -2588,10 +2588,10 @@ CREATE OR REPLACE VIEW "public"."vw_clutches_overview_human" AS
   ORDER BY COALESCE((("b"."date_birth")::timestamp without time zone)::timestamp with time zone, "b"."created_at") DESC NULLS LAST;
 
 
-ALTER VIEW "public"."vw_clutches_overview_human" OWNER TO "postgres";
+ALTER VIEW "public"."v_clutches_overview_human" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_crosses_concept" AS
+CREATE OR REPLACE VIEW "public"."v_crosses_concept" AS
  WITH "runs" AS (
          SELECT "cross_instances"."cross_id",
             ("count"(*))::integer AS "n_runs",
@@ -2627,10 +2627,10 @@ CREATE OR REPLACE VIEW "public"."vw_crosses_concept" AS
   ORDER BY "x"."created_at" DESC;
 
 
-ALTER VIEW "public"."vw_crosses_concept" OWNER TO "postgres";
+ALTER VIEW "public"."v_crosses_concept" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_fish_standard" AS
+CREATE OR REPLACE VIEW "public"."v_fish_standard" AS
  WITH "base" AS (
          SELECT "f"."id" AS "id_uuid",
             "f"."fish_code",
@@ -2652,7 +2652,7 @@ CREATE OR REPLACE VIEW "public"."vw_fish_standard" AS
             "v"."created_by_enriched",
             NULLIF("v"."plasmid_injections_text", ''::"text") AS "plasmid_injections_text",
             NULLIF("v"."rna_injections_text", ''::"text") AS "rna_injections_text"
-           FROM "public"."vw_fish_overview_with_label" "v"
+           FROM "public"."v_fish_overview_with_label" "v"
         ), "tank_counts" AS (
          SELECT "m"."fish_id",
             ("count"(*))::integer AS "n_living_tanks"
@@ -2695,10 +2695,10 @@ CREATE OR REPLACE VIEW "public"."vw_fish_standard" AS
      LEFT JOIN "tank_counts" "t" ON (("t"."fish_id" = "b"."id_uuid")));
 
 
-ALTER VIEW "public"."vw_fish_standard" OWNER TO "postgres";
+ALTER VIEW "public"."v_fish_standard" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_label_rows" AS
+CREATE OR REPLACE VIEW "public"."v_label_rows" AS
  WITH "base" AS (
          SELECT "f"."id_uuid",
             "f"."fish_code",
@@ -2749,10 +2749,10 @@ CREATE OR REPLACE VIEW "public"."vw_label_rows" AS
   ORDER BY "b"."fish_code";
 
 
-ALTER VIEW "public"."vw_label_rows" OWNER TO "postgres";
+ALTER VIEW "public"."v_label_rows" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."vw_plasmids_overview" AS
+CREATE OR REPLACE VIEW "public"."v_plasmids" AS
  SELECT "p"."id_uuid",
     "p"."code",
     "p"."name",
@@ -2772,7 +2772,7 @@ CREATE OR REPLACE VIEW "public"."vw_plasmids_overview" AS
   ORDER BY "p"."code";
 
 
-ALTER VIEW "public"."vw_plasmids_overview" OWNER TO "postgres";
+ALTER VIEW "public"."v_plasmids" OWNER TO "postgres";
 
 
 ALTER TABLE ONLY "public"."fish_code_audit" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."fish_code_audit_id_seq"'::"regclass");
@@ -5190,10 +5190,10 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."transgenes" TO "app_rw";
 
 
 
-GRANT ALL ON TABLE "public"."vw_planned_clutches_overview" TO "anon";
-GRANT ALL ON TABLE "public"."vw_planned_clutches_overview" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_planned_clutches_overview" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_planned_clutches_overview" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_planned_clutches_overview" TO "anon";
+GRANT ALL ON TABLE "public"."v_planned_clutches_overview" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_planned_clutches_overview" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_planned_clutches_overview" TO "app_rw";
 
 
 
@@ -5204,10 +5204,10 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_cross_concepts_overview" 
 
 
 
-GRANT ALL ON TABLE "public"."vw_cross_runs_overview" TO "anon";
-GRANT ALL ON TABLE "public"."vw_cross_runs_overview" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_cross_runs_overview" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_cross_runs_overview" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_cross_runs" TO "anon";
+GRANT ALL ON TABLE "public"."v_cross_runs" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_cross_runs" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_cross_runs" TO "app_rw";
 
 
 
@@ -5232,17 +5232,17 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_clutch_instances_annotati
 
 
 
-GRANT ALL ON TABLE "public"."v_containers_crossing_candidates" TO "anon";
-GRANT ALL ON TABLE "public"."v_containers_crossing_candidates" TO "authenticated";
-GRANT ALL ON TABLE "public"."v_containers_crossing_candidates" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_containers_crossing_candidates" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_containers_candidates" TO "anon";
+GRANT ALL ON TABLE "public"."v_containers_candidates" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_containers_candidates" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_containers_candidates" TO "app_rw";
 
 
 
-GRANT ALL ON TABLE "public"."v_containers_live" TO "anon";
-GRANT ALL ON TABLE "public"."v_containers_live" TO "authenticated";
-GRANT ALL ON TABLE "public"."v_containers_live" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_containers_live" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_containers" TO "anon";
+GRANT ALL ON TABLE "public"."v_containers" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_containers" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_containers" TO "app_rw";
 
 
 
@@ -5281,10 +5281,10 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_fish_living_tank_counts" 
 
 
 
-GRANT ALL ON TABLE "public"."vw_fish_overview_with_label" TO "anon";
-GRANT ALL ON TABLE "public"."vw_fish_overview_with_label" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_fish_overview_with_label" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_fish_overview_with_label" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_fish_overview_with_label" TO "anon";
+GRANT ALL ON TABLE "public"."v_fish_overview_with_label" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_fish_overview_with_label" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_fish_overview_with_label" TO "app_rw";
 
 
 
@@ -5302,59 +5302,59 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_fish_overview_canonical" 
 
 
 
-GRANT ALL ON TABLE "public"."v_label_jobs_recent" TO "anon";
-GRANT ALL ON TABLE "public"."v_label_jobs_recent" TO "authenticated";
-GRANT ALL ON TABLE "public"."v_label_jobs_recent" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_label_jobs_recent" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_labels_recent" TO "anon";
+GRANT ALL ON TABLE "public"."v_labels_recent" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_labels_recent" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_labels_recent" TO "app_rw";
 
 
 
-GRANT ALL ON TABLE "public"."vw_bruker_mounts_enriched" TO "anon";
-GRANT ALL ON TABLE "public"."vw_bruker_mounts_enriched" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_bruker_mounts_enriched" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_bruker_mounts_enriched" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_bruker_mounts_enriched" TO "anon";
+GRANT ALL ON TABLE "public"."v_bruker_mounts_enriched" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_bruker_mounts_enriched" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_bruker_mounts_enriched" TO "app_rw";
 
 
 
-GRANT ALL ON TABLE "public"."vw_clutches_concept_overview" TO "anon";
-GRANT ALL ON TABLE "public"."vw_clutches_concept_overview" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_clutches_concept_overview" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_clutches_concept_overview" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_clutches_concept_overview" TO "anon";
+GRANT ALL ON TABLE "public"."v_clutches_concept_overview" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_clutches_concept_overview" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_clutches_concept_overview" TO "app_rw";
 
 
 
-GRANT ALL ON TABLE "public"."vw_clutches_overview_human" TO "anon";
-GRANT ALL ON TABLE "public"."vw_clutches_overview_human" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_clutches_overview_human" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_clutches_overview_human" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_clutches_overview_human" TO "anon";
+GRANT ALL ON TABLE "public"."v_clutches_overview_human" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_clutches_overview_human" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_clutches_overview_human" TO "app_rw";
 
 
 
-GRANT ALL ON TABLE "public"."vw_crosses_concept" TO "anon";
-GRANT ALL ON TABLE "public"."vw_crosses_concept" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_crosses_concept" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_crosses_concept" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_crosses_concept" TO "anon";
+GRANT ALL ON TABLE "public"."v_crosses_concept" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_crosses_concept" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_crosses_concept" TO "app_rw";
 
 
 
-GRANT ALL ON TABLE "public"."vw_fish_standard" TO "anon";
-GRANT ALL ON TABLE "public"."vw_fish_standard" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_fish_standard" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_fish_standard" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_fish_standard" TO "anon";
+GRANT ALL ON TABLE "public"."v_fish_standard" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_fish_standard" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_fish_standard" TO "app_rw";
 
 
 
-GRANT ALL ON TABLE "public"."vw_label_rows" TO "anon";
-GRANT ALL ON TABLE "public"."vw_label_rows" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_label_rows" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_label_rows" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_label_rows" TO "anon";
+GRANT ALL ON TABLE "public"."v_label_rows" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_label_rows" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_label_rows" TO "app_rw";
 
 
 
-GRANT ALL ON TABLE "public"."vw_plasmids_overview" TO "anon";
-GRANT ALL ON TABLE "public"."vw_plasmids_overview" TO "authenticated";
-GRANT ALL ON TABLE "public"."vw_plasmids_overview" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."vw_plasmids_overview" TO "app_rw";
+GRANT ALL ON TABLE "public"."v_plasmids" TO "anon";
+GRANT ALL ON TABLE "public"."v_plasmids" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_plasmids" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."v_plasmids" TO "app_rw";
 
 
 

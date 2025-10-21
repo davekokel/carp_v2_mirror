@@ -57,7 +57,7 @@ mom_live AS (
     COUNT(*)::int AS mom_live_tanks_count
   FROM cp c
   JOIN public.fish fm              ON fm.fish_code = c.mom_code
-  JOIN public.v_tanks_for_fish vt  ON vt.fish_id   = fm.id
+  JOIN public.v_tanks vt  ON vt.fish_id   = fm.id
   WHERE vt.status::text IN ('active','new_tank')
   GROUP BY c.clutch_id
 ),
@@ -67,7 +67,7 @@ dad_live AS (
     COUNT(*)::int AS dad_live_tanks_count
   FROM cp c
   JOIN public.fish fd              ON fd.fish_code = c.dad_code
-  JOIN public.v_tanks_for_fish vt  ON vt.fish_id   = fd.id
+  JOIN public.v_tanks vt  ON vt.fish_id   = fd.id
   WHERE vt.status::text IN ('active','new_tank')
   GROUP BY c.clutch_id
 ),

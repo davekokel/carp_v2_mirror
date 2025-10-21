@@ -62,9 +62,9 @@ create index if not exists idx_tp_mom_tank        on public.tank_pairs(mother_ta
 create index if not exists idx_tp_dad_tank        on public.tank_pairs(father_tank_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 3) Canonical view: public.v_tank_pairs_overview
+-- 3) Canonical view: public.v_tank_pairs
 -- ─────────────────────────────────────────────────────────────────────────────
-create or replace view public.v_tank_pairs_overview as
+create or replace view public.v_tank_pairs as
 with base as (
   select
     tp.id,
@@ -104,14 +104,14 @@ mtank as (
     vt.tank_id::uuid             as mother_tank_id,
     vt.tank_code::text           as mom_tank_code,
     vt.status::text              as mom_tank_status
-  from public.v_tanks_for_fish vt
+  from public.v_tanks vt
 ),
 dtank as (
   select
     vt.tank_id::uuid             as father_tank_id,
     vt.tank_code::text           as dad_tank_code,
     vt.status::text              as dad_tank_status
-  from public.v_tanks_for_fish vt
+  from public.v_tanks vt
 )
 select
   b.tank_pair_code,

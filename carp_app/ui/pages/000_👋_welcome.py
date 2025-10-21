@@ -120,7 +120,7 @@ except Exception as e:
 # --- required views presence ---
 required_views = [
     ("public", "v_fish_overview"),
-    ("public", "v_tanks_for_fish"),
+    ("public", "v_tanks"),
     ("public", "v_crosses_status"),
     ("public", "v_clutch_instances_overview"),
 ]

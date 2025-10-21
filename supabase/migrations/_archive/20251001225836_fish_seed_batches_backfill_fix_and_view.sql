@@ -36,9 +36,9 @@ BEGIN
 
   -- Rebuild labeled overview (drop first to avoid replace shape issues)
   IF to_regclass('public.v_fish_overview') IS NOT NULL THEN
-    EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+    EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
     EXECUTE '
-      CREATE VIEW public.vw_fish_overview_with_label AS
+      CREATE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.id,
         v.fish_code,

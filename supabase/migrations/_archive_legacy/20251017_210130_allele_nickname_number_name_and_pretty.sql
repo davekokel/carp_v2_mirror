@@ -43,7 +43,7 @@ comment on function public.transgene_alleles_autofill() is
 -- 3) Update clean view to expose nickname/number/name and pretty strings (no background in rollup)
 create or replace view public.v_fish_standard_clean as
 with vs as (
-    select * from public.vw_fish_standard
+    select * from public.v_fish_standard
 ),
 
 src as (

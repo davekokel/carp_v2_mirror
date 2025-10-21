@@ -4,7 +4,7 @@ ADD COLUMN IF NOT EXISTS allele_code text;
 
 -- 2) Rebuild the labeled overview view without renaming existing columns.
 --    We append allele_code_filled (new) and recompute transgene_pretty_filled (existing name).
-CREATE OR REPLACE VIEW public.vw_fish_overview_with_label AS
+CREATE OR REPLACE VIEW public.v_fish_overview_with_label AS
 WITH
 -- Pick the first linked allele (by allele_number asc, NULLS LAST) for this fish_id
 linkx AS (

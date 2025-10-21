@@ -80,4 +80,4 @@ else:
     if "age_weeks" in df.columns:
         df["age_weeks"] = pd.to_numeric(df["age_weeks"], errors="coerce").astype("Int64")
     st.dataframe(df[show], width='stretch')
-    st.caption("Source: public.vw_fish_overview_with_label (fallback to v_fish_overview on errors).")
+    st.caption("Source: public.v_fish_overview_with_label (fallback to v_fish_overview on errors).")

@@ -1,7 +1,7 @@
 -- 1) Recreate v_fish_standard_clean without ta.allele_label (not in your schema)
 --    Prefer canonical allele_number/allele_name/allele_nickname from transgene_alleles. AS create or replace view public.v_fish_standard_clean as
 with vs as (
-    select * from public.vw_fish_standard
+    select * from public.v_fish_standard
 ),
 
 src as (

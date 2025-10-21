@@ -1,4 +1,4 @@
-create or replace view public.vw_fish_overview_with_label as
+create or replace view public.v_fish_overview_with_label as
 with base as (
     select
         f.fish_code,
@@ -74,7 +74,7 @@ left join allele AS a on b.fish_code = a.fish_code
 left join batch AS using (fish_code)
 order by b.fish_code;
 
-create or replace view public.vw_planned_clutches_overview as
+create or replace view public.v_planned_clutches_overview as
 with x as (
     select
         cp.id as clutch_plan_id,
@@ -141,5 +141,5 @@ select
     hum.mom_tank_label as mom_code_tank,
     hum.dad_tank_label as dad_code_tank,
     cp.created_at
-from vw_clutches_concept_overview AS cp
-left join vw_clutches_overview_human AS hum on cp.clutch_code = hum.clutch_code;
+from v_clutches_concept_overview AS cp
+left join v_clutches_overview_human AS hum on cp.clutch_code = hum.clutch_code;

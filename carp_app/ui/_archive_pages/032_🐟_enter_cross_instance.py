@@ -269,7 +269,7 @@ def _load_runnable_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.D
       COALESCE(ld.n_live,0) AS dad_live,
       v.n_clutches AS clutches,
       v.n_containers AS containers
-    FROM public.vw_crosses_concept v
+    FROM public.v_crosses_concept v
     JOIN public.crosses x     ON x.id = v.cross_id
     LEFT JOIN live_by_fish lm ON lm.fish_code = v.mom_code
     LEFT JOIN live_by_fish ld ON ld.fish_code = v.dad_code

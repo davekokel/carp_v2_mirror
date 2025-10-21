@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW public.v_label_jobs_recent AS
+CREATE OR REPLACE VIEW public.v_labels_recent AS
 SELECT
   j.id AS id_uuid,
   j.entity_type,

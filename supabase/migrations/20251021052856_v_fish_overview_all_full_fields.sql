@@ -4,7 +4,7 @@ begin;
 -- v_fish_overview_all
 -- One row per (fish × allele × tank)
 -- Pulls alleles from fish_transgene_alleles + transgene_alleles
--- Pulls tanks from v_tanks_for_fish
+-- Pulls tanks from v_tanks
 -- Adds a deterministic per-fish genotype_rollup
 
 with geno_roll as (
@@ -40,7 +40,7 @@ tanks as (
     vt.tank_code::text as tankcode,
     vt.status::text    as tank_status,
     vt.tank_created_at
-  from public.v_tanks_for_fish vt
+  from public.v_tanks vt
 )
 
 create or replace view public.v_fish_overview_all as

@@ -45,7 +45,7 @@ def load_tanks(q: str = "", limit: int = 500) -> pd.DataFrame:
         f.fish_code,
         vt.tank_created_at as created_at,
         vt.tank_updated_at as updated_at
-      from public.v_tanks_for_fish vt
+      from public.v_tanks vt
       join public.fish f on f.id = vt.fish_id
       where (:q = '' or upper(vt.tank_code) like :pat or upper(f.fish_code) like :pat)
       order by vt.tank_created_at desc nulls last

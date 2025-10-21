@@ -1,12 +1,12 @@
 -- Fix genotype rollup to never render the literal word 'unknown'.
 -- We don't redefine your existing views; instead we expose a clean, companion view.
 
--- Preconditions: prefer vw_fish_standard if present; otherwise fallback to fish (minimal columns)
+-- Preconditions: prefer v_fish_standard if present; otherwise fallback to fish (minimal columns)
 
 -- 1) Clean companion view: v_fish_standard_clean
 create or replace view public.v_fish_standard_clean as
 with vs as (
-    select * from public.vw_fish_standard
+    select * from public.v_fish_standard
 ),
 
 src as (
@@ -66,7 +66,7 @@ fmt as (
 select * from fmt;
 
 comment on view public.v_fish_standard_clean is
-'Companion to vw_fish_standard with genotype_rollup_clean that never renders literal "unknown".';
+'Companion to v_fish_standard with genotype_rollup_clean that never renders literal "unknown".';
 
 -- 2) If v_fish_search exists, refresh it to prefer the clean fields (optional, idempotent)
 do $$

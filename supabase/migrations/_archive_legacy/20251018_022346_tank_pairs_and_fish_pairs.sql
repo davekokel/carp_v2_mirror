@@ -30,7 +30,7 @@ create index if not exists ix_tank_pairs_concept on public.tank_pairs (concept_i
 create index if not exists ix_tank_pairs_mother on public.tank_pairs (mother_tank_id);
 create index if not exists ix_tank_pairs_father on public.tank_pairs (father_tank_id);
 
-create or replace view public.v_tank_pairs_overview as
+create or replace view public.v_tank_pairs as
 select
     tp.id,
     tp.concept_id,

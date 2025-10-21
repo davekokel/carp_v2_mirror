@@ -37,8 +37,8 @@ WHERE
 ORDER BY f.created_at DESC;
 
 -- Thin label overlay: keeps columns stable even if extras aren’t present yet
-DROP VIEW IF EXISTS public.vw_fish_overview_with_label;
-CREATE VIEW public.vw_fish_overview_with_label AS
+DROP VIEW IF EXISTS public.v_fish_overview_with_label;
+CREATE VIEW public.v_fish_overview_with_label AS
 SELECT
     v.*,
     NULL::text AS nickname,

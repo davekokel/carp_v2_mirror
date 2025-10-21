@@ -6,13 +6,13 @@ BEGIN
   END IF;
 
   -- Drop first to avoid "cannot drop columns from view" replace errors
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
 
   -- Baseline-safe labeled view: re-use the baseline "filled" columns from v_fish_overview,
   -- just add batch_label (from fish_seed_batches if present) and created_by_enriched.
   IF to_regclass('public.fish_seed_batches') IS NOT NULL THEN
     EXECUTE $V$
-      CREATE VIEW public.vw_fish_overview_with_label AS
+      CREATE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.id,
         v.fish_code,
@@ -32,7 +32,7 @@ BEGIN
     $V$;
   ELSE
     EXECUTE $V$
-      CREATE VIEW public.vw_fish_overview_with_label AS
+      CREATE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.id,
         v.fish_code,

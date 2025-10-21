@@ -1,8 +1,8 @@
 BEGIN;
 
-DROP VIEW IF EXISTS public.vw_label_rows;
+DROP VIEW IF EXISTS public.v_label_rows;
 
-CREATE VIEW public.vw_label_rows AS
+CREATE VIEW public.v_label_rows AS
 WITH base AS (
     SELECT
         f.id_uuid,

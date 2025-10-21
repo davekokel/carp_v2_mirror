@@ -41,7 +41,7 @@ before insert on public.tank_pairs
 for each row execute function public.trg_tank_pairs_set_code();
 
 -- 5) update the overview view to include the code column
-create or replace view public.v_tank_pairs_overview as
+create or replace view public.v_tank_pairs as
 select
     tp.id,
     tp.tank_pair_code,                      -- ← new

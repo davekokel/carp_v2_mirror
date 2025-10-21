@@ -60,7 +60,7 @@ def _load_tanks(container_types: List[str], statuses: List[str], q: str) -> pd.D
         deactivated_at,
         last_seen_at,
         coalesce(note,'') as note
-      from public.v_containers_crossing_candidates
+      from public.v_containers_candidates
       where container_type{type_clause}
         and status{status_clause}
         {search_clause}

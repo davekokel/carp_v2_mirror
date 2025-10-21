@@ -1,7 +1,7 @@
 -- Make views tolerate tables mid-swap by using COALESCE(id, id_uuid) and projecting id_uuid
 
--- v_containers_crossing_candidates
-CREATE OR REPLACE VIEW public.v_containers_crossing_candidates AS
+-- v_containers_candidates
+CREATE OR REPLACE VIEW public.v_containers_candidates AS
 SELECT
   COALESCE(c.id, c.id_uuid) AS id_uuid,
   c.container_type,
@@ -17,8 +17,8 @@ SELECT
 FROM public.containers c
 WHERE c.container_type IN ('inventory_tank','crossing_tank','holding_tank','nursery_tank','petri_dish');
 
--- v_containers_live
-CREATE OR REPLACE VIEW public.v_containers_live AS
+-- v_containers
+CREATE OR REPLACE VIEW public.v_containers AS
 SELECT
   COALESCE(c.id, c.id_uuid) AS id_uuid,
   c.container_type,
@@ -52,8 +52,8 @@ SELECT
   ) THEN 'realized' ELSE 'planned' END AS status
 FROM public.crosses x;
 
--- v_label_jobs_recent
-CREATE OR REPLACE VIEW public.v_label_jobs_recent AS
+-- v_labels_recent
+CREATE OR REPLACE VIEW public.v_labels_recent AS
 SELECT
   COALESCE(j.id, j.id_uuid)      AS id_uuid,
   j.entity_type,
@@ -70,8 +70,8 @@ SELECT
 FROM public.label_jobs j
 ORDER BY j.requested_at DESC;
 
--- vw_fish_standard (compact, id-only compatible projection)
-CREATE OR REPLACE VIEW public.vw_fish_standard AS
+-- v_fish_standard (compact, id-only compatible projection)
+CREATE OR REPLACE VIEW public.v_fish_standard AS
 WITH base AS (
   SELECT
     COALESCE(f.id, f.id_uuid)         AS id_uuid,
@@ -114,8 +114,8 @@ SELECT
 FROM base b
 LEFT JOIN tank_counts t ON t.fish_id = b.id_uuid;
 
--- vw_label_rows (compact)
-CREATE OR REPLACE VIEW public.vw_label_rows AS
+-- v_label_rows (compact)
+CREATE OR REPLACE VIEW public.v_label_rows AS
 SELECT
   COALESCE(f.id, f.id_uuid) AS id_uuid,
   f.created_at,
@@ -133,8 +133,8 @@ SELECT
 FROM public.fish f
 ORDER BY f.fish_code;
 
--- vw_plasmids_overview
-CREATE OR REPLACE VIEW public.vw_plasmids_overview AS
+-- v_plasmids
+CREATE OR REPLACE VIEW public.v_plasmids AS
 SELECT
   COALESCE(p.id, p.id_uuid)    AS id_uuid,
   p.code,

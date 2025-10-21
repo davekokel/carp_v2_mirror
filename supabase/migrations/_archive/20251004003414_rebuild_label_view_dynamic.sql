@@ -1,6 +1,6 @@
 BEGIN;
 
--- Rebuild vw_fish_overview_with_label dynamically depending on which fish.* columns exist
+-- Rebuild v_fish_overview_with_label dynamically depending on which fish.* columns exist
 DO $$
 DECLARE
   has_nick boolean;
@@ -39,11 +39,11 @@ BEGIN
   END IF;
 
   -- Drop old view if present
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label';
 
   -- Build CREATE VIEW text
   sql := format($FMT$
-    CREATE VIEW public.vw_fish_overview_with_label AS
+    CREATE VIEW public.v_fish_overview_with_label AS
     SELECT
       v.id,
       v.fish_code,

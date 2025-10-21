@@ -1,0 +1,38 @@
+# ───────── HARD (must exist; CI fails if missing) ─────────
+# Views
+public.v_tanks
+public.v_clutches_overview
+public.v_tank_pairs
+public.v_fish_genotype_rollup
+public.v_fish_overview_all
+
+# Tables
+public.fish
+public.tanks
+public.transgene_alleles
+public.fish_transgene_alleles
+public.plasmids
+public.fish_pairs
+public.tank_pairs
+public.clutch_plans
+
+# Functions (schema-qualified with identity args)
+public.fn_ingest_allele_row_csv(text,text)
+public.fn_add_tank_for_fish(uuid,text,integer)
+public.fn_add_tank_for_fish(uuid,tank_status,integer)   # enum overload allowed
+public.fn_add_active_tank_for_fish(uuid,integer)
+public.fn_uuid_v4()
+
+# Triggers (table → trigger_name)
+public.fish        trg_fish_autocreate_tank
+public.tank_pairs  trg_tp_set_updated_at
+
+# ───────── SOFT (warn if missing; promote to HARD when ready) ─────────
+# Views
+public.v_fish_overview_human_min
+public.v_overview_crosses_adaptive
+public.v_clutches_overview_enriched
+
+# Functions
+public.fn_ensure_transgene_base(text)
+public.trg_set_updated_at()

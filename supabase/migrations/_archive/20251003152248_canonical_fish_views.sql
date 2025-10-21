@@ -11,7 +11,7 @@ begin
     where c.relkind = 'v'
       and n.nspname = 'public'
       and c.relname ~* '^(vw?_)?fish_overview(_.*)?$'
-      and c.relname not in ('v_fish_overview','vw_fish_overview_with_label')
+      and c.relname not in ('v_fish_overview','v_fish_overview_with_label')
   loop
     execute format('drop view if exists %I.%I cascade', r.nspname, r.relname);
   end loop;
@@ -55,9 +55,9 @@ where
 order by f.created_at desc;
 
 -- 3) Canonical label view: decorator over base (no looseness)
-drop view if exists public.vw_fish_overview_with_label cascade;
+drop view if exists public.v_fish_overview_with_label cascade;
 
-create view public.vw_fish_overview_with_label as
+create view public.v_fish_overview_with_label as
 select
     v.id,
     v.fish_code,

@@ -41,7 +41,7 @@ def _query_overview(q: str, stages: List[str], limit: int) -> pd.DataFrame:
         genotype_print as genotype_text,
         created_at,
         age_days
-      from public.vw_fish_overview_with_label
+      from public.v_fish_overview_with_label
     )
     select * from base
     """
@@ -101,7 +101,7 @@ def main():
         with c2:
             try:
                 stages_df = pd.read_sql(
-                    text("select distinct upper(coalesce(line_building_stage, line_building_stage_print)) as s from public.vw_fish_overview_with_label where coalesce(line_building_stage, line_building_stage_print) is not null order by 1"),
+                    text("select distinct upper(coalesce(line_building_stage, line_building_stage_print)) as s from public.v_fish_overview_with_label where coalesce(line_building_stage, line_building_stage_print) is not null order by 1"),
                     _get_engine()
                 )
                 stage_choices = [s for s in stages_df["s"].astype(str).tolist() if s]

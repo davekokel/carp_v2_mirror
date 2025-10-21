@@ -14,6 +14,9 @@ from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 from carp_app.lib.config import engine as get_engine
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Auth + page
+# ─────────────────────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 
@@ -33,6 +36,9 @@ except Exception:
     def require_app_unlock(): ...
 require_app_unlock()
 
+# ─────────────────────────────────────────────────────────────────────────────
+# DB
+# ─────────────────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def _cached_engine(url: str):
     return get_engine()
@@ -42,20 +48,6 @@ def _get_engine():
     if not url:
         st.error("DB_URL not set"); st.stop()
     return _cached_engine(url)
-
-def _db_banner():
-    try:
-        with _get_engine().begin() as cx:
-            dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
-            cnt = pd.read_sql(text("select count(*) n from public.v_clutches_overview_final"), cx)
-        st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]} • {int(cnt['n'][0])} clutch row(s)")
-    except Exception:
-        pass
-
-_db_banner()
-
-LIVE_STATUSES = ("active","new_tank")
-TANK_TYPES    = ("inventory_tank","holding_tank","nursery_tank")
 
 def _view_exists(schema: str, name: str) -> bool:
     with _get_engine().begin() as cx:
@@ -75,47 +67,88 @@ def _table_cols(schema: str, name: str) -> t.List[str]:
         """), cx, params={"s": schema, "t": name})
     return df["column_name"].tolist()
 
-def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.DataFrame:
-    sql = text("""
-    with mom_live as (
-      select f.fish_code, count(*)::int as n_live
-      from public.fish f
-      join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
-      join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
-      where vt.status::text = any(:live_statuses)
-      group by f.fish_code
-    ),
-    dad_live as (
-      select f.fish_code, count(*)::int as n_live
-      from public.fish f
-      join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
-      join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
-      where vt.status::text = any(:live_statuses)
-      group by f.fish_code
-    )
-    select
-      cp.id::text                           as clutch_id,
-      coalesce(cp.clutch_code, cp.id::text) as clutch_code,
-      coalesce(cp.planned_name,'')          as planned_name,
-      coalesce(cp.planned_nickname,'')      as planned_nickname,
-      coalesce(ml.n_live,0)                 as mom_live,
-      coalesce(dl.n_live,0)                 as dad_live,
-      (coalesce(ml.n_live,0)*coalesce(dl.n_live,0))::int as pairings,
-      cp.created_by, cp.created_at
-    from public.clutch_plans cp
-    left join mom_live ml on ml.fish_code = cp.mom_code
-    left join dad_live dl on dl.fish_code = cp.dad_code
-    where (cp.created_at::date between :d1 and :d2)
-      and (:by = '' or cp.created_by ilike :byl)
-      and (:q = '' or coalesce(cp.clutch_code,'') ilike :ql or coalesce(cp.planned_name,'') ilike :ql or coalesce(cp.planned_nickname,'') ilike :ql)
-    order by cp.created_at desc
+def _db_banner():
+    try:
+        with _get_engine().begin() as cx:
+            dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
+        st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
+    except Exception:
+        pass
+
+_db_banner()
+
+LIVE_STATUSES = ("active","new_tank")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 1 — load clutch concepts (with parents + genotypes)
+# ─────────────────────────────────────────────────────────────────────────────
+def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
+    """
+    Returns one row per clutch plan with parents + genotypes visible.
+    Uses v_clutches_overview_final for enrichment; shows latest instance per plan if any.
+    Also shows a simple 'pairings' count from tank_pairs per concept.
+    """
+    if not _view_exists("public", "v_clutches_overview_final"):
+        st.error("Required view public.v_clutches_overview_final is missing."); st.stop()
+
+    where = []
+    params: dict = {}
+
+    if not most_recent:
+        where.append("cp.created_at::date between :d1 and :d2")
+        params["d1"] = d1; params["d2"] = d2
+
+    if created_by:
+        where.append("cp.created_by ilike :byl")
+        params["byl"] = f"%{created_by}%"
+
+    if q:
+        where.append("""
+          (coalesce(cp.clutch_code,'') ilike :ql
+           or coalesce(cp.planned_name,'') ilike :ql
+           or coalesce(cp.planned_nickname,'') ilike :ql
+           or coalesce(cp.mom_code,'') ilike :ql
+           or coalesce(cp.dad_code,'') ilike :ql)
+        """)
+        params["ql"] = f"%{q}%"
+
+    where_sql = " AND ".join(where) if where else "true"
+
+    sql = text(f"""
+      with tp as (
+        select concept_id, count(*)::int as pairings
+        from public.tank_pairs
+        group by concept_id
+      ),
+      v as (
+        -- latest enriched row per plan
+        select distinct on (v.clutch_plan_id)
+               v.clutch_plan_id,
+               v.mom_code, v.mom_genotype,
+               v.dad_code, v.dad_genotype,
+               v.created_at_instance
+        from public.v_clutches_overview_final v
+        order by v.clutch_plan_id, v.created_at_instance desc nulls last
+      )
+      select
+        cp.id::text                           as clutch_id,
+        coalesce(cp.clutch_code, cp.id::text) as clutch_code,
+        coalesce(cp.planned_name,'')          as planned_name,
+        coalesce(cp.planned_nickname,'')      as planned_nickname,
+        coalesce(v.mom_code, cp.mom_code)     as mom_code,
+        coalesce(v.mom_genotype,'')           as mom_genotype,
+        coalesce(v.dad_code, cp.dad_code)     as dad_code,
+        coalesce(v.dad_genotype,'')           as dad_genotype,
+        coalesce(tp.pairings,0)               as pairings,
+        cp.created_by, cp.created_at
+      from public.clutch_plans cp
+      left join v  on v.clutch_plan_id = cp.id
+      left join tp on tp.concept_id    = cp.id
+      where {where_sql}
+      order by cp.created_at desc
     """)
     with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params={
-            "live_statuses": list(LIVE_STATUSES), "tank_types": list(TANK_TYPES),
-            "d1": d1, "d2": d2, "by": created_by or "", "byl": f"%{created_by or ''}%",
-            "q": q or "", "ql": f"%{q or ''}%"
-        })
+        return pd.read_sql(sql, cx, params=params)
 
 def _get_concept_id(sel: pd.DataFrame) -> t.Optional[str]:
     return str(sel.iloc[0]["clutch_id"]) if (isinstance(sel, pd.DataFrame) and not sel.empty and "clutch_id" in sel.columns) else None
@@ -148,48 +181,81 @@ def _ensure_cross_id(mom_code: str, dad_code: str, created_by_val: str) -> str:
         """)
         return str(cx.execute(sql, params).scalar())
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Filters
+# ─────────────────────────────────────────────────────────────────────────────
 with st.form("filters", clear_on_submit=False):
     today = date.today()
     c1, c2, c3, c4 = st.columns([1,1,1,3])
     with c1: start = st.date_input("From", value=today - timedelta(days=120))
     with c2: end   = st.date_input("To",   value=today + timedelta(days=14))
     with c3: created_by = st.text_input("Created by", value="")
-    with c4: q = st.text_input("Search (code/name/nickname)", value="")
+    with c4: q = st.text_input("Search (code/name/nickname/FSH)", value="")
     r1, r2 = st.columns([1,3])
     with r1: most_recent = st.checkbox("Most recent (ignore dates)", value=False)
     with r2: st.form_submit_button("Apply", use_container_width=True)
 
-plans = _load_clutch_concepts(start, end, created_by, q)
+plans = _load_clutch_concepts(start, end, created_by, q, most_recent)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 1 — Select the clutch genotype (with parents)
+# ─────────────────────────────────────────────────────────────────────────────
 st.markdown("### 1) Select the clutch genotype you want to generate")
 st.caption(f"{len(plans)} clutch concept(s).")
+
 plan_df = plans.copy() if not plans.empty else pd.DataFrame()
 if "✓ Select" not in plan_df.columns:
-    plan_df.insert(0,"✓ Select",False)
+    plan_df.insert(0, "✓ Select", False)
+
+section1_cols = [
+    "✓ Select",
+    "clutch_code",
+    "planned_name",
+    "planned_nickname",
+    "mom_code", "mom_genotype",
+    "dad_code", "dad_genotype",
+    "pairings",
+    "created_by","created_at",
+]
+have1 = [c for c in section1_cols if c in plan_df.columns]
+
 plan_edited = st.data_editor(
-    plan_df[["✓ Select","clutch_code","planned_name","planned_nickname","pairings","created_by","created_at"]],
-    hide_index=True, use_container_width=True,
+    plan_df[have1],
+    hide_index=True,
+    use_container_width=True,
     column_config={
-        "✓ Select":  st.column_config.CheckboxColumn("✓", default=False),
-        "pairings":  st.column_config.NumberColumn("pairings", disabled=True),
-        "created_at":st.column_config.DatetimeColumn("created_at", disabled=True),
+        "✓ Select":            st.column_config.CheckboxColumn("✓", default=False),
+        "pairings":            st.column_config.NumberColumn("pairings", disabled=True, width="small"),
+        "created_at":          st.column_config.DatetimeColumn("created_at", disabled=True),
+        "mom_code":            st.column_config.TextColumn("Mom FSH", disabled=True),
+        "mom_genotype":        st.column_config.TextColumn("Mom genotype", disabled=True),
+        "dad_code":            st.column_config.TextColumn("Dad FSH", disabled=True),
+        "dad_genotype":        st.column_config.TextColumn("Dad genotype", disabled=True),
+        "planned_name":        st.column_config.TextColumn("Planned name", disabled=True),
+        "planned_nickname":    st.column_config.TextColumn("Planned nickname", disabled=True),
+        "clutch_code":         st.column_config.TextColumn("Clutch", disabled=True),
     },
     key="plan_picker",
 )
+
 sel_mask  = plan_edited.get("✓ Select", pd.Series(False, index=plan_edited.index)).fillna(False).astype(bool)
 sel_plans = plan_df.loc[sel_mask].reset_index(drop=True)
 concept_id = _get_concept_id(sel_plans)
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 2 — Saved tank_pairs for selected concept
+# ─────────────────────────────────────────────────────────────────────────────
 st.markdown("### 2) Schedule candidates (saved tank_pairs for this concept)")
 if not concept_id:
     st.info("Pick a clutch concept above.")
     tp_edit = pd.DataFrame()
 else:
-    if not _view_exists("public","v_tank_pairs_overview"):
-        st.error("View public.v_tank_pairs_overview not found."); st.stop()
+    if not _view_exists("public","v_tank_pairs"):
+        st.error("View public.v_tank_pairs not found."); st.stop()
     with _get_engine().begin() as cx:
         tp = pd.read_sql(text("""
           select *
-          from public.v_tank_pairs_overview
+          from public.v_tank_pairs
           where concept_id = :concept
           order by created_at desc
           limit 500
@@ -199,7 +265,7 @@ else:
         tp_edit = pd.DataFrame()
     else:
         tp = tp.copy()
-        tp.insert(0,"✓ Reschedule", False)
+        tp.insert(0, "✓ Reschedule", False)
         cols = ["✓ Reschedule","tank_pair_code","clutch_code","status",
                 "mom_fish_code","mom_tank_code","dad_fish_code","dad_tank_code",
                 "id","mother_tank_id","father_tank_id","created_by","created_at"]
@@ -224,6 +290,9 @@ else:
             key="tank_pair_candidates",
         )
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 3 — Reschedule selected tank_pair(s) → new cross instance(s)
+# ─────────────────────────────────────────────────────────────────────────────
 st.markdown("### 3) Reschedule selected tank_pair(s) → new cross instance(s)")
 run_date_all = st.date_input("Run date", value=date.today(), key="run_date_all")
 creator_val  = os.environ.get("USER") or os.environ.get("USERNAME") or "system"
@@ -249,7 +318,7 @@ def _reschedule(rows: pd.DataFrame, concept_id: str, run_date: date, created_by_
     made, dupes = [], []
     with _get_engine().begin() as cx:
         base = pd.read_sql(text("""
-          select * from public.v_tank_pairs_overview where concept_id = :c
+          select * from public.v_tank_pairs where concept_id = :c
         """), cx, params={"c": concept_id})
         by_id = {str(r["id"]): r for _, r in base.iterrows()} if not base.empty else {}
         for _, r in rows.iterrows():
@@ -280,7 +349,8 @@ with ins as (
     select 1 from public.cross_instances ci
     where {"ci.tank_pair_id = cast(:tp_id as uuid) and " if have_tp else ""}ci.cross_date = :run_date
   )
-  returning id::uuid as ci_id, coalesce({"cross_run_code" if have_code else "id::text"}, id::text) as cross_run_code
+  returning id::uuid as ci_id,
+            coalesce({"cross_run_code" if have_code else "id::text"}, id::text) as cross_run_code
 )
 select * from ins
 """
@@ -308,16 +378,18 @@ if concept_id and isinstance(tp_edit, pd.DataFrame) and not tp_edit.empty:
     if st.button("↻ Schedule selected tank_pair(s)", type="primary", use_container_width=True, disabled=to_run.empty):
         made, dupes = _reschedule(to_run, concept_id, run_date_all, creator_val)
         if made:
-            flash_here.success(f"Scheduled {len(made)} instance(s): {', '.join(made)}")
+            st.success(f"Scheduled {len(made)} instance(s): {', '.join(made)}")
         if dupes:
-            flash_here.warning("Already scheduled for that date:\n- " + "\n- ".join(dupes))
+            st.warning("Already scheduled for that date:\n- " + "\n- ".join(dupes))
         st.session_state["schedule_result"] = {"made": made, "dupes": dupes}
         st.session_state["last_run_date"] = run_date_all
         st.session_state["last_plan_id"]  = concept_id
         st.rerun()
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 4 — Scheduled instances
+# ─────────────────────────────────────────────────────────────────────────────
 st.markdown("### 4) Scheduled instances")
-
 last_dt  = st.session_state.pop("last_run_date", None)
 last_pid = st.session_state.pop("last_plan_id", None)
 d1 = min(start, last_dt) if last_dt else start
@@ -347,7 +419,10 @@ def _load_recent_clutches(plan_id: t.Optional[str], d1: date, d2: date, ignore_d
         mom_strain, dad_strain, clutch_strain_pretty,
         treatments_count, treatments_pretty,
         clutch_birthday,
-        created_by_instance, created_at_instance
+        created_by_instance, created_at_instance,
+        -- convenience rollup
+        (coalesce(treatments_pretty,'') || case when treatments_pretty<>'' and clutch_genotype_pretty<>'' then ' > ' else '' end
+         || coalesce(clutch_genotype_pretty,'')) as genotype_treatment_rollup
       from public.v_clutches_overview_final
       where {where_sql}
       order by created_at_instance desc nulls last, clutch_birthday desc nulls last
@@ -365,26 +440,25 @@ if ci.empty:
     st.info("No scheduled instances match the filters.")
 else:
     show_cols = [
-    "clutch_code",
-    "clutch_birthday",
-    "cross_name_pretty",
-    "genotype_treatment_rollup",   # ← NEW (visible)
-    "clutch_genotype_pretty",
-    "clutch_genotype_canonical",
-    "mom_genotype","dad_genotype",
-    "mom_strain","dad_strain","clutch_strain_pretty",
-    "treatments_count","treatments_pretty",
-    "created_by_instance","created_at_instance",
-]
+        "clutch_code","clutch_birthday","cross_name_pretty",
+        "genotype_treatment_rollup",  # visible combined rollup
+        "clutch_genotype_pretty","clutch_genotype_canonical",
+        "mom_genotype","dad_genotype",
+        "mom_strain","dad_strain","clutch_strain_pretty",
+        "treatments_count","treatments_pretty",
+        "created_by_instance","created_at_instance",
+    ]
     have_cols = [c for c in show_cols if c in ci.columns]
     st.dataframe(
-    ci[have_cols],
-    use_container_width=True,
-    hide_index=True,
-    column_config={
-        "genotype_treatment_rollup": st.column_config.TextColumn(
-            "genotype_treatment_rollup",
-            help="Formatted as: treatments_pretty > clutch_genotype_pretty"
-        )
-    },
-)
+        ci[have_cols],
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "clutch_birthday": st.column_config.DateColumn("clutch_birthday", format="YYYY-MM-DD"),
+            "created_at_instance": st.column_config.DatetimeColumn("created_at_instance"),
+            "genotype_treatment_rollup": st.column_config.TextColumn(
+                "genotype_treatment_rollup",
+                help="Formatted as: treatments_pretty > clutch_genotype_pretty"
+            ),
+        },
+    )

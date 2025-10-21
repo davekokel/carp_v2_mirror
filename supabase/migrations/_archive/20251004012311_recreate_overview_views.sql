@@ -35,7 +35,7 @@ where
     )
 order by f.created_at desc;
 
-drop view if exists public.vw_fish_overview_with_label cascade;
+drop view if exists public.v_fish_overview_with_label cascade;
 do $$
 declare
   has_nickname boolean;
@@ -58,7 +58,7 @@ begin
          ) into has_birth;
 
   execute format($v$
-    create view public.vw_fish_overview_with_label as
+    create view public.v_fish_overview_with_label as
     select
       v.id,
       v.fish_code,

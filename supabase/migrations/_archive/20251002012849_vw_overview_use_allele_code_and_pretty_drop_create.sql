@@ -1,5 +1,5 @@
 -- Rebuild the view cleanly to avoid column-rename mapping
-DROP VIEW IF EXISTS public.vw_fish_overview_with_label;
+DROP VIEW IF EXISTS public.v_fish_overview_with_label;
 
 WITH
 -- First linked allele per fish (by allele_number asc, NULLS LAST)
@@ -34,7 +34,7 @@ sidecar AS (
     ON  UPPER(TRIM(slul.fish_code)) = UPPER(TRIM(f.fish_code))
      OR UPPER(TRIM(slul.fish_code)) = UPPER(TRIM(f.name))
 )
-CREATE VIEW public.vw_fish_overview_with_label AS
+CREATE VIEW public.v_fish_overview_with_label AS
 SELECT
   v.*,
 

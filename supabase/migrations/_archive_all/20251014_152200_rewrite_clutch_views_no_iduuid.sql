@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW public.vw_clutches_concept_overview AS
+CREATE OR REPLACE VIEW public.v_clutches_concept_overview AS
 WITH base AS (
   SELECT
     cp.id                         AS clutch_plan_id,
@@ -29,7 +29,7 @@ FROM base b
 LEFT JOIN inst i ON i.planned_cross_id = b.planned_cross_id
 ORDER BY COALESCE(b.date_planned::timestamp, b.created_at) DESC NULLS LAST;
 
-CREATE OR REPLACE VIEW public.vw_clutches_overview_human AS
+CREATE OR REPLACE VIEW public.v_clutches_overview_human AS
 WITH base AS (
   SELECT
     c.id_uuid                     AS clutch_id,
@@ -71,7 +71,7 @@ LEFT JOIN instances i ON i.clutch_id = b.clutch_id
 LEFT JOIN crosses_via_clutches cx ON cx.clutch_id = b.clutch_id
 ORDER BY COALESCE(b.date_birth::timestamp, b.created_at) DESC NULLS LAST;
 
-CREATE OR REPLACE VIEW public.vw_planned_clutches_overview AS
+CREATE OR REPLACE VIEW public.v_planned_clutches_overview AS
 WITH x AS (
   SELECT
     cp.id                         AS clutch_plan_id,

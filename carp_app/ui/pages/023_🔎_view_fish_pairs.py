@@ -172,8 +172,8 @@ def _load_fish_pairs_overview(d1: date, d2: date, q: str) -> pd.DataFrame:
     return df
 
 def _load_tank_pairs_for_fish_pair(fish_pair_id: str, status: t.Optional[str]=None) -> pd.DataFrame:
-    if _view_exists("public", "v_tank_pairs_overview"):
-        sql = "select * from public.v_tank_pairs_overview where fish_pair_id = :fp " + ("and status = :st " if status else "") + "order by created_at desc"
+    if _view_exists("public", "v_tank_pairs"):
+        sql = "select * from public.v_tank_pairs where fish_pair_id = :fp " + ("and status = :st " if status else "") + "order by created_at desc"
         with _get_engine().begin() as cx:
             return pd.read_sql(text(sql), cx, params={"fp": fish_pair_id, **({"st": status} if status else {})})
     with _get_engine().begin() as cx:
@@ -196,8 +196,8 @@ def _load_tank_pairs_for_fish_pair(fish_pair_id: str, status: t.Optional[str]=No
           join public.fish mf on mf.id = fp.mom_fish_id
           join public.fish df on df.id = fp.dad_fish_id
           left join public.clutch_plans cp on cp.id = tp.concept_id
-          join public.v_tanks_for_fish vt_m on vt_m.tank_id = tp.mother_tank_id
-          join public.v_tanks_for_fish vt_f on vt_f.tank_id = tp.father_tank_id
+          join public.v_tanks vt_m on vt_m.tank_id = tp.mother_tank_id
+          join public.v_tanks vt_f on vt_f.tank_id = tp.father_tank_id
           where tp.fish_pair_id = :fp
           { "and tp.status = :st" if status else "" }
           order by tp.created_at desc

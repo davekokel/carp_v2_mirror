@@ -40,13 +40,13 @@ def _view_exists() -> bool:
         return bool(cx.execute(text("""
             select 1
             from information_schema.views
-            where table_schema='public' and table_name='v_tanks_for_fish'
+            where table_schema='public' and table_name='v_tanks'
             limit 1
         """)).fetchone())
 
 def _create_view_now():
     sql = """
-    create or replace view public.v_tanks_for_fish as
+    create or replace view public.v_tanks as
     select
       t.id as tank_id,
       t.tank_code,
@@ -65,12 +65,12 @@ def _create_view_now():
 cols = st.columns([1,1,6])
 with cols[0]:
     if st.button("Check view"):
-        st.info("v_tanks_for_fish exists ✅" if _view_exists() else "v_tanks_for_fish is missing ❌")
+        st.info("v_tanks exists ✅" if _view_exists() else "v_tanks is missing ❌")
 with cols[1]:
     if st.button("Create view now"):
         try:
             _create_view_now()
-            st.success("Created public.v_tanks_for_fish ✅")
+            st.success("Created public.v_tanks ✅")
             st.cache_data.clear()
         except Exception as e:
             st.error(f"Create view failed: {e}")
@@ -83,11 +83,11 @@ def _assert_view_exists():
         row = cx.execute(text("""
             select 1
             from information_schema.views
-            where table_schema='public' and table_name='v_tanks_for_fish'
+            where table_schema='public' and table_name='v_tanks'
             limit 1
         """)).fetchone()
     if not row:
-        st.error("Required view public.v_tanks_for_fish is missing. Run the migration supabase/migrations/20251020_v_tanks_for_fish.sql.")
+        st.error("Required view public.v_tanks is missing. Run the migration supabase/migrations/20251020_v_tanks.sql.")
         st.stop()
 
 @st.cache_data(ttl=5, show_spinner=False)
@@ -104,7 +104,7 @@ def load_tanks(q: str | None, statuses: list[str], limit: int) -> pd.DataFrame:
 
     sql = """
     select fish_code, tank_id, tank_code, status, capacity, tank_created_at, tank_updated_at
-    from public.v_tanks_for_fish
+    from public.v_tanks
     """ + (" where " + " and ".join(where) if where else "") + " order by tank_created_at desc nulls last limit :limit"
 
     with eng.begin() as cx:

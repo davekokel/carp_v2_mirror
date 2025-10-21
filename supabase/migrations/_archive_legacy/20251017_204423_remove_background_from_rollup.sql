@@ -1,7 +1,7 @@
 -- Remove background from genotype AS rollup in v_fish_standard_clean, keep only genotype elements.
 create or replace view public.v_fish_standard_clean as
 with vs as (
-    select * from public.vw_fish_standard
+    select * from public.v_fish_standard
 ),
 
 src as (
@@ -58,7 +58,7 @@ fmt as (
 select * from fmt;
 
 comment on view public.v_fish_standard_clean is
-'Companion to vw_fish_standard with genotype_rollup_clean (no background/strain). Only genotype elements.';
+'Companion to v_fish_standard with genotype_rollup_clean (no background/strain). Only genotype elements.';
 
 -- Recreate v_fish_search to prefer the clean fields (if the view exists).
 do $$

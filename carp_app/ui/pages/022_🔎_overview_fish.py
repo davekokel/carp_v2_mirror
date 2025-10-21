@@ -98,7 +98,7 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
       live as (
         select f.fish_code, count(*)::int as n_living_tanks
         from public.fish f
-        join public.v_tanks_for_fish vt on vt.fish_id = f.id
+        join public.v_tanks vt on vt.fish_id = f.id
         where vt.status::text = any(:live)
         group by f.fish_code
       ),
@@ -155,7 +155,7 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
         vt.status::text              as status,
         vt.tank_created_at           as created_at
       from public.fish f
-      join public.v_tanks_for_fish vt on vt.fish_id = f.id
+      join public.v_tanks vt on vt.fish_id = f.id
       where f.fish_code = any(:codes)
       order by f.fish_code, vt.tank_created_at desc nulls last
     """)
@@ -191,7 +191,7 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
           v.tank_code::text            as tank_code,
           v.status::text               as status,
           v.tank_created_at::timestamptz as created_at
-        from public.v_tanks_for_fish v
+        from public.v_tanks v
       ),
       geno as (
         -- genotype pretty rollup per fish

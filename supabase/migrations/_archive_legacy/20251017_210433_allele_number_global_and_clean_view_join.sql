@@ -52,7 +52,7 @@ comment on function public.transgene_alleles_autofill() is
 -- 3) Fix v_fish_standard_clean to resolve canonical allele by allele_number only (no base match needed).
 create or replace view public.v_fish_standard_clean as
 with vs as (
-    select * from public.vw_fish_standard
+    select * from public.v_fish_standard
 ),
 
 src as (

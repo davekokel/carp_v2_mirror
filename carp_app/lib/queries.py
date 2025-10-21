@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import text
 
 # Tailored to your label view columns
-VIEW = "public.vw_fish_overview_with_label"
+VIEW = "public.v_fish_overview_with_label"
 
 # These exist (from your \d+): use *_print where appropriate
 SEARCH_COLUMNS = [

@@ -44,7 +44,7 @@ def _get_engine():
     _ENGINE = get_engine()
     return _ENGINE
 
-# ---- query helpers (reads vw_plasmids_overview) ----
+# ---- query helpers (reads v_plasmids) ----
 def _build_query(q: str, supports_only: bool) -> tuple[str, Dict[str, Any]]:
     """
     Multi-term AND search with field filters:
@@ -109,7 +109,7 @@ def _build_query(q: str, supports_only: bool) -> tuple[str, Dict[str, Any]]:
         v.rna_id,
         v.rna_code,
         v.rna_name
-      from public.vw_plasmids_overview v
+      from public.v_plasmids v
       {where_sql}
       order by v.code
     """
