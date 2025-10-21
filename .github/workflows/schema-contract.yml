@@ -1,0 +1,61 @@
+name: Schema Contract
+on:
+  pull_request:
+    branches: [ "feature/**", "main" ]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        # wait for Postgres to be ready
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    env:
+      DB_URL: postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply canonical migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          find supabase/migrations -maxdepth 1 -type f -name "[0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql" \
+            | sort \
+            | while read -r f; do
+                echo "→ $f"
+                psql "$DB_URL" -f "$f"
+              done
+
+      # Guardrail: block destructive DDL on critical functions
+      - name: Lint migrations for destructive DDL on critical functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad=$(rg -n \
+              -e 'DROP FUNCTION[^;]*fn_ingest_allele_row_csv' \
+              -e 'DROP FUNCTION[^;]*fn_add_tank_for_fish' \
+              -e 'DROP FUNCTION[^;]*fn_add_active_tank_for_fish' \
+              supabase/migrations || true)
+          if [ -n "$bad" ]; then
+            echo "❌ Destructive DDL found in migrations:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "✅ No destructive DDL on critical functions."
+
+      - name: Check schema contract
+        run: scripts/check_schema_contract.sh
