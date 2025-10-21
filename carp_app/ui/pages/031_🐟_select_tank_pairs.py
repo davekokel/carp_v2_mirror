@@ -181,43 +181,50 @@ def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.Dat
         })
 
 def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
+    """
+    Live tanks for the given fish_code list, straight from v_tanks_for_fish.
+    Live = vt.status IN ('active','new_tank') (enum→text cast).
+    """
     if not codes:
         return pd.DataFrame(columns=[
             "fish_code","tank_code","container_id","label","status","container_type","location",
             "created_at","activated_at","deactivated_at","last_seen_at"
         ])
+
+    # optional location column probe (kept to preserve your schema shape)
     with _get_engine().begin() as cx:
         has_loc = pd.read_sql(text("""
           select 1 from information_schema.columns
           where table_schema='public' and table_name='tanks' and column_name='location'
           limit 1
         """), cx).shape[0] > 0
-    loc_expr = "''::text" if has_loc else "''::text"
+    loc_expr = "''::text" if not has_loc else "''::text"  # location not used; keep placeholder
+
     sql = text(f"""
       select
         f.fish_code,
         vt.tank_code,
-        vt.tank_id::text            as container_id,
-        ''  as label,
-        coalesce(vt.status,'') as status,
-        'holding_tank',
-        {loc_expr}            as location,
-        vt.tank_created_at,
-        NULL::timestamptz,
-        NULL::timestamptz,
-        NULL::timestamptz
+        vt.tank_id::text             as container_id,
+        ''                           as label,
+        coalesce(vt.status::text,'') as status,       -- enum→text
+        'holding_tank'                              as container_type,
+        {loc_expr}                                  as location,
+        vt.tank_created_at                          as created_at,
+        null::timestamptz                           as activated_at,
+        null::timestamptz                           as deactivated_at,
+        null::timestamptz                           as last_seen_at
       from public.fish f
-      join public.fish_tank_memberships m on m.fish_id = f.id
-      join public.v_tanks_for_fish vt on vt.tank_id = m.container_id
+      join public.v_tanks_for_fish vt on vt.fish_id = f.id
       where f.fish_code = any(:codes)
-        and coalesce(
-              nullif(to_jsonb(m)->>'left_at','')::timestamptz,
-              nullif(to_jsonb(m)->>'ended_at','')::timestamptz
-            ) is null
+        and vt.status::text = any(:live)            -- only active/new_tank
       order by f.fish_code, vt.tank_created_at desc nulls last
     """)
+
     with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params={"codes": list({c for c in codes if c})})
+        return pd.read_sql(sql, cx, params={
+            "codes": list({c for c in codes if c}),
+            "live": ["active","new_tank"],
+        })
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Filters
@@ -488,7 +495,6 @@ def _insert_tank_pairs(pairs: list[tuple[str, str]], created_by: str, note: str 
             return str(res.scalar())
 
         # Walk the selected grid rows to get fish codes per tank row
-        # (we already renamed columns earlier: "mom FSH"/"dad FSH", "mom container"/"dad container")
         mom_rows = selected_mom_tanks if isinstance(selected_mom_tanks, pd.DataFrame) else pd.DataFrame()
         dad_rows = selected_dad_tanks if isinstance(selected_dad_tanks, pd.DataFrame) else pd.DataFrame()
 
@@ -539,7 +545,6 @@ def _list_tank_pairs_for_selection() -> pd.DataFrame:
 
     with _get_engine().begin() as cx:
         if not ids:
-            # No tank IDs: show by concept only (or empty if no concept)
             if not concept_id:
                 return pd.DataFrame()
             return pd.read_sql(
@@ -596,15 +601,12 @@ with c2:
         st.info("No tank_pairs yet for this selection.")
     else:
         preferred_cols = [
-            "tank_pair_code",     # new human-readable code (may or may not exist yet)
-            "clutch_code",        # concept code
+            "tank_pair_code",
+            "clutch_code",
             "status",
             "mom_fish_code", "mom_tank_code",
             "dad_fish_code", "dad_tank_code",
             "created_by", "created_at",
         ]
-        # Fall back to whatever exists in this environment
-        cols = [c for c in preferred_cols if c in tp.columns]
-        if not cols:
-            cols = list(tp.columns)
+        cols = [c for c in preferred_cols if c in tp.columns] or list(tp.columns)
         st.dataframe(tp[cols], use_container_width=True, hide_index=True)
