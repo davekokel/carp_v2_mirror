@@ -164,49 +164,89 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
 
 def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
     """
-    Minimal enrichment for label printing. Uses v_tanks_for_fish + fish to
-    get tank_code and fish_code; other label fields left blank here.
+    Enrichment for label printing (no membership dependency).
+    Produces fields expected by build_tank_labels_pdf():
+      tank_code, label, fish_code, nickname, name, genotype, genetic_background, stage, dob
     """
+    want_cols = [
+        "container_id","tank_code","label","status","fish_code",
+        "nickname","name","genotype","genetic_background","stage","dob"
+    ]
     if not container_ids:
-        cols = [
-            "container_id","tank_code","label","status","container_type","location",
-            "created_at","activated_at","deactivated_at","last_seen_at",
-            "fish_code","nickname","name","genotype","genetic_background","stage","dob"
-        ]
-        return pd.DataFrame(columns=cols)
+        return pd.DataFrame(columns=want_cols)
+
+    ids = [x for x in container_ids if x]
+    if not ids:
+        return pd.DataFrame(columns=want_cols)
+
     sql = text("""
-      with picked as (select unnest(cast(:ids as uuid[])) as container_id),
-      live as (
-        select m.container_id, m.fish_id
-        from public.fish_tank_memberships m
-        where m.left_at is null
+      with picked as (
+        select unnest(cast(:ids as uuid[])) as container_id
+      ),
+      vt as (
+        -- authoritative tank + fish_id
+        select
+          v.tank_id::uuid              as tank_id,
+          v.fish_id::uuid              as fish_id,
+          v.tank_code::text            as tank_code,
+          v.status::text               as status,
+          v.tank_created_at::timestamptz as created_at
+        from public.v_tanks_for_fish v
+      ),
+      geno as (
+        -- genotype pretty rollup per fish
+        select
+          f.id::uuid as fish_id,
+          string_agg('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''),
+                     '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as genotype
+        from public.fish f
+        left join public.fish_transgene_alleles fta on fta.fish_id = f.id
+        left join public.transgene_alleles ta
+               on ta.transgene_base_code = fta.transgene_base_code
+              and ta.allele_number       = fta.allele_number
+        group by f.id
       )
       select
-        vt.tank_id::text                 as container_id,
-        vt.tank_code::text               as tank_code,
-        ''                               as label,
-        coalesce(vt.status::text,'')     as status,
-        'holding_tank'::text             as container_type,
-        ''::text                         as location,
-        vt.tank_created_at::timestamptz  as created_at,
-        null::timestamptz                as activated_at,
-        null::timestamptz                as deactivated_at,
-        null::timestamptz                as last_seen_at,
-        f.fish_code::text                as fish_code,
-        ''::text                         as nickname,
-        ''::text                         as name,
-        ''::text                         as genotype,
-        ''::text                         as genetic_background,
-        ''::text                         as stage,
-        null::date                       as dob
+        p.container_id::text                 as container_id,
+        vt.tank_code                         as tank_code,
+        vt.status                            as status,
+        f.fish_code::text                    as fish_code,
+        coalesce(f.nickname,'')              as nickname,
+        coalesce(f.name,'')                  as name,
+        coalesce(g.genotype,'')              as genotype,
+        coalesce(f.genetic_background,'')    as genetic_background,
+        coalesce(f.line_building_stage,'')   as stage,
+        (f.date_birth)::date                 as dob
       from picked p
-      join public.v_tanks_for_fish vt on vt.tank_id = p.container_id
-      left join live L on L.container_id = vt.tank_id
-      left join public.fish f on f.id = L.fish_id
-      order by vt.tank_created_at asc, vt.tank_code asc
+      join vt on vt.tank_id = p.container_id
+      left join public.fish f on f.id = vt.fish_id
+      left join geno g on g.fish_id = f.id
+      order by vt.created_at asc, vt.tank_code asc
     """)
+
     with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params={"ids": container_ids})
+        df = pd.read_sql(sql, cx, params={"ids": ids})
+
+    if df.empty:
+        return df
+
+    # Default printable label text
+    df["label"] = df["tank_code"].fillna("")
+
+    # Hygiene: strings only; dob must be date or None
+    str_cols = ["tank_code","label","fish_code","nickname","name","genotype","genetic_background","stage","status"]
+    for c in str_cols:
+        if c in df.columns:
+            df[c] = df[c].fillna("").astype(str)
+
+    if "dob" in df.columns:
+        # Ensure pure date or None (no NaT)
+        try:
+            df["dob"] = pd.to_datetime(df["dob"], errors="coerce").dt.date
+        except Exception:
+            df["dob"] = None
+
+    return df[ [c for c in want_cols if c in df.columns] ]
 
 # Printer helpers
 def _detect_default_queue() -> str:
@@ -390,17 +430,38 @@ def main():
         if not enriched.empty:
             rows: list[dict] = []
             for _, r in enriched.iterrows():
+                dob = r.get("dob", None)
+
+                # normalize dob → date or None (no NaT / Timestamp strings)
+                if dob is not None:
+                    try:
+                        if pd.isna(dob):
+                            dob = None
+                        elif isinstance(dob, pd.Timestamp):
+                            dob = dob.date()
+                        elif isinstance(dob, str) and dob.strip():
+                            dob_parsed = pd.to_datetime(dob, errors="coerce")
+                            dob = None if pd.isna(dob_parsed) else dob_parsed.date()  # type: ignore
+                        elif hasattr(dob, "strftime") and hasattr(dob, "year"):
+                            # date/datetime-like: convert to date if possible
+                            dob = getattr(dob, "date", lambda: dob)()
+                        else:
+                            dob = None
+                    except Exception:
+                        dob = None
+
                 rows.append({
-                    "tank_code": r.get("tank_code") or r.get("label"),
-                    "label":     r.get("label"),
-                    "fish_code": r.get("fish_code"),
-                    "nickname":  r.get("nickname"),
-                    "name":      r.get("name"),
-                    "genotype":  r.get("genotype"),
-                    "genetic_background": r.get("genetic_background"),
-                    "stage":     r.get("stage"),
-                    "dob":       r.get("dob"),
+                    "tank_code":            r.get("tank_code") or r.get("label"),
+                    "label":                r.get("label") or r.get("tank_code"),
+                    "fish_code":            (r.get("fish_code") or "").strip(),
+                    "nickname":             (r.get("nickname") or "").strip(),
+                    "name":                 (r.get("name") or "").strip(),
+                    "genotype":             (r.get("genotype") or "").strip(),
+                    "genetic_background":   (r.get("genetic_background") or "").strip(),
+                    "stage":                (r.get("stage") or "").strip(),
+                    "dob":                  dob,  # ← now either date or None
                 })
+
             pdf_bytes = build_tank_labels_pdf(rows)
 
     left, right = st.columns([1,1])
