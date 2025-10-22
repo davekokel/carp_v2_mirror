@@ -42,3 +42,5 @@ snapshots/*_data_*.sql
 dist/*.zip
 dist/
 supabase/migrations/*reset*.sql
+supabase/migrations/_archive_legacy/**
+use_local 2
