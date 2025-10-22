@@ -57,79 +57,74 @@ def _view_exists(schema: str, name: str) -> bool:
         ).shape[0]
     return n > 0
 
-def _table_cols(schema: str, name: str) -> t.List[str]:
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(text("""
-          select column_name
-          from information_schema.columns
-          where table_schema=:s and table_name=:t
-          order by ordinal_position
-        """), cx, params={"s": schema, "t": name})
-    return df["column_name"].tolist()
-
-def _has_col(schema: str, name: str, col: str) -> bool:
-    return col in _table_cols(schema, name)
-
 # ─────────────────────────────────────────────────────────────────────────────
-# Data loads
+# Data loads — TANK-CENTRIC (no fish_pairs / clutch_plans)
 # ─────────────────────────────────────────────────────────────────────────────
 def _load_fish_pairs_overview(d1: date, d2: date, q: str) -> pd.DataFrame:
     """
-    Overview per fish_pair with:
-      identity, backgrounds, cleaned rollups,
-      counts (selected/scheduled tank_pairs), last activity,
-      linked concept summary (count + last concept code & genotype).
+    Tank-centric fish-pair overview (no fish_pairs / clutch_plans).
+    For each (mom_fish_code, dad_fish_code), show:
+      - mom/dad backgrounds & rollups (from v_fish),
+      - counts of tank_pairs by status (selected/scheduled) in date window,
+      - last tank-pair time,
+      - last cross instance time via tank_pairs → cross_instances,
+      - last_activity_at = greatest(last_tank_pair_at, last_cross_at).
     """
-    ci_has_tp = _has_col("public", "cross_instances", "tank_pair_id")
-
-    sql = f"""
-      with fp as (
+    sql = """
+      with tp_base as (
         select
-          fp.id::uuid           as fish_pair_id,
-          mf.fish_code          as mom_fish_code,
-          df.fish_code          as dad_fish_code
-        from public.fish_pairs fp
-        join public.fish mf on mf.id = fp.mom_fish_id
-        join public.fish df on df.id = fp.dad_fish_id
+          tp.id,
+          tp.status,
+          tp.created_at,
+          vtm.fish_code as mom_fish_code,
+          vtf.fish_code as dad_fish_code
+        from public.tank_pairs tp
+        left join public.v_tanks vtm on vtm.tank_id = tp.mother_tank_id
+        left join public.v_tanks vtf on vtf.tank_id = tp.father_tank_id
+        where coalesce(vtm.fish_code,'') <> '' and coalesce(vtf.fish_code,'') <> ''
+      ),
+      fp_distinct as (
+        select
+          min(id::text) as pair_key,  -- 👈 cast UUID to text to allow min()
+          mom_fish_code,
+          dad_fish_code
+        from tp_base
+        group by mom_fish_code, dad_fish_code
       ),
       mom_clean as (
-        select fish_code, coalesce(genetic_background,'') as mom_background,
-               coalesce(genotype_rollup_clean,'') as mom_rollup
-        from public.v_fish_standard_clean
+        select fish_code,
+               coalesce(genetic_background,'') as mom_background,
+               coalesce(genotype,'')           as mom_rollup
+        from public.v_fish
       ),
       dad_clean as (
-        select fish_code, coalesce(genetic_background,'') as dad_background,
-               coalesce(genotype_rollup_clean,'') as dad_rollup
-        from public.v_fish_standard_clean
+        select fish_code,
+               coalesce(genetic_background,'') as dad_background,
+               coalesce(genotype,'')           as dad_rollup
+        from public.v_fish
       ),
       tps as (
         select
-          tp.fish_pair_id::uuid  as fish_pair_id,
-          count(*) filter (where tp.status = 'selected')::int  as n_selected,
-          count(*) filter (where tp.status = 'scheduled')::int as n_scheduled,
-          max(tp.created_at)                                   as last_tank_pair_at
-        from public.tank_pairs tp
-        where tp.created_at::date between :d1 and :d2
-        group by tp.fish_pair_id
+          tb.mom_fish_code,
+          tb.dad_fish_code,
+          count(*) filter (where tb.status = 'selected')::int  as n_selected,
+          count(*) filter (where tb.status = 'scheduled')::int as n_scheduled,
+          max(tb.created_at)                                   as last_tank_pair_at
+        from tp_base tb
+        where tb.created_at::date between :d1 and :d2
+        group by tb.mom_fish_code, tb.dad_fish_code
       ),
-      concept_counts as (
-        select cp.mom_code, cp.dad_code, count(*)::int as n_concepts_total
-        from public.clutch_plans cp
-        group by cp.mom_code, cp.dad_code
-      ),
-      last_concept as (
+      last_cross as (
         select
-          cp.mom_code, cp.dad_code,
-          cp.clutch_code       as last_concept_code,
-          cp.planned_name      as concept_genotype,
-          cp.planned_nickname  as last_planned_nickname,
-          cp.created_at,
-          row_number() over (partition by cp.mom_code, cp.dad_code order by cp.created_at desc) as rn
-        from public.clutch_plans cp
+          tb.mom_fish_code,
+          tb.dad_fish_code,
+          max(ci.created_at) as last_cross_at
+        from tp_base tb
+        join public.cross_instances ci on ci.tank_pair_id = tb.id
+        group by tb.mom_fish_code, tb.dad_fish_code
       )
-      {", ci as ( select t.fish_pair_id::uuid as fish_pair_id, max(ci.created_at) as last_cross_at from public.cross_instances ci join public.tank_pairs t on t.id = ci.tank_pair_id group by t.fish_pair_id )" if ci_has_tp else ""}
       select
-        fp.fish_pair_id,
+        fp.pair_key,
         fp.mom_fish_code, fp.dad_fish_code,
 
         coalesce(mc.mom_background,'') as mom_background,
@@ -140,86 +135,75 @@ def _load_fish_pairs_overview(d1: date, d2: date, q: str) -> pd.DataFrame:
         coalesce(tps.n_selected,0)     as n_selected,
         coalesce(tps.n_scheduled,0)    as n_scheduled,
         tps.last_tank_pair_at,
-
-        coalesce(cc.n_concepts_total,0)  as n_concepts_total,
-        coalesce(lc.last_concept_code,'') as last_concept_code,
-        coalesce(lc.concept_genotype,'')  as concept_genotype,
-        coalesce(lc.last_planned_nickname,'') as last_planned_nickname,
-
+        lc.last_cross_at,
         greatest(
-          coalesce(tps.last_tank_pair_at, timestamp 'epoch')
-          {", coalesce(ci.last_cross_at, timestamp 'epoch')" if ci_has_tp else ""}
+          coalesce(tps.last_tank_pair_at, timestamp 'epoch'),
+          coalesce(lc.last_cross_at,     timestamp 'epoch')
         ) as last_activity_at
 
-      from fp
+      from fp_distinct fp
       left join mom_clean mc on mc.fish_code = fp.mom_fish_code
       left join dad_clean dc on dc.fish_code = fp.dad_fish_code
-      left join tps on tps.fish_pair_id = fp.fish_pair_id
-      left join concept_counts cc
-             on cc.mom_code = fp.mom_fish_code and cc.dad_code = fp.dad_fish_code
-      left join last_concept lc
-             on lc.mom_code = fp.mom_fish_code and lc.dad_code = fp.dad_fish_code and lc.rn = 1
-      { "left join ci on ci.fish_pair_id = fp.fish_pair_id" if ci_has_tp else "" }
+      left join tps on tps.mom_fish_code = fp.mom_fish_code and tps.dad_fish_code = fp.dad_fish_code
+      left join last_cross lc on lc.mom_fish_code = fp.mom_fish_code and lc.dad_fish_code = fp.dad_fish_code
       where (:qq = '' or fp.mom_fish_code ilike :ql or fp.dad_fish_code ilike :ql)
       order by last_activity_at desc nulls last, fp.mom_fish_code, fp.dad_fish_code
       limit 1000
     """
     with _get_engine().begin() as cx:
-        df = pd.read_sql(text(sql), cx, params={
-            "d1": d1, "d2": d2,
-            "qq": q or "", "ql": f"%{q or ''}%"
-        })
+        df = pd.read_sql(
+            text(sql), cx,
+            params={"d1": d1, "d2": d2, "qq": q or "", "ql": f"%{q or ''}%"}
+        )
     return df
 
-def _load_tank_pairs_for_fish_pair(fish_pair_id: str, status: t.Optional[str]=None) -> pd.DataFrame:
-    if _view_exists("public", "v_tank_pairs_overview"):
-        sql = "select * from public.v_tank_pairs_overview where fish_pair_id = :fp " + ("and status = :st " if status else "") + "order by created_at desc"
-        with _get_engine().begin() as cx:
-            return pd.read_sql(text(sql), cx, params={"fp": fish_pair_id, **({"st": status} if status else {})})
+def _load_tank_pairs_for_codes(mom_code: str, dad_code: str, status: t.Optional[str] = None) -> pd.DataFrame:
+    sql = """
+      select
+        tp.id::uuid               as tank_pair_id,
+        coalesce(tp.tank_pair_code,'') as tank_pair_code,
+        tp.status,
+        tp.created_by,
+        tp.created_at,
+        vtm.fish_code as mom_fish_code,
+        vtm.tank_code as mom_tank_code,
+        vtf.fish_code as dad_fish_code,
+        vtf.tank_code as dad_tank_code
+      from public.tank_pairs tp
+      left join public.v_tanks vtm on vtm.tank_id = tp.mother_tank_id
+      left join public.v_tanks vtf on vtf.tank_id = tp.father_tank_id
+      where vtm.fish_code = :m and vtf.fish_code = :d
+      {status_clause}
+      order by tp.created_at desc nulls last
+    """.format(status_clause=("and tp.status = :st" if status else ""))
+    params = {"m": mom_code, "d": dad_code}
+    if status: params["st"] = status
     with _get_engine().begin() as cx:
-        return pd.read_sql(text(f"""
-          select
-            tp.id::uuid               as id,
-            coalesce(tp.tank_pair_code,'') as tank_pair_code,
-            tp.concept_id,
-            coalesce(cp.clutch_code, cp.id::text) as clutch_code,
-            tp.status,
-            tp.created_by,
-            tp.created_at,
-            fp.id::uuid               as fish_pair_id,
-            mf.fish_code              as mom_fish_code,
-            df.fish_code              as dad_fish_code,
-            tp.mother_tank_id, mt.tank_code as mom_tank_code,
-            tp.father_tank_id, dt.tank_code as dad_tank_code
-          from public.tank_pairs tp
-          join public.fish_pairs fp on fp.id = tp.fish_pair_id
-          join public.fish mf on mf.id = fp.mom_fish_id
-          join public.fish df on df.id = fp.dad_fish_id
-          left join public.clutch_plans cp on cp.id = tp.concept_id
-          join public.containers mt on mt.id = tp.mother_tank_id
-          join public.containers dt on dt.id = tp.father_tank_id
-          where tp.fish_pair_id = :fp
-          { "and tp.status = :st" if status else "" }
-          order by tp.created_at desc
-        """), cx, params={"fp": fish_pair_id, **({"st": status} if status else {})})
+        return pd.read_sql(text(sql), cx, params=params)
 
-def _load_cross_instances_for_fish_pair(fish_pair_id: str, d1: date, d2: date) -> pd.DataFrame:
-    if _has_col("public", "cross_instances", "tank_pair_id"):
-        with _get_engine().begin() as cx:
-            return pd.read_sql(text("""
-              select
-                ci.cross_run_code as cross_run,
-                ci.cross_date     as date,
-                ci.created_by,
-                x.cross_code
-              from public.cross_instances ci
-              join public.crosses x on x.id = ci.cross_id
-              where ci.tank_pair_id in (select id from public.tank_pairs where fish_pair_id = :fp)
-                and ci.cross_date between :d1 and :d2
-              order by ci.created_at desc
-              limit 200
-            """), cx, params={"fp": fish_pair_id, "d1": d1, "d2": d2})
-    return pd.DataFrame(columns=["cross_run","date","created_by","cross_code"])
+def _load_cross_instances_for_codes(mom_code: str, dad_code: str, d1: date, d2: date) -> pd.DataFrame:
+    sql = """
+      with tp as (
+        select id
+        from public.tank_pairs t
+        left join public.v_tanks vtm on vtm.tank_id = t.mother_tank_id
+        left join public.v_tanks vtf on vtf.tank_id = t.father_tank_id
+        where vtm.fish_code = :m and vtf.fish_code = :d
+      )
+      select
+        coalesce(nullif(ci.cross_run_code,''), ci.id::text) as cross_run,
+        ci.cross_date                                       as date,
+        ci.created_by,
+        t.tank_pair_code                                    as cross_code
+      from public.cross_instances ci
+      join tp on tp.id = ci.tank_pair_id
+      left join public.tank_pairs t on t.id = ci.tank_pair_id
+      where ci.cross_date between :d1 and :d2
+      order by ci.created_at desc
+      limit 200
+    """
+    with _get_engine().begin() as cx:
+        return pd.read_sql(text(sql), cx, params={"m": mom_code, "d": dad_code, "d1": d1, "d2": d2})
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Filters
@@ -242,49 +226,40 @@ if fp.empty:
     st.info("No fish pairs found for the filters.")
     st.stop()
 
-# Friendly pair label
 fp["pair_label"] = fp["mom_fish_code"] + " × " + fp["dad_fish_code"]
 
-# Display columns (no token scoring)
 l1_cols = [
     "mom_fish_code","dad_fish_code","pair_label",
     "mom_background","dad_background",
     "mom_rollup","dad_rollup",
-    "concept_genotype","last_concept_code","last_planned_nickname",
-    "n_concepts_total","n_selected","n_scheduled",
-    "last_tank_pair_at","last_activity_at",
+    "n_selected","n_scheduled",
+    "last_tank_pair_at","last_cross_at","last_activity_at",
 ]
-for c in l1_cols:
-    if c not in fp.columns:
-        fp[c] = ""  # safe default
-
 grid = fp[l1_cols].copy()
 grid.insert(0, "✓ Open", False)
 
 edit = st.data_editor(
-    grid, hide_index=True, use_container_width=True, num_rows="fixed",
+    grid, hide_index=True, use_container_width=True,
     column_config={
-        "✓ Open":                st.column_config.CheckboxColumn("✓", default=False),
-        "mom_fish_code":         st.column_config.TextColumn("mom_fish_code", disabled=True),
-        "dad_fish_code":         st.column_config.TextColumn("dad_fish_code", disabled=True),
-        "pair_label":            st.column_config.TextColumn("pair", disabled=True),
-        "mom_background":        st.column_config.TextColumn("mom_bg", disabled=True),
-        "dad_background":        st.column_config.TextColumn("dad_bg", disabled=True),
-        "mom_rollup":            st.column_config.TextColumn("mom_rollup", disabled=True, width="large"),
-        "dad_rollup":            st.column_config.TextColumn("dad_rollup", disabled=True, width="large"),
-        "concept_genotype":      st.column_config.TextColumn("concept_genotype", disabled=True, width="large"),
-        "last_concept_code":     st.column_config.TextColumn("last_concept_code", disabled=True),
-        "last_planned_nickname": st.column_config.TextColumn("last_planned_nickname", disabled=True),
-        "n_concepts_total":      st.column_config.NumberColumn("#concepts", disabled=True),
-        "n_selected":            st.column_config.NumberColumn("#selected", disabled=True),
-        "n_scheduled":           st.column_config.NumberColumn("#scheduled", disabled=True),
-        "last_tank_pair_at":     st.column_config.DatetimeColumn("last_tank_pair_at", disabled=True),
-        "last_activity_at":      st.column_config.DatetimeColumn("last_activity_at", disabled=True),
+        "✓ Open": st.column_config.CheckboxColumn("✓", default=False),
+        "mom_fish_code": st.column_config.TextColumn("mom_fish_code", disabled=True),
+        "dad_fish_code": st.column_config.TextColumn("dad_fish_code", disabled=True),
+        "pair_label": st.column_config.TextColumn("pair", disabled=True),
+        "mom_background": st.column_config.TextColumn("mom_bg", disabled=True),
+        "dad_background": st.column_config.TextColumn("dad_bg", disabled=True),
+        "mom_rollup": st.column_config.TextColumn("mom_rollup", disabled=True, width="large"),
+        "dad_rollup": st.column_config.TextColumn("dad_rollup", disabled=True, width="large"),
+        "n_selected": st.column_config.NumberColumn("#selected", disabled=True),
+        "n_scheduled": st.column_config.NumberColumn("#scheduled", disabled=True),
+        "last_tank_pair_at": st.column_config.DatetimeColumn("last_tank_pair_at", disabled=True),
+        "last_cross_at": st.column_config.DatetimeColumn("last_cross_at", disabled=True),
+        "last_activity_at": st.column_config.DatetimeColumn("last_activity_at", disabled=True),
     },
     key="fish_pairs_editor",
 )
 
-opened = edit[edit["✓ Open"]].reset_index(drop=True)
+mask_open = edit.get("✓ Open", pd.Series(False, index=edit.index)).fillna(False).astype(bool)
+opened = edit[mask_open].reset_index(drop=True)
 if opened.empty:
     st.info("Select one or more fish pairs to drill down.")
     st.stop()
@@ -301,27 +276,24 @@ tabs = st.tabs([f"{r.mom_fish_code} × {r.dad_fish_code}" for r in opened.itertu
 
 for tab, r in zip(tabs, opened.itertuples(index=False)):
     with tab:
-        # find the row in fp that matches this tab
-        match = fp[(fp["mom_fish_code"]==r.mom_fish_code) & (fp["dad_fish_code"]==r.dad_fish_code)]
-        fish_pair_id = str(match["fish_pair_id"].iloc[0]) if not match.empty else ""
+        mom_code = r.mom_fish_code
+        dad_code = r.dad_fish_code
 
-        # fetch tank_pairs
-        tps = _load_tank_pairs_for_fish_pair(fish_pair_id, selected_status)
+        tps = _load_tank_pairs_for_codes(mom_code, dad_code, selected_status)
         if tps.empty:
             st.info("No tank_pairs match the filter.")
         else:
-            disp_cols = ["tank_pair_code","clutch_code","status","mom_fish_code","mom_tank_code","dad_fish_code","dad_tank_code","created_by","created_at"]
-            disp_cols = [c for c in disp_cols if c in tps.columns]
+            disp_cols = ["tank_pair_code","status","mom_fish_code","mom_tank_code","dad_fish_code","dad_tank_code","created_by","created_at"]
+            if "tank_pair_id" not in disp_cols:
+                disp_cols.append("tank_pair_id")
             st.dataframe(tps[disp_cols], use_container_width=True, hide_index=True)
 
-        # recent instances
         st.caption("Recent scheduled cross instances")
-        ci = _load_cross_instances_for_fish_pair(fish_pair_id, start, end)
+        ci = _load_cross_instances_for_codes(mom_code, dad_code, start, end)
         if ci.empty:
             st.info("No recent cross instances for this fish pair.")
         else:
             ci2 = ci.rename(columns={"date":"cross_date"})
-            ci_cols = ["cross_run","cross_date","created_by","cross_code"]
-            st.dataframe(ci2[ci_cols], use_container_width=True, hide_index=True)
+            st.dataframe(ci2[["cross_run","cross_date","created_by","cross_code"]], use_container_width=True, hide_index=True)
 
 st.caption("Tip: use **select parent tanks** to create new tank_pairs (status=selected), then promote them on **schedule new cross**.")

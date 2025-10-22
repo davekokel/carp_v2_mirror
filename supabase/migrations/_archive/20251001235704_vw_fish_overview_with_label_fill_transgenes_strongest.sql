@@ -6,9 +6,9 @@ BEGIN
     RETURN;
   END IF;
 
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
 
-  CREATE VIEW public.vw_fish_overview_with_label AS
+  CREATE VIEW public.v_fish_overview_with_label AS
   SELECT
     v.id,
     v.fish_code,

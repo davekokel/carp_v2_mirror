@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW public.v_containers_crossing_candidates AS
+CREATE OR REPLACE VIEW public.v_containers_candidates AS
 SELECT
   c.id              AS id_uuid,
   c.container_type,
@@ -14,7 +14,7 @@ SELECT
 FROM public.containers c
 WHERE c.container_type IN ('inventory_tank','crossing_tank','holding_tank','nursery_tank','petri_dish');
 
-CREATE OR REPLACE VIEW public.v_containers_live AS
+CREATE OR REPLACE VIEW public.v_containers AS
 SELECT
   c.id              AS id_uuid,
   c.container_type,
@@ -91,7 +91,7 @@ WHERE m.left_at IS NULL
   AND c.status IN ('active','new_tank')
 GROUP BY m.fish_id;
 
-CREATE OR REPLACE VIEW public.vw_fish_standard AS
+CREATE OR REPLACE VIEW public.v_fish_standard AS
 WITH base AS (
   SELECT
     f.id                       AS id_uuid,

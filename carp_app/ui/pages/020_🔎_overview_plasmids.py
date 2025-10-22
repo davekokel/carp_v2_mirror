@@ -2,60 +2,67 @@ from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
-from carp_app.ui.auth_gate import require_auth
-from carp_app.lib.config import engine as get_engine, DB_URL
-sb, session, user = require_auth()
-
-from carp_app.ui.email_otp_gate import require_email_otp
-require_email_otp()
-
-from pathlib import Path
-import sys
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 import os, shlex
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+
 import pandas as pd
 import streamlit as st
-from carp_app.lib.db import get_engine
 from sqlalchemy import text
-# ---- page config FIRST ----
+from sqlalchemy.engine import Engine
+
+from carp_app.ui.auth_gate import require_auth
+from carp_app.ui.email_otp_gate import require_email_otp
+from carp_app.lib.db import get_engine
+
+# ── auth ─────────────────────────────────────────────────────────────────────
+sb, session, user = require_auth()
+require_email_otp()
+
+# ── page config ──────────────────────────────────────────────────────────────
 st.set_page_config(page_title="CARP — Plasmids Overview", page_icon="🧪", layout="wide")
 st.title("🧪 Plasmids Overview")
 
-# ---- optional unlock ----
+# optional unlock
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
 require_app_unlock()
 
-# ---- engine ----
-_ENGINE = None
-def _get_engine():
+# ── engine ───────────────────────────────────────────────────────────────────
+_ENGINE: Optional[Engine] = None
+def _get_engine() -> Engine:
     global _ENGINE
-    if _ENGINE is not None:
-        return _ENGINE
-    url = os.getenv("DB_URL")
-    if not url:
-        raise RuntimeError("DB_URL is not set")
-    _ENGINE = get_engine()
+    if _ENGINE is None:
+        url = os.getenv("DB_URL") or ""
+        if not url:
+            raise RuntimeError("DB_URL is not set")
+        _ENGINE = get_engine()
     return _ENGINE
 
-# ---- query helpers (reads vw_plasmids_overview) ----
-def _build_query(q: str, supports_only: bool) -> tuple[str, Dict[str, Any]]:
+def _fn_exists(schema: str, name: str) -> bool:
+    """Return True if a function with proname exists in schema (any signature)."""
+    with _get_engine().begin() as cx:
+        return bool(cx.execute(text("""
+            select exists(
+              select 1
+              from pg_proc p
+              join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname=:s and p.proname=:n
+            )
+        """), {"s": schema, "n": name}).scalar())
+
+# ── query helpers (deterministic: always v_plasmids) ─────────────────────────
+def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str, Any]]:
     """
-    Multi-term AND search with field filters:
-      code:, name:, nickname:, fluors:, resistance:
+    Multi-term AND search against public.v_plasmids.
+    Field filters supported: code:, name:, nickname:, fluors:, resistance:
     """
     haystack = (
         "concat_ws(' ', "
         "coalesce(v.code,''), coalesce(v.name,''), coalesce(v.nickname,''), "
         "coalesce(v.fluors,''), coalesce(v.resistance,''), coalesce(v.notes,''))"
     )
-
     field_map = {
         "code": "v.code",
         "name": "v.name",
@@ -65,65 +72,45 @@ def _build_query(q: str, supports_only: bool) -> tuple[str, Dict[str, Any]]:
     }
 
     tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
-    params: Dict[str, Any] = {}
+    params: Dict[str, Any] = {"lim": int(limit)}
     where: List[str] = []
 
     for i, tok in enumerate(tokens):
         neg = tok.startswith("-")
         core = tok[1:] if neg else tok
-
-        k = vval = None
         if ":" in core:
             k, vval = core.split(":", 1)
             k = (k or "").strip().lower()
             vval = (vval or "").strip().strip('"')
-
-        if k in field_map and vval is not None:
-            key = f"t{i}"
-            params[key] = f"%{vval}%"
-            clause = f"{field_map[k]} ILIKE :{key}"
-            where.append(("NOT " if neg else "") + f"({clause})")
-        else:
-            key = f"t{i}"
-            params[key] = f"%{core}%"
-            clause = f"{haystack} ILIKE :{key}"
-            where.append(("NOT " if neg else "") + f"({clause})")
+            if k in field_map:
+                key = f"t{i}"; params[key] = f"%{vval}%"
+                where.append(("NOT " if neg else "") + f"({field_map[k]} ILIKE :{key})")
+                continue
+        key = f"t{i}"; params[key] = f"%{core}%"
+        where.append(("NOT " if neg else "") + f"({haystack} ILIKE :{key})")
 
     if supports_only:
         where.append("v.supports_invitro_rna = true")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
-
     sql = f"""
       select
-        v.id,
-        v.code,
-        v.name,
-        v.nickname,
-        v.fluors,
-        v.resistance,
-        v.supports_invitro_rna,
-        v.created_by,
-        v.notes,
-        v.created_at,
-        v.rna_id,
-        v.rna_code,
-        v.rna_name
-      from public.vw_plasmids_overview v
+        v.id, v.code, v.name, v.nickname, v.fluors, v.resistance,
+        v.supports_invitro_rna, v.created_by, v.notes, v.created_at,
+        v.rna_id, v.rna_code, v.rna_name
+      from public.v_plasmids v
       {where_sql}
       order by v.code
+      limit :lim
     """
     return sql, params
 
 def _load_plasmids(q: str, supports_only: bool, limit: int) -> pd.DataFrame:
-    sql, params = _build_query(q, supports_only)
+    sql, params = _build_query(q, supports_only, limit)
     with _get_engine().begin() as cx:
-        df = pd.read_sql(text(sql), cx, params=params)
-    if limit and isinstance(limit, int) and limit > 0:
-        df = df.head(limit)
-    return df
+        return pd.read_sql(text(sql), cx, params=params)
 
-# ---- filters ----
+# ── filters ──────────────────────────────────────────────────────────────────
 with st.form("filters"):
     c1, c2, c3 = st.columns([2,2,1])
     with c1:
@@ -134,11 +121,18 @@ with st.form("filters"):
         limit = int(st.number_input("Limit", min_value=1, max_value=10000, value=1000, step=200))
     submitted = st.form_submit_button("Apply")
 
-# ---- load ----
-df = _load_plasmids(q, supports_only, limit)
+# ── load ─────────────────────────────────────────────────────────────────────
+try:
+    df = _load_plasmids(q, supports_only, limit)
+except Exception as e:
+    st.error(f"Query error: {type(e).__name__}: {e}")
+    with st.expander("Debug"):
+        st.code(str(e))
+    st.stop()
+
 st.caption(f"{len(df)} rows")
 
-# ---- render with selection + bulk actions ----
+# normalize columns used below
 for c in [
     "code","name","nickname","fluors","resistance","supports_invitro_rna",
     "rna_code","rna_name","created_by","created_at","notes"
@@ -146,16 +140,15 @@ for c in [
     if c not in df.columns:
         df[c] = None
 
+# ── data editor with selection ───────────────────────────────────────────────
 view_cols = [
     "✓ Select",
     "code","name","nickname","fluors","resistance","supports_invitro_rna",
     "rna_code","rna_name","created_by","created_at","notes"
 ]
-
 df_view = df.copy()
 df_view.insert(0, "✓ Select", False)
 
-# persist table state across edits
 sig = "|".join(df_view.get("code", pd.Series([], dtype=str)).astype(str).tolist())
 if st.session_state.get("_plasmids_sig") != sig:
     st.session_state["_plasmids_sig"] = sig
@@ -184,7 +177,7 @@ edited = st.data_editor(
 )
 st.session_state["_plasmids_table"] = edited.copy()
 
-# ---- actions ----
+# ── actions ──────────────────────────────────────────────────────────────────
 st.divider()
 st.subheader("Actions")
 
@@ -192,19 +185,30 @@ cA, cB, cC = st.columns([1,2,2])
 with cA:
     sel_codes = edited.loc[edited["✓ Select"], "code"].dropna().astype(str).tolist()
     st.caption(f"Selected: {len(sel_codes)}")
+
+has_ensure = _fn_exists("public", "ensure_rna_for_plasmid")
+
 with cB:
-    ensure_selected = st.button("Ensure RNA for selected", disabled=len(sel_codes)==0, use_container_width=True)
+    ensure_selected = st.button(
+        "Ensure RNA for selected",
+        disabled=(len(sel_codes) == 0 or not has_ensure),
+        use_container_width=True,
+    )
 with cC:
     ensure_missing_for_supported = st.button(
         "Ensure RNA for all supported (missing only)",
         use_container_width=True,
-        help="Create RNAs for all rows where supports_invitro_rna is TRUE but rna_code is empty."
+        help="Create RNAs for all rows where supports_invitro_rna is TRUE but rna_code is empty.",
+        disabled=(not has_ensure),
     )
+
+if not has_ensure:
+    st.info("ensure_rna_for_plasmid() not installed in this DB; actions are disabled.")
 
 sql_ensure = text("select * from public.ensure_rna_for_plasmid(:plasmid_code, 'RNA', :rna_name, :by, :notes)")
 user_by = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
 
-if ensure_selected:
+if has_ensure and ensure_selected:
     ok = fail = 0
     with _get_engine().begin() as cx:
         for code, name in edited.loc[edited["✓ Select"], ["code","name"]].itertuples(index=False):
@@ -221,9 +225,12 @@ if ensure_selected:
                 st.error(f"{code}: {e}")
     st.success(f"Ensured RNAs for {ok} code(s). Failures: {fail}. Click Apply to refresh.")
 
-if ensure_missing_for_supported:
+if has_ensure and ensure_missing_for_supported:
     ok = 0
-    miss_df = edited[(edited["supports_invitro_rna"] == True) & (edited["rna_code"].isna() | (edited["rna_code"]==""))]
+    miss_df = edited[
+        (edited["supports_invitro_rna"] == True)
+        & (edited["rna_code"].isna() | (edited["rna_code"] == ""))
+    ]
     with _get_engine().begin() as cx:
         for code, name in miss_df[["code","name"]].itertuples(index=False):
             try:

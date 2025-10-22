@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW public.vw_clutches_concept_overview AS
+CREATE OR REPLACE VIEW public.v_clutches_concept_overview AS
 WITH base AS (
   SELECT
     cp.id                         AS clutch_plan_id,
@@ -29,7 +29,7 @@ FROM base b
 LEFT JOIN inst i ON i.planned_cross_id = b.planned_cross_id
 ORDER BY COALESCE(b.date_planned::timestamp, b.created_at) DESC NULLS LAST;
 
-CREATE OR REPLACE VIEW public.vw_clutches_overview_human AS
+CREATE OR REPLACE VIEW public.v_clutches_overview_human AS
 WITH base AS (
   SELECT
     c.id                        AS clutch_id,
@@ -71,7 +71,7 @@ LEFT JOIN instances i ON i.clutch_id = b.clutch_id
 LEFT JOIN crosses_via_clutches cx ON cx.clutch_id = b.clutch_id
 ORDER BY COALESCE(b.date_birth::timestamp, b.created_at) DESC NULLS LAST;
 
-CREATE OR REPLACE VIEW public.vw_cross_runs_overview AS
+CREATE OR REPLACE VIEW public.v_cross_runs AS
 WITH cl AS (
   SELECT c.cross_instance_id, COUNT(*)::int AS n_clutches
   FROM public.clutches c
@@ -105,7 +105,7 @@ LEFT JOIN cl ON cl.cross_instance_id = ci.id
 LEFT JOIN cnt ON cnt.cross_instance_id = ci.id
 ORDER BY ci.cross_date DESC, ci.created_at DESC;
 
-CREATE OR REPLACE VIEW public.vw_crosses_concept AS
+CREATE OR REPLACE VIEW public.v_crosses_concept AS
 WITH runs AS (
   SELECT cross_instances.cross_id, COUNT(*)::int AS n_runs, MAX(cross_instances.cross_date) AS latest_cross_date
   FROM public.cross_instances

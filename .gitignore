@@ -41,3 +41,4 @@ snapshots/*_data_*.sql
 *.bak*
 dist/*.zip
 dist/
+supabase/migrations/*reset*.sql

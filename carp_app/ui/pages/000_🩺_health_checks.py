@@ -27,8 +27,8 @@ if st.button("DB ping"):
         st.exception(e)
 
 targets = [
-    ("public.v_fish_overview", "select * from public.v_fish_overview limit 1"),
-    ("public.vw_fish_overview_with_label", "select * from public.vw_fish_overview_with_label limit 1"),
+    ("public.v_fish", "select * from public.v_fish limit 1"),
+    ("public.v_fish_with_label", "select * from public.v_fish_with_label limit 1"),
     ("public.plasmids", "select * from public.plasmids limit 1"),
 ]
 for name, sql in targets:

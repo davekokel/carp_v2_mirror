@@ -29,7 +29,7 @@ BEGIN
   ) INTO has_dob_alt;
 
   -- Build the CREATE VIEW text safely
-  sql := 'CREATE VIEW public.vw_fish_overview_with_label AS
+  sql := 'CREATE VIEW public.v_fish_overview_with_label AS
           SELECT
             v.id,
             v.fish_code,
@@ -82,7 +82,7 @@ BEGIN
                  ON f.id = v.id;';
 
   -- Drop and recreate safely
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
   EXECUTE sql;
 END$$;
 

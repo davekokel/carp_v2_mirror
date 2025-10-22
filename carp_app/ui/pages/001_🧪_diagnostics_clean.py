@@ -128,16 +128,16 @@ def _counts(conn) -> pd.DataFrame:
           union all select 'transgene_alleles', count(*) from public.transgene_alleles
         ),
         v(name, nrows) as (
-          select 'v_fish_overview', count(*) from information_schema.views
-          where table_schema='public' and table_name='v_fish_overview'
+          select 'v_fish', count(*) from information_schema.views
+          where table_schema='public' and table_name='v_fish'
         )
         select * from t
         union all
         select 'v_fish_overview_rows',
-               (select count(*) from public.v_fish_overview)
+               (select count(*) from public.v_fish)
         where exists (
           select 1 from information_schema.views
-          where table_schema='public' and table_name='v_fish_overview'
+          where table_schema='public' and table_name='v_fish'
         )
         order by name
     """)

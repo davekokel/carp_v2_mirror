@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE OR REPLACE VIEW public.vw_clutches_concept_overview AS
+CREATE OR REPLACE VIEW public.v_clutches_concept_overview AS
 WITH base AS (
     SELECT
         cp.id_uuid AS clutch_plan_id,

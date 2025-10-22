@@ -1,5 +1,5 @@
 -- Step 1: rewrite dependent views to reference planned_crosses.id
-CREATE OR REPLACE VIEW public.vw_clutches_concept_overview AS
+CREATE OR REPLACE VIEW public.v_clutches_concept_overview AS
 SELECT
   c.id AS clutch_id,
   c.clutch_code,
@@ -10,7 +10,7 @@ SELECT
 FROM public.clutches c
 LEFT JOIN public.planned_crosses pc ON pc.id = c.planned_cross_id;
 
-CREATE OR REPLACE VIEW public.vw_clutches_overview_human AS
+CREATE OR REPLACE VIEW public.v_clutches_overview_human AS
 SELECT
   c.id,
   c.clutch_code,
@@ -22,7 +22,7 @@ SELECT
 FROM public.clutches c
 LEFT JOIN public.planned_crosses pc ON pc.id = c.planned_cross_id;
 
-CREATE OR REPLACE VIEW public.vw_planned_clutches_overview AS
+CREATE OR REPLACE VIEW public.v_planned_clutches_overview AS
 SELECT
   cp.id               AS clutch_plan_id,
   pc.id               AS planned_cross_id,

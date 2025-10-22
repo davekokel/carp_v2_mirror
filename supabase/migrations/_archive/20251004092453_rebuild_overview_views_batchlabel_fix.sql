@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE OR REPLACE VIEW public.vw_fish_overview_with_label AS
+CREATE OR REPLACE VIEW public.v_fish_overview_with_label AS
 WITH base AS (
     SELECT
         v.id,

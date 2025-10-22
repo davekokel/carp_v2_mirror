@@ -56,7 +56,7 @@ def _get_engine():
 def _stage_choices() -> List[str]:
     sql = """
       select distinct upper(stage) as s
-      from public.vw_fish_standard
+      from public.v_fish_standard
       where stage is not null and stage <> ''
       order by 1
     """
@@ -85,7 +85,7 @@ def _load_standard_for_codes(codes: List[str]) -> pd.DataFrame:
       select
         s.*,
         coalesce(lc.n_living_tanks, 0) as n_living_tanks
-      from public.vw_fish_standard s
+      from public.v_fish_standard s
       join wanted w on w.fish_code = s.fish_code
       left join live_counts lc on lc.fish_id = w.id
     """)

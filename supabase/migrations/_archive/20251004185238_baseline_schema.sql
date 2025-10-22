@@ -769,10 +769,10 @@ CREATE VIEW public.v_fish_overview AS
    FROM public.fish f;
 
 --
--- Name: vw_fish_overview_with_label; Type: VIEW; Schema: public; Owner: -
+-- Name: v_fish_overview_with_label; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.vw_fish_overview_with_label AS
+CREATE VIEW public.v_fish_overview_with_label AS
  WITH base AS (
          SELECT v.id,
             v.fish_code,

@@ -1,6 +1,6 @@
 begin;
 
-drop view if exists public.vw_fish_overview_with_label cascade;
+drop view if exists public.v_fish_overview_with_label cascade;
 drop view if exists public.v_fish_overview cascade;
 do $$
 declare has_fish boolean;
@@ -59,7 +59,7 @@ begin
   -- label view (same pattern: only join fish if it exists)
   if has_fish then
     execute $v$
-      create view public.vw_fish_overview_with_label as
+      create view public.v_fish_overview_with_label as
       select
         v.id,
         v.fish_code,
@@ -83,7 +83,7 @@ begin
     $v$;
   else
     execute $v$
-      create view public.vw_fish_overview_with_label as
+      create view public.v_fish_overview_with_label as
       select
         v.id,
         v.fish_code,

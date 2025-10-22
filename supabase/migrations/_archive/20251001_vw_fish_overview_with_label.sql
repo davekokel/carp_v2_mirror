@@ -2,7 +2,7 @@ DO $$
 BEGIN
   IF to_regclass('public.seed_batches') IS NOT NULL THEN
     EXECUTE $v$
-      CREATE OR REPLACE VIEW public.vw_fish_overview_with_label AS
+      CREATE OR REPLACE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.*,
         COALESCE(NULLIF(TRIM(sb.batch_label), ''), v.seed_batch_id) AS batch_label
@@ -11,7 +11,7 @@ BEGIN
     $v$;
   ELSE
     EXECUTE $v$
-      CREATE OR REPLACE VIEW public.vw_fish_overview_with_label AS
+      CREATE OR REPLACE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.*,
         v.seed_batch_id AS batch_label

@@ -48,7 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_cross_plans_tank_b ON public.cross_plans (tank_b_
 CREATE INDEX IF NOT EXISTS idx_cpga_plan ON public.cross_plan_genotype_alleles (plan_id);
 CREATE INDEX IF NOT EXISTS idx_cpt_plan ON public.cross_plan_treatments (plan_id);
 
-CREATE OR REPLACE VIEW public.v_containers_crossing_candidates AS
+CREATE OR REPLACE VIEW public.v_containers_candidates AS
 SELECT
     id_uuid,
     container_type,

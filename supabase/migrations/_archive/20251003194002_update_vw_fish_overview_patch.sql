@@ -5,13 +5,13 @@ BEGIN
     RETURN;
   END IF;
 
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
 
   IF to_regclass('public.load_log_fish') IS NULL THEN
-    EXECUTE 'CREATE VIEW public.vw_fish_overview_with_label AS SELECT v.*, NULL::text AS seed_batch_id FROM public.v_fish_overview v';
+    EXECUTE 'CREATE VIEW public.v_fish_overview_with_label AS SELECT v.*, NULL::text AS seed_batch_id FROM public.v_fish_overview v';
   ELSE
     EXECUTE $V$
-      CREATE VIEW public.vw_fish_overview_with_label AS
+      CREATE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.*, sm.seed_batch_id
       FROM public.v_fish_overview v

@@ -4,7 +4,7 @@ BEGIN;
 -- One row per entry in public.crosses (concept).
 -- Includes counts of runs (cross_instances), latest run date,
 -- total clutches produced across all runs, and total containers across those clutches.
-CREATE OR REPLACE VIEW public.vw_crosses_concept AS
+CREATE OR REPLACE VIEW public.v_crosses_concept AS
 WITH runs AS (
     SELECT
         ci.cross_id,
@@ -52,7 +52,7 @@ ORDER BY x.created_at DESC;
 -- One row per public.cross_instances.
 -- Includes concept cross_code, run code/date, parent tank labels,
 -- clutches produced by this run, and containers from those clutches.
-CREATE OR REPLACE VIEW public.vw_cross_runs_overview AS
+CREATE OR REPLACE VIEW public.v_cross_runs AS
 WITH cl AS (
     SELECT
         c.cross_instance_id,

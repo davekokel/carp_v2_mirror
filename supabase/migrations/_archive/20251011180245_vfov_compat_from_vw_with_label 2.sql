@@ -18,4 +18,4 @@ SELECT
     coalesce(v.line_building_stage, '') AS stage,
     coalesce(v.created_by, '') AS created_by,
     coalesce(v.batch_label, '') AS batch_display
-FROM public.vw_fish_overview_with_label AS v;
+FROM public.v_fish_overview_with_label AS v;

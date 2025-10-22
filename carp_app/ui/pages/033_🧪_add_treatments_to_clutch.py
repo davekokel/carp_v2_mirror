@@ -45,55 +45,65 @@ def _safe_date(v):
     except Exception:
         return None
 
-def _load_clutches(d1: date, d2: date, created_by: str, qtxt: str, ignore_dates: bool) -> pd.DataFrame:
-    view = "public.v_clutches_overview_effective"
-    if not _view_exists("public", "v_clutches_overview_effective"):
-        st.error("Required view public.v_clutches_overview_effective not found."); st.stop()
+def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
+    """
+    Source of truth: public.v_clutches (canonical).
+    We pull the minimal columns and alias to what the grid expects.
+    """
+    where, params = [], {}
 
-    where_bits, params = [], {}
-    if not ignore_dates:
-        where_bits.append("coalesce(clutch_birthday, date_planned) between :d1 and :d2")
-        params["d1"], params["d2"] = d1, d2
-    if (created_by or "").strip():
-        where_bits.append("(created_by_instance ilike :byl or created_by_plan ilike :byl)")
-        params["byl"] = f"%{created_by.strip()}%"
-    if (qtxt or "").strip():
-        where_bits.append("""(
-          coalesce(clutch_code,'') ilike :ql or
-          coalesce(cross_name_pretty,'') ilike :ql or
-          coalesce(cross_name,'') ilike :ql or
-          coalesce(clutch_name,'') ilike :ql or
-          coalesce(clutch_nickname,'') ilike :ql or
-          coalesce(clutch_genotype_pretty,'') ilike :ql or
-          coalesce(clutch_genotype_canonical,'') ilike :ql or
-          coalesce(mom_strain,'') ilike :ql or
-          coalesce(dad_strain,'') ilike :ql or
-          coalesce(clutch_strain,'') ilike :ql
-        )""")
-        params["ql"] = f"%{qtxt.strip()}%"
-    where_sql = " AND ".join(where_bits) if where_bits else "true"
+    if not most_recent:
+        where.append("created_at::date between :d1 and :d2")
+        params.update({"d1": d_from, "d2": d_to})
+
+    if created_by.strip():
+        where.append("coalesce(created_by,'') ilike :by")
+        params["by"] = f"%{created_by.strip()}%"
+
+    if q.strip():
+        params["q"] = f"%{q.strip()}%"
+        where.append("""
+          (
+            coalesce(clutch_code,'') ilike :q OR
+            coalesce(name,'')        ilike :q OR
+            coalesce(nickname,'')    ilike :q OR
+            coalesce(mom_code,'')    ilike :q OR
+            coalesce(dad_code,'')    ilike :q
+          )
+        """)
+
+    where_sql = ("where " + " AND ".join(where)) if where else ""
 
     sql = text(f"""
-      select b.*
-      from {view} b
-      where {where_sql}
-      order by created_at_instance desc nulls last, clutch_birthday desc nulls last
-      limit 500
+      select
+        clutch_code,
+        name     as clutch_name,
+        nickname as clutch_nickname,
+        mom_code,
+        dad_code,
+        created_by,
+        created_at
+      from public.v_clutches
+      {where_sql}
+      order by created_at desc nulls last, clutch_code
+      limit 1000
     """)
+
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    if "treatments_count_effective_eff" in df.columns:
-        df["treatments_count_effective"] = df["treatments_count_effective_eff"]
-    if "treatments_pretty_effective_eff" in df.columns:
-        df["treatments_pretty_effective"] = df["treatments_pretty_effective_eff"]
-    if "genotype_treatment_rollup_effective_eff" in df.columns:
-        df["genotype_treatment_rollup_effective"] = df["genotype_treatment_rollup_effective_eff"]
+    # hygiene for grid
+    for c in ["clutch_code","clutch_name","clutch_nickname","mom_code","dad_code","created_by"]:
+        if c in df.columns:
+            df[c] = df[c].fillna("").astype(str)
 
-    if "treatments_count_effective" in df.columns:
-        df["treatments_count_effective"] = pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
+    # keep shape the rest of the page tolerates
+    for c in ["treatments_count","treatments_pretty","created_by_instance","created_at_instance","clutch_birthday"]:
+        if c not in df.columns:
+            df[c] = pd.NA
+    if "created_at" in df.columns:
+        df["created_at_instance"] = df["created_at"]
 
-    df = df.loc[:, ~df.columns.duplicated()]
     return df
 
 def _resolve_ids_from_ci_or_cr(code_in: str) -> Tuple[Optional[str], Optional[str]]:
@@ -253,27 +263,42 @@ def _insert_instance_treatments(clutch_instance_id: str, created_by: str, items:
     return inserted, errs
 
 def _load_run_overview(ci_code: str) -> pd.DataFrame:
-    view = "public.v_clutches_overview_effective"
-    if not _view_exists("public", "v_clutches_overview_effective"):
+    view = "public.v_clutches"
+    if not _view_exists("public", "v_clutches"):
         return pd.DataFrame()
+
     with _eng().begin() as cx:
         df = pd.read_sql(text(f"""
-            select b.*
-            from {view} b
+            select *
+            from {view}
             where clutch_code = :cc
-            order by created_at_instance desc nulls last
+            order by created_at desc nulls last
             limit 1
         """), cx, params={"cc": ci_code})
 
-    if "treatments_count_effective_eff" in df.columns:
-        df["treatments_count_effective"] = df["treatments_count_effective_eff"]
-    if "treatments_pretty_effective_eff" in df.columns:
-        df["treatments_pretty_effective"] = df["treatments_pretty_effective_eff"]
-    if "genotype_treatment_rollup_effective_eff" in df.columns:
-        df["genotype_treatment_rollup_effective"] = df["genotype_treatment_rollup_effective_eff"]
+    if df.empty:
+        return df
+
+    # Normalize column names so the UI can read a stable set
+    # Accept either “…_effective” or base names
+    name_map = {
+        "treatments_count_effective":        ["treatments_count_effective", "treatments_count"],
+        "treatments_pretty_effective":       ["treatments_pretty_effective","treatments_pretty"],
+        "genotype_treatment_rollup_effective":["genotype_treatment_rollup_effective","genotype_treatment_rollup"],
+    }
+    for target, options in name_map.items():
+        for src in options:
+            if src in df.columns:
+                df[target] = df[src]
+                break
+        if target not in df.columns:
+            df[target] = pd.NA
 
     if "treatments_count_effective" in df.columns:
-        df["treatments_count_effective"] = pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
+        df["treatments_count_effective"] = (
+            pd.to_numeric(df["treatments_count_effective"], errors="coerce")
+              .fillna(0).astype(int)
+        )
 
     df = df.loc[:, ~df.columns.duplicated()]
     return df

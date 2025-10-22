@@ -1,0 +1,14 @@
+name: Guard legacy views
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Run guard
+        run: bash scripts/guard_legacy_views.sh

@@ -169,7 +169,7 @@ public|v_clutch_instances_overview|VIEW| SELECT ci.id AS cross_instance_id,
    FROM cross_instances ci
      LEFT JOIN clutches c ON c.cross_instance_id = ci.id
      LEFT JOIN clutch_instances cl ON cl.cross_instance_id = ci.id;
-public|v_containers_crossing_candidates|VIEW| SELECT id,
+public|v_containers_candidates|VIEW| SELECT id,
     container_type,
     label,
     status,
@@ -182,7 +182,7 @@ public|v_containers_crossing_candidates|VIEW| SELECT id,
     note
    FROM containers c
   WHERE container_type = ANY (ARRAY['inventory_tank'::text, 'crossing_tank'::text, 'holding_tank'::text, 'nursery_tank'::text, 'petri_dish'::text]);
-public|v_containers_live|VIEW| SELECT id,
+public|v_containers|VIEW| SELECT id,
     container_type,
     label,
     status,
@@ -215,8 +215,8 @@ public|v_cross_concepts_overview|VIEW| SELECT cp.clutch_code AS conceptual_cross
     hum.mom_tank_label AS mom_code_tank,
     hum.dad_tank_label AS dad_code_tank,
     cp.created_at
-   FROM vw_clutches_concept_overview cp
-     LEFT JOIN vw_clutches_overview_human hum ON hum.clutch_code = cp.clutch_code;
+   FROM v_clutches_concept_overview cp
+     LEFT JOIN v_clutches_overview_human hum ON hum.clutch_code = cp.clutch_code;
 public|v_cross_plan_runs_enriched|VIEW| SELECT r.id,
     r.plan_id,
     r.seq,
@@ -477,23 +477,23 @@ public|v_fish_search|VIEW| SELECT f.fish_code,
      LEFT JOIN v_fish_standard_clean sc ON sc.fish_code = f.fish_code
      LEFT JOIN v_fish_live_counts l ON l.fish_code = f.fish_code;
 public|v_fish_standard_clean|VIEW| WITH vs AS (
-         SELECT vw_fish_standard.id,
-            vw_fish_standard.fish_code,
-            vw_fish_standard.name,
-            vw_fish_standard.nickname,
-            vw_fish_standard.genotype,
-            vw_fish_standard.genetic_background,
-            vw_fish_standard.stage,
-            vw_fish_standard.date_birth,
-            vw_fish_standard.age_days,
-            vw_fish_standard.created_at,
-            vw_fish_standard.created_by,
-            vw_fish_standard.batch_display,
-            vw_fish_standard.transgene_base_code,
-            vw_fish_standard.allele_code,
-            vw_fish_standard.treatments_rollup,
-            vw_fish_standard.n_living_tanks
-           FROM vw_fish_standard
+         SELECT v_fish_standard.id,
+            v_fish_standard.fish_code,
+            v_fish_standard.name,
+            v_fish_standard.nickname,
+            v_fish_standard.genotype,
+            v_fish_standard.genetic_background,
+            v_fish_standard.stage,
+            v_fish_standard.date_birth,
+            v_fish_standard.age_days,
+            v_fish_standard.created_at,
+            v_fish_standard.created_by,
+            v_fish_standard.batch_display,
+            v_fish_standard.transgene_base_code,
+            v_fish_standard.allele_code,
+            v_fish_standard.treatments_rollup,
+            v_fish_standard.n_living_tanks
+           FROM v_fish_standard
         ), src AS (
          SELECT f.fish_code,
             COALESCE(vs.genotype, ''::text) AS genotype,
@@ -578,7 +578,7 @@ public|v_fish_standard_clean|VIEW| WITH vs AS (
     created_at,
     created_by
    FROM roll;
-public|v_label_jobs_recent|VIEW| SELECT id,
+public|v_labels_recent|VIEW| SELECT id,
     entity_type,
     entity_id,
     template,
@@ -628,7 +628,7 @@ public|v_overview_crosses|VIEW| WITH latest_planned AS (
      LEFT JOIN crosses x ON x.id = lp.cross_id
      LEFT JOIN containers cm ON cm.id = lp.mother_tank_id
      LEFT JOIN containers cf ON cf.id = lp.father_tank_id;
-public|vw_bruker_mounts_enriched|VIEW| SELECT mount_code,
+public|v_bruker_mounts_enriched|VIEW| SELECT mount_code,
     COALESCE(selection_id::text, id::text) AS selection_id,
     mount_date,
     NULL::time without time zone AS mount_time,
@@ -638,7 +638,7 @@ public|vw_bruker_mounts_enriched|VIEW| SELECT mount_code,
     created_at,
     created_by
    FROM bruker_mounts bm;
-public|vw_clutches_concept_overview|VIEW| WITH base AS (
+public|v_clutches_concept_overview|VIEW| WITH base AS (
          SELECT cp.id AS clutch_plan_id,
             pc.id AS planned_cross_id,
             cp.clutch_code,
@@ -681,7 +681,7 @@ public|vw_clutches_concept_overview|VIEW| WITH base AS (
      LEFT JOIN inst i ON i.planned_cross_id = b.planned_cross_id
      LEFT JOIN cont ct ON ct.planned_cross_id = b.planned_cross_id
   ORDER BY (COALESCE(b.date_planned::timestamp without time zone::timestamp with time zone, b.created_at)) DESC NULLS LAST;
-public|vw_clutches_overview_human|VIEW| WITH base AS (
+public|v_clutches_overview_human|VIEW| WITH base AS (
          SELECT c.id AS clutch_id,
             c.date_birth,
             c.created_by,
@@ -730,7 +730,7 @@ public|vw_clutches_overview_human|VIEW| WITH base AS (
      LEFT JOIN instances i ON i.clutch_id = b.clutch_id
      LEFT JOIN crosses_via_clutches cx ON cx.clutch_id = b.clutch_id
   ORDER BY (COALESCE(b.date_birth::timestamp with time zone, b.created_at)) DESC NULLS LAST;
-public|vw_cross_runs_overview|VIEW| WITH cl AS (
+public|v_cross_runs|VIEW| WITH cl AS (
          SELECT clutches.cross_instance_id,
             count(*)::integer AS n_clutches
            FROM clutches
@@ -763,7 +763,7 @@ public|vw_cross_runs_overview|VIEW| WITH cl AS (
      LEFT JOIN cl ON cl.cross_instance_id = ci.id
      LEFT JOIN cnt ON cnt.cross_instance_id = ci.id
   ORDER BY ci.cross_date DESC, ci.created_at DESC;
-public|vw_crosses_concept|VIEW| WITH runs AS (
+public|v_crosses_concept|VIEW| WITH runs AS (
          SELECT cross_instances.cross_id,
             count(*)::integer AS n_runs,
             max(cross_instances.cross_date) AS latest_cross_date
@@ -796,7 +796,7 @@ public|vw_crosses_concept|VIEW| WITH runs AS (
      LEFT JOIN cl ON cl.cross_id = x.id
      LEFT JOIN cnt ON cnt.cross_id = x.id
   ORDER BY x.created_at DESC;
-public|vw_fish_overview_with_label|VIEW| WITH base AS (
+public|v_fish_overview_with_label|VIEW| WITH base AS (
          SELECT f.fish_code,
             f.name,
             f.nickname,
@@ -860,7 +860,7 @@ public|vw_fish_overview_with_label|VIEW| WITH base AS (
      LEFT JOIN allele a USING (fish_code)
      LEFT JOIN batch USING (fish_code)
   ORDER BY b.fish_code;
-public|vw_fish_standard|VIEW| WITH base AS (
+public|v_fish_standard|VIEW| WITH base AS (
          SELECT f.id,
             f.fish_code,
             COALESCE(f.name, ''::text) AS name,
@@ -881,7 +881,7 @@ public|vw_fish_standard|VIEW| WITH base AS (
             v.created_by_enriched,
             NULLIF(v.plasmid_injections_text, ''::text) AS plasmid_injections_text,
             NULLIF(v.rna_injections_text, ''::text) AS rna_injections_text
-           FROM vw_fish_overview_with_label v
+           FROM v_fish_overview_with_label v
         ), tank_counts AS (
          SELECT m.fish_id,
             count(*)::integer AS n_living_tanks
@@ -922,7 +922,7 @@ public|vw_fish_standard|VIEW| WITH base AS (
      LEFT JOIN label l USING (fish_code)
      LEFT JOIN roll r USING (fish_code)
      LEFT JOIN tank_counts t ON t.fish_id = b.id;
-public|vw_label_rows|VIEW| WITH base AS (
+public|v_label_rows|VIEW| WITH base AS (
          SELECT f.id,
             f.fish_code,
             f.name,
@@ -970,7 +970,7 @@ public|vw_label_rows|VIEW| WITH base AS (
      LEFT JOIN allele a USING (fish_code)
      LEFT JOIN batch USING (fish_code)
   ORDER BY b.fish_code;
-public|vw_planned_clutches_overview|VIEW| WITH x AS (
+public|v_planned_clutches_overview|VIEW| WITH x AS (
          SELECT cp.id AS clutch_plan_id,
             pc.id AS planned_cross_id,
             cp.clutch_code,
@@ -1001,7 +1001,7 @@ public|vw_planned_clutches_overview|VIEW| WITH x AS (
    FROM x
      LEFT JOIN tx ON tx.clutch_plan_id = x.clutch_plan_id
   ORDER BY (COALESCE(x.cross_date::timestamp with time zone, x.created_at)) DESC NULLS LAST;
-public|vw_plasmids_overview|VIEW| SELECT p.id,
+public|v_plasmids|VIEW| SELECT p.id,
     p.code,
     p.name,
     p.nickname,

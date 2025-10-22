@@ -63,7 +63,7 @@ BEGIN
     WHERE table_schema='public' AND table_name='fish' AND column_name='date_of_birth'
   ) INTO has_dob_alt;
 
-  sql := 'CREATE VIEW public.vw_fish_overview_with_label AS
+  sql := 'CREATE VIEW public.v_fish_overview_with_label AS
           SELECT
             v.id,
             v.fish_code,
@@ -110,7 +110,7 @@ BEGIN
           LEFT JOIN public.fish f ON f.id = v.id
           ORDER BY v.created_at DESC;';
 
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
   EXECUTE sql;
 END$$;
 

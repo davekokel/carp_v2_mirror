@@ -6,11 +6,11 @@ BEGIN
   END IF;
 
   -- Drop first to avoid replace/shape issues
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
 
   -- Build a label-friendly overview using only baseline-safe tables
   EXECUTE $V$
-    CREATE VIEW public.vw_fish_overview_with_label AS
+    CREATE VIEW public.v_fish_overview_with_label AS
     WITH tg AS (
       SELECT
         fta.fish_id,

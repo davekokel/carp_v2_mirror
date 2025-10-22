@@ -299,7 +299,7 @@ def _fetch_parent_rows(codes: list[str]) -> pd.DataFrame:
         ])
     sql_base = text("""
       select fish_code, name, nickname, genotype, genetic_background, stage, date_birth, created_at
-      from public.vw_fish_standard
+      from public.v_fish_standard
       where fish_code = any(:codes)
     """)
     with _get_engine().begin() as cx:
@@ -316,7 +316,7 @@ def _fetch_parent_rows(codes: list[str]) -> pd.DataFrame:
                   coalesce(line_building_stage, line_building_stage_print) as stage,
                   date_birth_print::date as date_birth,
                   created_at
-                from public.vw_fish_overview_with_label
+                from public.v_fish_overview_with_label
                 where fish_code = any(:codes)
             """), cx, params={"codes": codes})
     try:

@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW public.vw_fish_overview_with_label AS
+CREATE OR REPLACE VIEW public.v_fish_overview_with_label AS
 WITH first_link AS (
     -- first allele per fish (by allele_number asc, NULLS LAST)
     SELECT

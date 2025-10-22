@@ -19,10 +19,10 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: v_containers_crossing_candidates; Type: VIEW; Schema: public; Owner: postgres
+-- Name: v_containers_candidates; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE OR REPLACE VIEW public.v_containers_crossing_candidates AS
+CREATE OR REPLACE VIEW public.v_containers_candidates AS
 SELECT
     id_uuid,
     container_type,
@@ -40,7 +40,7 @@ WHERE
     (container_type = ANY(ARRAY['inventory_tank'::text, 'crossing_tank'::text, 'holding_tank'::text, 'nursery_tank'::text, 'petri_dish'::text]));
 
 
-ALTER VIEW public.v_containers_crossing_candidates OWNER TO postgres;
+ALTER VIEW public.v_containers_candidates OWNER TO postgres;
 
 --
 -- Name: v_cross_plan_runs_enriched; Type: VIEW; Schema: public; Owner: postgres
@@ -172,10 +172,10 @@ FROM public.crosses AS c;
 ALTER VIEW public.v_crosses_status OWNER TO postgres;
 
 --
--- Name: vw_clutches_concept_overview; Type: VIEW; Schema: public; Owner: postgres
+-- Name: v_clutches_concept_overview; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE OR REPLACE VIEW public.vw_clutches_concept_overview AS
+CREATE OR REPLACE VIEW public.v_clutches_concept_overview AS
 WITH base AS (
     SELECT
         cp.id_uuid AS clutch_plan_id,
@@ -238,13 +238,13 @@ ORDER BY
     COALESCE(((b.date_planned)::timestamp without time zone)::timestamp with time zone, b.created_at) DESC NULLS LAST;
 
 
-ALTER VIEW public.vw_clutches_concept_overview OWNER TO postgres;
+ALTER VIEW public.v_clutches_concept_overview OWNER TO postgres;
 
 --
--- Name: vw_clutches_overview_human; Type: VIEW; Schema: public; Owner: postgres
+-- Name: v_clutches_overview_human; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE OR REPLACE VIEW public.vw_clutches_overview_human AS
+CREATE OR REPLACE VIEW public.v_clutches_overview_human AS
 WITH base AS (
     SELECT
         c.id_uuid AS clutch_id,
@@ -316,13 +316,13 @@ ORDER BY
     COALESCE(((b.date_birth)::timestamp without time zone)::timestamp with time zone, b.created_at) DESC NULLS LAST;
 
 
-ALTER VIEW public.vw_clutches_overview_human OWNER TO postgres;
+ALTER VIEW public.v_clutches_overview_human OWNER TO postgres;
 
 --
--- Name: vw_cross_runs_overview; Type: VIEW; Schema: public; Owner: postgres
+-- Name: v_cross_runs; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE OR REPLACE VIEW public.vw_cross_runs_overview AS
+CREATE OR REPLACE VIEW public.v_cross_runs AS
 WITH cl AS (
     SELECT
         clutches.cross_instance_id,
@@ -370,13 +370,13 @@ LEFT JOIN cnt ON ((ci.id_uuid = cnt.cross_instance_id)))
 ORDER BY ci.cross_date DESC, ci.created_at DESC;
 
 
-ALTER VIEW public.vw_cross_runs_overview OWNER TO postgres;
+ALTER VIEW public.v_cross_runs OWNER TO postgres;
 
 --
--- Name: vw_crosses_concept; Type: VIEW; Schema: public; Owner: postgres
+-- Name: v_crosses_concept; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE OR REPLACE VIEW public.vw_crosses_concept AS
+CREATE OR REPLACE VIEW public.v_crosses_concept AS
 WITH runs AS (
     SELECT
         cross_instances.cross_id,
@@ -425,13 +425,13 @@ LEFT JOIN cnt ON ((x.id_uuid = cnt.cross_id)))
 ORDER BY x.created_at DESC;
 
 
-ALTER VIEW public.vw_crosses_concept OWNER TO postgres;
+ALTER VIEW public.v_crosses_concept OWNER TO postgres;
 
 --
--- Name: vw_planned_clutches_overview; Type: VIEW; Schema: public; Owner: postgres
+-- Name: v_planned_clutches_overview; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE OR REPLACE VIEW public.vw_planned_clutches_overview AS
+CREATE OR REPLACE VIEW public.v_planned_clutches_overview AS
 WITH x AS (
     SELECT
         cp.id_uuid AS clutch_plan_id,
@@ -476,7 +476,7 @@ ORDER BY
     COALESCE(((x.cross_date)::timestamp without time zone)::timestamp with time zone, x.created_at) DESC NULLS LAST;
 
 
-ALTER VIEW public.vw_planned_clutches_overview OWNER TO postgres;
+ALTER VIEW public.v_planned_clutches_overview OWNER TO postgres;
 
 --
 -- PostgreSQL database dump complete

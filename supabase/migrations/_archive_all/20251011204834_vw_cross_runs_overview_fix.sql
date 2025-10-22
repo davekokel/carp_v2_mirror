@@ -1,6 +1,6 @@
-drop view if exists public.vw_cross_runs_overview;
+drop view if exists public.v_cross_runs;
 
-create view public.vw_cross_runs_overview as
+create view public.v_cross_runs as
 select
   ci.id_uuid                as cross_instance_id,
   ci.cross_run_code         as cross_run_code,

@@ -46,7 +46,7 @@ def _load_standard_for_codes(codes: List[str]) -> pd.DataFrame:
         ])
     sql = """
       select *
-      from public.vw_fish_standard
+      from public.v_fish_standard
       where fish_code = ANY(:codes)
     """
     with ENGINE.begin() as cx:
@@ -97,7 +97,7 @@ def _load_inventory_tanks() -> pd.DataFrame:
         activated_at,
         deactivated_at,
         last_seen_at
-      from public.v_containers_crossing_candidates
+      from public.v_containers_candidates
       where container_type = 'inventory_tank'
       order by coalesce(label,'') asc, created_at asc
     """)

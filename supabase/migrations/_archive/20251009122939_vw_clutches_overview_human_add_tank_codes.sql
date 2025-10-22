@@ -1,4 +1,4 @@
-create or replace view public.vw_clutches_overview_human as
+create or replace view public.v_clutches_overview_human as
 with src as (
     select
         c.id_uuid as clutch_id,
