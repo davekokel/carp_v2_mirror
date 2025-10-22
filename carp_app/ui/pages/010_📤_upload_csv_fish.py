@@ -169,14 +169,11 @@ def _build_upsert_results(fish_codes: List[str]) -> pd.DataFrame:
           f.fish_code,
           fta.transgene_base_code,
           fta.allele_number,
-          ta.allele_name,
           r.allele_nickname::text as allele_nickname,
-          ('Tg(' || fta.transgene_base_code || ')' || ta.allele_name) as transgene_pretty
+          ('gu' || fta.allele_number::text) as allele_name,
+          ('Tg(' || fta.transgene_base_code || ')' || ('gu' || fta.allele_number::text)) as transgene_pretty
         from public.fish f
         left join public.fish_transgene_alleles fta on fta.fish_id = f.id
-        left join public.transgene_alleles ta
-          on ta.transgene_base_code = fta.transgene_base_code
-         and ta.allele_number       = fta.allele_number
         left join public.transgene_allele_registry r
           on r.transgene_base_code  = fta.transgene_base_code
          and r.allele_number        = fta.allele_number
