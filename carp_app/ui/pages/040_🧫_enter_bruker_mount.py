@@ -156,7 +156,7 @@ _PREVIEW_SQL = text("""
   with today as (select to_char((now() at time zone 'UTC'),'YYYYMMDD') as ymd),
   nextn as (
     select coalesce(max( ((regexp_match(mount_code, '^MT-(\\d{8})-(\\d+)$'))[2])::int ), 0) + 1 as n
-    from public.bruker_mount, today
+    from public.mounts, today
     where to_char(coalesce(time_mounted, now()), 'YYYYMMDD') = (select ymd from today)
       and mount_code like ('MT-'||(select ymd from today)||'-%')
   )
@@ -167,12 +167,12 @@ _INSERT_SQL = text("""
   with today as (select to_char((now() at time zone 'UTC'),'YYYYMMDD') as ymd),
   nextn as (
     select coalesce(max( ((regexp_match(mount_code, '^MT-(\\d{8})-(\\d+)$'))[2])::int ), 0) + 1 as n
-    from public.bruker_mount, today
+    from public.mounts, today
     where to_char(coalesce(time_mounted, now()), 'YYYYMMDD') = (select ymd from today)
       and mount_code like ('MT-'||(select ymd from today)||'-%')
   ),
   ins as (
-    insert into public.bruker_mount (
+    insert into public.mounts (
       clutch_instance_id, mount_code, time_mounted, mounting_orientation, n_top, n_bottom
     )
     values (
@@ -211,7 +211,7 @@ def _load_latest_bruker_mount(cid: str) -> pd.DataFrame:
         bm.mounting_orientation,
         bm.n_top,
         bm.n_bottom
-      from public.bruker_mount bm
+      from public.mounts bm
       where bm.clutch_instance_id = cast(:cid as uuid)
       order by bm.time_mounted desc
       limit 1
@@ -340,7 +340,7 @@ sql_recent = text("""
     bm.n_top,
     bm.n_bottom,
     bm.time_mounted
-  from public.bruker_mount bm
+  from public.mounts bm
   where bm.clutch_instance_id = cast(:cid as uuid)
   order by bm.time_mounted desc
   limit 5
