@@ -11,10 +11,13 @@ drop view if exists public.v_tanks cascade;
 alter table public.tanks add column if not exists tank_id_uuid uuid default gen_random_uuid();
 
 alter table public.fish_tank_assignments add column if not exists tank_id_uuid uuid;
+
+-- convert bigint tank_id → uuid using the corresponding row in tanks
 update public.fish_tank_assignments a
-  set tank_id_uuid = t.tank_id_uuid
+   set tank_id_uuid = t.tank_id_uuid
   from public.tanks t
- where a.tank_id = t.tank_id;
+ where t.tank_id::text = a.tank_id::text;  -- allow bigint→text comparison for mapping
+
 alter table public.fish_tank_assignments drop column tank_id;
 alter table public.fish_tank_assignments rename column tank_id_uuid to tank_id;
 
