@@ -1,29 +1,26 @@
+# carp_app/lib/config.py
+from __future__ import annotations
 import os
-from carp_app.lib.secret import db_url, get_secret
-from carp_app.lib.db import get_engine
+from functools import lru_cache
 
-DB_URL = db_url()
-if not DB_URL:
-    import os
-    DB_URL = os.getenv("DB_URL", "")
-engine = get_engine
+def _from_env() -> str | None:
+    return os.getenv("DB_URL") or os.getenv("DATABASE_URL")
 
-# optional: expose env details so Streamlit pages can read them
-AUTH_MODE = get_secret("AUTH_MODE", "off")
-STAGING_PROJECT_ID = get_secret("STAGING_PROJECT_ID", "")
-PROD_PROJECT_ID = get_secret("PROD_PROJECT_ID", "")
+def _from_streamlit() -> str | None:
+    try:
+        import streamlit as st  # available in app runtime
+        return st.secrets.get("DB_URL") or st.secrets.get("database_url")
+    except Exception:
+        return None
 
-_proj = ""
-try:
-    user_part = DB_URL.split("://",1)[1].split("@",1)[0]
-    if "." in user_part:
-        _proj = user_part.split(".",1)[1]
-except Exception:
-    pass
+@lru_cache
+def resolve_db_url() -> str:
+    v = _from_env() or _from_streamlit()
+    if not v:
+        raise RuntimeError(
+            "DB_URL not set. Set it in your shell (export DB_URL=...) "
+            "or add DB_URL to .streamlit/secrets.toml."
+        )
+    return v
 
-if _proj == PROD_PROJECT_ID or "prod" in DB_URL:
-    env_name = "PROD"
-elif _proj == STAGING_PROJECT_ID or "staging" in DB_URL:
-    env_name = "STAGING"
-else:
-    env_name = "LOCAL"
+DB_URL: str = resolve_db_url()

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from carp_app.ui.lib.app_ctx import get_engine as _shared_get_engine
 
 # --- path shim (preserve original behavior) ---
 import sys, pathlib

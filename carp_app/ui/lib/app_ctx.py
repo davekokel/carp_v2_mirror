@@ -8,6 +8,7 @@ import streamlit as st
 APP_TZ = os.getenv('APP_TZ', 'America/Los_Angeles')
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.engine import Engine
+from carp_app.lib.config import DB_URL
 
 # ----------------------------------------------------------------------
 # Module-level cache: a single engine shared by all pages in a run
@@ -62,31 +63,17 @@ def _normalize_url(url: Optional[str]) -> str:
     return val if val else _default_local_url()
 
 
-def _resolve_db_url() -> str:
+def _resolve_db_url():
     """
-    Single point of truth for the active DB URL.
-    Order of precedence:
-      1) st.session_state["DB_URL"] (set by Diagnostics buttons)
-      2) os.environ["DB_URL"]
-      3) APP_FORCE_LOCAL -> default local
-      4) default local
+    Resolve DB_URL dynamically — prefer environment or carp_app.lib.config first.
     """
-    url = st.session_state.get("DB_URL")
-    if url:
-        return _normalize_url(url)
+    from carp_app.lib.config import DB_URL as CONFIG_URL
 
-    url = os.environ.get("DB_URL")
-    if url:
-        url = _normalize_url(url)
-        st.session_state["DB_URL"] = url
-        return url
+    # Always pull from current shell env first, then config fallback
+    url = os.environ.get("DB_URL") or CONFIG_URL
+    url = _normalize_url(url)
 
-    if os.environ.get("APP_FORCE_LOCAL"):
-        url = _default_local_url()
-        st.session_state["DB_URL"] = url
-        return url
-
-    url = _default_local_url()
+    # Mirror into session for display (Diagnostics etc.)
     st.session_state["DB_URL"] = url
     return url
 

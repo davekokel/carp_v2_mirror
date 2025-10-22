@@ -1,4 +1,5 @@
 from __future__ import annotations
+from carp_app.ui.lib.app_ctx import get_engine as _shared_get_engine
 from carp_app.lib.time import utc_now
 
 # ── sys.path prime ───────────────────────────────────────────────────────────
@@ -99,12 +100,9 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
         group by a.fish_code
       ),
       live as (
-        -- count active/new_tank tanks for each fish_code (join on fish_code, not id)
-        select vt.fish_code, count(*)::int as n_living_tanks
-        from public.v_tanks vt
-        where vt.status in ('active','new_tank')
-          and coalesce(vt.fish_code,'') <> ''
-        group by vt.fish_code
+        select f.fish_code, v.n_living_tanks
+        from public.v_fish_living_tank_counts v
+        join public.fish f on f.id = v.fish_id
       ),
       base as (
         select
@@ -112,7 +110,7 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
           coalesce(f.name,'')               as fish_name,
           coalesce(f.nickname,'')           as fish_nickname,
           coalesce(f.genetic_background,'') as genetic_background,
-          null::text                        as line_building_stage,  -- column not in your minimal fish: keep API stable
+          coalesce(f.line_building_stage,'') as line_building_stage,  -- column not in your minimal fish: keep API stable
           f.date_birth                      as birth_date,
           f.created_at                      as created_time,
           coalesce(f.created_by,'')         as created_by
