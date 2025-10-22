@@ -100,9 +100,10 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
         group by a.fish_code
       ),
       live as (
-        select f.fish_code, v.n_living_tanks
-        from public.v_fish_living_tank_counts v
-        join public.fish f on f.id = v.fish_id
+        select vt.fish_code, count(*)::int as n_living_tanks
+        from public.v_tanks vt
+        where coalesce(vt.fish_code,'')<>''
+        group by vt.fish_code
       ),
       base as (
         select
