@@ -1,7 +1,7 @@
 create or replace view public.v_tanks as
 with latest_label as (
   select distinct on (li.tank_id)
-         li.tank_id,
+         li.tank_id::bigint as tank_id,     -- cast uuid → bigint to match public.tanks.tank_id
          li.fish_code
   from public.label_items li
   where li.fish_code is not null and li.fish_code <> ''
