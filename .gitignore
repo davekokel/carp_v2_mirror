@@ -50,9 +50,3 @@ supabase/migrations/* [2-9].sql
 use_local 2
 # ignore accidental Finder/editor duplicates
 supabase/migrations/* [2-9].sql
-# ignore accidental Finder/editor duplicates
-.github/workflows/* [2-9].yml
-carp_app/ui/pages/* [2-9].py
-scripts/* [2-9].sh
-supabase/* [2-9].txt
-carp_app/ui/app [2-9].py
