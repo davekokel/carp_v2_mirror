@@ -1,5 +1,5 @@
 BEGIN;
-CREATE OR REPLACE VIEW public.vw_crosses_concept AS
+CREATE OR REPLACE VIEW public.v_crosses_concept AS
 WITH runs AS (
     SELECT
         cross_id,
@@ -42,7 +42,7 @@ LEFT JOIN cl ON x.id_uuid = cl.cross_id
 LEFT JOIN cnt ON x.id_uuid = cnt.cross_id
 ORDER BY x.created_at DESC;
 
-CREATE OR REPLACE VIEW public.vw_cross_runs_overview AS
+CREATE OR REPLACE VIEW public.v_cross_runs AS
 WITH cl AS (SELECT
     cross_instance_id,
     COUNT(*)::int AS n_clutches

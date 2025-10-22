@@ -41,3 +41,12 @@ snapshots/*_data_*.sql
 *.bak*
 dist/*.zip
 dist/
+supabase/migrations/*reset*.sql
+supabase/migrations/_archive_legacy/**
+use_local 2
+supabase/migrations/_archive_legacy/**
+supabase/migrations/_archive_legacy/**
+supabase/migrations/* [2-9].sql
+use_local 2
+# ignore accidental Finder/editor duplicates
+supabase/migrations/* [2-9].sql

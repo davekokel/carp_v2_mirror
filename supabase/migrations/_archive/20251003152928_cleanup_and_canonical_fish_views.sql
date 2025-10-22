@@ -52,7 +52,7 @@ where
 order by f.created_at desc;
 
 -- Canonical label view: decorator over base (no relaxed semantics)
-create view public.vw_fish_overview_with_label as
+create view public.v_fish_overview_with_label as
 select
     v.id,
     v.fish_code,

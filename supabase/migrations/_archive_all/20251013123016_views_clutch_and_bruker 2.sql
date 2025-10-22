@@ -14,8 +14,8 @@ select
   ci.label
 from public.clutch_instances ci;
 
--- view: vw_bruker_mounts_enriched (compute mount_code label on the fly)
-create or replace view public.vw_bruker_mounts_enriched as
+-- view: v_bruker_mounts_enriched (compute mount_code label on the fly)
+create or replace view public.v_bruker_mounts_enriched as
 select
   ('BRUKER '||to_char(mount_date,'YYYY-MM-DD')||' #'||
    row_number() over (

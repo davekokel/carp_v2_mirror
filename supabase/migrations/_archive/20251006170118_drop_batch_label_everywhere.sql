@@ -74,8 +74,8 @@ SELECT
 FROM public.fish AS f
 ORDER BY f.created_at DESC;
 
-DROP VIEW IF EXISTS public.vw_fish_overview_with_label;
-CREATE VIEW public.vw_fish_overview_with_label AS
+DROP VIEW IF EXISTS public.v_fish_overview_with_label;
+CREATE VIEW public.v_fish_overview_with_label AS
 SELECT * FROM public.v_fish_overview;
 
 COMMIT;

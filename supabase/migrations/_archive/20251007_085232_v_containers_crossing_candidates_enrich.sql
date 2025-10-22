@@ -9,8 +9,8 @@ ADD COLUMN IF NOT EXISTS last_seen_at timestamptz NULL,
 ADD COLUMN IF NOT EXISTS last_seen_source text NULL;
 
 -- Recreate the view with the richer column set
-DROP VIEW IF EXISTS public.v_containers_crossing_candidates;
-CREATE VIEW public.v_containers_crossing_candidates AS
+DROP VIEW IF EXISTS public.v_containers_candidates;
+CREATE VIEW public.v_containers_candidates AS
 SELECT
     id_uuid,
     container_type,

@@ -5,11 +5,11 @@ BEGIN
     RETURN;
   END IF;
 
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
 
   IF to_regclass('public.fish') IS NOT NULL AND to_regclass('public.fish_seed_batches') IS NOT NULL THEN
     EXECUTE '
-      CREATE VIEW public.vw_fish_overview_with_label AS
+      CREATE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.*,
         fsb.seed_batch_id AS batch_label,
@@ -23,7 +23,7 @@ BEGIN
     ';
   ELSIF to_regclass('public.fish') IS NOT NULL THEN
     EXECUTE '
-      CREATE VIEW public.vw_fish_overview_with_label AS
+      CREATE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.*,
         NULL::text AS batch_label,
@@ -35,7 +35,7 @@ BEGIN
     ';
   ELSE
     EXECUTE '
-      CREATE VIEW public.vw_fish_overview_with_label AS
+      CREATE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.*,
         NULL::text AS batch_label,

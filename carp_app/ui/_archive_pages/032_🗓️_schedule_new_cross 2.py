@@ -184,12 +184,12 @@ if not concept_id:
     st.info("Pick a clutch concept above.")
     tp_edit = pd.DataFrame()
 else:
-    if not _view_exists("public","v_tank_pairs_overview"):
-        st.error("View public.v_tank_pairs_overview not found."); st.stop()
+    if not _view_exists("public","v_tank_pairs"):
+        st.error("View public.v_tank_pairs not found."); st.stop()
     with _get_engine().begin() as cx:
         tp = pd.read_sql(text("""
           select *
-          from public.v_tank_pairs_overview
+          from public.v_tank_pairs
           where concept_id = :concept
           order by created_at desc
           limit 500
@@ -249,7 +249,7 @@ def _reschedule(rows: pd.DataFrame, concept_id: str, run_date: date, created_by_
     made, dupes = [], []
     with _get_engine().begin() as cx:
         base = pd.read_sql(text("""
-          select * from public.v_tank_pairs_overview where concept_id = :c
+          select * from public.v_tank_pairs where concept_id = :c
         """), cx, params={"c": concept_id})
         by_id = {str(r["id"]): r for _, r in base.iterrows()} if not base.empty else {}
         for _, r in rows.iterrows():

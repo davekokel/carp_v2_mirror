@@ -12,7 +12,7 @@ SELECT
   COALESCE(v.n_treatments,0)::int      AS n_treatments,
   COALESCE(v.created_by,'')::text      AS created_by,
   v.created_at::timestamptz            AS created_at
-FROM public.vw_planned_clutches_overview v
+FROM public.v_planned_clutches_overview v
 LEFT JOIN public.planned_crosses pc
   ON pc.cross_code = v.clutch_code
 LEFT JOIN public.containers cm

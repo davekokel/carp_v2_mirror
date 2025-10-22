@@ -1901,11 +1901,11 @@ CREATE TABLE IF NOT EXISTS public.transgenes (
 
 
 --
--- Name: v_containers_crossing_candidates; Type: VIEW; Schema: public; Owner: -
+-- Name: v_containers_candidates; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','v_containers_crossing_candidates');
-CREATE VIEW public.v_containers_crossing_candidates AS SELECT id_uuid,
+SELECT public.safe_drop_view('public','v_containers_candidates');
+CREATE VIEW public.v_containers_candidates AS SELECT id_uuid,
     container_type,
     label,
     status,
@@ -1921,11 +1921,11 @@ CREATE VIEW public.v_containers_crossing_candidates AS SELECT id_uuid,
 
 
 --
--- Name: v_containers_live; Type: VIEW; Schema: public; Owner: -
+-- Name: v_containers; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','v_containers_live');
-CREATE VIEW public.v_containers_live AS SELECT id_uuid,
+SELECT public.safe_drop_view('public','v_containers');
+CREATE VIEW public.v_containers AS SELECT id_uuid,
     container_type,
     label,
     status,
@@ -2118,11 +2118,11 @@ CREATE VIEW public.v_fish_overview_canonical AS SELECT fish_code,
 
 
 --
--- Name: v_label_jobs_recent; Type: VIEW; Schema: public; Owner: -
+-- Name: v_labels_recent; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','v_label_jobs_recent');
-CREATE VIEW public.v_label_jobs_recent AS SELECT id_uuid,
+SELECT public.safe_drop_view('public','v_labels_recent');
+CREATE VIEW public.v_labels_recent AS SELECT id_uuid,
     entity_type,
     entity_id,
     template,
@@ -2139,11 +2139,11 @@ CREATE VIEW public.v_label_jobs_recent AS SELECT id_uuid,
 
 
 --
--- Name: vw_clutches_concept_overview; Type: VIEW; Schema: public; Owner: -
+-- Name: v_clutches_concept_overview; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','vw_clutches_concept_overview');
-CREATE VIEW public.vw_clutches_concept_overview AS WITH base AS (
+SELECT public.safe_drop_view('public','v_clutches_concept_overview');
+CREATE VIEW public.v_clutches_concept_overview AS WITH base AS (
          SELECT cp.id_uuid AS clutch_plan_id,
             pc.id_uuid AS planned_cross_id,
             cp.clutch_code,
@@ -2189,11 +2189,11 @@ CREATE VIEW public.vw_clutches_concept_overview AS WITH base AS (
 
 
 --
--- Name: vw_clutches_overview_human; Type: VIEW; Schema: public; Owner: -
+-- Name: v_clutches_overview_human; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','vw_clutches_overview_human');
-CREATE VIEW public.vw_clutches_overview_human AS WITH base AS (
+SELECT public.safe_drop_view('public','v_clutches_overview_human');
+CREATE VIEW public.v_clutches_overview_human AS WITH base AS (
          SELECT c.id_uuid AS clutch_id,
             c.date_birth,
             c.created_by,
@@ -2245,11 +2245,11 @@ CREATE VIEW public.vw_clutches_overview_human AS WITH base AS (
 
 
 --
--- Name: vw_cross_runs_overview; Type: VIEW; Schema: public; Owner: -
+-- Name: v_cross_runs; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','vw_cross_runs_overview');
-CREATE VIEW public.vw_cross_runs_overview AS WITH cl AS (
+SELECT public.safe_drop_view('public','v_cross_runs');
+CREATE VIEW public.v_cross_runs AS WITH cl AS (
          SELECT clutches.cross_instance_id,
             (count(*))::integer AS n_clutches
            FROM public.clutches
@@ -2285,11 +2285,11 @@ CREATE VIEW public.vw_cross_runs_overview AS WITH cl AS (
 
 
 --
--- Name: vw_crosses_concept; Type: VIEW; Schema: public; Owner: -
+-- Name: v_crosses_concept; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','vw_crosses_concept');
-CREATE VIEW public.vw_crosses_concept AS WITH runs AS (
+SELECT public.safe_drop_view('public','v_crosses_concept');
+CREATE VIEW public.v_crosses_concept AS WITH runs AS (
          SELECT cross_instances.cross_id,
             (count(*))::integer AS n_runs,
             max(cross_instances.cross_date) AS latest_cross_date
@@ -2325,11 +2325,11 @@ CREATE VIEW public.vw_crosses_concept AS WITH runs AS (
 
 
 --
--- Name: vw_fish_overview_with_label; Type: VIEW; Schema: public; Owner: -
+-- Name: v_fish_overview_with_label; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','vw_fish_overview_with_label');
-CREATE VIEW public.vw_fish_overview_with_label AS WITH base AS (
+SELECT public.safe_drop_view('public','v_fish_overview_with_label');
+CREATE VIEW public.v_fish_overview_with_label AS WITH base AS (
          SELECT f.fish_code,
             f.name,
             f.nickname,
@@ -2396,11 +2396,11 @@ CREATE VIEW public.vw_fish_overview_with_label AS WITH base AS (
 
 
 --
--- Name: vw_fish_standard; Type: VIEW; Schema: public; Owner: -
+-- Name: v_fish_standard; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','vw_fish_standard');
-CREATE VIEW public.vw_fish_standard AS WITH base AS (
+SELECT public.safe_drop_view('public','v_fish_standard');
+CREATE VIEW public.v_fish_standard AS WITH base AS (
          SELECT f.id AS id_uuid,
             f.fish_code,
             COALESCE(f.name, ''::text) AS name,
@@ -2421,7 +2421,7 @@ CREATE VIEW public.vw_fish_standard AS WITH base AS (
             v.created_by_enriched,
             NULLIF(v.plasmid_injections_text, ''::text) AS plasmid_injections_text,
             NULLIF(v.rna_injections_text, ''::text) AS rna_injections_text
-           FROM public.vw_fish_overview_with_label v
+           FROM public.v_fish_overview_with_label v
         ), tank_counts AS (
          SELECT m.fish_id,
             (count(*))::integer AS n_living_tanks
@@ -2465,11 +2465,11 @@ CREATE VIEW public.vw_fish_standard AS WITH base AS (
 
 
 --
--- Name: vw_label_rows; Type: VIEW; Schema: public; Owner: -
+-- Name: v_label_rows; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','vw_label_rows');
-CREATE VIEW public.vw_label_rows AS WITH base AS (
+SELECT public.safe_drop_view('public','v_label_rows');
+CREATE VIEW public.v_label_rows AS WITH base AS (
          SELECT f.id_uuid,
             f.fish_code,
             f.name,
@@ -2520,11 +2520,11 @@ CREATE VIEW public.vw_label_rows AS WITH base AS (
 
 
 --
--- Name: vw_planned_clutches_overview; Type: VIEW; Schema: public; Owner: -
+-- Name: v_planned_clutches_overview; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','vw_planned_clutches_overview');
-CREATE VIEW public.vw_planned_clutches_overview AS WITH x AS (
+SELECT public.safe_drop_view('public','v_planned_clutches_overview');
+CREATE VIEW public.v_planned_clutches_overview AS WITH x AS (
          SELECT cp.id_uuid AS clutch_plan_id,
             pc.id_uuid AS planned_cross_id,
             cp.clutch_code,
@@ -2558,11 +2558,11 @@ CREATE VIEW public.vw_planned_clutches_overview AS WITH x AS (
 
 
 --
--- Name: vw_plasmids_overview; Type: VIEW; Schema: public; Owner: -
+-- Name: v_plasmids; Type: VIEW; Schema: public; Owner: -
 --
 
-SELECT public.safe_drop_view('public','vw_plasmids_overview');
-CREATE VIEW public.vw_plasmids_overview AS SELECT p.id_uuid,
+SELECT public.safe_drop_view('public','v_plasmids');
+CREATE VIEW public.v_plasmids AS SELECT p.id_uuid,
     p.code,
     p.name,
     p.nickname,

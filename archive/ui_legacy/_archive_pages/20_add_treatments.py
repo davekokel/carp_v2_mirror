@@ -128,7 +128,7 @@ st.caption(f"Selected: **{len(selected_ids)}** fish")
 # Diagnostic: show counts so it's obvious what source contains what
 with eng.begin() as conn:
     base_ct  = conn.execute(text("select count(*) from public.v_fish_overview")).scalar()
-    label_ct = conn.execute(text("select count(*) from public.vw_fish_overview_with_label")).scalar()
+    label_ct = conn.execute(text("select count(*) from public.v_fish_overview_with_label")).scalar()
     fish_ct  = conn.execute(text("select count(*) from public.fish")).scalar()
 st.caption(f"Diagnostic → v_fish_overview: {base_ct} • vw_with_label: {label_ct} • fish table: {fish_ct}")
 

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+source .venv/bin/activate
+export DB_URL="${DB_URL:-postgresql://postgres@127.0.0.1:5432/carp_local_rebuild?sslmode=disable}"
+python -m streamlit run carp_app/ui/streamlit_app.py

@@ -1,7 +1,7 @@
 -- Rewrites that eliminate table column dependencies on id_uuid (use only .id, alias as id_uuid)
 
--- v_containers_crossing_candidates
-CREATE OR REPLACE VIEW public.v_containers_crossing_candidates AS
+-- v_containers_candidates
+CREATE OR REPLACE VIEW public.v_containers_candidates AS
 SELECT
   c.id              AS id_uuid,
   c.container_type,
@@ -17,8 +17,8 @@ SELECT
 FROM public.containers c
 WHERE c.container_type IN ('inventory_tank','crossing_tank','holding_tank','nursery_tank','petri_dish');
 
--- v_containers_live
-CREATE OR REPLACE VIEW public.v_containers_live AS
+-- v_containers
+CREATE OR REPLACE VIEW public.v_containers AS
 SELECT
   c.id              AS id_uuid,
   c.container_type,
@@ -98,8 +98,8 @@ WHERE m.left_at IS NULL
   AND c.status IN ('active','new_tank')
 GROUP BY m.fish_id;
 
--- vw_cross_runs_overview
-CREATE OR REPLACE VIEW public.vw_cross_runs_overview AS
+-- v_cross_runs
+CREATE OR REPLACE VIEW public.v_cross_runs AS
 WITH cl AS (
   SELECT clutches.cross_instance_id, COUNT(*)::int AS n_clutches
   FROM public.clutches
@@ -133,8 +133,8 @@ LEFT JOIN cl ON cl.cross_instance_id = ci.id
 LEFT JOIN cnt ON cnt.cross_instance_id = ci.id
 ORDER BY ci.cross_date DESC, ci.created_at DESC;
 
--- vw_clutches_overview_human
-CREATE OR REPLACE VIEW public.vw_clutches_overview_human AS
+-- v_clutches_overview_human
+CREATE OR REPLACE VIEW public.v_clutches_overview_human AS
 WITH base AS (
   SELECT
     c.id_uuid               AS clutch_id,
@@ -176,8 +176,8 @@ LEFT JOIN instances i ON i.clutch_id = b.clutch_id
 LEFT JOIN crosses_via_clutches cx ON cx.clutch_id = b.clutch_id
 ORDER BY COALESCE(b.date_birth::timestamp, b.created_at) DESC NULLS LAST;
 
--- vw_fish_standard (keep alias id_uuid for compatibility)
-CREATE OR REPLACE VIEW public.vw_fish_standard AS
+-- v_fish_standard (keep alias id_uuid for compatibility)
+CREATE OR REPLACE VIEW public.v_fish_standard AS
 WITH base AS (
   SELECT
     f.id                       AS id_uuid,
@@ -215,8 +215,8 @@ SELECT
 FROM base b
 LEFT JOIN tank_counts t ON t.fish_id = b.id_uuid;
 
--- vw_label_rows (compact, id-only compatible)
-CREATE OR REPLACE VIEW public.vw_label_rows AS
+-- v_label_rows (compact, id-only compatible)
+CREATE OR REPLACE VIEW public.v_label_rows AS
 SELECT
   f.id AS id_uuid,
   f.created_at,
@@ -234,8 +234,8 @@ SELECT
 FROM public.fish f
 ORDER BY f.fish_code;
 
--- vw_plasmids_overview
-CREATE OR REPLACE VIEW public.vw_plasmids_overview AS
+-- v_plasmids
+CREATE OR REPLACE VIEW public.v_plasmids AS
 SELECT
   p.id          AS id_uuid,
   p.code,

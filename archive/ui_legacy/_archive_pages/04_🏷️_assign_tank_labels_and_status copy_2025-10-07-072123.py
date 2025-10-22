@@ -74,7 +74,7 @@ if apply or "_label_rows" not in st.session_state:
 
 df = st.session_state["_label_rows"].copy()
 
-# Guarantee expected cols (vw_label_rows should already have these)
+# Guarantee expected cols (v_label_rows should already have these)
 expected = [
     "fish_code","name","genotype_print",
     "nickname_print","genetic_background_print","line_building_stage_print","date_birth_print",

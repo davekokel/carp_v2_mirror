@@ -545,7 +545,7 @@ def _list_tank_pairs_for_selection() -> pd.DataFrame:
             return pd.read_sql(
                 text("""
                   select *
-                  from public.v_tank_pairs_overview
+                  from public.v_tank_pairs
                   where concept_id = :concept
                   order by created_at desc
                   limit 500
@@ -568,7 +568,7 @@ def _list_tank_pairs_for_selection() -> pd.DataFrame:
             values {vals_sql}
           )
           select *
-          from public.v_tank_pairs_overview
+          from public.v_tank_pairs
           where ( :concept is null or concept_id = :concept )
             and (mother_tank_id in (select uuid_id from ids)
                  or father_tank_id in (select uuid_id from ids))

@@ -76,7 +76,7 @@ def patch_queries_py():
         "      v.rna_injections_text,\n"
         "      v.created_at,\n"
         "      v.created_by_enriched         as created_by\n"
-        "    from public.vw_fish_overview_with_label v\n"
+        "    from public.v_fish_overview_with_label v\n"
         "    left join public.fish f on f.fish_code = v.fish_code\n"
         "    {where_sql}\n"
         "    order by v.fish_code\n"
@@ -167,17 +167,17 @@ def patch_csv_page():
         s, flags=re.DOTALL)
     # Filter recent rows by batch_label = seed_batch_id
     s = re.sub(
-        r"select \*\s*from public\.vw_fish_overview_with_label\s*limit 50",
-        "select *\n        from public.vw_fish_overview_with_label\n        where batch_label = %(seed)s\n        limit 50",
+        r"select \*\s*from public\.v_fish_overview_with_label\s*limit 50",
+        "select *\n        from public.v_fish_overview_with_label\n        where batch_label = %(seed)s\n        limit 50",
         s)
     # Ensure try/except wraps recent block (already there in your latest)
     if "try:" not in s or "except Exception as e:" not in s:
         # minimal: wrap simple try/except
         s = s.replace(
-            "st.markdown(\"#### Recent rows (from `vw_fish_overview_with_label`)\")",
-            "st.markdown(\"#### Recent rows (from `vw_fish_overview_with_label`)\")\ntry:"
+            "st.markdown(\"#### Recent rows (from `v_fish_overview_with_label`)\")",
+            "st.markdown(\"#### Recent rows (from `v_fish_overview_with_label`)\")\ntry:"
         )
-        s += "\nexcept Exception as e:\n    st.warning(f\"Could not read vw_fish_overview_with_label yet: {e}\")\n"
+        s += "\nexcept Exception as e:\n    st.warning(f\"Could not read v_fish_overview_with_label yet: {e}\")\n"
     write_if_changed(p, s)
 
 def main():

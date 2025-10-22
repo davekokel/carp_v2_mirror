@@ -43,4 +43,4 @@ select
     ''
   ) as genotype_print,
   null::text                                as genetic_background_print
-from public.vw_fish_overview_with_label v;
+from public.v_fish_overview_with_label v;

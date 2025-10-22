@@ -28,9 +28,9 @@ BEGIN
   END IF;
 
   IF to_regclass('public.v_fish_overview') IS NOT NULL THEN
-    EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+    EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
     EXECUTE '
-      CREATE VIEW public.vw_fish_overview_with_label AS
+      CREATE VIEW public.v_fish_overview_with_label AS
       SELECT
         v.id, v.fish_code, v.name,
         v.transgene_base_code_filled, v.allele_code_filled, v.allele_name_filled,

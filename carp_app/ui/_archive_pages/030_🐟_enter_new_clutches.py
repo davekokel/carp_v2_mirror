@@ -52,7 +52,7 @@ def _get_engine():
 def _stage_choices() -> List[str]:
     sql = """
       select distinct upper(stage) as s
-      from public.vw_fish_standard
+      from public.v_fish_standard
       where stage is not null and stage <> ''
       order by 1
     """
@@ -65,7 +65,7 @@ def _load_standard_for_codes(codes: List[str]) -> pd.DataFrame:
         return pd.DataFrame()
     sql = """
       select *
-      from public.vw_fish_standard
+      from public.v_fish_standard
       where fish_code = ANY(:codes)
     """
     with _get_engine().begin() as cx:
@@ -239,7 +239,7 @@ def _fetch_parent_rows(codes: list[str]) -> pd.DataFrame:
         return pd.DataFrame(columns=["fish_code","name","nickname","genotype","genetic_background","stage","date_birth","created_at"])
     sql = text("""
       select fish_code, name, nickname, genotype, genetic_background, stage, date_birth, created_at
-      from public.vw_fish_standard
+      from public.v_fish_standard
       where fish_code = any(:codes)
     """)
     with _get_engine().begin() as cx:
@@ -256,7 +256,7 @@ def _fetch_parent_rows(codes: list[str]) -> pd.DataFrame:
                   coalesce(line_building_stage, line_building_stage_print) as stage,
                   date_birth_print::date as date_birth,
                   created_at
-                from public.vw_fish_overview_with_label
+                from public.v_fish_overview_with_label
                 where fish_code = any(:codes)
             """), cx, params={"codes": codes})
     return df
@@ -410,7 +410,7 @@ def _plasmids_sql(q: str) -> tuple[str, Dict[str, Any]]:
         v.supports_invitro_rna,
         v.created_by,
         v.created_at
-      from public.vw_plasmids_overview v
+      from public.v_plasmids v
       {where_sql}
       order by v.code
       limit 1000

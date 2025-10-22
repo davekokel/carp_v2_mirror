@@ -20,4 +20,4 @@ select
   null::timestamptz                                as created_at,
   coalesce(v.created_by, '')                       as created_by,
   coalesce(v.batch_label, '')                      as batch_display
-from public.vw_fish_overview_with_label v;
+from public.v_fish_overview_with_label v;

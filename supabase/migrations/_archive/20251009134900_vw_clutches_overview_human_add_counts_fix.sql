@@ -1,8 +1,8 @@
 BEGIN;
 
-DROP VIEW IF EXISTS public.vw_clutches_overview_human;
+DROP VIEW IF EXISTS public.v_clutches_overview_human;
 
-CREATE VIEW public.vw_clutches_overview_human AS
+CREATE VIEW public.v_clutches_overview_human AS
 WITH base AS (
     SELECT
         c.id_uuid AS clutch_id,

@@ -1,6 +1,6 @@
 begin;
-drop view if exists public.vw_clutches_overview_human;
-create view public.vw_clutches_overview_human as
+drop view if exists public.v_clutches_overview_human;
+create view public.v_clutches_overview_human as
 with src as (
     select
         c.id_uuid as clutch_id,

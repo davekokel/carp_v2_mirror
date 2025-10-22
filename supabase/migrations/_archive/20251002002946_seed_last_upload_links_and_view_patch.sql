@@ -7,10 +7,10 @@ BEGIN
   END IF;
 
   -- Drop first to avoid "cannot drop columns from view" errors
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
 
   -- Use only baseline columns from v_fish_overview; add batch_label from fish_seed_batches if present
-  CREATE VIEW public.vw_fish_overview_with_label AS
+  CREATE VIEW public.v_fish_overview_with_label AS
   SELECT
     v.id,
     v.fish_code,

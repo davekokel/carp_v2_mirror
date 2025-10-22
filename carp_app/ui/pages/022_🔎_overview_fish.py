@@ -1,10 +1,13 @@
 from __future__ import annotations
+from carp_app.lib.time import utc_now
 
+# ── sys.path prime ───────────────────────────────────────────────────────────
 import sys, pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# ── auth gates ───────────────────────────────────────────────────────────────
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 try:
@@ -15,14 +18,15 @@ sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
+# ── std/3p ───────────────────────────────────────────────────────────────────
 import os, tempfile, subprocess
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+# ── app libs ─────────────────────────────────────────────────────────────────
 from carp_app.lib.db import get_engine as _create_engine
-from carp_app.lib.queries import load_fish_overview_human
 from carp_app.ui.lib.labels_components import build_tank_labels_pdf  # 2.4"×1.5" + QR
 
 @st.cache_resource(show_spinner=False)
@@ -37,6 +41,8 @@ def _get_engine() -> Engine:
 
 st.set_page_config(page_title="CARP — Search Fish → Tanks", page_icon="🔎", layout="wide")
 
+LIVE_STATUSES = ("active", "new_tank")  # used in rollups
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -44,194 +50,208 @@ def _normalize_q(q_raw: str) -> str | None:
     q = (q_raw or "").strip()
     return q or None
 
-def _open_membership_counts_for_codes(codes: list[str]) -> pd.DataFrame:
-    if not codes:
-        return pd.DataFrame(columns=["fish_code","n_living_tanks"])
-    sql = text("""
-      with wanted as (
-        select id, fish_code
-        from public.fish
-        where fish_code = any(:codes)
+def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
+    """
+    One row per fish with:
+      fish_code, fish_name, fish_nickname, genetic_background,
+      transgene_base_code/allele*/pretty (aggregated), genotype_rollup (deterministic),
+      n_living_tanks (active + new_tank),
+      birth_date, created_time, created_by.
+    Tank-centric note: joins to v_tanks by fish_code (no fish_id).
+    """
+    where_terms = []
+    params = {"lim": int(limit), "ql": f"%{q or ''}%"}
+    if q:
+        where_terms += [
+            "coalesce(f.fish_code,'') ilike :ql",
+            "coalesce(f.name,'') ilike :ql",
+            "coalesce(f.nickname,'') ilike :ql",
+            "coalesce(f.genetic_background,'') ilike :ql",
+        ]
+    where_sql = ("where " + " or ".join(where_terms)) if where_terms else ""
+
+    sql = text(f"""
+      with alleles as (
+        select
+          f.fish_code,
+          fta.transgene_base_code,
+          fta.allele_number,
+          ta.allele_name,
+          ta.allele_nickname,
+          ('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''))::text as transgene_pretty
+        from public.fish f
+        left join public.fish_transgene_alleles fta on fta.fish_id = f.id
+        left join public.transgene_alleles ta
+          on ta.transgene_base_code = fta.transgene_base_code
+         and ta.allele_number       = fta.allele_number
+      ),
+      alleles_agg as (
+        select
+          a.fish_code,
+          string_agg(distinct coalesce(a.transgene_base_code,''), '; ' order by coalesce(a.transgene_base_code,'')) as transgene_base_code,
+          string_agg(distinct coalesce(a.allele_number::text,''), '; ' order by coalesce(a.allele_number::text,'')) as allele_number,
+          string_agg(distinct coalesce(a.allele_name,''), '; ' order by coalesce(a.allele_name,'')) as allele_name,
+          string_agg(distinct coalesce(a.allele_nickname,''), '; ' order by coalesce(a.allele_nickname,'')) as allele_nickname,
+          string_agg(distinct coalesce(a.transgene_pretty,''), '; ' order by coalesce(a.transgene_pretty,'')) as transgene_pretty,
+          -- deterministic genotype rollup
+          string_agg(distinct coalesce(a.transgene_pretty,''), '; ' order by coalesce(a.transgene_pretty,'')) as genotype_rollup_calc
+        from alleles a
+        group by a.fish_code
+      ),
+      live as (
+        -- count active/new_tank tanks for each fish_code (join on fish_code, not id)
+        select vt.fish_code, count(*)::int as n_living_tanks
+        from public.v_tanks vt
+        where vt.status in ('active','new_tank')
+          and coalesce(vt.fish_code,'') <> ''
+        group by vt.fish_code
+      ),
+      base as (
+        select
+          f.fish_code,
+          coalesce(f.name,'')               as fish_name,
+          coalesce(f.nickname,'')           as fish_nickname,
+          coalesce(f.genetic_background,'') as genetic_background,
+          null::text                        as line_building_stage,  -- column not in your minimal fish: keep API stable
+          f.date_birth                      as birth_date,
+          f.created_at                      as created_time,
+          coalesce(f.created_by,'')         as created_by
+        from public.fish f
+        {where_sql}
+        order by f.created_at desc nulls last, f.fish_code
+        limit :lim
       )
       select
-        w.fish_code,
-        count(*)::int as n_living_tanks
-      from wanted w
-      join public.fish_tank_memberships m
-        on m.fish_id = w.id
-      where coalesce(
-              nullif(to_jsonb(m)->>'left_at','')::timestamptz,
-              nullif(to_jsonb(m)->>'ended_at','')::timestamptz
-            ) is null
-      group by w.fish_code
+        b.fish_code,
+        b.fish_name,
+        b.fish_nickname,
+        b.genetic_background,
+        b.line_building_stage,
+        coalesce(aa.transgene_base_code,'') as transgene_base_code,
+        coalesce(aa.allele_number,'')       as allele_number,
+        coalesce(aa.allele_name,'')         as allele_name,
+        coalesce(aa.allele_nickname,'')     as allele_nickname,
+        coalesce(aa.transgene_pretty,'')    as transgene_pretty,
+        coalesce(aa.genotype_rollup_calc,'') as genotype_rollup,
+        coalesce(l.n_living_tanks,0)         as n_living_tanks,
+        b.birth_date,
+        b.created_time,
+        b.created_by
+      from base b
+      left join alleles_agg aa using (fish_code)
+      left join live       l  using (fish_code)
+      order by b.created_time desc nulls last, b.fish_code
     """)
     with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params={"codes": codes})
+        return pd.read_sql(sql, cx, params=params).to_dict(orient="records")
 
 def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
+    """Tank details for selected fish (for drilldown + printing)."""
     if not codes:
-        return pd.DataFrame(columns=[
-            "fish_code","tank_code","container_id","label","status","container_type",
-            "location","created_at","activated_at","deactivated_at","last_seen_at"
-        ])
-    with _get_engine().begin() as cx:
-        has_loc = pd.read_sql(
-            text("""
-              select 1
-              from information_schema.columns
-              where table_schema='public'
-                and table_name='containers'
-                and column_name='location'
-              limit 1
-            """),
-            cx,
-        ).shape[0] > 0
-    base_sql = """
+        return pd.DataFrame(columns=["fish_code","tank_code","container_id","status","created_at"])
+    sql = text("""
       select
-        f.fish_code,
-        c.tank_code,
-        c.id::text             as container_id,
-        coalesce(c.label,'')   as label,
-        coalesce(c.status,'')  as status,
-        c.container_type,
-        {loc_expr}             as location,
-        c.created_at,
-        c.activated_at,
-        c.deactivated_at,
-        c.last_seen_at
-      from public.fish f
-      join public.fish_tank_memberships m
-        on m.fish_id = f.id
-      join public.containers c
-        on c.id = m.container_id
-      where f.fish_code = any(:codes)
-        and coalesce(
-              nullif(to_jsonb(m)->>'left_at','')::timestamptz,
-              nullif(to_jsonb(m)->>'ended_at','')::timestamptz
-            ) is null
-      order by f.fish_code, c.created_at desc nulls last
-    """
-    loc_expr = "coalesce(c.location,'')" if has_loc else "''::text"
-    sql = text(base_sql.format(loc_expr=loc_expr))
+        vt.fish_code,
+        vt.tank_code,
+        vt.tank_id::text             as container_id,
+        vt.status::text              as status,
+        vt.tank_created_at           as created_at
+      from public.v_tanks vt
+      where vt.fish_code = any(:codes)
+      order by vt.fish_code, vt.tank_created_at desc nulls last
+    """)
     with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params={"codes": codes})
-
-def _view_exists(schema: str, view: str) -> bool:
-    with _get_engine().begin() as cx:
-        n = pd.read_sql(
-            text("""
-              select 1
-              from information_schema.views
-              where table_schema = :s and table_name = :v
-              limit 1
-            """),
-            cx, params={"s": schema, "v": view}
-        ).shape[0]
-    return n > 0
+        return pd.read_sql(sql, cx, params={"codes": list({c for c in codes if c})})
 
 def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
     """
-    Enrichment for tank labels: resolves nickname, name, genotype, etc.
-    Uses public.v_fish_label_fields if present; otherwise returns minimal fields.
+    Enrichment for label printing (no membership dependency).
+    Produces fields expected by build_tank_labels_pdf():
+      tank_code, label, fish_code, nickname, name, genotype, genetic_background, stage, dob
     """
+    want_cols = [
+        "container_id","tank_code","label","status","fish_code",
+        "nickname","name","genotype","genetic_background","stage","dob"
+    ]
     if not container_ids:
-        cols = [
-            "container_id","tank_code","label","status","container_type","location",
-            "created_at","activated_at","deactivated_at","last_seen_at",
-            "fish_code","nickname","name","genotype","genetic_background","stage","dob"
-        ]
-        return pd.DataFrame(columns=cols)
+        return pd.DataFrame(columns=want_cols)
 
+    ids = [x for x in container_ids if x]
+    if not ids:
+        return pd.DataFrame(columns=want_cols)
+
+    sql = text("""
+      with picked as (
+        select unnest(cast(:ids as uuid[])) as container_id
+      ),
+      vt as (
+        -- authoritative tank + fish_code (tank-centric)
+        select
+          v.tank_id::uuid                 as tank_id,
+          v.fish_code::text               as fish_code,
+          v.tank_code::text               as tank_code,
+          v.status::text                  as status,
+          v.tank_created_at::timestamptz  as created_at
+        from public.v_tanks v
+      ),
+      geno as (
+        -- genotype pretty rollup per fish_code
+        select
+          f.fish_code::text as fish_code,
+          string_agg('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''),
+                     '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as genotype
+        from public.fish f
+        left join public.fish_transgene_alleles fta on fta.fish_id = f.id
+        left join public.transgene_alleles ta
+               on ta.transgene_base_code = fta.transgene_base_code
+              and ta.allele_number       = fta.allele_number
+        group by f.fish_code
+      )
+      select
+        p.container_id::text                 as container_id,
+        vt.tank_code                         as tank_code,
+        vt.status                            as status,
+        vt.fish_code                         as fish_code,
+        coalesce(f.nickname,'')              as nickname,
+        coalesce(f.name,'')                  as name,
+        coalesce(g.genotype,'')              as genotype,
+        coalesce(f.genetic_background,'')    as genetic_background,
+        null::text                           as stage,   -- stage not in minimal fish (keep API shape)
+        (f.date_birth)::date                 as dob
+      from picked p
+      join vt on vt.tank_id = p.container_id
+      left join public.fish f on f.fish_code = vt.fish_code
+      left join geno g on g.fish_code = vt.fish_code
+      order by vt.created_at asc, vt.tank_code asc
+    """)
     with _get_engine().begin() as cx:
-        has_location = pd.read_sql(
-            text("""
-              select 1
-              from information_schema.columns
-              where table_schema='public'
-                and table_name='containers'
-                and column_name='location'
-              limit 1
-            """), cx
-        ).shape[0] > 0
+        df = pd.read_sql(sql, cx, params={"ids": ids})
 
-    loc_expr = "c.location::text" if has_location else "''::text"
-    use_label_view = _view_exists("public", "v_fish_label_fields")
+    if df.empty:
+        return df
 
-    if use_label_view:
-        sql = text(f"""
-          with picked as (select unnest(cast(:ids as uuid[])) as container_id),
-          live as (
-            select m.container_id, m.fish_id
-            from public.fish_tank_memberships m
-            where m.left_at is null
-          )
-          select
-            c.id::text                   as container_id,
-            c.tank_code::text            as tank_code,
-            coalesce(c.label,'')         as label,
-            coalesce(c.status,'')        as status,
-            c.container_type::text       as container_type,
-            {loc_expr}                   as location,
-            c.created_at::timestamptz    as created_at,
-            c.activated_at,
-            c.deactivated_at,
-            c.last_seen_at,
-            f.fish_code::text            as fish_code,
-            coalesce(v.nickname,'')      as nickname,
-            coalesce(v.name,'')          as name,
-            coalesce(v.genotype,'')      as genotype,
-            coalesce(v.genetic_background,'') as genetic_background,
-            coalesce(v.stage,'')         as stage,
-            v.dob                        as dob
-          from picked p
-          join public.containers c on c.id = p.container_id
-          left join live L on L.container_id = c.id
-          left join public.fish f on f.id = L.fish_id
-          left join public.v_fish_label_fields v on v.fish_code = f.fish_code
-          order by c.created_at asc, c.tank_code asc
-        """)
-    else:
-        sql = text(f"""
-          with picked as (select unnest(cast(:ids as uuid[])) as container_id),
-          live as (
-            select m.container_id, m.fish_id
-            from public.fish_tank_memberships m
-            where m.left_at is null
-          )
-          select
-            c.id::text                   as container_id,
-            c.tank_code::text            as tank_code,
-            coalesce(c.label,'')         as label,
-            coalesce(c.status,'')        as status,
-            c.container_type::text       as container_type,
-            {loc_expr}                   as location,
-            c.created_at::timestamptz    as created_at,
-            c.activated_at,
-            c.deactivated_at,
-            c.last_seen_at,
-            f.fish_code::text            as fish_code,
-            ''::text                     as nickname,
-            ''::text                     as name,
-            ''::text                     as genotype,
-            ''::text                     as genetic_background,
-            ''::text                     as stage,
-            null::date                   as dob
-          from picked p
-          join public.containers c on c.id = p.container_id
-          left join live L on L.container_id = c.id
-          left join public.fish f on f.id = L.fish_id
-          order by c.created_at asc, c.tank_code asc
-        """)
-    with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params={"ids": container_ids})
+    # Default printable label text
+    df["label"] = df["tank_code"].fillna("")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Printing (CUPS)
-# ─────────────────────────────────────────────────────────────────────────────
+    # Hygiene: strings only; dob must be date or None
+    str_cols = ["tank_code","label","fish_code","nickname","name","genotype","genetic_background","stage","status"]
+    for c in str_cols:
+        if c in df.columns:
+            df[c] = df[c].fillna("").astype(str)
+
+    if "dob" in df.columns:
+        try:
+            df["dob"] = pd.to_datetime(df["dob"], errors="coerce").dt.date
+        except Exception:
+            df["dob"] = None
+
+    return df[[c for c in want_cols if c in df.columns]]
+
+# Printer helpers
 def _detect_default_queue() -> str:
     try:
         p = subprocess.run(["lpstat", "-d"], capture_output=True, text=True, check=False)
-        line = p.stdout.strip()  # "system default destination: Brother_QL_1110NWB"
+        line = p.stdout.strip()
         if ":" in line:
             return line.split(":", 1)[1].strip()
     except Exception:
@@ -239,7 +259,7 @@ def _detect_default_queue() -> str:
     return ""
 
 PRINTER_QUEUE_DEFAULT = os.getenv("LABEL_PRINTER_QUEUE", "").strip() or _detect_default_queue()
-PRINTER_MEDIA_DEFAULT = os.getenv("LABEL_MEDIA_NAME", "Custom.61x38mm")  # 2.4" x 1.5"
+PRINTER_MEDIA_DEFAULT = os.getenv("LABEL_MEDIA_NAME", "Custom.61x38mm")
 
 def _print_pdf_to_cups(pdf_bytes: bytes, queue: str, media: str) -> tuple[bool, str]:
     if not pdf_bytes:
@@ -266,7 +286,6 @@ def _print_pdf_to_cups(pdf_bytes: bytes, queue: str, media: str) -> tuple[bool, 
 def main():
     st.title("🔎 Search Fish → Tanks")
 
-    # Filters
     with st.form("filters"):
         c1, c2 = st.columns([3,1])
         with c1:
@@ -277,47 +296,57 @@ def main():
 
     q = _normalize_q(q_raw)
 
+    # Load one row per fish with your requested fields
     try:
-        fish_rows = load_fish_overview_human(_get_engine(), q=q, stages=None, limit=limit)
+        fish_rows = _load_fish_overview(q=q, limit=limit)
     except Exception as e:
         st.error(f"Query error: {type(e).__name__}: {e}")
         with st.expander("Debug"):
             st.code(str(e))
         return
-
     if not fish_rows:
         st.info("No fish match your search.")
         return
 
     fish_df = pd.DataFrame(fish_rows)
 
-    # counts and base view
-    codes = fish_df["fish_code"].astype(str).tolist()
-    counts_df = _open_membership_counts_for_codes(codes)
-    fish_df = fish_df.merge(counts_df, on="fish_code", how="left")
-    fish_df["n_living_tanks"] = fish_df["n_living_tanks"].fillna(0).astype(int)
-
+    # Main grid columns
     fish_cols = [c for c in [
-        "fish_code","fish_name","fish_nickname","genetic_background",
-        "allele_code","transgene","genotype_rollup",
+        "fish_code",
+        "fish_name",
+        "fish_nickname",
+        "genetic_background",
+        "line_building_stage",
+        "transgene_base_code",
+        "allele_number",
+        "allele_name",
+        "allele_nickname",
+        "transgene_pretty",
+        "genotype_rollup",
         "n_living_tanks",
-        "date_birth","created_at","created_by"
+        "birth_date",
+        "created_time",
+        "created_by",
     ] if c in fish_df.columns]
     fish_view = fish_df[fish_cols].rename(columns={
         "fish_code":"Fish code",
-        "fish_name":"Name",
-        "fish_nickname":"Nickname",
-        "genetic_background":"Background",
-        "allele_code":"Allele code",
-        "transgene":"Transgene",
+        "fish_name":"Fish name",
+        "fish_nickname":"Fish nickname",
+        "genetic_background":"Genetic background",
+        "line_building_stage":"Line-building stage",
+        "transgene_base_code":"Transgene base code",
+        "allele_number":"Allele number",
+        "allele_name":"Allele name",
+        "allele_nickname":"Allele nickname",
+        "transgene_pretty":"Transgene pretty",
         "genotype_rollup":"Genotype rollup",
         "n_living_tanks":"# living tanks",
-        "date_birth":"Birth date",
-        "created_at":"Created",
+        "birth_date":"Birth date",
+        "created_time":"Created time",
         "created_by":"Created by",
     }).copy()
 
-    st.subheader("Fish (select to see tanks)")
+    st.subheader("Fish (select to see tanks and print labels)")
     view = fish_view.copy()
     view.insert(0, "✓ Select", False)
 
@@ -343,104 +372,118 @@ def main():
         key="sft_editor",
     )
     st.session_state["_sft_table"] = edited.copy()
-
     selected_codes = edited.loc[edited["✓ Select"], "Fish code"].astype(str).tolist()
 
     # Tanks for selected fish
-    st.subheader("Current tanks for selected fish")
+    st.subheader("Tanks for selected fish (tank_code, tank_status)")
     if not selected_codes:
-        st.info("Select one or more fish above to see their current tanks.")
+        st.info("Select one or more fish above to see their tanks.")
+    else:
+        tanks_details = _load_tanks_for_codes(selected_codes)
+        if tanks_details.empty:
+            st.info("No tanks for the selected fish.")
+        else:
+            st.dataframe(
+                tanks_details[["fish_code","tank_code","status","created_at"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Printing labels
+    # ─────────────────────────────────────────────────────────────────────────
+    st.subheader("Print labels")
+    if not selected_codes:
+        st.info("Select fish to load their tanks for printing.")
         return
 
     tanks_df = _load_tanks_for_codes(selected_codes)
     if tanks_df.empty:
-        st.info("No active memberships / tanks for selected fish.")
+        st.info("No tanks found for selected fish.")
         return
 
-    tanks_view = tanks_df.rename(columns={
-        "fish_code":"Fish code",
-        "tank_code":"Tank code",
-        "container_id":"Container ID",
-        "label":"Label",
-        "status":"Status",
-        "container_type":"Type",
-        "location":"Location",
-        "created_at":"Created",
-        "activated_at":"Activated",
-        "deactivated_at":"Deactivated",
-        "last_seen_at":"Last seen",
-    }).copy()
+    # Add selection column
+    tanks_df = tanks_df.copy()
+    tanks_df.insert(0, "✓ Print", False)
 
-    # Add print-selection column and grid
-    tanks_view.insert(0, "✓ Print", False)
-
-    cols = ["✓ Print","Fish code","Tank code","Label","Status","Type","Created","Activated","Deactivated","Last seen","Container ID"]
-    if "Location" in tanks_view.columns:
-        cols.insert(5, "Location")
-
-    tanks_sig = "|".join(tanks_view["Container ID"].astype(str).tolist())
-    if st.session_state.get("_sft_tanks_sig") != tanks_sig:
-        st.session_state["_sft_tanks_sig"] = tanks_sig
-        st.session_state["_sft_tanks_table"] = tanks_view.copy()
-
-    ctp_a, ctp_b, _ = st.columns([1,1,6])
-    with ctp_a:
-        if st.button("Select all tanks"):
-            st.session_state["_sft_tanks_table"].loc[:, "✓ Print"] = True
-            st.rerun()
-    with ctp_b:
-        if st.button("Clear all tanks"):
-            st.session_state["_sft_tanks_table"].loc[:, "✓ Print"] = False
-            st.rerun()
-
-    tanks_edited = st.data_editor(
-        st.session_state["_sft_tanks_table"][cols],
+    cols = ["✓ Print","fish_code","tank_code","status","created_at","container_id"]
+    tanks_edit = st.data_editor(
+        tanks_df[cols],
         use_container_width=True,
         hide_index=True,
         key="sft_tanks_editor",
-        column_config={"✓ Print": st.column_config.CheckboxColumn("✓ Print", default=False)},
+        column_config={
+            "✓ Print":    st.column_config.CheckboxColumn("✓ Print", default=False),
+            "created_at": st.column_config.DatetimeColumn("created_at"),
+        },
     )
-    st.session_state["_sft_tanks_table"] = tanks_edited.copy()
 
-    # Print section
-    st.subheader("Print labels")
-    to_print = tanks_edited.loc[tanks_edited["✓ Print"] == True]
+    to_print = tanks_edit.loc[tanks_edit["✓ Print"] == True]
     st.caption(f"{len(to_print)} tank(s) selected for labels")
 
+    # Build the labels PDF (enrichment preserved; fish_code-join)
     pdf_bytes = b""
     if not to_print.empty:
-        ids = to_print["Container ID"].astype(str).tolist()
+        ids = to_print["container_id"].astype(str).tolist()
         enriched = _fetch_enriched_for_containers(ids)
         if not enriched.empty:
             rows: list[dict] = []
             for _, r in enriched.iterrows():
+                dob = r.get("dob", None)
+                if dob is not None:
+                    try:
+                        if pd.isna(dob):
+                            dob = None
+                        elif isinstance(dob, pd.Timestamp):
+                            dob = dob.date()
+                        elif isinstance(dob, str) and dob.strip():
+                            dob_parsed = pd.to_datetime(dob, errors="coerce")
+                            dob = None if pd.isna(dob_parsed) else dob_parsed.date()
+                        elif hasattr(dob, "strftime") and hasattr(dob, "year"):
+                            dob = getattr(dob, "date", lambda: dob)()
+                        else:
+                            dob = None
+                    except Exception:
+                        dob = None
+
                 rows.append({
-                    "tank_code": r.get("tank_code") or r.get("label"),
-                    "label":     r.get("label"),
-                    "fish_code": r.get("fish_code"),
-                    "nickname":  r.get("nickname"),
-                    "name":      r.get("name"),
-                    "genotype":  r.get("genotype"),
-                    "genetic_background": r.get("genetic_background"),
-                    "stage":     r.get("stage"),
-                    "dob":       r.get("dob"),
+                    "tank_code":            r.get("tank_code") or r.get("label"),
+                    "label":                r.get("label") or r.get("tank_code"),
+                    "fish_code":            (r.get("fish_code") or "").strip(),
+                    "nickname":             (r.get("nickname") or "").strip(),
+                    "name":                 (r.get("name") or "").strip(),
+                    "genotype":             (r.get("genotype") or "").strip(),
+                    "genetic_background":   (r.get("genetic_background") or "").strip(),
+                    "stage":                (r.get("stage") or "").strip(),
+                    "dob":                  dob,
                 })
+
             pdf_bytes = build_tank_labels_pdf(rows)
 
     left, right = st.columns([1,1])
-
     with left:
         st.download_button(
             "⬇️ Download PDF labels (2.4×1.5 • QR)",
             data=(pdf_bytes if pdf_bytes else b""),
-            file_name=f"tank_labels_2_4x1_5_{pd.Timestamp.utcnow().strftime('%Y%m%d_%H%M%S')}.pdf",
+            file_name=f"tank_labels_2_4x1_5_{utc_now().strftime('%Y%m%d_%H%M%S')}.pdf",
             mime="application/pdf",
             type="primary",
             use_container_width=True,
             disabled=(pdf_bytes == b""),
         )
-
     with right:
+        # CUPS printing
+        def _detect_default_queue() -> str:
+            try:
+                p = subprocess.run(["lpstat", "-d"], capture_output=True, text=True, check=False)
+                line = p.stdout.strip()
+                if ":" in line:
+                    return line.split(":", 1)[1].strip()
+            except Exception:
+                pass
+            return ""
+        PRINTER_QUEUE_DEFAULT = os.getenv("LABEL_PRINTER_QUEUE", "").strip() or _detect_default_queue()
+        PRINTER_MEDIA_DEFAULT = os.getenv("LABEL_MEDIA_NAME", "Custom.61x38mm")
         with st.expander("Printer settings", expanded=(PRINTER_QUEUE_DEFAULT == "")):
             queue = st.text_input("CUPS queue", value=PRINTER_QUEUE_DEFAULT, placeholder="Brother_QL_1110NWB")
             media = st.text_input("Media name", value=PRINTER_MEDIA_DEFAULT, help="e.g., Custom.61x38mm for 2.4×1.5 stock")

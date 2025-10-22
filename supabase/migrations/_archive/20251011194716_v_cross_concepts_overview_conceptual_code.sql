@@ -11,7 +11,7 @@ select
     coalesce(v.n_treatments, 0)::int as n_treatments,
     coalesce(v.created_by, '')::text as created_by,
     v.created_at::timestamptz as created_at
-from public.vw_planned_clutches_overview as v
+from public.v_planned_clutches_overview as v
 left join public.planned_crosses as pc
     on v.clutch_code = pc.cross_code
 left join public.containers as cm

@@ -1,5 +1,5 @@
 -- Recreate view with proper syntax: CREATE VIEW AS WITH ...
-CREATE VIEW public.vw_fish_overview_with_label AS
+CREATE VIEW public.v_fish_overview_with_label AS
 WITH
 linkx AS (
     -- First linked allele per fish (by allele_number asc, NULLS LAST)

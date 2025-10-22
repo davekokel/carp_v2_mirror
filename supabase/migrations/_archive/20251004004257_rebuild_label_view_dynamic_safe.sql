@@ -29,7 +29,7 @@ BEGIN
   ) INTO has_dob_alt;
 
   -- build the CREATE VIEW statement with only the columns that exist
-  sql := 'CREATE VIEW public.vw_fish_overview_with_label AS
+  sql := 'CREATE VIEW public.v_fish_overview_with_label AS
           SELECT
             v.id,
             v.fish_code,
@@ -82,7 +82,7 @@ BEGIN
             ON f.id = v.id;';
 
   -- drop and recreate
-  EXECUTE 'DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE';
+  EXECUTE 'DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE';
   EXECUTE sql;
 END$$;
 

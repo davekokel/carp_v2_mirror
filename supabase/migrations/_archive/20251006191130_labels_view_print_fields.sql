@@ -1,5 +1,5 @@
-DROP VIEW IF EXISTS public.vw_fish_overview_with_label CASCADE;
-CREATE VIEW public.vw_fish_overview_with_label AS
+DROP VIEW IF EXISTS public.v_fish_overview_with_label CASCADE;
+CREATE VIEW public.v_fish_overview_with_label AS
 WITH last_batch AS (
     SELECT DISTINCT ON (m.fish_id)
         m.fish_id,

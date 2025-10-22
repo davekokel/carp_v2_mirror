@@ -46,8 +46,8 @@
 ## Views
 
 - seed_batches
-- v_containers_crossing_candidates
-- v_containers_live
+- v_containers_candidates
+- v_containers
 - v_cross_plan_runs_enriched
 - v_cross_plans_enriched
 - v_crosses_status
@@ -55,13 +55,13 @@
 - v_fish_living_tank_counts
 - v_fish_overview
 - v_fish_overview_canonical
-- v_label_jobs_recent
-- vw_clutches_concept_overview
-- vw_clutches_overview_human
-- vw_cross_runs_overview
-- vw_crosses_concept
-- vw_fish_overview_with_label
-- vw_fish_standard
-- vw_label_rows
-- vw_planned_clutches_overview
-- vw_plasmids_overview
+- v_labels_recent
+- v_clutches_concept_overview
+- v_clutches_overview_human
+- v_cross_runs
+- v_crosses_concept
+- v_fish_overview_with_label
+- v_fish_standard
+- v_label_rows
+- v_planned_clutches_overview
+- v_plasmids

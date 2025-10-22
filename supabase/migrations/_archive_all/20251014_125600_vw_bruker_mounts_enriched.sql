@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW public.vw_bruker_mounts_enriched AS
+CREATE OR REPLACE VIEW public.v_bruker_mounts_enriched AS
 SELECT
   bm.mount_code,
   -- prefer selection_id if present; fall back to id when available

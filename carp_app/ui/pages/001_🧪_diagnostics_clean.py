@@ -1,64 +1,82 @@
 from __future__ import annotations
+
+# --- sys.path prime so relative imports work in Streamlit ---
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
-from carp_app.ui.auth_gate import require_auth
-from carp_app.lib.config import engine as get_engine, DB_URL
-sb, session, user = require_auth()
-
-from carp_app.ui.email_otp_gate import require_email_otp
-require_email_otp()
-
-import os, sys, time
+# --- std/3p imports ---
+import os, time
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-# Ensure repo root on path
+# --- app imports ---
+from carp_app.lib.config import DB_URL
+from carp_app.ui.lib.env_badge import _env_from_db_url
+from carp_app.ui.lib.prod_banner import show_prod_banner
+
+# Auth gates
+from carp_app.ui.auth_gate import require_auth
+sb, session, user = require_auth()
+from carp_app.ui.email_otp_gate import require_email_otp
+require_email_otp()
+
+# Ensure repo root on sys.path
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-try:
-    from carp_app.ui.auth_gate import require_app_unlock
-except Exception:
-    def require_app_unlock(): ...
-require_app_unlock()
+# ------------------------------------------------------------------------------------
+# Environment detection & kill-switches
+# ------------------------------------------------------------------------------------
+_env, _proj, _host = _env_from_db_url(DB_URL)
+IS_LOCAL = (_env == "LOCAL") or ("sslmode=disable" in DB_URL) or (_host in {"127.0.0.1", "localhost"})
 
-# Env-only behavior: ignore any session override when not local
-APP_ENV = os.getenv("APP_ENV", "local").lower()
-if APP_ENV != "local":
-    st.session_state.pop("DB_URL", None)
+def _assert_local_or_die() -> None:
+    """Server-side hard stop for any destructive action outside LOCAL."""
+    if not IS_LOCAL:
+        st.error("Danger zone is disabled in this deployment (not LOCAL).")
+        st.stop()
 
-PAGE_TITLE = "CARP — Diagnostics (Clean)"
-st.set_page_config(page_title=PAGE_TITLE, page_icon="🧪", layout="wide")
-st.title("🧪 Diagnostics (Clean)")
-
-# Prod banner
-from carp_app.ui.lib.prod_banner import show_prod_banner
-show_prod_banner()
-
-# Normalize PG* from DB_URL so captions match reality (Supabase envs)
-if APP_ENV != "local":
-    p = urlparse(os.environ.get("DB_URL", ""))
+# Normalize PG* env to match DB_URL for captions (esp. Supabase pooler)
+if not IS_LOCAL:
+    p = urlparse(DB_URL or "")
     qs = parse_qs(p.query or "")
     if p.hostname: os.environ["PGHOST"] = p.hostname
     if p.port:     os.environ["PGPORT"] = str(p.port)
     os.environ["PGDATABASE"] = ((p.path or "/postgres").lstrip("/") or "postgres")
     if p.username: os.environ["PGUSER"] = p.username
     os.environ["PGSSLMODE"] = (qs.get("sslmode", ["require"])[0]) or "require"
+else:
+    # Local devs commonly rely on libpq defaults; leave as-is
+    pass
 
-env_line = f"PG env → host={os.getenv('PGHOST','')}  port={os.getenv('PGPORT','')}  user={os.getenv('PGUSER','')}  sslmode={os.getenv('PGSSLMODE','')}  password_set={bool(os.getenv('PGPASSWORD'))}"
+# If not local, never honor a session DB_URL override
+if not IS_LOCAL:
+    st.session_state.pop("DB_URL", None)
+
+# ------------------------------------------------------------------------------------
+# Page chrome
+# ------------------------------------------------------------------------------------
+st.set_page_config(page_title="CARP — Diagnostics (Clean)", page_icon="🧪", layout="wide")
+st.title("🧪 Diagnostics (Clean)")
+show_prod_banner()
+
+env_line = (
+    f"PG env → host={os.getenv('PGHOST','')}  port={os.getenv('PGPORT','')}  "
+    f"user={os.getenv('PGUSER','')}  sslmode={os.getenv('PGSSLMODE','require')}  "
+    f"password_set={bool(os.getenv('PGPASSWORD'))}"
+)
 urls_line = f"resolved DB_URL → {os.environ.get('DB_URL','<none>')!r}    session DB_URL → {st.session_state.get('DB_URL','<none>')!r}"
 st.text(env_line + "\n" + urls_line)
 
-# -----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 # Engine helpers
-# -----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 import importlib
 from carp_app.ui.lib import app_ctx as _app
 importlib.reload(_app)
@@ -88,15 +106,19 @@ try:
                    date_trunc('second', now() - pg_postmaster_start_time()) as uptime
         """)).mappings().first()
     ver, uptime = r["ver"], str(r["uptime"])
-    st.caption(f"DB → host={dbg.get('host')}:{dbg.get('port')} db={dbg.get('db')} user={dbg.get('usr')} • version={ver} • uptime={uptime} • latency≈{lat_ms:.1f} ms")
+    st.caption(
+        f"DB → host={dbg.get('host')}:{dbg.get('port')} db={dbg.get('db')} user={dbg.get('usr')} "
+        f"• version={ver} • uptime={uptime} • latency≈{lat_ms:.1f} ms"
+    )
 except Exception as e:
     st.error(f"DB connect failed: {e}")
     st.stop()
 
-# -----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 # Diagnostics
-# -----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 st.subheader("Row counts")
+
 def _counts(conn) -> pd.DataFrame:
     # Be tolerant if some views/tables are absent
     q = text("""
@@ -106,14 +128,17 @@ def _counts(conn) -> pd.DataFrame:
           union all select 'transgene_alleles', count(*) from public.transgene_alleles
         ),
         v(name, nrows) as (
-          select 'v_fish_overview', count(*) from information_schema.views
-          where table_schema='public' and table_name='v_fish_overview'
+          select 'v_fish', count(*) from information_schema.views
+          where table_schema='public' and table_name='v_fish'
         )
         select * from t
         union all
         select 'v_fish_overview_rows',
-               (select count(*) from public.v_fish_overview) 
-        where exists (select 1 from information_schema.views where table_schema='public' and table_name='v_fish_overview')
+               (select count(*) from public.v_fish)
+        where exists (
+          select 1 from information_schema.views
+          where table_schema='public' and table_name='v_fish'
+        )
         order by name
     """)
     return pd.DataFrame(conn.execute(q).mappings().all())
@@ -124,15 +149,13 @@ if st.button("Refresh diagnostics", type="primary", use_container_width=True):
             df = _counts(cx)
         st.dataframe(df, use_container_width=True)
     except Exception as e:
-        st.error(f"DB connect failed: {e}")
+        st.error(f"Diagnostics failed: {e}")
 
-# -----------------------------------------------------------------------------------
-# Local wipe utilities
-# -----------------------------------------------------------------------------------
-from urllib.parse import urlparse
-
+# ------------------------------------------------------------------------------------
+# Local-only wipe utilities (guarded twice: env + runtime)
+# ------------------------------------------------------------------------------------
 def _is_local_engine(conn) -> bool:
-    """Runtime DB guard: allow only localhost loopback or common local datadirs."""
+    """Runtime DB guard: allow only loopback/typical local datadirs."""
     row = conn.execute(text("""
         select case
                  when inet_server_addr()::text in ('127.0.0.1','::1') then true
@@ -149,7 +172,6 @@ def _wipe_public_schema_and_reset_sequences(conn):
     - Reset ALL sequences in public to start at 1 (covers non-owned seqs too)
     - If helper exists, sync allele-number sequence to current max
     """
-    # 1) Truncate every table in public and restart identities (owned sequences reset)
     conn.execute(text("""
     DO $wipe$
     DECLARE
@@ -167,7 +189,6 @@ def _wipe_public_schema_and_reset_sequences(conn):
     $wipe$;
     """))
 
-    # 2) Reset *all* sequences in public to start at 1 (owned or not)
     conn.execute(text("""
     DO $reset$
     DECLARE
@@ -184,7 +205,6 @@ def _wipe_public_schema_and_reset_sequences(conn):
     $reset$;
     """))
 
-    # 3) If helper exists, sync allele-number seq to current max; else safe fallback to 1
     conn.execute(text("""
     DO $call$
     DECLARE
@@ -200,7 +220,6 @@ def _wipe_public_schema_and_reset_sequences(conn):
       IF has_helper THEN
         PERFORM public.reset_allele_number_seq();
       ELSE
-        -- Fallback: if the sequence exists, set it so nextval() returns 1
         SELECT EXISTS(
           SELECT 1 FROM information_schema.sequences
           WHERE sequence_schema='public' AND sequence_name='transgene_allele_number_seq'
@@ -214,21 +233,30 @@ def _wipe_public_schema_and_reset_sequences(conn):
     $call$;
     """))
 
-# -----------------------------------------------------------------------------------
-# Danger zone
-# -----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
+# Danger zone (locked on non-LOCAL)
+# ------------------------------------------------------------------------------------
 with st.expander("⚠️ Danger zone", expanded=False):
-    if APP_ENV != "local":
-        st.info("Danger zone is disabled outside LOCAL.")
+    if not IS_LOCAL:
+        st.info("This deployment is **not LOCAL** — wipe controls are disabled by policy.")
+        st.button("Wipe disabled (non-LOCAL)", use_container_width=True, disabled=True, key="wipe_disabled")
     else:
-        st.write("Wipe all data in the `public` schema (local only). Also resets all sequences.")
-        agree = st.checkbox("I understand this is destructive.")
-        if st.button("🧨 Wipe local DB", disabled=not agree, use_container_width=True):
+        st.write("Wipe all data in the `public` schema (LOCAL only). Also resets all sequences.")
+        ack1 = st.checkbox("I understand this is **destructive**.")
+        ack2 = st.text_input("Type `wipe local` to confirm:")
+        do_wipe = st.button(
+            "🧨 Wipe local DB",
+            use_container_width=True,
+            type="primary",
+            disabled=not (ack1 and ack2.strip().lower() == "wipe local"),
+        )
+        if do_wipe:
             try:
+                _assert_local_or_die()  # env kill-switch
                 with eng.begin() as cx:
-                    if not _is_local_engine(cx):
+                    if not _is_local_engine(cx):  # runtime safety net
                         raise RuntimeError("Refusing to wipe: current DB is not local.")
                     _wipe_public_schema_and_reset_sequences(cx)
-                st.success("✅ Public schema wiped, sequences reset, allele-number sequence synced.")
+                st.success("✅ Public schema wiped; sequences reset.")
             except Exception as e:
-                st.error(f"❌ Wipe failed or blocked: {type(e).__name__}: {e}")
+                st.error(f"❌ Wipe blocked/failed: {type(e).__name__}: {e}")

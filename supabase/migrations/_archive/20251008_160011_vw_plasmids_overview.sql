@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE OR REPLACE VIEW public.vw_plasmids_overview AS
+CREATE OR REPLACE VIEW public.v_plasmids AS
 SELECT
     p.id_uuid,
     p.code,

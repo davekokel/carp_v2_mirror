@@ -8,6 +8,6 @@ SELECT
   hum.mom_tank_label AS mom_code_tank,
   hum.dad_tank_label AS dad_code_tank,
   cp.created_at
-FROM public.vw_clutches_concept_overview cp
-LEFT JOIN public.vw_clutches_overview_human hum
+FROM public.v_clutches_concept_overview cp
+LEFT JOIN public.v_clutches_overview_human hum
   ON hum.clutch_code = cp.clutch_code;
