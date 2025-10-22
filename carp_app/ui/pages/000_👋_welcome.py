@@ -5,17 +5,17 @@ import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
 # --- std/3p imports ---
-import os, re, time
+import os, re, time, hashlib, importlib.metadata as md
 import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine.url import make_url
-import importlib.metadata as md
 
 # --- app imports ---
 from carp_app.lib.db import get_engine
 from carp_app.ui.lib.env_badge import show_env_badge, _env_from_db_url
 from carp_app.lib.secret import env_info
+from carp_app.lib.config import DB_URL  # used for DSN checks
 
 # --- auth (optional) ---
 AUTH_MODE = os.getenv("AUTH_MODE", "off").lower()
@@ -29,8 +29,7 @@ else:
 st.set_page_config(page_title="CARP — Welcome", page_icon="👋", layout="wide")
 
 # Fingerprint (after importing Streamlit)
-import hashlib, pathlib as _pl
-_src = _pl.Path(__file__).resolve()
+_src = pathlib.Path(__file__).resolve()
 try:
     st.caption(
         "SRC=" + str(_src) +
@@ -60,10 +59,18 @@ def _connect_with_retry(eng, tries: int = 5, base_delay: float = 0.5, max_delay:
             time.sleep(min(max_delay, base_delay * (2 ** i)))
     raise last
 
-# --- main health checks ---
-from carp_app.lib.config import DB_URL
-issues: list[str] = []
+def _view_exists(conn, schema: str, name: str) -> bool:
+    q = text("""
+      select exists (
+        select 1
+        from information_schema.views
+        where table_schema = :s and table_name = :n
+      )
+    """)
+    return bool(conn.execute(q, {"s": schema, "n": name}).scalar())
 
+# --- main health checks ---
+issues: list[str] = []
 try:
     eng = get_engine()
     with _connect_with_retry(eng) as conn:
@@ -78,14 +85,15 @@ try:
         """)).mappings().one()
 
         exts = set(conn.execute(text("""
-            select extname from pg_extension
+            select extname
+            from pg_extension
             where extname in ('pgcrypto','uuid-ossp','pg_stat_statements','pg_graphql','supabase_vault')
         """)).scalars().all())
 
     if not DB_URL:
         issues.append("DB_URL not set")
 
-    u = make_url(DB_URL)
+    u = make_url(DB_URL or "")
     host = (u.host or "")
     user_in_dsn = (u.username or "")
     is_pooler_host = "pooler.supabase.com" in host
@@ -94,18 +102,18 @@ try:
     if is_pooler_host:
         if not user_in_dsn.startswith("postgres.") or len(user_in_dsn.split(".", 1)) != 2:
             issues.append(f"Pooler DSN user should be 'postgres.<project-ref>', got '{user_in_dsn or '<empty>'}'")
-        if "sslmode=require" not in DB_URL:
+        if "sslmode=require" not in (DB_URL or ""):
             issues.append("Pooler URL missing sslmode=require")
     else:
-        if user_in_dsn != "postgres":
-            issues.append(f"Direct DSN user should be 'postgres', got '{user_in_dsn or '<empty>'}'")
+        if user_in_dsn and user_in_dsn != "postgres":
+            issues.append(f"Direct DSN user should be 'postgres', got '{user_in_dsn}'")
 
     required_exts = {"pgcrypto", "uuid-ossp"}
     missing = sorted(required_exts - exts)
     if missing:
         issues.append(f"Missing extensions: {', '.join(missing)}")
 
-    env_label = _env_from_url(DB_URL)
+    env_label = _env_from_url(DB_URL or "")
     meta = f"{env_label} • db={row['db']} • user={row['usr']} • tz={row['tz']}"
 
     if issues:
@@ -117,45 +125,51 @@ try:
 except Exception as e:
     st.error(f"Health check error: {type(e).__name__}: {e}")
 
-# --- required views presence ---
-required_views = [
-    ('public','v_fish'),
+# --- required views presence (canonical only) ---
+REQUIRED_VIEWS = [
+    ("public", "v_fish"),
     ("public", "v_tanks"),
+    ("public", "v_crosses"),
+    ("public", "v_cross_runs"),
+]
+OPTIONAL_VIEWS = [
     ("public", "v_crosses_status"),
-    ("public", "v_clutch_instances_overview"),
+    # ("public", "v_clutch_instances_overview"),  # legacy; optional if present
 ]
 
-missing_views: list[str] = []
+missing_required: list[str] = []
+missing_optional: list[str] = []
+
 try:
     with _connect_with_retry(get_engine()) as conn:
-        rows = conn.execute(text("""
-            select table_schema, table_name
-            from information_schema.views
-            where (table_schema, table_name) in :pairs
-        """), {"pairs": tuple(required_views)}).fetchall()
-        present = {(r[0], r[1]) for r in rows}
-        for pair in required_views:
-            if pair not in present:
-                missing_views.append(f"{pair[0]}.{pair[1]}")
+        for sch, name in REQUIRED_VIEWS:
+            if not _view_exists(conn, sch, name):
+                missing_required.append(f"{sch}.{name}")
+        for sch, name in OPTIONAL_VIEWS:
+            if not _view_exists(conn, sch, name):
+                missing_optional.append(f"{sch}.{name}")
 except Exception as e:
     st.error(f"View check error: {type(e).__name__}: {e}")
 
-if missing_views:
-    st.error("Missing required views:\n- " + "\n- ".join(missing_views))
+if missing_required:
+    st.error("Missing required views:\n- " + "\n- ".join(missing_required))
 else:
     st.success("All required views are present")
+
+if missing_optional:
+    st.info("Optional views not present:\n- " + "\n- ".join(missing_optional))
 
 # --- header / badges ---
 st.title("👋 Welcome to CARP")
 show_env_badge()
 _env, _proj, _host, _mode = env_info()
 
-st.write("Browse live data, upload CSVs, and print labels — no install needed. Use the left sidebar to navigate.")
+st.write("Browse live data, upload CSVs, and print labels. Use the left sidebar to navigate.")
 
 # --- metrics ---
-m = re.match(r".*://([^:@]+)@([^/?]+)", DB_URL)
+m = re.match(r".*://([^:@]+)@([^/?]+)", DB_URL or "")
 _pguser = m.group(1) if m else os.getenv("PGUSER", "")
-_env2, _proj2, _host2 = _env_from_db_url(DB_URL)
+_env2, _proj2, _host2 = _env_from_db_url(DB_URL or "")
 env_name = _env2 or _env
 mode = os.getenv("APP_MODE") or ("readonly" if _pguser.endswith("_ro") else "write")
 
@@ -190,11 +204,13 @@ with st.expander("⚙️ DB Trigger & Constraint Status (debug)"):
                       and t.tgname like '%fish_autotank%') as autotank_triggers,
                   (select pg_get_constraintdef(oid)
                      from pg_constraint
-                    where conrelid='public.tanks'::regclass
-                      and conname='chk_tank_code_shape') as tank_code_check;
+                    where conrelid='public.containers'::regclass
+                      and conname is not null
+                    order by 1 asc
+                    limit 1) as containers_any_constraint
             """)).mappings().one()
             st.write("**Auto-tank triggers enabled:**", result["autotank_triggers"])
-            st.write("**Tank code check constraint:**")
-            st.code(result["tank_code_check"] or "(none)")
+            st.write("**Sample containers constraint:**")
+            st.code(result["containers_any_constraint"] or "(none)")
     except Exception as e:
         st.error(f"Health query failed: {type(e).__name__}: {e}")

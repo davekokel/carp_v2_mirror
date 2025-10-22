@@ -19,8 +19,8 @@ from carp_app.lib.config import engine as get_engine
 sb, session, user = require_auth()
 require_email_otp()
 
-st.set_page_config(page_title="🧬 Select fish pairings", page_icon="🧬", layout="wide")
-st.title("🧬 Select fish pairings")
+st.set_page_config(page_title="🧬 Select tank pairings", page_icon="🧬", layout="wide")
+st.title("🧬 Select tank pairings")
 
 try:
     from carp_app.ui.auth_gate import require_app_unlock
@@ -134,63 +134,58 @@ def _fetch_fish_details(codes: List[str]) -> Dict[str, Dict[str, str]]:
     return out
 
 def _load_clutch_concepts(d1: date, d2: date, created_by: str, q: str) -> pd.DataFrame:
+    """
+    Tank-centric baseline for clutch concept listing.
+    - Uses v_tanks for live counts (active/new_tank).
+    - **Does not** reference optional planned_* columns (some DBs don’t have them).
+    """
     sql = text("""
-    with mom_live as (
-      select f.fish_code, count(*)::int as n_live
-      from public.fish f
-      join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
-      join public.v_tanks vt on vt.tank_id = m.container_id
-      where vt.status::text = any(:live)
-      group by f.fish_code
-    ),
-    dad_live as (
-      select f.fish_code, count(*)::int as n_live
-      from public.fish f
-      join public.fish_tank_memberships m on m.fish_id=f.id and m.left_at is null
-      join public.v_tanks vt on vt.tank_id = m.container_id
-      where vt.status::text = any(:live)
-      group by f.fish_code
-    ),
-    tx_counts as (
-      select clutch_id, count(*)::int as n_treatments
-      from public.clutch_plan_treatments
-      group by clutch_id
-    )
-    select
-      cp.id::text                            as clutch_id,
-      coalesce(cp.clutch_code, cp.id::text)  as clutch_code,
-      coalesce(cp.planned_name,'')           as planned_name,
-      coalesce(cp.planned_nickname,'')       as planned_nickname,
-      cp.mom_code, cp.dad_code,
-      coalesce(ml.n_live,0)                  as mom_live,
-      coalesce(dl.n_live,0)                  as dad_live,
-      (coalesce(ml.n_live,0)*coalesce(dl.n_live,0))::int as pairings,
-      coalesce(tx.n_treatments,0)            as n_treatments,
-      cp.created_by, cp.created_at
-    from public.clutch_plans cp
-    left join mom_live ml on ml.fish_code = cp.mom_code
-    left join dad_live dl on dl.fish_code = cp.dad_code
-    left join tx_counts tx on tx.clutch_id = cp.id
-    where (cp.created_at::date between :d1 and :d2)
-      and (:by = '' or cp.created_by ilike :byl)
-      and (
-        :q = '' or
-        coalesce(cp.clutch_code,'') ilike :ql or
-        coalesce(cp.planned_name,'') ilike :ql or
-        coalesce(cp.planned_nickname,'') ilike :ql or
-        coalesce(cp.mom_code,'') ilike :ql or
-        coalesce(cp.dad_code,'') ilike :ql
+      with mom_live as (
+        select vt.fish_code, count(*)::int as n_live
+        from public.v_tanks vt
+        where vt.status::text = any(:live) and coalesce(vt.fish_code,'') <> ''
+        group by vt.fish_code
+      ),
+      dad_live as (
+        select vt.fish_code, count(*)::int as n_live
+        from public.v_tanks vt
+        where vt.status::text = any(:live) and coalesce(vt.fish_code,'') <> ''
+        group by vt.fish_code
       )
-    order by cp.created_at desc
+      select
+        cp.id::text                            as clutch_id,
+        coalesce(cp.clutch_code, cp.id::text)  as clutch_code,
+        -- synthesize planned fields (don’t touch missing columns)
+        (cp.mom_code || ' × ' || cp.dad_code)  as planned_name,
+        (cp.mom_code || ' × ' || cp.dad_code)  as planned_nickname,
+        cp.mom_code, cp.dad_code,
+        coalesce(ml.n_live,0)                  as mom_live,
+        coalesce(dl.n_live,0)                  as dad_live,
+        (coalesce(ml.n_live,0)*coalesce(dl.n_live,0))::int as pairings,
+        0::int                                 as n_treatments,
+        cp.created_by, cp.created_at
+      from public.clutch_plans cp
+      left join mom_live ml on ml.fish_code = cp.mom_code
+      left join dad_live dl on dl.fish_code = cp.dad_code
+      where (cp.created_at::date between :d1 and :d2)
+        and (:by = '' or cp.created_by ilike :byl)
+        and (
+          :q = '' or
+          coalesce(cp.clutch_code,'') ilike :ql or
+          coalesce(cp.mom_code,'')    ilike :ql or
+          coalesce(cp.dad_code,'')    ilike :ql or
+          (cp.mom_code || ' × ' || cp.dad_code) ilike :ql
+        )
+      order by cp.created_at desc
     """)
+    params = {
+      "live": ["active","new_tank"],
+      "d1": d1, "d2": d2,
+      "by": (created_by or "").strip(), "byl": f"%{(created_by or '').strip()}%",
+      "q":  (q or "").strip(),          "ql": f"%{(q or '').strip()}%",
+    }
     with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params={
-            "live": ["active","new_tank"],
-            "types": ["inventory_tank","holding_tank","nursery_tank"],
-            "d1": d1, "d2": d2,
-            "by": created_by or "", "byl": f"%{created_by or ''}%",
-            "q": q or "", "ql": f"%{q or ''}%"
-        })
+        return pd.read_sql(sql, cx, params=params)
 
 def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     """
@@ -213,24 +208,24 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     loc_expr = "''::text" if not has_loc else "''::text"  # location not used; keep placeholder
 
     sql = text(f"""
-      select
-        f.fish_code,
-        vt.tank_code,
-        vt.tank_id::text             as container_id,
-        ''                           as label,
-        coalesce(vt.status::text,'') as status,       -- enum→text
-        'holding_tank'                              as container_type,
-        {loc_expr}                                  as location,
-        vt.tank_created_at                          as created_at,
-        null::timestamptz                           as activated_at,
-        null::timestamptz                           as deactivated_at,
-        null::timestamptz                           as last_seen_at
-      from public.fish f
-      join public.v_tanks vt on vt.fish_id = f.id
-      where f.fish_code = any(:codes)
-        and vt.status::text = any(:live)            -- only active/new_tank
-      order by f.fish_code, vt.tank_created_at desc nulls last
-    """)
+        select
+            f.fish_code,
+            vt.tank_code,
+            vt.tank_id::text             as container_id,
+            ''                           as label,
+            coalesce(vt.status::text,'') as status,
+            'holding_tank'               as container_type,
+            ''::text                     as location,
+            vt.tank_created_at           as created_at,
+            null::timestamptz            as activated_at,
+            null::timestamptz            as deactivated_at,
+            null::timestamptz            as last_seen_at
+        from public.fish f
+        join public.v_tanks vt on vt.fish_code = f.fish_code
+        where f.fish_code = any(:codes)
+            and vt.status::text = any(:live)
+        order by f.fish_code, vt.tank_created_at desc nulls last
+        """)
 
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params={
@@ -251,8 +246,8 @@ with st.form("filters", clear_on_submit=False):
     st.form_submit_button("Apply", use_container_width=True)
 
 plans = _load_clutch_concepts(d1, d2, created_by, q)
-if "n_treatments" in plans.columns:
-    plans = plans[plans["n_treatments"].fillna(0) == 0]
+if plans is None or not isinstance(plans, pd.DataFrame):
+    plans = pd.DataFrame()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1) Top table — auto-fit columns + genotype

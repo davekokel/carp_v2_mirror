@@ -1,11 +1,13 @@
 from __future__ import annotations
 from carp_app.lib.time import utc_now
 
+# ── sys.path prime ───────────────────────────────────────────────────────────
 import sys, pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# ── auth gates ───────────────────────────────────────────────────────────────
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 try:
@@ -16,12 +18,14 @@ sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
+# ── std/3p ───────────────────────────────────────────────────────────────────
 import os, tempfile, subprocess
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+# ── app libs ─────────────────────────────────────────────────────────────────
 from carp_app.lib.db import get_engine as _create_engine
 from carp_app.ui.lib.labels_components import build_tank_labels_pdf  # 2.4"×1.5" + QR
 
@@ -37,7 +41,7 @@ def _get_engine() -> Engine:
 
 st.set_page_config(page_title="CARP — Search Fish → Tanks", page_icon="🔎", layout="wide")
 
-LIVE_STATUSES = ("active", "new_tank")
+LIVE_STATUSES = ("active", "new_tank")  # used in rollups
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -49,21 +53,20 @@ def _normalize_q(q_raw: str) -> str | None:
 def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
     """
     One row per fish with:
-      fish_code, fish_name, fish_nickname, genetic_background, line_building_stage,
-      transgene_base_code; allele_number; allele_name; allele_nickname; transgene_pretty (all aggregated),
-      genotype_rollup (deterministic), n_living_tanks (active+new_tank),
+      fish_code, fish_name, fish_nickname, genetic_background,
+      transgene_base_code/allele*/pretty (aggregated), genotype_rollup (deterministic),
+      n_living_tanks (active + new_tank),
       birth_date, created_time, created_by.
-    This builds from base tables so it doesn't depend on view column shapes.
+    Tank-centric note: joins to v_tanks by fish_code (no fish_id).
     """
     where_terms = []
-    params = {"lim": int(limit), "ql": f"%{q or ''}%", "live": ["active","new_tank"]}
-
+    params = {"lim": int(limit), "ql": f"%{q or ''}%"}
     if q:
         where_terms += [
             "coalesce(f.fish_code,'') ilike :ql",
             "coalesce(f.name,'') ilike :ql",
             "coalesce(f.nickname,'') ilike :ql",
-            "coalesce(f.genetic_background,'') ilike :ql"
+            "coalesce(f.genetic_background,'') ilike :ql",
         ]
     where_sql = ("where " + " or ".join(where_terms)) if where_terms else ""
 
@@ -85,22 +88,23 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
       alleles_agg as (
         select
           a.fish_code,
-          string_agg(distinct coalesce(a.transgene_base_code,''), '; ' order by coalesce(a.transgene_base_code,''))              as transgene_base_code,
-          string_agg(distinct coalesce(a.allele_number::text,''), '; ' order by coalesce(a.allele_number::text,''))             as allele_number,
-          string_agg(distinct coalesce(a.allele_name,''),        '; ' order by coalesce(a.allele_name,''))                      as allele_name,
-          string_agg(distinct coalesce(a.allele_nickname,''),    '; ' order by coalesce(a.allele_nickname,''))                  as allele_nickname,
-          string_agg(distinct coalesce(a.transgene_pretty,''),   '; ' order by coalesce(a.transgene_pretty,''))                 as transgene_pretty,
-          -- deterministic genotype rollup too
-          string_agg(distinct coalesce(a.transgene_pretty,''),   '; ' order by coalesce(a.transgene_pretty,''))                 as genotype_rollup_calc
+          string_agg(distinct coalesce(a.transgene_base_code,''), '; ' order by coalesce(a.transgene_base_code,'')) as transgene_base_code,
+          string_agg(distinct coalesce(a.allele_number::text,''), '; ' order by coalesce(a.allele_number::text,'')) as allele_number,
+          string_agg(distinct coalesce(a.allele_name,''), '; ' order by coalesce(a.allele_name,'')) as allele_name,
+          string_agg(distinct coalesce(a.allele_nickname,''), '; ' order by coalesce(a.allele_nickname,'')) as allele_nickname,
+          string_agg(distinct coalesce(a.transgene_pretty,''), '; ' order by coalesce(a.transgene_pretty,'')) as transgene_pretty,
+          -- deterministic genotype rollup
+          string_agg(distinct coalesce(a.transgene_pretty,''), '; ' order by coalesce(a.transgene_pretty,'')) as genotype_rollup_calc
         from alleles a
         group by a.fish_code
       ),
       live as (
-        select f.fish_code, count(*)::int as n_living_tanks
-        from public.fish f
-        join public.v_tanks vt on vt.fish_id = f.id
-        where vt.status::text = any(:live)
-        group by f.fish_code
+        -- count active/new_tank tanks for each fish_code (join on fish_code, not id)
+        select vt.fish_code, count(*)::int as n_living_tanks
+        from public.v_tanks vt
+        where vt.status in ('active','new_tank')
+          and coalesce(vt.fish_code,'') <> ''
+        group by vt.fish_code
       ),
       base as (
         select
@@ -108,7 +112,7 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
           coalesce(f.name,'')               as fish_name,
           coalesce(f.nickname,'')           as fish_nickname,
           coalesce(f.genetic_background,'') as genetic_background,
-          coalesce(f.line_building_stage,'')as line_building_stage,
+          null::text                        as line_building_stage,  -- column not in your minimal fish: keep API stable
           f.date_birth                      as birth_date,
           f.created_at                      as created_time,
           coalesce(f.created_by,'')         as created_by
@@ -128,7 +132,6 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
         coalesce(aa.allele_name,'')         as allele_name,
         coalesce(aa.allele_nickname,'')     as allele_nickname,
         coalesce(aa.transgene_pretty,'')    as transgene_pretty,
-        -- prefer calc rollup if present; else empty
         coalesce(aa.genotype_rollup_calc,'') as genotype_rollup,
         coalesce(l.n_living_tanks,0)         as n_living_tanks,
         b.birth_date,
@@ -139,25 +142,23 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
       left join live       l  using (fish_code)
       order by b.created_time desc nulls last, b.fish_code
     """)
-
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params=params).to_dict(orient="records")
 
 def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
-    """Tank details table and for printing selection."""
+    """Tank details for selected fish (for drilldown + printing)."""
     if not codes:
         return pd.DataFrame(columns=["fish_code","tank_code","container_id","status","created_at"])
     sql = text("""
       select
-        f.fish_code,
+        vt.fish_code,
         vt.tank_code,
         vt.tank_id::text             as container_id,
         vt.status::text              as status,
         vt.tank_created_at           as created_at
-      from public.fish f
-      join public.v_tanks vt on vt.fish_id = f.id
-      where f.fish_code = any(:codes)
-      order by f.fish_code, vt.tank_created_at desc nulls last
+      from public.v_tanks vt
+      where vt.fish_code = any(:codes)
+      order by vt.fish_code, vt.tank_created_at desc nulls last
     """)
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params={"codes": list({c for c in codes if c})})
@@ -184,19 +185,19 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
         select unnest(cast(:ids as uuid[])) as container_id
       ),
       vt as (
-        -- authoritative tank + fish_id
+        -- authoritative tank + fish_code (tank-centric)
         select
-          v.tank_id::uuid              as tank_id,
-          v.fish_id::uuid              as fish_id,
-          v.tank_code::text            as tank_code,
-          v.status::text               as status,
-          v.tank_created_at::timestamptz as created_at
+          v.tank_id::uuid                 as tank_id,
+          v.fish_code::text               as fish_code,
+          v.tank_code::text               as tank_code,
+          v.status::text                  as status,
+          v.tank_created_at::timestamptz  as created_at
         from public.v_tanks v
       ),
       geno as (
-        -- genotype pretty rollup per fish
+        -- genotype pretty rollup per fish_code
         select
-          f.id::uuid as fish_id,
+          f.fish_code::text as fish_code,
           string_agg('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''),
                      '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as genotype
         from public.fish f
@@ -204,26 +205,25 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
         left join public.transgene_alleles ta
                on ta.transgene_base_code = fta.transgene_base_code
               and ta.allele_number       = fta.allele_number
-        group by f.id
+        group by f.fish_code
       )
       select
         p.container_id::text                 as container_id,
         vt.tank_code                         as tank_code,
         vt.status                            as status,
-        f.fish_code::text                    as fish_code,
+        vt.fish_code                         as fish_code,
         coalesce(f.nickname,'')              as nickname,
         coalesce(f.name,'')                  as name,
         coalesce(g.genotype,'')              as genotype,
         coalesce(f.genetic_background,'')    as genetic_background,
-        coalesce(f.line_building_stage,'')   as stage,
+        null::text                           as stage,   -- stage not in minimal fish (keep API shape)
         (f.date_birth)::date                 as dob
       from picked p
       join vt on vt.tank_id = p.container_id
-      left join public.fish f on f.id = vt.fish_id
-      left join geno g on g.fish_id = f.id
+      left join public.fish f on f.fish_code = vt.fish_code
+      left join geno g on g.fish_code = vt.fish_code
       order by vt.created_at asc, vt.tank_code asc
     """)
-
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params={"ids": ids})
 
@@ -240,13 +240,12 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             df[c] = df[c].fillna("").astype(str)
 
     if "dob" in df.columns:
-        # Ensure pure date or None (no NaT)
         try:
             df["dob"] = pd.to_datetime(df["dob"], errors="coerce").dt.date
         except Exception:
             df["dob"] = None
 
-    return df[ [c for c in want_cols if c in df.columns] ]
+    return df[[c for c in want_cols if c in df.columns]]
 
 # Printer helpers
 def _detect_default_queue() -> str:
@@ -311,7 +310,7 @@ def main():
 
     fish_df = pd.DataFrame(fish_rows)
 
-    # Exactly the columns you asked for in the main grid
+    # Main grid columns
     fish_cols = [c for c in [
         "fish_code",
         "fish_name",
@@ -375,7 +374,7 @@ def main():
     st.session_state["_sft_table"] = edited.copy()
     selected_codes = edited.loc[edited["✓ Select"], "Fish code"].astype(str).tolist()
 
-    # Tank details (expander) for selected fish
+    # Tanks for selected fish
     st.subheader("Tanks for selected fish (tank_code, tank_status)")
     if not selected_codes:
         st.info("Select one or more fish above to see their tanks.")
@@ -391,7 +390,7 @@ def main():
             )
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Printing labels — restored
+    # Printing labels
     # ─────────────────────────────────────────────────────────────────────────
     st.subheader("Print labels")
     if not selected_codes:
@@ -422,7 +421,7 @@ def main():
     to_print = tanks_edit.loc[tanks_edit["✓ Print"] == True]
     st.caption(f"{len(to_print)} tank(s) selected for labels")
 
-    # Build the labels PDF (minimal enrichment preserved)
+    # Build the labels PDF (enrichment preserved; fish_code-join)
     pdf_bytes = b""
     if not to_print.empty:
         ids = to_print["container_id"].astype(str).tolist()
@@ -431,8 +430,6 @@ def main():
             rows: list[dict] = []
             for _, r in enriched.iterrows():
                 dob = r.get("dob", None)
-
-                # normalize dob → date or None (no NaT / Timestamp strings)
                 if dob is not None:
                     try:
                         if pd.isna(dob):
@@ -441,9 +438,8 @@ def main():
                             dob = dob.date()
                         elif isinstance(dob, str) and dob.strip():
                             dob_parsed = pd.to_datetime(dob, errors="coerce")
-                            dob = None if pd.isna(dob_parsed) else dob_parsed.date()  # type: ignore
+                            dob = None if pd.isna(dob_parsed) else dob_parsed.date()
                         elif hasattr(dob, "strftime") and hasattr(dob, "year"):
-                            # date/datetime-like: convert to date if possible
                             dob = getattr(dob, "date", lambda: dob)()
                         else:
                             dob = None
@@ -459,7 +455,7 @@ def main():
                     "genotype":             (r.get("genotype") or "").strip(),
                     "genetic_background":   (r.get("genetic_background") or "").strip(),
                     "stage":                (r.get("stage") or "").strip(),
-                    "dob":                  dob,  # ← now either date or None
+                    "dob":                  dob,
                 })
 
             pdf_bytes = build_tank_labels_pdf(rows)

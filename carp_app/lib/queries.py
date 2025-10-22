@@ -1,59 +1,66 @@
+from __future__ import annotations
+
 import shlex
 import pandas as pd
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Mapping
 from sqlalchemy import text
+from sqlalchemy.engine import Engine, Connection
 
-# Tailored to your label view columns
-VIEW = "public.v_fish_overview_with_label"
+# ========= helpers =========
 
-# These exist (from your \d+): use *_print where appropriate
+FISH_VIEW = "public.v_fish"          # canonical fish view (exists in your rebuilt DB)
+TANKS_VIEW = "public.v_tanks"        # canonical tank view (exists in your rebuilt DB)
+
+def _object_exists(engine: Engine, schema: str, name: str) -> bool:
+    sql = text("""
+      with t as (
+        select table_schema as s, table_name as n from information_schema.tables
+        union all
+        select table_schema as s, table_name as n from information_schema.views
+      )
+      select exists(select 1 from t where s=:s and n=:n) as ok
+    """)
+    with engine.begin() as cx:
+        return bool(pd.read_sql(sql, cx, params={"s": schema, "n": name})["ok"].iloc[0])
+
+# ========= fish search (v_fish) =========
+
+# Available columns in v_fish; keep haystack lean & stable
 SEARCH_COLUMNS = [
     "fish_code",
     "name",
     "nickname",
-    "genotype_print",
-    "genetic_background_print",
-    "COALESCE(line_building_stage,line_building_stage_print)"
+    "genotype",
+    "genetic_background",
 ]
-
-# For stage filtering / display we coalesce these
-STAGE_COALESCE = "COALESCE(line_building_stage,line_building_stage_print)"
 
 def _build_haystack() -> str:
     casted = [f"COALESCE(({c})::text,'')" for c in SEARCH_COLUMNS]
     return "concat_ws(' ', " + ", ".join(casted) + ")"
 
-def load_fish_overview(engine, q: str = "", stages: List[str] | None = None, limit: int = 500, view: str | None = None):
+def load_fish_overview(engine: Engine, q: str = "", stages: List[str] | None = None,
+                       limit: int = 500, view: str | None = None):
     """
-    Multi-term AND search with:
-      - field-specific filters: name= / name: / genotype: / background: / fish_code= / stage=
-      - quoted phrases
-      - -negation for both haystack and field-specific
-      - stage pill merges with auto-detected stage tokens
+    Multi-term AND search over v_fish with simple field/contains filters.
     """
-    view = view or VIEW
+    view = view or FISH_VIEW
     haystack = _build_haystack()
 
-    # tokenize; ignore literal AND
     tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
 
-    # allowed field aliases → SQL column/expression
+    # allowed field aliases → SQL column
     field_map: Dict[str, str] = {
         "fish_code": "fish_code",
         "name": "name",
         "nickname": "nickname",
-        "genotype": "genotype_print",                         # alias
-        "background": "genetic_background_print",             # alias
-        "genetic_background": "genetic_background_print",
-        "stage": STAGE_COALESCE,                              # expression
+        "genotype": "genotype",
+        "background": "genetic_background",
+        "genetic_background": "genetic_background",
+        # If you add stage to v_fish later, you can map: "stage": "stage",
     }
-
-    # stage vocabulary for auto-detection from free text
-    STAGE_VALUES = {"FOUNDER", "F0", "F1", "F2", "F3", "F4"}
 
     params: Dict[str, object] = {"limit": int(limit)}
     where: List[str] = []
-    auto_stage_filters: List[str] = []
 
     for i, tok in enumerate(tokens):
         neg = tok.startswith("-")
@@ -71,7 +78,7 @@ def load_fish_overview(engine, q: str = "", stages: List[str] | None = None, lim
             k_ct = (k_ct or "").strip().lower()
             v_ct = (v_ct or "").strip().strip('"')
 
-        # exact: lower(col) = lower(:tN)
+        # exact
         if k_eq and k_eq in field_map:
             col = field_map[k_eq]
             key = f"t{i}"
@@ -80,7 +87,7 @@ def load_fish_overview(engine, q: str = "", stages: List[str] | None = None, lim
             where.append(("NOT " if neg else "") + f"({clause})")
             continue
 
-        # contains: col ILIKE :tN
+        # contains
         if k_ct and k_ct in field_map:
             col = field_map[k_ct]
             key = f"t{i}"
@@ -89,47 +96,30 @@ def load_fish_overview(engine, q: str = "", stages: List[str] | None = None, lim
             where.append(("NOT " if neg else "") + f"({clause})")
             continue
 
-        # free text stage token → collect for equality filter later
-        if core.upper() in STAGE_VALUES and not neg:
-            auto_stage_filters.append(core.upper())
-            continue
-
-        # otherwise haystack contains / negated contains
+        # generic haystack contains / negated
         key = f"t{i}"
-        if neg:
-            params[key] = f"%{core}%"
-            where.append(f"NOT ({haystack} ILIKE :{key})")
-        else:
-            params[key] = f"%{core}%"
-            where.append(f"({haystack} ILIKE :{key})")
-
-    # merge explicit stage pill with auto-detected tokens
-    stage_filters = [s.upper() for s in (stages or [])]
-    for s in auto_stage_filters:
-        if s not in stage_filters:
-            stage_filters.append(s)
-    if stage_filters:
-        where.append(f"UPPER({STAGE_COALESCE}) = ANY(:stages)")
-        params["stages"] = stage_filters
+        params[key] = f"%{core}%"
+        clause = f"{haystack} ILIKE :{key}"
+        where.append(("NOT " if neg else "") + f"({clause})")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     sql = f"""
         SELECT *
         FROM {view}
         {where_sql}
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC NULLS LAST
         LIMIT :limit
     """
     with engine.connect() as conn:
         rows = conn.execute(text(sql), params).mappings().all()
     return rows
 
-def fish_overview_minimal(conn_or_engine: Any, q: Optional[str] = None, limit: int = 1000, require_links: bool = True) -> List[Dict[str, Any]]:
+def fish_overview_minimal(conn_or_engine: Any, q: Optional[str] = None,
+                          limit: int = 1000, require_links: bool = True) -> List[Dict[str, Any]]:
     """
     Back-compat: delegate to load_fish_overview, then trim to a tolerant minimal set.
     """
     try:
-        from sqlalchemy.engine import Engine, Connection
         if isinstance(conn_or_engine, Engine):
             eng = conn_or_engine
         elif isinstance(conn_or_engine, Connection):
@@ -151,17 +141,16 @@ def fish_overview_minimal(conn_or_engine: Any, q: Optional[str] = None, limit: i
     if keep:
         df = df[keep]
 
-
     if isinstance(limit, int) and limit > 0:
         df = df.head(limit)
 
     return df.to_dict(orient="records")
 
-def load_label_rows(engine, q: str | None = None, limit: int = 500):
+def load_label_rows(engine: Engine, q: str | None = None, limit: int = 500):
     """
-    Convenience: fetch printable label rows with the same multi-term semantics.
+    Convenience label rows with the same multi-term semantics, backed by v_fish.
     """
-    view = VIEW  # default to the label-friendly view
+    view = FISH_VIEW
     haystack = _build_haystack()
 
     tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
@@ -186,63 +175,110 @@ def load_label_rows(engine, q: str | None = None, limit: int = 500):
     """
     with engine.begin() as cx:
         return pd.read_sql_query(sql, cx, params=params)
-# ---- overview view helpers ----
-from typing import Optional, Mapping, List
-from sqlalchemy import text
-from sqlalchemy.engine import Engine
+
+# ========= containers overview (v_tanks) =========
 
 def load_containers_overview(engine: Engine, q: Optional[str] = None, limit: int = 200) -> List[Mapping]:
+    """
+    Tank-centric overview backed by public.v_tanks.
+    Returns a container-like shape for callers.
+    """
     sql = """
-        select id, container_type, label, tank_code, status, status_changed_at, created_at
-        from public.v_containers_overview
+        select
+          t.tank_id                       as id,
+          'inventory_tank'                as container_type,   -- v_tanks is tank-only
+          t.label                         as label,
+          t.tank_code                     as tank_code,
+          t.status                        as status,
+          t.tank_updated_at               as status_changed_at,
+          t.tank_created_at               as created_at
+        from public.v_tanks t
         where (:q is null)
-           or (coalesce(label,'') ilike :qpat
-            or coalesce(tank_code,'') ilike :qpat
-            or coalesce(container_type,'') ilike :qpat)
+           or (coalesce(t.label,'') ilike :qpat
+            or coalesce(t.tank_code,'') ilike :qpat)
         order by status_changed_at desc nulls last, created_at desc
         limit :lim
     """
     qpat = f"%{q}%" if (q is not None and str(q).strip() != '') else None
     with engine.connect() as conn:
-        return [dict(r) for r in conn.execute(text(sql), {"q": q, "qpat": qpat, "lim": limit}).mappings().all()]
+        return [
+            dict(r) for r in conn.execute(
+                text(sql), {"q": q, "qpat": qpat, "lim": int(limit)}
+            ).mappings().all()
+        ]
+
+# ========= clutch instances overview (inline; no view dependency) =========
 
 def load_clutch_instances_overview(engine: Engine, limit: int = 200) -> List[Mapping]:
+    """
+    Pair-centric clutch instances overview built inline (no v_clutch_instances_overview).
+    """
     sql = """
-        select cross_instance_id, cross_run_code, birthday, clutch_code,
-               clutch_instance_id, clutch_birthday, clutch_created_by
-        from public.v_clutch_instances_overview
-        order by birthday desc nulls last
-        limit :lim
+      with b as (
+        select
+          x.id                                              as cross_instance_id,
+          coalesce(x.cross_run_code, x.id::text)           as cross_run_code,
+          x.cross_date                                      as birthday,
+          ci.id                                             as clutch_instance_id,
+          coalesce(ci.clutch_instance_code, ci.id::text)    as clutch_code,
+          ci.date_birth                                     as clutch_birthday,
+          coalesce(ci.annotated_by, x.created_by)           as clutch_created_by,
+          vt_m.tank_code                                    as mother_tank_code,
+          vt_f.tank_code                                    as father_tank_code
+        from public.clutch_instances ci
+        join public.cross_instances x    on x.id = ci.cross_instance_id
+        left join public.tank_pairs tp   on tp.id = x.tank_pair_id
+        left join public.v_tanks  vt_m   on vt_m.tank_id = tp.mother_tank_id
+        left join public.v_tanks  vt_f   on vt_f.tank_id = tp.father_tank_id
+      )
+      select
+        cross_instance_id, cross_run_code, birthday, clutch_code,
+        clutch_instance_id, clutch_birthday, clutch_created_by
+      from b
+      order by birthday desc nulls last
+      limit :lim
     """
     with engine.connect() as conn:
-        return [dict(r) for r in conn.execute(text(sql), {"lim": limit}).mappings().all()]
+        return [
+            dict(r) for r in conn.execute(
+                text(sql), {"lim": int(limit)}
+            ).mappings().all()
+        ]
 
-from typing import Optional, Mapping, List
-from sqlalchemy import text
-from sqlalchemy.engine import Engine
+# ========= optional: human fish overview (fallback to v_fish if needed) =========
 
-def load_fish_overview_human(engine: Engine, q: Optional[str] = None, stages: Optional[List[str]] = None, limit: int = 500) -> List[Mapping]:
-    cols = (
-        "fish_id, fish_code, fish_name, fish_nickname, genetic_background, "
-        "allele_number, allele_code, transgene, genotype_rollup, "
-        "tank_code, tank_label, tank_status, "
-        "stage, date_birth, created_at, created_by"
-    )
-
-    search_cols = [
-        "fish_code", "fish_name", "fish_nickname",
-        "genetic_background", "transgene", "genotype_rollup",
-        "tank_code", "tank_label",
-    ]
+def load_fish_overview_human(engine: Engine, q: Optional[str] = None,
+                             stages: Optional[List[str]] = None, limit: int = 500) -> List[Mapping]:
+    """
+    If public.v_fish_overview_human exists, use it; else fallback to public.v_fish with a reduced column set.
+    """
+    if _object_exists(engine, "public", "v_fish_overview_human"):
+        cols = (
+            "fish_id, fish_code, fish_name, fish_nickname, genetic_background, "
+            "allele_number, allele_code, transgene, genotype_rollup, "
+            "tank_code, tank_label, tank_status, "
+            "stage, date_birth, created_at, created_by"
+        )
+        search_cols = [
+            "fish_code", "fish_name", "fish_nickname",
+            "genetic_background", "transgene", "genotype_rollup",
+            "tank_code", "tank_label",
+        ]
+        view = "public.v_fish_overview_human"
+    else:
+        # fallback to v_fish
+        cols = "id as fish_id, fish_code, name as fish_name, nickname as fish_nickname, genetic_background, genotype as genotype_rollup, created_at, null::text as created_by, null::text as tank_code, null::text as tank_label, null::text as tank_status, null::text as transgene, null::int as allele_number, null::text as allele_code, null::text as stage, date_birth"
+        search_cols = ["fish_code", "name", "nickname", "genetic_background", "genotype"]
+        view = FISH_VIEW
 
     # normalize q: empty/whitespace -> None
     q = (q.strip() if isinstance(q, str) else q) or None
 
-    clauses = []
+    clauses: List[str] = []
     params: dict = {"lim": int(limit)}
 
-    # optional stage filter
-    if stages:
+    # optional stage filter (only if the column exists)
+    if "stage" in cols and stages:
         stg = list({(s or "").strip().upper() for s in stages if (s or "").strip()})
         if stg:
             clauses.append("upper(coalesce(stage,'')) = ANY(:stages)")
@@ -259,13 +295,11 @@ def load_fish_overview_human(engine: Engine, q: Optional[str] = None, stages: Op
 
     sql = f"""
         select {cols}
-        from public.v_fish_overview_human
+        from {view}
         {"where " + " AND ".join(clauses) if clauses else ""}
         order by created_at desc nulls last
         limit :lim
     """
-
     with engine.connect() as cx:
         rows = cx.execute(text(sql), params).mappings().all()
         return [dict(r) for r in rows]
-
