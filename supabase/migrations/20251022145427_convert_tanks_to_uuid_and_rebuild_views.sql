@@ -1,4 +1,5 @@
 -- Convert tanks + dependents to UUID and rebuild dependent views
+-- Fully patched 2025-10-22
 
 create extension if not exists pgcrypto;
 
@@ -17,11 +18,22 @@ update public.fish_tank_assignments a
 alter table public.fish_tank_assignments drop column tank_id;
 alter table public.fish_tank_assignments rename column tank_id_uuid to tank_id;
 
+-- also drop FK from tank_status_history → tanks
+alter table public.tank_status_history
+  drop constraint if exists tank_status_history_tank_id_fkey;
+
 -- 3. promote UUID to primary key
 alter table public.tanks drop constraint if exists tanks_pkey;
 alter table public.tanks drop column tank_id;
 alter table public.tanks rename column tank_id_uuid to tank_id;
 alter table public.tanks add primary key (tank_id);
+
+-- recreate FK from tank_status_history → tanks (UUID world)
+alter table public.tank_status_history
+  add constraint tank_status_history_tank_id_fkey
+  foreign key (tank_id)
+  references public.tanks(tank_id)
+  on update cascade on delete cascade;
 
 -- 4. recreate v_tanks view in UUID world
 create or replace view public.v_tanks as
