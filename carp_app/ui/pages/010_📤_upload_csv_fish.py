@@ -22,7 +22,7 @@ import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from carp_app.ui.lib.app_ctx import get_engine  # use shared, env-driven engine
+from carp_app.ui.lib.app_ctx import get_engine  # shared, env-driven engine
 
 PAGE_TITLE = "CARP — New Fish from CSV"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
@@ -50,8 +50,7 @@ def _example_fish_csv_bytes() -> bytes:
         "transgene_base_code": "pDQM005",
         "allele_nickname": "505",
         "zygosity": "",
-        "birthday": "2025-01-15",
-        "created_by": os.environ.get("USER") or os.environ.get("USERNAME") or "system",
+        "birthday": "2025-01-15"
     }])
     return example.to_csv(index=False).encode("utf-8")
 
@@ -103,7 +102,10 @@ if not uploaded:
 
 default_batch = Path(getattr(uploaded, "name", "")).stem
 seed_batch_id = st.text_input("Seed batch ID", value=default_batch)
-created_by = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
+
+# Authenticated creator UUID (tight: never use shell USER)
+creator_uuid = getattr(user, "id", None)
+created_by_uuid = str(creator_uuid) if creator_uuid else None
 
 try:
     df = pd.read_csv(io.BytesIO(uploaded.getvalue()))
@@ -122,7 +124,7 @@ if "fish_code" in df.columns:
     df = df.drop(columns=["fish_code"])
 for col in (
     "name","nickname","genetic_background","line_building_stage","description",
-    "transgene_base_code","allele_nickname","zygosity","created_by","notes"
+    "transgene_base_code","allele_nickname","zygosity","notes"
 ):
     if col in df.columns:
         df[col] = df[col].fillna("").astype(str)
@@ -246,7 +248,7 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
                 stage = (r.get("line_building_stage") or None),
                 desc  = (r.get("description") or None),
                 notes = (r.get("notes") or None),
-                by    = (r.get("created_by") or created_by),
+                by    = created_by_uuid,  # UUID or None; DB expects uuid
             )
             got = cx.execute(fn_upsert, params).mappings().first()
             if not got:
