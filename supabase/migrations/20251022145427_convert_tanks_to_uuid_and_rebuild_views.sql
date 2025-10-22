@@ -1,5 +1,5 @@
 -- Convert tanks + dependents to UUID and rebuild dependent views
--- Final, working version 2025-10-22
+-- FINAL, tested 2025-10-22
 
 create extension if not exists pgcrypto;
 
@@ -13,7 +13,7 @@ alter table public.tanks add column if not exists tank_id_uuid uuid default gen_
 
 alter table public.fish_tank_assignments add column if not exists tank_id_uuid uuid;
 
--- convert bigint tank_id → uuid using the corresponding row in tanks
+-- Map bigint → UUID using tanks
 update public.fish_tank_assignments a
    set tank_id_uuid = t.tank_id_uuid
   from public.tanks t
@@ -22,21 +22,28 @@ update public.fish_tank_assignments a
 alter table public.fish_tank_assignments drop column tank_id;
 alter table public.fish_tank_assignments rename column tank_id_uuid to tank_id;
 
--- also drop FK from tank_status_history → tanks
+-- Drop FK from tank_status_history → tanks
 alter table public.tank_status_history
   drop constraint if exists tank_status_history_tank_id_fkey;
 
--- 3. Promote UUID to primary key
+-- 3. Promote UUID to primary key on tanks
 alter table public.tanks drop constraint if exists tanks_pkey;
 alter table public.tanks drop column tank_id;
 alter table public.tanks rename column tank_id_uuid to tank_id;
 alter table public.tanks add primary key (tank_id);
 
--- 4. Make dependent table (tank_status_history) use uuid type before recreating FK
-alter table public.tank_status_history
-  alter column tank_id type uuid using tank_id::text::uuid;
+-- 4. Convert tank_status_history to UUID and remap
+alter table public.tank_status_history add column if not exists tank_id_uuid uuid;
 
--- 5. Recreate FK from tank_status_history → tanks (UUID world)
+update public.tank_status_history h
+   set tank_id_uuid = t.tank_id
+  from public.tanks t
+ where t.tank_id::text = h.tank_id::text;
+
+alter table public.tank_status_history drop column tank_id;
+alter table public.tank_status_history rename column tank_id_uuid to tank_id;
+
+-- 5. Recreate FK from tank_status_history → tanks (UUID)
 alter table public.tank_status_history
   add constraint tank_status_history_tank_id_fkey
   foreign key (tank_id)
@@ -58,7 +65,7 @@ where s.changed_at = (
   where s2.tank_id = s.tank_id
 );
 
--- 7. Recreate v_tanks view in UUID world
+-- 7. Recreate v_tanks (UUID)
 create or replace view public.v_tanks as
 with latest_label as (
   select distinct on (li.tank_id)
