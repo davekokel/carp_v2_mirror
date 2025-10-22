@@ -1,11 +1,12 @@
 -- Convert tanks + dependents to UUID and rebuild dependent views
--- Fully patched 2025-10-22
+-- Final patched version 2025-10-22
 
 create extension if not exists pgcrypto;
 
 -- 1. drop dependent views that reference tanks.tank_id (bigint)
 drop view if exists public.v_tank_occupancy cascade;
 drop view if exists public.v_tanks cascade;
+drop view if exists public.v_tanks_current_status cascade;
 
 -- 2. add UUID column and update dependents
 alter table public.tanks add column if not exists tank_id_uuid uuid default gen_random_uuid();
@@ -38,7 +39,22 @@ alter table public.tank_status_history
   references public.tanks(tank_id)
   on update cascade on delete cascade;
 
--- 4. recreate v_tanks view in UUID world
+-- 4. recreate v_tanks_current_status (UUID)
+create or replace view public.v_tanks_current_status as
+select
+  t.tank_id,
+  s.status,
+  s.reason,
+  s.changed_at
+from public.tanks t
+join public.tank_status_history s on s.tank_id = t.tank_id
+where s.changed_at = (
+  select max(s2.changed_at)
+  from public.tank_status_history s2
+  where s2.tank_id = s.tank_id
+);
+
+-- 5. recreate v_tanks view in UUID world
 create or replace view public.v_tanks as
 with latest_label as (
   select distinct on (li.tank_id)
