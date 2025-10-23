@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 st.set_page_config(page_title="Overview — Crosses", page_icon="🔎", layout="wide")
-st.title("🔎 Overview — Crosses")
+st.title("🔎 Overview tank pairs")
 
 DB_URL = os.getenv("DB_URL")
 if not DB_URL:

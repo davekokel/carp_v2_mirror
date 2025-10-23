@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 st.set_page_config(page_title="Overview Clutches", page_icon="🧬", layout="wide")
-st.title("🧬 Clutches — Conceptual overview with instance counts")
+st.title("🔎 Overview crosses st.title("🧬 Clutches — Conceptual overview with instance counts") clutches")
 
 DB_URL = os.getenv("DB_URL")
 if not DB_URL:
