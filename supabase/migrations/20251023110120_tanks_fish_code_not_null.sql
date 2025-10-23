@@ -1,0 +1,3 @@
+BEGIN;
+ALTER TABLE public.tanks ALTER COLUMN fish_code SET NOT NULL;
+COMMIT;

@@ -12,8 +12,8 @@ from sqlalchemy import text
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
-from carp_app.lib.config import engine as get_engine
-
+from carp_app.ui.lib.app_ctx import get_engine
+from sqlalchemy.engine import Engine
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth + Page
 # ─────────────────────────────────────────────────────────────────────────────
@@ -33,14 +33,14 @@ require_app_unlock()
 # DB engine (cache keyed by DB_URL) + caption
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
-def _cached_engine(url: str):
+def _cached_engine() -> Engine:
     return get_engine()
 
 def _get_engine():
     url = os.getenv("DB_URL")
     if not url:
         st.error("DB_URL not set"); st.stop()
-    return _cached_engine(url)
+    return _cached_engine()
 
 with _get_engine().begin() as cx:
     dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
