@@ -19,10 +19,10 @@ from datetime import date, timedelta
 
 import pandas as pd
 import streamlit as st
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from sqlalchemy.engine import Engine
 
-from carp_app.ui.lib.app_ctx import get_engine  # shared, env-driven engine
+from carp_app.ui.lib.app_ctx import get_engine
 
 PAGE_TITLE = "CARP — New Fish from CSV"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
@@ -103,7 +103,6 @@ if not uploaded:
 default_batch = Path(getattr(uploaded, "name", "")).stem
 seed_batch_id = st.text_input("Seed batch ID", value=default_batch)
 
-# Authenticated creator UUID (tight: never use shell USER)
 creator_uuid = getattr(user, "id", None)
 created_by_uuid = str(creator_uuid) if creator_uuid else None
 
@@ -218,16 +217,54 @@ def _build_upsert_results(fish_codes: List[str]) -> pd.DataFrame:
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params={"codes": fish_codes})
 
+sql_tank_exists = text("""
+  select 1
+  from public.tanks
+  where fish_code = :fc
+  limit 1
+""")
+
+sql_insert_tank = text("""
+  insert into public.tanks (tank_id, tank_code, fish_code, rack, position, created_at, created_by)
+  values (gen_random_uuid(), :tank_code, :fish_code, null, null, now(), :by::uuid)
+""")
+
 inserted: List[Dict[str, Any]] = []
 if st.button("Upsert fish batch", type="primary", width="stretch"):
+    # reset pooled DB connections so we pick up the updated trigger body
+    try:
+        if _ENGINE is not None:
+            _ENGINE.dispose()
+            _ENGINE = None
+    except Exception:
+        pass
     linked = 0
     skipped_links = 0
 
     fn_upsert = text("""
         select * from public.upsert_fish_by_batch_name_dob(
-            :batch, :name, :dob, :bg, :nick, :stage, :desc, :notes, :by
+            p_seed_batch_id        => (:p_batch)::text,
+            p_name                 => (:p_name)::text,
+            p_date_birth           => (:p_dob)::date,
+            p_genetic_background   => (:p_bg)::text,
+            p_nickname             => (:p_nick)::text,
+            p_line_building_stage  => (:p_stage)::text,
+            p_description          => (:p_desc)::text,
+            p_notes                => (:p_notes)::text,
+            p_created_by           => (:p_by)::text
         )
-    """)
+    """).bindparams(
+        bindparam("p_batch"),
+        bindparam("p_name"),
+        bindparam("p_dob"),
+        bindparam("p_bg"),
+        bindparam("p_nick"),
+        bindparam("p_stage"),
+        bindparam("p_desc"),
+        bindparam("p_notes"),
+        bindparam("p_by"),
+    )
+
     upsert_allele = text("""
         select * from public.upsert_fish_allele_from_csv(:fish_id, :base_code, :allele_nickname)
     """)
@@ -237,15 +274,15 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
     with _get_engine().begin() as cx:
         for _, r in df.iterrows():
             params = dict(
-                batch = seed_batch_id,
-                name  = (r.get("name") or None),
-                dob   = r.get("birthday"),
-                bg    = (r.get("genetic_background") or None),
-                nick  = (r.get("nickname") or None),
-                stage = (r.get("line_building_stage") or None),
-                desc  = (r.get("description") or None),
-                notes = (r.get("notes") or None),
-                by    = created_by_uuid,  # UUID or None; DB expects uuid
+                p_batch = seed_batch_id,
+                p_name  = (r.get("name") or None),
+                p_dob   = r.get("birthday"),
+                p_bg    = (r.get("genetic_background") or None),
+                p_nick  = (r.get("nickname") or None),
+                p_stage = (r.get("line_building_stage") or None),
+                p_desc  = (r.get("description") or None),
+                p_notes = (r.get("notes") or None),
+                p_by    = created_by_uuid,
             )
             got = cx.execute(fn_upsert, params).mappings().first()
             if not got:
@@ -253,13 +290,23 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
             inserted.append(dict(got))
             batch_fish_codes.append(got["fish_code"])
             fish_id = got["fish_id"]
+            fish_code = got["fish_code"]
 
+            # ensure a default tank exists (uuid cast stays here)
+            exists = cx.execute(sql_tank_exists, {"fc": fish_code}).fetchone()
+            if not exists:
+                cx.execute(sql_insert_tank, {
+                    "tank_code": f"TANK-{fish_code}-#1",
+                    "fish_code": fish_code,
+                    "by": created_by_uuid
+                })
+
+            # optional allele link from CSV
             if col_tg:
                 tg = (str(r.get(col_tg)).strip() if pd.notna(r.get(col_tg)) else "")
                 raw_nn = str(r.get(col_nick)).strip() if (col_nick and pd.notna(r.get(col_nick))) else ""
                 nn = _canon_nickname(raw_nn)
                 zy = (str(r.get(col_zyg)).strip() if (col_zyg and pd.notna(r.get(col_zyg))) else "")
-
                 if tg:
                     cx.execute(upsert_allele, {
                         "fish_id": fish_id,

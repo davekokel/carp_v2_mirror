@@ -1,12 +1,11 @@
 # =============================================================================
 # 🐟 Select fish pairs — conceptual (no tank_pairs or runs on this page)
-#      Links conceptual fish pairs → conceptual clutches explicitly
+#      Unordered conceptual pair; links to conceptual clutches explicitly
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
-# ── Auth gates ────────────────────────────────────────────────────────────────
 from carp_app.ui.auth_gate import require_auth
 sb, session, user = require_auth()
 
@@ -19,7 +18,6 @@ except Exception:
     def require_app_unlock(): ...
 require_app_unlock()
 
-# ── Std/3p imports ───────────────────────────────────────────────────────────
 import os, re, hashlib, pathlib as _pl
 from typing import List, Dict, Any, Set, Optional
 import pandas as pd
@@ -27,14 +25,12 @@ import streamlit as st
 from sqlalchemy import text
 from carp_app.ui.lib.app_ctx import get_engine
 
-# ── Page config / header ─────────────────────────────────────────────────────
 st.set_page_config(page_title="🐟 Select fish pairs", page_icon="🐟", layout="wide")
 st.title("🐟 Select fish pairs")
 
 _srcp = _pl.Path(__file__).resolve()
 st.caption("SRC=" + str(_srcp.name) + " • SHA256=" + hashlib.sha256(_srcp.read_bytes()).hexdigest()[:12])
 
-# ── Engine factory (no URL key in cache; DB_URL guard) ───────────────────────
 @st.cache_resource(show_spinner=False)
 def _cached_engine():
     return get_engine()
@@ -44,7 +40,6 @@ def _eng():
         st.error("DB_URL not set"); st.stop()
     return _cached_engine()
 
-# Db fingerprint for sanity
 with _eng().begin() as cx:
     dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
 st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
@@ -52,17 +47,22 @@ st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 # =============================================================================
 # HELPERS
 # =============================================================================
+def _split_genotype(g: str) -> list[str]:
+    if not g:
+        return []
+    parts = [p.strip() for p in re.split(r"[;,|]+", str(g)) if p and p.strip()]
+    seen, out = set(), []
+    for p in parts:
+        if p not in seen:
+            seen.add(p); out.append(p)
+    return out
+
 def _default_expected_genotype(combined_df: pd.DataFrame, mom_code: str, dad_code: str) -> str:
-    # 1) current selection from the grid (most immediate)
     if isinstance(combined_df, pd.DataFrame) and not combined_df.empty and "element" in combined_df.columns:
         return "; ".join(combined_df["element"].astype(str).tolist())
-
-    # 2) anything previously saved to session?
     saved = st.session_state.get("planned_genotype_elements") or []
     if saved:
         return "; ".join([str(x) for x in saved])
-
-    # 3) fallback: union tokens from parents' v_fish.genotype
     try:
         with _eng().begin() as cx:
             gf = pd.read_sql(
@@ -79,18 +79,8 @@ def _default_expected_genotype(combined_df: pd.DataFrame, mom_code: str, dad_cod
     except Exception:
         return ""
 
-def _split_genotype(g: str) -> list[str]:
-    if not g:
-        return []
-    parts = [p.strip() for p in re.split(r"[;,|]+", str(g)) if p and p.strip()]
-    seen, out = set(), []
-    for p in parts:
-        if p not in seen:
-            seen.add(p); out.append(p)
-    return out
-
 # =============================================================================
-# STEP 1 — FISH SEARCH + ROW CHECKBOX SELECTION (MOM / DAD)
+# STEP 1 — FISH SEARCH + ROW CHECKBOX SELECTION (UNORDERED PAIR)
 # =============================================================================
 created_by_default = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
 created_by = st.text_input("Created by", value=created_by_default)
@@ -139,7 +129,6 @@ def _search_fish_enriched(q: Optional[str], limit: int) -> pd.DataFrame:
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    # Hygiene
     for c in [
         "fish_code","name","nickname","genetic_background","genotype",
         "line_building_stage","created_by","transgene_base_code","allele_name",
@@ -151,8 +140,7 @@ def _search_fish_enriched(q: Optional[str], limit: int) -> pd.DataFrame:
     df["n_living_tanks"] = pd.to_numeric(df.get("n_living_tanks", 0), errors="coerce").fillna(0).astype(int)
     return df
 
-# ── Search form ──────────────────────────────────────────────────────────────
-st.header("Step 1 — Select parents (fish)")
+st.header("Step 1 — Select parents (unordered fish pair)")
 with st.form("fish_filters"):
     c1, c2 = st.columns([3,1])
     with c1:
@@ -165,7 +153,6 @@ if submitted:
     st.session_state.pop("_picker_sig", None)
     st.session_state.pop("_picker_src", None)
 
-# Version token to invalidate cache when fish table changes
 with _eng().begin() as cx:
     ver = pd.read_sql(text("select count(*)::int as n, coalesce(max(created_at)::text,'') as mx from public.fish"), cx).iloc[0]
 version_token = f"{ver['n']}|{ver['mx']}"
@@ -178,7 +165,6 @@ if submitted or st.session_state.get("_picker_sig") != sig_now or "_picker_src" 
 else:
     src = st.session_state["_picker_src"]
 
-# ── Data grid with a “✓ Select” checkbox column ─────────────────────────────
 sel_set: Set[str] = set(st.session_state.get("_picker_sel", []))
 
 if src.empty:
@@ -251,38 +237,32 @@ else:
 
     selected_codes = sorted(list(sel_set))
 
-    # Decide mom/dad from selection (first = mom; second = dad)
     def _clear_parents():
-        for k in ("mom_fish_code","dad_fish_code"):
+        for k in ("parent_a_code","parent_b_code","mom_fish_code","dad_fish_code"):
             st.session_state.pop(k, None)
 
-    def _assign_parents_from_selection():
+    def _assign_parents_unordered():
         if len(selected_codes) == 0:
-            _clear_parents()
-        elif len(selected_codes) == 1:
-            st.session_state["mom_fish_code"] = selected_codes[0]
-            st.session_state.pop("dad_fish_code", None)
+            _clear_parents(); return
+        st.session_state["parent_a_code"] = selected_codes[0]
+        st.session_state["parent_b_code"] = selected_codes[1] if len(selected_codes) > 1 else None
+        a = st.session_state["parent_a_code"]
+        b = st.session_state.get("parent_b_code")
+        if b:
+            mom, dad = (a, b) if a <= b else (b, a)
+            st.session_state["mom_fish_code"] = mom
+            st.session_state["dad_fish_code"] = dad
         else:
-            st.session_state["mom_fish_code"] = selected_codes[0]
-            st.session_state["dad_fish_code"] = selected_codes[1]
+            st.session_state["mom_fish_code"] = a
+            st.session_state.pop("dad_fish_code", None)
 
-    _assign_parents_from_selection()
+    _assign_parents_unordered()
 
-    # Small parent helpers
-    c1, c2 = st.columns(2)
-    with c1:
-        swap_disabled = not (st.session_state.get("mom_fish_code") and st.session_state.get("dad_fish_code"))
-        if st.button("Swap Mom/Dad", use_container_width=True, disabled=swap_disabled):
-            st.session_state["mom_fish_code"], st.session_state["dad_fish_code"] = (
-                st.session_state.get("dad_fish_code"),
-                st.session_state.get("mom_fish_code"),
-            )
-    with c2:
-        if st.button("Clear Mom/Dad", use_container_width=True):
-            _clear_parents()
-
-    st.write(f"**Mom (A):** {st.session_state.get('mom_fish_code','—')}")
-    st.write(f"**Dad (B):** {st.session_state.get('dad_fish_code','—')}")
+    pa = st.session_state.get("parent_a_code") or "—"
+    pb = st.session_state.get("parent_b_code") or "—"
+    st.write(f"**Parent A:** {pa}")
+    st.write(f"**Parent B:** {pb}")
+    st.caption("Parents are treated as an unordered pair here. Roles (mother/father) are applied when choosing tanks.")
 
 # =============================================================================
 # STEP 2 — GENOTYPE INHERITANCE (PICK ELEMENTS)
@@ -311,7 +291,7 @@ def _fetch_parent_rows(codes: list[str]) -> pd.DataFrame:
     return df.merge(pretty, on="fish_code", how="left")
 
 if not (mom_code or dad_code):
-    st.info("Pick parent fish above to preview and select genotype elements.")
+    st.info("Pick two parents above to preview and select genotype elements.")
 else:
     parents = _fetch_parent_rows([c for c in [mom_code, dad_code] if c])
     by_code = {r["fish_code"]: r for _, r in parents.iterrows()} if not parents.empty else {}
@@ -375,9 +355,9 @@ else:
 
     c1, c2 = st.columns(2)
     with c1:
-        mom_df = _parent_block("Mom (A)", mom_code, "mom")
+        mom_df = _parent_block("Parent A", mom_code, "mom")
     with c2:
-        dad_df = _parent_block("Dad (B)", dad_code, "dad")
+        dad_df = _parent_block("Parent B", dad_code, "dad")
 
     st.subheader("Selected elements for clutch")
     sel_frames = []
@@ -397,128 +377,63 @@ else:
 # =============================================================================
 st.subheader("Save pair + clutch")
 
-# Keep the default suggested clutch fields near the button
-def _suggest_next_clutch_code() -> str:
-    with _eng().begin() as cx:
-        n = pd.read_sql(text("""
-          select coalesce(max((regexp_match(coalesce(clutch_code,''),
-                 '^CL-\\d{2}(\\d{3})$'))[1]::int),0) + 1 as k
-          from public.clutches
-          where clutch_code like 'CL-'||to_char(extract(year from now())::int % 100,'FM00')||'%'
-        """), cx)["k"].iloc[0]
-    yy = f"{(pd.Timestamp.utcnow().year) % 100:02d}"
-    return f"CL-{yy}{int(n):03d}"
-
-default_clutch_code  = _suggest_next_clutch_code()
-# ⭐ Use the live selection first, then session, then parents' genotypes
-default_expected_geno = _default_expected_genotype(
+# Compute expected genotype silently (not shown as a field)
+computed_geno = _default_expected_genotype(
     locals().get("combined", pd.DataFrame(columns=["element"])),
     mom_code, dad_code
 )
 
-c1, c2 = st.columns([2,3])
-with c1:
-    clutch_code = st.text_input("Clutch code (CL-YYNNN)", value=default_clutch_code, key="concept_clutch_code")
-
-with c2:
-    # Dynamically recompute the genotype string each rerun, and override the widget state
-    prefill_geno = _default_expected_genotype(
-        locals().get("combined", pd.DataFrame(columns=["element"])),
-        mom_code, dad_code
-    )
-
-    # Force a reset if parents or selection changed
-    sig = f"{mom_code}|{dad_code}|{prefill_geno}"
-    if st.session_state.get("_last_geno_sig") != sig:
-        st.session_state["_last_geno_sig"] = sig
-        st.session_state["concept_clutch_geno"] = prefill_geno
-
-    clutch_expected_input = st.text_input(
-        "Clutch genotype (conceptual)",
-        key="concept_clutch_geno",
-        placeholder="e.g., Tg(pDQMM005); gu1"
-    )
-
-# Guard: need both parents and at least one element (your rule today)
+# Guard: need both parents and at least one selected element
 combined = locals().get("combined", pd.DataFrame(columns=["element","source"]))
-can_save_both = (
-    bool(mom_code) and bool(dad_code) and
-    isinstance(combined, pd.DataFrame) and not combined.empty and
-    bool(clutch_code.strip())
-)
+can_save_both = bool(mom_code) and bool(dad_code) and isinstance(combined, pd.DataFrame) and not combined.empty
 
 if st.button("💾 Save fish pair + clutch", type="primary", use_container_width=True, disabled=not can_save_both):
     try:
         with _eng().begin() as cx:
-            # 1) Upsert fish pair with FP-YYNNNN
-            cx.execute(text("""
-              with next_fp as (
-                select
-                  'FP-'||to_char(extract(year from now())::int % 100,'FM00')||
-                  lpad((
-                    select coalesce(max((regexp_match(coalesce(fish_pair_code,''),
-                         '^FP-\\d{2}(\\d{4})$'))[1]::int),0) + 1
-                    from public.fish_pairs
-                    where fish_pair_code like 'FP-'||to_char(extract(year from now())::int % 100,'FM00')||'%'
-                  )::text, 4, '0') as fp_code
-              )
-              insert into public.fish_pairs
-                (fish_pair_code, mom_fish_code, dad_fish_code, genotype_elems, created_by)
-              values
-                ((select fp_code from next_fp), :mom, :dad, :elts, :by)
+            # Insert/update fish pair; DB mints FP-{B36}; return identifiers
+            got = cx.execute(text("""
+              with canon as (select least(:mom,:dad) a, greatest(:mom,:dad) b)
+              insert into public.fish_pairs (mom_fish_code, dad_fish_code, genotype_elems, created_by)
+              select c.a, c.b, :elts, :by
+              from canon c
               on conflict (mom_fish_code, dad_fish_code) do update
                 set genotype_elems = excluded.genotype_elems,
                     created_by     = excluded.created_by,
                     created_at     = now()
+              returning fish_pair_id, fish_pair_code
             """), {
                 "mom": mom_code,
                 "dad": dad_code,
                 "elts": combined["element"].astype(str).tolist(),
                 "by":   (os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"),
-            })
+            }).mappings().first()
 
-            fp_row = pd.read_sql(
-                text("""select fish_pair_id, fish_pair_code
-                          from public.fish_pairs
-                         where mom_fish_code=:mom and dad_fish_code=:dad
-                         order by created_at desc limit 1"""),
-                cx, params={"mom": mom_code, "dad": dad_code}
-            )
-            fish_pair_id   = str(fp_row["fish_pair_id"].iloc[0])
-            fish_pair_code = fp_row["fish_pair_code"].iloc[0]
+            fish_pair_id   = str(got["fish_pair_id"])
+            fish_pair_code = got["fish_pair_code"]
 
-            # ⭐ Final genotype: prefer user input; if blank, fallback
-            final_geno = (clutch_expected_input or "").strip()
-            if not final_geno:
-                final_geno = _default_expected_genotype(combined, mom_code, dad_code)
-
-            # 2) Upsert conceptual clutch linked to fish pair (no cross_id needed)
-            cx.execute(text("""
+            # Insert conceptual clutch; DB mints CL-{B36}; return clutch_code
+            clutch_row = cx.execute(text("""
               insert into public.clutches
-                (id, clutch_code, expected_genotype, fish_pair_id, fish_pair_code, created_by, created_at)
+                (id, expected_genotype, fish_pair_id, fish_pair_code, created_by, created_at)
               values
-                (gen_random_uuid(), :cc, :geno, :fpid, :fpcode, :by, now())
-              on conflict (clutch_code) do update
-                set expected_genotype = excluded.expected_genotype,
-                    fish_pair_id      = coalesce(public.clutches.fish_pair_id, excluded.fish_pair_id),
-                    fish_pair_code    = coalesce(public.clutches.fish_pair_code, excluded.fish_pair_code)
+                (gen_random_uuid(), :geno, :fpid, :fpcode, :by, now())
+              returning clutch_code
             """), {
-                "cc": clutch_code.strip(),
-                "geno": final_geno,   # <-- never empty now
+                "geno": computed_geno,
                 "fpid": fish_pair_id,
                 "fpcode": fish_pair_code,
                 "by":   (os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"),
-            })
+            }).mappings().first()
+
+            clutch_code = clutch_row["clutch_code"]
 
         st.success(f"Saved fish pair {fish_pair_code} and linked clutch {clutch_code}.")
-        st.cache_data.clear()  # ensure the recent table refreshes
+        st.cache_data.clear()
     except Exception as e:
         st.error(f"Save failed: {type(e).__name__}: {e}")
 
 # =============================================================================
-# RECENT FISH PAIRS (fish_pair_code + conceptual clutch_code + clutch_genotype)
-#   - conceptual clutch via fish_pair_id/code (no tank_pairs required)
-#   - clutch genotype falls back to fish_pairs.genotype_elems if empty
+# RECENT FISH PAIRS
 # =============================================================================
 st.subheader("Recent fish pairs")
 
@@ -544,7 +459,6 @@ def _recent_fish_pairs(limit: int = 20) -> pd.DataFrame:
         p.mom,
         p.dad,
         cl.clutch_code,
-        -- fallback: if clutch.expected_genotype is empty, show elements from fish_pairs
         case
           when coalesce(cl.clutch_genotype,'') <> '' then cl.clutch_genotype
           when p.genotype_elems is not null         then array_to_string(p.genotype_elems, '; ')
@@ -560,11 +474,9 @@ def _recent_fish_pairs(limit: int = 20) -> pd.DataFrame:
     with _eng().begin() as cx:
         return pd.read_sql(sql, cx, params={"lim": int(limit)})
 
-# Optional: manual refresh clears cache
 if st.button("↻ Refresh recent pairs", type="secondary", use_container_width=False):
     st.cache_data.clear()
 
-# Quick diagnostic (handy while iterating)
 with _eng().begin() as cx:
     _cnt = pd.read_sql(text("select count(*)::int as n from public.fish_pairs"), cx)["n"][0]
 st.caption(f"(fish_pairs rows in DB: {_cnt})")
@@ -576,12 +488,12 @@ if fp.empty:
 else:
     show = fp.rename(columns={
         "fish_pair_code": "Fish pair",
-        "mom":"Mom", "dad":"Dad",
+        "mom":"Parent 1", "dad":"Parent 2",
         "clutch_code":"Clutch",
         "clutch_genotype":"Clutch genotype",
         "created_at":"Created"
     })
     st.dataframe(
-        show[["Fish pair","Mom","Dad","Clutch","Clutch genotype","Created"]],
+        show[["Fish pair","Parent 1","Parent 2","Clutch","Clutch genotype","Created"]],
         use_container_width=True, hide_index=True
     )
