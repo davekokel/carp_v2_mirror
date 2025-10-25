@@ -168,14 +168,14 @@ def _build_upsert_results(fish_codes: List[str]) -> pd.DataFrame:
           f.fish_code,
           fta.transgene_base_code,
           fta.allele_number,
-          r.allele_nickname::text as allele_nickname,
+          ta.allele_nickname::text as allele_nickname,
           ('gu' || fta.allele_number::text) as allele_name,
           ('Tg(' || fta.transgene_base_code || ')' || ('gu' || fta.allele_number::text)) as transgene_pretty
         from public.fish f
         left join public.fish_transgene_alleles fta on fta.fish_id = f.id
-        left join public.transgene_allele_registry r
-          on r.transgene_base_code  = fta.transgene_base_code
-         and r.allele_number        = fta.allele_number
+        left join public.transgene_alleles ta
+               on ta.transgene_base_code = fta.transgene_base_code
+              and ta.allele_number       = fta.allele_number
         where f.fish_code = any(:codes)
       ),
       tanks as (
@@ -212,7 +212,7 @@ def _build_upsert_results(fish_codes: List[str]) -> pd.DataFrame:
       left join tanks  t on t.fish_code = f.fish_code
       left join geno   g on g.fish_code = f.fish_code
       where f.fish_code = any(:codes)
-      order by f.fish_code, a.allele_number nulls last
+      order by f.fish_code, a.transgene_base_code, a.allele_number nulls last
     """)
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params={"codes": fish_codes})
