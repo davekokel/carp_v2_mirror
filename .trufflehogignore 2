@@ -1,5 +1,0 @@
-# Ignore unverified Postgres connection patterns and sample configs
-postgres://
-PGPASSWORD=
-PGHOST=
-PGUSER=
