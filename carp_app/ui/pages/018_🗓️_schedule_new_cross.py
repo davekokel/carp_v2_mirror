@@ -1,8 +1,5 @@
 # =============================================================================
-# 🗓 Schedule new cross (CX codes, no dates inside the code)
-#   - Pick concept (optional) or just pick a tank pair
-#   - Insert cross_instances (triggers assign unified CX)
-#   - (Optional) also insert clutch_instances; birthday defaults = cross_date + 1 day
+# 🗓 Schedule new cross (uses TP codes; CX keyed by tank_pair_code)
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
@@ -13,51 +10,57 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
+from sqlalchemy.engine import Engine, CursorResult
+from sqlalchemy.sql.elements import TextClause
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 from carp_app.ui.lib.app_ctx import get_engine
 
+# ── Auth + page ──────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 
 st.set_page_config(page_title="🗓 Schedule new cross", page_icon="🗓", layout="wide")
 st.title("🗓 Schedule new cross")
 
+# ── Engine ───────────────────────────────────────────────────────────────────
 if not os.getenv("DB_URL"):
     st.error("DB_URL not set"); st.stop()
-eng = get_engine()
+eng: Engine = get_engine()
+with eng.begin() as cx:
+    dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
+st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 
-def _safe(cx, sql, params=None):
-    return pd.read_sql(text(sql), cx, params=params or {})
+def _safe(cx, sql_or_text, params=None) -> pd.DataFrame:
+    q = sql_or_text if isinstance(sql_or_text, TextClause) else text(sql_or_text)
+    return pd.read_sql(q, cx, params=params or {})
 
-# --- filters ---
+# ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters"):
     c1, c2 = st.columns([3,1])
     q = c1.text_input("Search tank pairs (code / fish / tank)")
     limit = int(c2.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
-    st.form_submit_button("Apply")
+    st.form_submit_button("Apply", use_container_width=True)
 
-# --- load candidates ---
+# ── Load candidate tank pairs from v_tank_pairs ──────────────────────────────
 sql_pairs = text(f"""
-  with base as (
-    select
-      tp.id::uuid          as tank_pair_id,
-      tp.tank_pair_code,
-      -- prefer view if exists else derive
-      coalesce(tp.pair_fish, coalesce(tp.mom_fish_code,'') || ' × ' || coalesce(tp.dad_fish_code,'')) as pair_fish,
-      coalesce(tp.pair_tanks, coalesce(tp.mom_tank_code,'') || ' × ' || coalesce(tp.dad_tank_code,'')) as pair_tanks,
-      tp.genotype,
-      tp.created_at
-    from public.v_tank_pairs tp
-  )
-  select *
-  from base
+  select
+    v.id::uuid          as tank_pair_id,           -- uuid for display only
+    v.tank_pair_code,                              -- authoritative TP key
+    v.fish_pair_code,
+    v.mom_fish_code, v.mom_tank_code, v.mom_genotype,
+    v.dad_fish_code, v.dad_tank_code, v.dad_genotype,
+    v.created_at
+  from public.v_tank_pairs v
   where (:q = '' OR
-         tank_pair_code ilike :ql OR
-         pair_fish      ilike :ql OR
-         pair_tanks     ilike :ql)
-  order by created_at desc nulls last
+         v.tank_pair_code ilike :ql OR
+         v.fish_pair_code ilike :ql OR
+         v.mom_fish_code  ilike :ql OR
+         v.dad_fish_code  ilike :ql OR
+         v.mom_tank_code  ilike :ql OR
+         v.dad_tank_code  ilike :ql)
+  order by v.created_at desc nulls last
   limit :lim
 """)
 with eng.begin() as cx:
@@ -69,10 +72,20 @@ if pairs.empty:
     st.stop()
 
 pairs_view = pairs.copy()
+pairs_view["pair_fish"]  = (pairs_view["mom_fish_code"].fillna("") + " × " +
+                            pairs_view["dad_fish_code"].fillna(""))
+pairs_view["pair_tanks"] = (pairs_view["mom_tank_code"].fillna("") + " × " +
+                            pairs_view["dad_tank_code"].fillna(""))
+pairs_view["genotype"]   = (
+    pairs_view["mom_genotype"].fillna("").replace("", pd.NA).astype("object")
+    .combine(pairs_view["dad_genotype"].fillna("").replace("", pd.NA).astype("object"),
+             lambda a,b: f"{a} × {b}" if pd.notna(a) and pd.notna(b) else (a if pd.notna(a) else b))
+)
+
 pairs_view.insert(0,"✓ Select", False)
 pairs_edit = st.data_editor(
-    pairs_view[["✓ Select","tank_pair_code","pair_fish","pair_tanks","genotype","created_at"]],
-    hide_index=True, width="stretch",
+    pairs_view[["✓ Select","tank_pair_code","fish_pair_code","pair_fish","pair_tanks","genotype","created_at"]],
+    hide_index=True, use_container_width=True,
     column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)}
 )
 mask = pairs_edit["✓ Select"].fillna(False)
@@ -80,61 +93,64 @@ picked = pairs_view.loc[mask].head(1)
 if picked.empty:
     st.info("Select one tank pair above to continue."); st.stop()
 
-tp_id = str(picked.iloc[0]["tank_pair_id"])
 tp_code = str(picked.iloc[0]["tank_pair_code"])
 st.success(f"Selected **{tp_code}** — {picked.iloc[0]['pair_fish']}")
 
+# ── Options ──────────────────────────────────────────────────────────────────
 st.subheader("2) Choose run date & options")
 c1, c2 = st.columns([1,2])
 run_date: date = c1.date_input("Run date", value=date.today())
-make_clutch = c2.checkbox("Also create clutch now (birthday defaults to run + 1 day)", value=True)
+make_clutch = c2.checkbox("Also create clutch now", value=True)
 note = st.text_input("Run note (optional)")
 
-if st.button("⏱ Schedule cross (and clutch)", type="primary"):
+# ── Action ───────────────────────────────────────────────────────────────────
+if st.button("⏱ Schedule cross" + (" + clutch" if make_clutch else ""), type="primary"):
+    creator = (user.get('email') or user.get('id') or 'unknown')
     try:
         with eng.begin() as cx:
-            # Insert a cross row; trigger assigns cross_code = CX(TP)(NN)
+            # Insert cross: requires cross_id (NOT NULL) and id; returns cross_run_code
             row = _safe(cx, """
-              insert into public.cross_instances (id, tank_pair_id, cross_date, created_by, note)
-              values (gen_random_uuid(), cast(:tp as uuid), :d, :by, nullif(:note,''))
-              returning id, cross_code, cross_date
-            """, {"tp": tp_id, "d": str(run_date), "by": (user.get('email') or user.get('id') or 'unknown'), "note": note})
+              insert into public.cross_instances
+                (cross_id, id, tank_pair_code, cross_date, created_by, note)
+              values
+                (gen_random_uuid(), gen_random_uuid(), :tp_code, :d, :by, nullif(:note,''))
+              returning id, cross_run_code, cross_date, created_at
+            """, {"tp_code": tp_code, "d": str(run_date), "by": creator, "note": note})
             if row.empty:
                 st.error("Insert failed (no cross row returned)."); st.stop()
 
             cross_id   = str(row.iloc[0]["id"])
-            cross_code = str(row.iloc[0]["cross_code"])
+            cross_code = str(row.iloc[0]["cross_run_code"])
 
             if make_clutch:
-                # Insert clutch linked to cross; trigger sets birthday & copies the same CX code
+                # Insert clutch linked to the cross (requires tank_pair_code for trigger)
                 cl = _safe(cx, """
-                  insert into public.clutch_instances (id, cross_instance_id, created_by)
-                  values (gen_random_uuid(), cast(:cid as uuid), :by)
-                  returning id, clutch_code, birthday
-                """, {"cid": cross_id, "by": (user.get('email') or user.get('id') or 'unknown')})
-                if cl.empty:
-                    st.warning(f"Cross {cross_code} inserted, but clutch insert returned no row.")
-                else:
-                    st.success(f"Saved: **{cross_code}**; clutch **{cl.iloc[0]['clutch_code']}** (birth {cl.iloc[0]['birthday']:%Y-%m-%d})")
-            else:
-                st.success(f"Saved cross: **{cross_code}** (run {row.iloc[0]['cross_date']:%Y-%m-%d})")
+                  insert into public.clutch_instances (id, cross_instance_id, tank_pair_code)
+                  values (gen_random_uuid(), :cid, :tp_code)
+                  returning id, clutch_instance_code, created_at
+                """, {"cid": cross_id, "tp_code": tp_code})
 
-        # Show last few for confirmation
+                if cl.empty:
+                    st.warning(f"Cross {cross_code} saved; clutch insert returned no row.")
+                else:
+                    st.success(f"Saved: **{cross_code}**; clutch **{cl.iloc[0]['clutch_instance_code']}** "
+                              f"(created {cl.iloc[0]['created_at']:%Y-%m-%d})")
+
+        # Preview recent activity
         with eng.begin() as cx:
             preview = _safe(cx, """
               select
-                tp.tank_pair_code,
-                ci.cross_code,
+                ci.tank_pair_code,
+                ci.cross_run_code as cross_code,
                 to_char(ci.cross_date,'YYYY-MM-DD') as cross_date,
-                cl.clutch_code,
-                to_char(cl.birthday,'YYYY-MM-DD')   as birth_date
+                cl.clutch_instance_code as clutch_code,
+                to_char(coalesce(cl.created_at, ci.created_at),'YYYY-MM-DD') as created
               from public.cross_instances ci
-              join public.tank_pairs tp on tp.id = ci.tank_pair_id
               left join public.clutch_instances cl on cl.cross_instance_id = ci.id
               order by ci.created_at desc nulls last
               limit 5
             """)
         st.subheader("Recent CX events")
-        st.dataframe(preview, width="stretch", hide_index=True)
+        st.dataframe(preview, use_container_width=True, hide_index=True)
     except Exception as e:
         st.error(f"Schedule failed: {e}")

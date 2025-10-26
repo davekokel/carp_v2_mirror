@@ -54,45 +54,33 @@ def _load_fish_pairs(q: str, limit: int = 200) -> pd.DataFrame:
     sql = text("""
       with pairs as (
         select
-          fp.fish_pair_id,
-          fp.fish_pair_code,
-          fp.mom_fish_code as parent1,
-          fp.dad_fish_code as parent2,
-          fp.genotype_elems,
-          fp.created_by,
-          fp.created_at
+          fp.id::text                        as fish_pair_id,
+          fp.fish_pair_code                  as fish_pair_code,
+          mom.fish_code                      as parent1,
+          dad.fish_code                      as parent2,
+          fp.genotype_elems                  as genotype_elems,
+          fp.created_by                      as created_by,
+          fp.created_at                      as created_at
         from public.fish_pairs fp
-      ),
-      cl_latest as (
-        select distinct on (coalesce(c.fish_pair_id::text, c.fish_pair_code))
-               coalesce(c.fish_pair_id::text, c.fish_pair_code) as key,
-               c.clutch_code,
-               coalesce(c.expected_genotype,'') as clutch_genotype,
-               c.created_at as clutch_created_at
-        from public.clutches c
-        order by coalesce(c.fish_pair_id::text, c.fish_pair_code), c.created_at desc nulls last
+        left join public.fish mom on mom.id = fp.mom_fish_id
+        left join public.fish dad on dad.id = fp.dad_fish_id
       )
       select
         p.fish_pair_id,
         p.fish_pair_code,
         p.parent1,
         p.parent2,
-        coalesce(cl.clutch_code, '') as clutch_code,
-        case
-          when coalesce(cl.clutch_genotype,'') <> '' then cl.clutch_genotype
-          when p.genotype_elems is not null         then array_to_string(p.genotype_elems, '; ')
-          else ''
-        end as clutch_genotype,
+        '' as clutch_code,
+        case when p.genotype_elems is not null
+             then array_to_string(p.genotype_elems, '; ')
+             else '' end as clutch_genotype,
         p.created_by, p.created_at
       from pairs p
-      left join cl_latest cl
-        on cl.key = p.fish_pair_id::text or cl.key = p.fish_pair_code
       where (
         :q = '' or
         p.fish_pair_code ilike :ql or
         p.parent1        ilike :ql or
-        p.parent2        ilike :ql or
-        cl.clutch_code   ilike :ql
+        p.parent2        ilike :ql
       )
       order by p.created_at desc nulls last
       limit :lim
@@ -126,35 +114,53 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
 
 def _ensure_fish_pair(a_code: str, b_code: str, created_by_val: str) -> str:
     """
-    Ensure fish_pairs row exists (unordered conceptual pair -> ordered mom/dad by text).
-    Returns fish_pair_id UUID.
+    Ensure fish_pairs row exists (unordered -> ordered by code).
+    Returns fish_pairs.id (UUID as string).
     """
     with _eng().begin() as cx:
-        cx.execute(text("""
-          insert into public.fish_pairs (fish_pair_code, mom_fish_code, dad_fish_code, created_by)
-          values (
-            'FP-'||to_char(extract(year from now())::int % 100,'FM00')||
-            lpad((
-              select coalesce(max((regexp_match(coalesce(fish_pair_code,''),
-                   '^FP-\\d{2}(\\d{4})$'))[1]::int),0) + 1
-              from public.fish_pairs
-              where fish_pair_code like 'FP-'||to_char(extract(year from now())::int % 100,'FM00')||'%'
-            )::text, 4, '0'),
-            least(:a,:b), greatest(:a,:b), :by
+        got = cx.execute(text("""
+          with canon as (
+            select least(:a,:b) as a, greatest(:a,:b) as b
+          ),
+          ids as (
+            select
+              (select id from public.fish where fish_code = (select a from canon) limit 1) as mom_id,
+              (select id from public.fish where fish_code = (select b from canon) limit 1) as dad_id
+          ),
+          existing as (
+            select id from public.fish_pairs
+            where mom_fish_id = (select mom_id from ids)
+              and dad_fish_id = (select dad_id from ids)
+          ),
+          up as (
+            update public.fish_pairs
+               set created_by = coalesce(:by, created_by),
+                   created_at = now()
+             where id in (select id from existing)
+            returning id
+          ),
+          ins as (
+            insert into public.fish_pairs
+              (fish_pair_code, mom_fish_id, dad_fish_id, genotype_elems, created_by)
+            select
+              'FP-'||to_char(extract(year from now())::int % 100,'FM00')||
+              lpad((
+                select coalesce(max((regexp_match(coalesce(fish_pair_code,''),
+                     '^FP-\\d{2}(\\d{4})$'))[1]::int),0) + 1
+                from public.fish_pairs
+                where fish_pair_code like 'FP-'||to_char(extract(year from now())::int % 100,'FM00')||'%'
+              )::text, 4, '0') as fish_pair_code,
+              ids.mom_id,
+              ids.dad_id,
+              null,
+              :by
+            from ids
+            where not exists (select 1 from existing)
+            returning id
           )
-          on conflict (mom_fish_code, dad_fish_code) do update
-            set created_by = coalesce(excluded.created_by, public.fish_pairs.created_by)
-        """), {"a": a_code, "b": b_code, "by": created_by_val})
-
-        row = pd.read_sql(text("""
-          select fish_pair_id
-          from public.fish_pairs
-          where mom_fish_code = least(:a,:b)
-            and dad_fish_code = greatest(:a,:b)
-          order by created_at desc
-          limit 1
-        """), cx, params={"a": a_code, "b": b_code})
-        return str(row.iloc[0]["fish_pair_id"])
+          select coalesce((select id from up), (select id from ins))::text as id;
+        """), {"a": a_code, "b": b_code, "by": created_by_val}).mappings().first()
+        return str(got["id"])
 
 def _find_existing_tank_pair(mother_id: str, father_id: str) -> str | None:
     with _eng().begin() as cx:
@@ -172,7 +178,7 @@ def _find_existing_tank_pair(mother_id: str, father_id: str) -> str | None:
     return (df["id"].iloc[0] if not df.empty else None)
 
 def _upsert_one_pair(fish_pair_id: str, mother_tank_id: str, father_tank_id: str,
-                     created_by_val: str, note: str) -> Tuple[bool, str]:
+                     created_by_val: str, note: str) -> tuple[bool, str]:
     existing = _find_existing_tank_pair(mother_tank_id, father_tank_id)
     with _eng().begin() as cx:
         if existing:
@@ -182,22 +188,20 @@ def _upsert_one_pair(fish_pair_id: str, mother_tank_id: str, father_tank_id: str
                      note = coalesce(nullif(:note,''), note)
                where id = cast(:id as uuid)
             """), {"id": existing, "note": note})
-            code = pd.read_sql(text("select tank_pair_code from public.tank_pairs where id = cast(:id as uuid)"),
-                               cx, params={"id": existing})
-            tp_code = code["tank_pair_code"].iloc[0] if not code.empty else existing
+            tp_code = cx.execute(
+                text("select tank_pair_code from public.tank_pairs where id = cast(:id as uuid)"),
+                {"id": existing}
+            ).scalar() or existing
             return (False, tp_code)
 
-        res = cx.execute(text("""
+        tp_code = cx.execute(text("""
           insert into public.tank_pairs
-            (concept_id, fish_pair_id, mother_tank_id, father_tank_id,
-             role_orientation, status, created_by, note)
+            (concept_id, fish_pair_id, mother_tank_id, father_tank_id, status, created_by, note)
           values
-            (null, cast(:fp as uuid), cast(:mom as uuid), cast(:dad as uuid),
-             0, 'selected', :by, nullif(:note,''))
+            (null, cast(:fp as uuid), cast(:mom as uuid), cast(:dad as uuid), 'selected', :by, nullif(:note,''))
           returning tank_pair_code
         """), {"fp": fish_pair_id, "mom": mother_tank_id, "dad": father_tank_id,
-               "by": created_by_val, "note": note})
-        tp_code = res.scalar() or ""
+               "by": created_by_val, "note": note}).scalar() or ""
         return (True, tp_code)
 
 # =============================================================================
@@ -345,37 +349,39 @@ with cs1:
 
 with cs2:
     st.markdown("**Recent tank_pairs for these tanks**")
+    sql_recent = text("""
+      select
+        tp.tank_pair_code,
+        tp.status,
+        tm.fish_code                                as mom_fish_code,
+        tm.tank_code                                as mom_tank_code,
+        coalesce(vm.transgene_pretty_name, '')      as mom_genotype,
+        tf.fish_code                                as dad_fish_code,
+        tf.tank_code                                as dad_tank_code,
+        coalesce(vf.transgene_pretty_name, '')      as dad_genotype,
+        tp.note,
+        tp.created_by,
+        tp.created_at
+      from public.tank_pairs tp
+      left join public.tanks tm on tm.tank_uuid = tp.mother_tank_id
+      left join public.tanks tf on tf.tank_uuid = tp.father_tank_id
+      left join public.v_fish_overview_rich vm on vm.fish_code = tm.fish_code
+      left join public.v_fish_overview_rich vf on vf.fish_code = tf.fish_code
+      where tp.mother_tank_id = cast(:mom as uuid)
+         or tp.father_tank_id = cast(:dad as uuid)
+      order by tp.created_at desc nulls last
+      limit 50
+    """)
     with _eng().begin() as cx:
-        recent = pd.read_sql(
-            text("""
-                select
-                  tank_pair_code,
-                  tp_seq,
-                  status,
-                  role_orientation,
-                  mom_fish_code, mom_tank_code, mom_genotype,
-                  dad_fish_code, dad_tank_code, dad_genotype,
-                  created_by, created_at
-                from public.v_tank_pairs
-                where mother_tank_id = cast(:mom as uuid)
-                   or father_tank_id = cast(:dad as uuid)
-                order by created_at desc
-                limit 50
-            """),
-            cx,
-            params={"mom": mother_tank_id, "dad": father_tank_id},
-        )
+        recent = pd.read_sql(sql_recent, cx, params={"mom": mother_tank_id, "dad": father_tank_id})
 
     if recent.empty:
         st.info("No tank_pairs yet for this selection.")
     else:
-        recent = recent.assign(
-            orientation=recent["role_orientation"].map({0: "as saved", 1: "flipped"}).fillna("")
-        )
         cols = [
-            "tank_pair_code", "tp_seq", "orientation", "status",
+            "tank_pair_code", "status",
             "mom_fish_code", "mom_tank_code", "mom_genotype",
             "dad_fish_code", "dad_tank_code", "dad_genotype",
-            "created_by", "created_at",
+            "note", "created_by", "created_at",
         ]
         st.dataframe(recent[cols], width="stretch", hide_index=True)
