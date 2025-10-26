@@ -208,7 +208,7 @@ df_view = df.copy()
 df_view.insert(0, "✓ Select", False)
 edited = st.data_editor(
     df_view,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_order=["✓ Select","clutch_code","name","nickname","mom_code","dad_code","n_treatments","created_by","created_at"],
     column_config={
@@ -362,12 +362,12 @@ for _, r in picked.iterrows():
                 st.caption("Mother — previously used (live)")
                 st.write("—" if mom_hist.empty else "")
                 if not mom_hist.empty:
-                    st.dataframe(mom_hist[mom_cols], use_container_width=True, hide_index=True)
+                    st.dataframe(mom_hist[mom_cols], width="stretch", hide_index=True)
             with dc:
                 st.caption("Father — previously used (live)")
                 st.write("—" if dad_hist.empty else "")
                 if not dad_hist.empty:
-                    st.dataframe(dad_hist[dad_cols], use_container_width=True, hide_index=True)
+                    st.dataframe(dad_hist[dad_cols], width="stretch", hide_index=True)
 
         # --- Mother tank pick (resolve by tank_code) ---
         mom_list = live_by_fish.get(r["mom_code"], [])
@@ -380,7 +380,7 @@ for _, r in picked.iterrows():
             mom_cols = [c for c in ["✓ Mother","tank_code","label","status","birthday","location","notes"] if c in mom_df.columns]
             mom_table = st.data_editor(
                 mom_df[mom_cols],
-                use_container_width=True, hide_index=True,
+                width="stretch", hide_index=True,
                 column_config={
                     "✓ Mother": st.column_config.CheckboxColumn("✓ Mother", default=False),
                     "tank_code":st.column_config.TextColumn("tank_code", disabled=True),
@@ -407,7 +407,7 @@ for _, r in picked.iterrows():
             dad_cols = [c for c in ["✓ Father","tank_code","label","status","birthday","location","notes"] if c in dad_df.columns]
             dad_table = st.data_editor(
                 dad_df[dad_cols],
-                use_container_width=True, hide_index=True,
+                width="stretch", hide_index=True,
                 column_config={
                     "✓ Father": st.column_config.CheckboxColumn("✓ Father", default=False),
                     "tank_code":st.column_config.TextColumn("tank_code", disabled=True),
@@ -441,7 +441,7 @@ for _, r in picked.iterrows():
 # =================================
 # Save planned crosses (idempotent)
 # =================================
-save_btn = st.button("Save planned crosses", type="primary", use_container_width=True)
+save_btn = st.button("Save planned crosses", type="primary", width="stretch")
 if save_btn:
     if not assignments:
         st.warning("Nothing to save.")
@@ -549,5 +549,5 @@ if df_recent.empty:
 else:
     st.dataframe(
         df_recent[["cross_code","clutch_code","planned_name","mom_code","dad_code","mother_tank","father_tank","created_at"]],
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )

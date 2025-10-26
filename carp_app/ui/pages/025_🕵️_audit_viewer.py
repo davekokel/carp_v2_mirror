@@ -54,4 +54,4 @@ with eng.begin() as cx:
         "t": table, "tpat": f"%{table}%", "ops": op, "lim": int(limit)
     })
 
-st.dataframe(df, use_container_width=True, hide_index=True)
+st.dataframe(df, width="stretch", hide_index=True)

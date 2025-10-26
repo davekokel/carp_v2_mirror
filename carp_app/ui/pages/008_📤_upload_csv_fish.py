@@ -225,7 +225,7 @@ sql_tank_exists = text("""
 """)
 
 sql_insert_tank = text("""
-  insert into public.tanks (tank_id, tank_code, fish_code, rack, position, created_at, created_by)
+  insert into public.tanks (tank_uuid, tank_code, fish_code, rack, position, created_at, created_by)
   values (gen_random_uuid(), :tank_code, :fish_code, null, null, now(), :by::uuid)
 """)
 

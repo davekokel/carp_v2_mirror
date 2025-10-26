@@ -59,7 +59,7 @@ else:
               secondary=("Embryos total", "embryos_total_sum"))
     cols = ["mount_day","mounts_count","embryos_total_sum","runs_count","clutches_count","last_time_mounted","orientations_json"]
     st.dataframe(mounts_df[[c for c in cols if c in mounts_df.columns]],
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")
 
 st.divider()
 
@@ -72,7 +72,7 @@ else:
     _kpi_band(runs_df, primary_col="runs_count", day_col="run_day")
     cols = ["run_day","runs_count","clutches_count","last_run_date"]
     st.dataframe(runs_df[[c for c in cols if c in runs_df.columns]],
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")
 
 st.divider()
 
@@ -85,7 +85,7 @@ else:
     _kpi_band(ann_df, primary_col="annotations_count", day_col="annot_day")
     cols = ["annot_day","annotations_count","last_annotated"]
     st.dataframe(ann_df[[c for c in cols if c in ann_df.columns]],
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")
 
 st.divider()
 
@@ -98,7 +98,7 @@ else:
     _kpi_band(tanks_df, primary_col="tanks_created", day_col="tank_day")
     cols = ["tank_day","tanks_created","active_count","activated_count","last_seen_at","last_created"]
     st.dataframe(tanks_df[[c for c in cols if c in tanks_df.columns]],
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")
 
 st.divider()
 
@@ -112,7 +112,7 @@ else:
               secondary=("Births logged", "births_logged"))
     cols = ["fish_day","fish_created","births_logged","last_created"]
     st.dataframe(fish_df[[c for c in cols if c in fish_df.columns]],
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")
 
 st.divider()
 
@@ -125,4 +125,4 @@ else:
     _kpi_band(plasm_df, primary_col="plasmids_created", day_col="plasmid_day")
     cols = ["plasmid_day","plasmids_created","last_created"]
     st.dataframe(plasm_df[[c for c in cols if c in plasm_df.columns]],
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")

@@ -118,7 +118,7 @@ present = [c for c in concept_cols if c in st.session_state[key].columns]
 edited = st.data_editor(
     st.session_state[key][present],
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     column_order=present,
     column_config={
         "✓ Select":      st.column_config.CheckboxColumn("✓", default=False),
@@ -246,7 +246,7 @@ for code in sel_codes:
     any_found = True
 
     show = ["cross_run_code","cross_date","mom_code","dad_code","mom_tank","dad_tank","created_by","created_at","note"]
-    st.dataframe(runs[[c for c in show if c in runs.columns]], use_container_width=True, hide_index=True)
+    st.dataframe(runs[[c for c in show if c in runs.columns]], width="stretch", hide_index=True)
 
     st.caption("Actions")
     for _idx, r in runs.iterrows():
@@ -270,7 +270,7 @@ for code in sel_codes:
                     st.caption("No clutch selections yet.")
                 else:
                     child_cols = ["clutch_instance_id","label","red_intensity","green_intensity","notes","annotated_by","annotated_at","created_at"]
-                    st.dataframe(childs[[c for c in child_cols if c in childs.columns]], use_container_width=True, hide_index=True)
+                    st.dataframe(childs[[c for c in child_cols if c in childs.columns]], width="stretch", hide_index=True)
 
     st.markdown("---")
 

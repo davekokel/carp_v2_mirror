@@ -184,7 +184,7 @@ with st.form("filters", clear_on_submit=False):
     with c4: q = st.text_input("Search (code/cross/clutch/genotype/strain)", value="")
     r1, r2 = st.columns([1,3])
     with r1: ignore_dates = st.checkbox("Most recent (ignore dates)", value=False)
-    with r2: st.form_submit_button("Apply", use_container_width=True)
+    with r2: st.form_submit_button("Apply", width="stretch")
 
 clutches = _load_clutches(d1, d2, created_by, q, ignore_dates)
 st.caption(f"{len(clutches)} clutch(es)")
@@ -207,7 +207,7 @@ dfv = clutches[have].copy()
 dfv.insert(0, "✓ Select", False)
 
 clutch_edit = st.data_editor(
-    dfv, hide_index=True, use_container_width=True, num_rows="fixed",
+    dfv, hide_index=True, width="stretch", num_rows="fixed",
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
         "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True),
@@ -268,7 +268,7 @@ cur = _load_existing_treatments(clutch_id)
 if cur.empty:
     st.caption("No treatments attached yet.")
 else:
-    st.dataframe(cur, use_container_width=True, hide_index=True)
+    st.dataframe(cur, width="stretch", hide_index=True)
 
 st.subheader("Add treatments")
 tabs = st.tabs(["Plasmids","RNAs"])
@@ -309,7 +309,7 @@ with tabs[0]:
         df_pl = df_pl.copy()
         df_pl.insert(0, "✓ Select", False)
         eg_pl = st.data_editor(
-            df_pl, hide_index=True, use_container_width=True, num_rows="fixed",
+            df_pl, hide_index=True, width="stretch", num_rows="fixed",
             column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
             key="plasmids_editor",
         )
@@ -327,7 +327,7 @@ with tabs[1]:
         df_rna = df_rna.copy()
         df_rna.insert(0, "✓ Select", False)
         eg_rna = st.data_editor(
-            df_rna, hide_index=True, use_container_width=True, num_rows="fixed",
+            df_rna, hide_index=True, width="stretch", num_rows="fixed",
             column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
             key="rnas_editor",
         )
@@ -338,17 +338,17 @@ creator = os.environ.get("USER") or os.environ.get("USERNAME") or "system"
 
 b1, b2, b3 = st.columns(3)
 with b1:
-    if st.button("➕ Attach selected plasmids", use_container_width=True, key="attach_plasmids"):
+    if st.button("➕ Attach selected plasmids", width="stretch", key="attach_plasmids"):
         items = picked_pl.to_dict("records") if not picked_pl.empty else []
         n, errs = _insert_treatments(clutch_id, creator, items, "plasmid", note_pl)
         st.session_state["treatments_result"] = {"plasmids": n, "errs": errs}
         st.rerun()
 with b2:
-    if st.button("➕ Attach selected RNAs", use_container_width=True, key="attach_rnas"):
+    if st.button("➕ Attach selected RNAs", width="stretch", key="attach_rnas"):
         items = picked_rna.to_dict("records") if not picked_rna.empty else []
         n, errs = _insert_treatments(clutch_id, creator, items, "rna", note_rna)
         st.session_state["treatments_result"] = {"rnas": n, "errs": errs}
         st.rerun()
 with b3:
-    if st.button("↻ Refresh", use_container_width=True, key="refresh_page"):
+    if st.button("↻ Refresh", width="stretch", key="refresh_page"):
         st.rerun()

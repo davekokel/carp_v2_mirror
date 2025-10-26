@@ -60,17 +60,18 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str
     """
     haystack = (
         "concat_ws(' ', "
-        "coalesce(v.code,''), coalesce(v.name,''), coalesce(v.nickname,''), "
-        "coalesce(v.fluors,''), coalesce(v.resistance,''), coalesce(v.notes,''))"
+        "coalesce(v.v_code,''), coalesce(v.v_name,''), coalesce(v.v_nickname,''), "
+        "coalesce(v.v_fluors,''), coalesce(v.v_resistance,''), coalesce(v.v_notes,''))"
     )
     field_map = {
-        "code": "v.code",
-        "name": "v.name",
-        "nickname": "v.nickname",
-        "fluors": "v.fluors",
-        "resistance": "v.resistance",
+        "code":       "v.v_code",
+        "name":       "v.v_name",
+        "nickname":   "v.v_nickname",
+        "fluors":     "v.v_fluors",
+        "resistance": "v.v_resistance",
     }
 
+    import shlex
     tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
     params: Dict[str, Any] = {"lim": int(limit)}
     where: List[str] = []
@@ -90,17 +91,27 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str
         where.append(("NOT " if neg else "") + f"({haystack} ILIKE :{key})")
 
     if supports_only:
-        where.append("v.supports_invitro_rna = true")
+        where.append("v.v_supports_invitro_rna = true")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     sql = f"""
       select
-        v.id, v.code, v.name, v.nickname, v.fluors, v.resistance,
-        v.supports_invitro_rna, v.created_by, v.notes, v.created_at,
-        v.rna_id, v.rna_code, v.rna_name
+        v.vid                         as id,
+        v.v_code                      as code,
+        v.v_name                      as name,
+        v.v_nickname                  as nickname,
+        v.v_fluors                    as fluors,
+        v.v_resistance                as resistance,
+        v.v_supports_invitro_rna      as supports_invitro_rna,
+        v.v_created_by                as created_by,
+        v.v_notes                     as notes,
+        v.v_created_at                as created_at,
+        v.v_rna_id                    as rna_id,
+        v.v_rna_code                  as rna_code,
+        v.v_rna_name                  as rna_name
       from public.v_plasmids v
       {where_sql}
-      order by v.code
+      order by v.v_code
       limit :lim
     """
     return sql, params
@@ -156,7 +167,7 @@ if st.session_state.get("_plasmids_sig") != sig:
 
 edited = st.data_editor(
     st.session_state["_plasmids_table"],
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_order=view_cols,
     column_config={
@@ -192,12 +203,12 @@ with cB:
     ensure_selected = st.button(
         "Ensure RNA for selected",
         disabled=(len(sel_codes) == 0 or not has_ensure),
-        use_container_width=True,
+        width="stretch",
     )
 with cC:
     ensure_missing_for_supported = st.button(
         "Ensure RNA for all supported (missing only)",
-        use_container_width=True,
+        width="stretch",
         help="Create RNAs for all rows where supports_invitro_rna is TRUE but rna_code is empty.",
         disabled=(not has_ensure),
     )

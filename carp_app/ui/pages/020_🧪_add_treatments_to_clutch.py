@@ -312,7 +312,7 @@ with st.form("filters_form", clear_on_submit=False):
     with c4: qtxt = st.text_input("Search (code/cross/clutch/genotype/strain)", value="")
     r1, r2 = st.columns([1,3])
     with r1: ignore_dates = st.checkbox("Most recent (ignore dates)", value=False)
-    with r2: st.form_submit_button("Apply", use_container_width=True)
+    with r2: st.form_submit_button("Apply", width="stretch")
 
 clutches = _load_clutches(d1, d2, created_by, qtxt, ignore_dates)
 st.caption(f"{len(clutches)} clutch(es)")
@@ -339,7 +339,7 @@ if last_ci and "clutch_code" in dfv.columns:
     dfv.loc[dfv["clutch_code"] == last_ci, "✓ Select"] = True
 
 picker = st.data_editor(
-    dfv, hide_index=True, use_container_width=True, num_rows="fixed",
+    dfv, hide_index=True, width="stretch", num_rows="fixed",
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
         "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True),
@@ -405,7 +405,7 @@ with tabs[0]:
     else:
         df_pl = df_pl.copy(); df_pl.insert(0, "✓ Select", False)
         eg_pl = st.data_editor(
-            df_pl, hide_index=True, use_container_width=True, num_rows="fixed",
+            df_pl, hide_index=True, width="stretch", num_rows="fixed",
             column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
             key="plasmids_editor_ci_v1",
         )
@@ -423,7 +423,7 @@ with tabs[1]:
     else:
         df_rna = df_rna.copy(); df_rna.insert(0, "✓ Select", False)
         eg_rna = st.data_editor(
-            df_rna, hide_index=True, use_container_width=True, num_rows="fixed",
+            df_rna, hide_index=True, width="stretch", num_rows="fixed",
             column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
             key="rnas_editor_ci_v1",
         )
@@ -435,17 +435,17 @@ creator = os.environ.get("USER") or os.environ.get("USERNAME") or (getattr(user,
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("➕ Attach selected plasmids", use_container_width=True, key="attach_plasmids_ci_v1"):
+    if st.button("➕ Attach selected plasmids", width="stretch", key="attach_plasmids_ci_v1"):
         items = picked_pl.to_dict("records") if 'picked_pl' in locals() and not picked_pl.empty else []
         n, errs = _insert_instance_treatments(clutch_instance_id, creator, items, note_pl)
         st.session_state["treatments_result"] = {"instance": n, "errs": errs}
 with col2:
-    if st.button("➕ Attach selected RNAs", use_container_width=True, key="attach_rnas_ci_v1"):
+    if st.button("➕ Attach selected RNAs", width="stretch", key="attach_rnas_ci_v1"):
         items = picked_rna.to_dict("records") if 'picked_rna' in locals() and not picked_rna.empty else []
         n, errs = _insert_instance_treatments(clutch_instance_id, creator, items, note_rna)
         st.session_state["treatments_result"] = {"instance": n, "errs": errs}
 with col3:
-    if st.button("↻ Refresh", use_container_width=True, key="refresh_ci_v1"):
+    if st.button("↻ Refresh", width="stretch", key="refresh_ci_v1"):
         st.session_state["__manual_refresh__"] = True
 
 _tmsg = st.session_state.pop("treatments_result", None)
@@ -466,7 +466,7 @@ else:
     st.caption(f"Effective treatments: {cnt} — {pretty}")
     if gt_roll:
         st.caption(f"Genotype + treatments: {gt_roll}")
-    st.dataframe(run_df, use_container_width=True, hide_index=True)
+    st.dataframe(run_df, width="stretch", hide_index=True)
 
 st.subheader("Treatments on this run")
 treat_df = _load_instance_treatments(clutch_instance_id)
@@ -486,4 +486,4 @@ if not treat_df.empty:
 if treat_df.empty:
     st.info("No treatments attached yet.")
 else:
-    st.dataframe(treat_df, use_container_width=True, hide_index=True)
+    st.dataframe(treat_df, width="stretch", hide_index=True)

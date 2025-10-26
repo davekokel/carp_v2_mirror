@@ -77,7 +77,7 @@ with st.form("filters", clear_on_submit=False):
     with c2: d2 = st.date_input("To", value=today)
     with c3: created_by = st.text_input("Created by", value=os.environ.get("USER") or os.environ.get("USERNAME") or "")
     with c4: q = st.text_input("Search (run/genotype/clutch)", value="")
-    st.form_submit_button("Apply", use_container_width=True)
+    st.form_submit_button("Apply", width="stretch")
 
 df = _load_instances(d1, d2, created_by, q)
 st.caption(f"{len(df)} instance(s)")
@@ -92,7 +92,7 @@ dfv = df[[
 dfv.insert(0,"✓ Select", False)
 
 inst_edit = st.data_editor(
-    dfv, hide_index=True, use_container_width=True, num_rows="fixed",
+    dfv, hide_index=True, width="stretch", num_rows="fixed",
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
         "cross_date": st.column_config.DateColumn("cross_date", disabled=True),
@@ -112,7 +112,7 @@ note  = st.text_input("Note (optional)", "")
 colA,colB = st.columns([1,1])
 with colA:
     preview = pd.DataFrame([{"cross_run": r.cross_run, "clutch_code": r.clutch_code} for r in picked.itertuples(index=False)]) if not picked.empty else pd.DataFrame()
-    st.dataframe(preview, use_container_width=True, hide_index=True, height=160)
+    st.dataframe(preview, width="stretch", hide_index=True, height=160)
 with colB:
     st.write("")
     st.write("")
@@ -120,7 +120,7 @@ with colB:
 can_write = bool(stage.strip()) and not picked.empty
 creator = os.environ.get("USER") or os.environ.get("USERNAME") or "system"
 
-if st.button("💾 Apply stage to selected", type="primary", use_container_width=True, disabled=not can_write):
+if st.button("💾 Apply stage to selected", type="primary", width="stretch", disabled=not can_write):
     updated, events = 0, 0
     has_inline = _col_exists("public","clutch_instances","line_building_stage")
     has_events = _table_exists("public","line_building_stage_events")

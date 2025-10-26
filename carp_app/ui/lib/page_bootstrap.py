@@ -51,12 +51,12 @@ def pager_controls(page: int, pages: int, *, key: str = "pager") -> int:
     l, m, r = st.columns([1, 2, 1])
     new_page = page
     with l:
-        if st.button("◀ Prev", key=f"{key}-prev", use_container_width=True, disabled=(page <= 1)):
+        if st.button("◀ Prev", key=f"{key}-prev", width="stretch", disabled=(page <= 1)):
             new_page = page - 1
     with m:
         st.write(f"Page {page} / {pages}")
     with r:
-        if st.button("Next ▶", key=f"{key}-next", use_container_width=True, disabled=(page >= pages)):
+        if st.button("Next ▶", key=f"{key}-next", width="stretch", disabled=(page >= pages)):
             new_page = page + 1
     return new_page
 
@@ -67,7 +67,7 @@ def download_csv(df: pd.DataFrame, *, filename: str, label: str = "Download CSV"
         data=df.to_csv(index=False).encode("utf-8"),
         file_name=filename,
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
 
 # ------- Page setup -------

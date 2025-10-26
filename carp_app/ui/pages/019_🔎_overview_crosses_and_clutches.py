@@ -200,7 +200,7 @@ present = [c for c in cols_order if c in table.columns]
 edited = st.data_editor(
     table[present],
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     column_order=present,
     column_config={
         "✓ Select":           st.column_config.CheckboxColumn("✓", default=False),
@@ -252,4 +252,4 @@ else:
             "notes","annotated_by","annotated_at",
         ]
         present = [c for c in cols if c in ann.columns]
-        st.dataframe(ann[present], hide_index=True, use_container_width=True)
+        st.dataframe(ann[present], hide_index=True, width="stretch")

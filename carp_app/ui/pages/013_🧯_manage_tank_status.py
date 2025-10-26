@@ -23,6 +23,15 @@ st.title("🧯 Manage Tank Status")
 ENG = get_engine()
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+def _as_uuid_or_blank(x) -> str:
+    try:
+        import uuid
+        s = str(x or "").strip()
+        uuid.UUID(s)
+        return s
+    except Exception:
+        return ""
+
 def _exists(schema: str, name: str) -> bool:
     q = text("""
       with t as (
@@ -53,37 +62,48 @@ def _load_tanks(statuses: List[str], q: str) -> pd.DataFrame:
         where_bits.append(f"status in ({placeholders})")
         for i, s in enumerate(statuses):
             params[f"st{i}"] = s
-    if q.strip():
-        where_bits.append("(coalesce(label,'') ilike :qq or coalesce(tank_code,'') ilike :qq or tank_id::text ilike :qq or coalesce(fish_code,'') ilike :qq)")
-        params["qq"] = f"%{q.strip()}%"
+
+    q = (q or "").strip()
+    if q:
+        where_bits.append(
+            "("
+            "coalesce(tank_code,'') ilike :qq or "
+            "coalesce(fish_code,'') ilike :qq or "
+            "tank_uuid::text ilike :qq"
+            ")"
+        )
+        params["qq"] = f"%{q}%"
 
     where_sql = (" where " + " and ".join(where_bits)) if where_bits else ""
     sql = text(f"""
-      select *
+      select
+        tank_uuid::text     as id,
+        tank_code::text     as tank_code,
+        coalesce(fish_code,'')::text as fish_code,
+        coalesce(status::text,'')    as status,
+        created_at                    as created_at
       from public.v_tanks
       {where_sql}
-      order by tank_created_at desc nulls last
+      order by created_at desc nulls last, tank_code
       limit 1000
     """)
 
     with ENG.begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    # normalize expected columns
-    if "tank_id" in df.columns:
-        df["id"] = df["tank_id"].astype(str)          # writes still use containers.id
-    for want in ["label","status","capacity","tank_code","fish_code","tank_created_at","tank_updated_at"]:
+    # normalize expected columns for the grid
+    for want in ["label","capacity","tank_code","fish_code","status","created_at","tank_updated_at"]:
         if want not in df.columns:
             df[want] = pd.NA
 
     df.rename(columns={
-        "tank_created_at":"Created at",
-        "tank_updated_at":"Updated at",
-        "tank_code":"Tank code",
-        "fish_code":"Fish",
-        "label":"Tank label",
-        "status":"Status",
-        "capacity":"Capacity"
+        "created_at":      "Created at",
+        "tank_updated_at": "Updated at",
+        "tank_code":       "Tank code",
+        "fish_code":       "Fish",
+        "status":          "Status",
+        "label":           "Tank label",
+        "capacity":        "Capacity",
     }, inplace=True)
     return df
 
@@ -149,25 +169,44 @@ def _bulk_touch_last_seen(ids: List[str], source: str, also_activate: bool, by: 
     return len(ids)
 
 def _clone_tanks_like(container_id: str, n: int, by: str) -> pd.DataFrame:
-    """
-    Insert N new rows into public.containers by copying fields from `container_id`.
-    Lets DB defaults/triggers generate new ids / tank codes.
-    """
     if n <= 0:
         return pd.DataFrame()
+
     sql = text("""
       with src as (
-        select label, container_type, status, tank_volume_l, note
-        from public.containers
-        where id = cast(:cid as uuid)
+        select fish_code, status, rack, "position"
+        from public.tanks
+        where tank_uuid = cast(:cid as uuid)
         limit 1
       ),
+      locked as (
+        -- serialize per fish to avoid tank_code races
+        select fish_code, status, rack, "position",
+               pg_advisory_xact_lock(hashtext(fish_code)) as _
+        from src
+      ),
+      next_idx as (
+        select l.fish_code,
+               coalesce((
+                 select max( (regexp_match(t.tank_code, '#([0-9]+)$'))[1]::int )
+                 from public.tanks t
+                 where t.fish_code = l.fish_code
+               ), 0) as base_idx
+        from locked l
+      ),
       ins as (
-        insert into public.containers (label, container_type, status, tank_volume_l, created_by, note)
-        select s.label, s.container_type, s.status, s.tank_volume_l, :by, s.note
-        from src s
-        cross join generate_series(1, :n) g(i)
-        returning id, created_at
+        insert into public.tanks (tank_code, fish_code, status, rack, "position", created_by)
+        select
+          format('TANK(%s)#%s', l.fish_code, ni.base_idx + g.i) as tank_code,
+          l.fish_code,
+          l.status,
+          l.rack,
+          l."position",
+          nullif(:by,'')::uuid
+        from locked l
+        join next_idx ni on ni.fish_code = l.fish_code
+        cross join generate_series(1, :n) as g(i)
+        returning tank_uuid::text as id, tank_code, fish_code, status, created_at
       )
       select * from ins
       order by created_at desc
@@ -186,7 +225,7 @@ with st.form("filters"):
         statuses = st.multiselect("Status", options=all_status, default=default_st)
     with c1:
         query = st.text_input("Search (label / tank_code / id / fish_code)", value="")
-    _ = st.form_submit_button("Apply", use_container_width=True)
+    _ = st.form_submit_button("Apply", width="stretch")
 
 # ── Data load ────────────────────────────────────────────────────────────────
 df = _load_tanks(statuses, query)
@@ -204,7 +243,7 @@ show_cols = ["✓ Select","id"] + [c for c in ["Tank label","Tank code","Fish","
 edited = st.data_editor(
     grid[show_cols],
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
     key="tank_status_editor",
 )
@@ -216,20 +255,20 @@ st.caption(f"{len(selected_ids)} selected")
 st.markdown("### Bulk actions")
 b1, b2, b3, b4 = st.columns([1,1,1,2])
 with b1:
-    if st.button("Mark Active", use_container_width=True, disabled=not selected_ids):
+    if st.button("Mark Active", width="stretch", disabled=not selected_ids):
         n = _bulk_set_status(selected_ids, "active", user_default); st.success(f"Set {n} tank(s) to active")
 with b2:
     rsn_k = st.text_input("Reason (to_kill)", key="rsn_kill")
-    if st.button("Mark To-Kill", use_container_width=True, disabled=not selected_ids):
+    if st.button("Mark To-Kill", width="stretch", disabled=not selected_ids):
         n = _bulk_set_status(selected_ids, "to_kill", user_default, (rsn_k or "").strip() or None); st.warning(f"Marked {n} tank(s) to_kill")
 with b3:
     rsn_r = st.text_input("Reason (retired)", key="rsn_retire")
-    if st.button("Retire", use_container_width=True, disabled=not selected_ids):
+    if st.button("Retire", width="stretch", disabled=not selected_ids):
         n = _bulk_set_status(selected_ids, "retired", user_default, (rsn_r or "").strip() or None); st.info(f"Retired {n} tank(s)")
 with b4:
     src = st.text_input("Seen source", value="manual", key="seen_src")
     also_act = st.checkbox("Also mark Active", value=True, key="seen_act")
-    if st.button("Last seen → now", use_container_width=True, disabled=not selected_ids):
+    if st.button("Last seen → now", width="stretch", disabled=not selected_ids):
         n = _bulk_touch_last_seen(selected_ids, (src or "").strip(), also_act, user_default); st.success(f"Stamped last_seen for {n} tank(s)")
 
 # ── Single tank actions ──────────────────────────────────────────────────────
@@ -254,19 +293,19 @@ else:
 
         a1, a2, a3, a4 = st.columns([1,1,1,2])
         with a1:
-            if st.button("Mark Active", key="single_mark_active", use_container_width=True):
+            if st.button("Mark Active", key="single_mark_active", width="stretch"):
                 _set_status(tank_id, "active", user_default); st.success("Set to active")
         with a2:
             rsn_k2 = st.text_input("Reason (to_kill)", key=f"single_rsn_k_{tank_id}")
-            if st.button("Mark To-Kill", key="single_mark_kill", use_container_width=True):
+            if st.button("Mark To-Kill", key="single_mark_kill", width="stretch"):
                 _set_status(tank_id, "to_kill", user_default, (rsn_k2 or "").strip() or None); st.warning("Marked to_kill")
         with a3:
             rsn_r2 = st.text_input("Reason (retired)", key=f"single_rsn_r_{tank_id}")
-            if st.button("Retire", key="single_mark_retire", use_container_width=True):
+            if st.button("Retire", key="single_mark_retire", width="stretch"):
                 _set_status(tank_id, "retired", user_default, (rsn_r2 or "").strip() or None); st.info("Retired")
         with a4:
             src2 = st.text_input("Seen source (optional)", value="manual", key=f"single_src_{tank_id}")
-            if st.button("Last seen → now (and activate)", key="single_seen_now", use_container_width=True):
+            if st.button("Last seen → now (and activate)", key="single_seen_now", width="stretch"):
                 _touch_last_seen(tank_id, (src2 or "").strip(), True, user_default); st.success("Stamped last_seen_at and activated")
 
         st.divider()
@@ -275,12 +314,9 @@ else:
         with cN:
             n_like = st.number_input("How many?", min_value=1, max_value=50, value=3, step=1, key=f"n_like_{tank_id}")
         with cBtn:
-            if st.button(f"➕ Add {n_like} like selected", use_container_width=True, key=f"clone_like_{tank_id}"):
-                inserted = _clone_tanks_like(
-                    tank_id,
-                    int(n_like),
-                    os.environ.get("USER") or os.environ.get("USERNAME") or getattr(user, "email", "") or "system"
-                )
+            if st.button(f"➕ Add {n_like} like selected", width="stretch", key=f"clone_like_{tank_id}"):
+                by_uuid = _as_uuid_or_blank(getattr(user, "id", None) or getattr(user, "uuid", None) or os.environ.get("AUTH_USER_ID"))
+                inserted = _clone_tanks_like(tank_id, int(n_like), by_uuid)
                 if inserted.empty:
                     st.warning("No rows inserted (check selection).")
                 else:
@@ -299,7 +335,7 @@ else:
             "changed_by":"By",
             "reason":"Reason",
         })
-        st.dataframe(showh, use_container_width=True, hide_index=True)
+        st.dataframe(showh, width="stretch", hide_index=True)
         csv = showh.to_csv(index=False).encode("utf-8")
         fname = f"tank_{(row.get('Tank code') or row.get('id') or 'unknown').split()[0]}_status_history.csv"
-        st.download_button("Download history CSV", csv, file_name=fname, mime="text/csv", use_container_width=True)
+        st.download_button("Download history CSV", csv, file_name=fname, mime="text/csv", width="stretch")

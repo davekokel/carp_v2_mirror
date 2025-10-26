@@ -400,4 +400,4 @@ def download_button_for_labels(
     else:
         st.error(f"Unknown builder '{builder}'"); return
     fname = f"{file_prefix}_{_dt.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    st.download_button(button_text, data=pdf, file_name=fname, mime="application/pdf", use_container_width=True)
+    st.download_button(button_text, data=pdf, file_name=fname, mime="application/pdf", width="stretch")

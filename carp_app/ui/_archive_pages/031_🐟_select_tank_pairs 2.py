@@ -229,7 +229,7 @@ with st.form("filters", clear_on_submit=False):
     with c2: d2 = st.date_input("To", value=today)
     with c3: created_by = st.text_input("Created by", value=os.environ.get("USER") or os.environ.get("USERNAME") or "")
     with c4: q = st.text_input("Omni-search (code / name / nickname / mom / dad)", value="")
-    st.form_submit_button("Apply", use_container_width=True)
+    st.form_submit_button("Apply", width="stretch")
 
 plans = _load_clutch_concepts(d1, d2, created_by, q)
 if "n_treatments" in plans.columns:
@@ -258,7 +258,7 @@ if "✓ Select" not in plan_df.columns:
 plan_edited = st.data_editor(
     plan_df[["✓ Select"] + visible_cols],
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     column_order=["✓ Select"] + visible_cols,
     column_config={
         "✓ Select":         st.column_config.CheckboxColumn("✓", default=False),
@@ -328,7 +328,7 @@ else:
             if c not in mt.columns: mt[c] = ""
         mom_view = mt[mom_cols].rename(columns={"fish_code":"mom FSH","tank_code":"mom tank","container_id":"mom container"})
         mom_edit = st.data_editor(
-            mom_view, hide_index=True, use_container_width=True, num_rows="fixed",
+            mom_view, hide_index=True, width="stretch", num_rows="fixed",
             column_config={
                 "✓ Select":       st.column_config.CheckboxColumn("✓", default=False),
                 "mom FSH":        st.column_config.TextColumn("mom FSH", disabled=True),
@@ -377,7 +377,7 @@ else:
             if c not in dt.columns: dt[c] = ""
         dad_view = dt[dad_cols].rename(columns={"fish_code":"dad FSH","tank_code":"dad tank","container_id":"dad container"})
         dad_edit = st.data_editor(
-            dad_view, hide_index=True, use_container_width=True, num_rows="fixed",
+            dad_view, hide_index=True, width="stretch", num_rows="fixed",
             column_config={
                 "✓ Select":       st.column_config.CheckboxColumn("✓", default=False),
                 "dad FSH":        st.column_config.TextColumn("dad FSH", disabled=True),
@@ -582,7 +582,7 @@ with c1:
     created_by_val = st.text_input("Created by", value=os.environ.get("USER") or os.environ.get("USERNAME") or "unknown")
     note_val = st.text_input("Note (optional)", value="")
     can_save = bool(pairs)
-    if st.button("💾 Save selected tank pair(s)", type="primary", use_container_width=True, disabled=not can_save):
+    if st.button("💾 Save selected tank pair(s)", type="primary", width="stretch", disabled=not can_save):
         inserted = _insert_tank_pairs(pairs, created_by_val, note_val)
         if not inserted.empty:
             st.success(f"Saved {len(inserted)} tank_pair row(s).")
@@ -607,4 +607,4 @@ with c2:
         cols = [c for c in preferred_cols if c in tp.columns]
         if not cols:
             cols = list(tp.columns)
-        st.dataframe(tp[cols], use_container_width=True, hide_index=True)
+        st.dataframe(tp[cols], width="stretch", hide_index=True)

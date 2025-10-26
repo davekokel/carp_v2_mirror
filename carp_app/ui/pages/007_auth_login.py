@@ -63,11 +63,11 @@ else:
     st.text_input("Email address", key="otp_email", autocomplete="email")
     c1, c2, c3 = st.columns([1, 1.4, 1])
 with c1:
-    send = st.button("Send code", use_container_width=True)
+    send = st.button("Send code", width="stretch")
 with c2:
     st.text_input("Enter 6-digit code", key="otp_code", max_chars=8)
 with c3:
-    verify = st.button("Verify", type="primary", use_container_width=True)
+    verify = st.button("Verify", type="primary", width="stretch")
 
 # inline handlers (no on_click)
 if send:

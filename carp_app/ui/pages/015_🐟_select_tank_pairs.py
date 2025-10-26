@@ -113,13 +113,13 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
         select
             vt.fish_code,
             vt.tank_code,
-            vt.tank_id::text    as tank_id,
+            vt.tank_uuid::text    as tank_id,
             coalesce(vt.status::text,'') as status,
-            vt.tank_created_at  as created_at
+            vt.created_at  as created_at
         from public.v_tanks vt
         where vt.fish_code = any(:codes)
           and vt.status::text = any(:live)
-        order by vt.fish_code, vt.tank_created_at desc nulls last
+        order by vt.fish_code, vt.created_at desc nulls last
     """)
     with _eng().begin() as cx:
         return pd.read_sql(sql, cx, params={"codes": list({c for c in codes if c}), "live": ["active","new"]})
@@ -211,7 +211,7 @@ with cc2:
     lim_pairs = int(st.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
 with cc3:
     st.write("")
-    if st.button("↻ Refresh", use_container_width=True):
+    if st.button("↻ Refresh", width="stretch"):
         st.cache_data.clear()
 
 pairs_df = _load_fish_pairs(q_pairs, lim_pairs)
@@ -229,7 +229,7 @@ for c in cols:
         pairs_view[c] = ""
 picked = st.data_editor(
     pairs_view[cols],
-    hide_index=True, use_container_width=True,
+    hide_index=True, width="stretch",
     column_config={
         "✓ Select":        st.column_config.CheckboxColumn("✓", default=False),
         "fish_pair_code":  st.column_config.TextColumn("Fish pair", disabled=True),
@@ -267,7 +267,7 @@ if "✓ Mother" not in mother_df.columns:
     mother_df.insert(0,"✓ Mother", False)
 mother_edit = st.data_editor(
     mother_df[["✓ Mother","FSH","tank","tank_id","status","created_at"]],
-    hide_index=True, use_container_width=True,
+    hide_index=True, width="stretch",
     column_config={
         "✓ Mother": st.column_config.CheckboxColumn("✓", default=False),
         "FSH":      st.column_config.TextColumn("Fish (candidate mother)", disabled=True),
@@ -301,7 +301,7 @@ if "✓ Father" not in father_df.columns:
     father_df.insert(0,"✓ Father", False)
 father_edit = st.data_editor(
     father_df[["✓ Father","FSH","tank","tank_id","status","created_at"]],
-    hide_index=True, use_container_width=True,
+    hide_index=True, width="stretch",
     column_config={
         "✓ Father": st.column_config.CheckboxColumn("✓", default=False),
         "FSH":      st.column_config.TextColumn("Fish (candidate father)", disabled=True),
@@ -334,7 +334,7 @@ with cs1:
     note_val = st.text_input("Note (optional)", value="")
     can_save = bool(mother_tank_id and father_tank_id)
 
-    if st.button("💾 Save mother/father pairing", type="primary", use_container_width=True, disabled=not can_save):
+    if st.button("💾 Save mother/father pairing", type="primary", width="stretch", disabled=not can_save):
         fp_id = _ensure_fish_pair(parent_a, parent_b, created_by_val)
         inserted, tp_code = _upsert_one_pair(fp_id, mother_tank_id, father_tank_id, created_by_val, note_val)
         if inserted:
@@ -378,4 +378,4 @@ with cs2:
             "dad_fish_code", "dad_tank_code", "dad_genotype",
             "created_by", "created_at",
         ]
-        st.dataframe(recent[cols], use_container_width=True, hide_index=True)
+        st.dataframe(recent[cols], width="stretch", hide_index=True)

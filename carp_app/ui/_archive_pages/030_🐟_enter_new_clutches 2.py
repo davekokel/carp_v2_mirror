@@ -162,7 +162,7 @@ else:
 
     edited = st.data_editor(
         st.session_state["_picker_df"],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_order=picker_cols,
         column_config={
@@ -210,7 +210,7 @@ else:
     c1, c2 = st.columns([1,1])
     with c1:
         swap_disabled = not (st.session_state.get("mom_fish_code") and st.session_state.get("dad_fish_code"))
-        if st.button("Swap Mom/Dad", use_container_width=True, disabled=swap_disabled):
+        if st.button("Swap Mom/Dad", width="stretch", disabled=swap_disabled):
             st.session_state["mom_fish_code"], st.session_state["dad_fish_code"] = (
                 st.session_state.get("dad_fish_code"),
                 st.session_state.get("mom_fish_code"),
@@ -220,7 +220,7 @@ else:
                 st.session_state.get("mom_fish_id"),
             )
     with c2:
-        if st.button("Clear Mom/Dad", use_container_width=True):
+        if st.button("Clear Mom/Dad", width="stretch"):
             _clear_parents()
 
     st.write(f"**Mom (A) — fish:** {st.session_state.get('mom_fish_code','—')}")
@@ -336,15 +336,15 @@ else:
 
             ca, cb = st.columns([1,1])
             with ca:
-                if st.button(f"Select all ({label})", use_container_width=True):
+                if st.button(f"Select all ({label})", width="stretch"):
                     df_edit["inherit?"] = True
             with cb:
-                if st.button(f"Clear all ({label})", use_container_width=True):
+                if st.button(f"Clear all ({label})", width="stretch"):
                     df_edit["inherit?"] = False
 
             df_edit = st.data_editor(
                 df_edit,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_order=["inherit?","element","source"],
                 column_config={
@@ -375,7 +375,7 @@ else:
     else:
         combined = pd.concat(sel_frames, ignore_index=True) if len(sel_frames) > 0 else pd.DataFrame(columns=["element","source"])
         combined = combined.drop_duplicates(subset=["element"], keep="first")
-        st.dataframe(combined.reset_index(drop=True), use_container_width=True, hide_index=True)
+        st.dataframe(combined.reset_index(drop=True), width="stretch", hide_index=True)
 
 # --------------------------------
 # Step 3 — Optional treatments (Tabs: Plasmids / RNAs)
@@ -471,7 +471,7 @@ with tab_p:
         qp = st.text_input("Search plasmids (code:, name:, nickname:, fluors:, resistance:)", "")
     with c2:
         st.write("")
-        add_p = st.button("Add selected plasmids to plan", use_container_width=True)
+        add_p = st.button("Add selected plasmids to plan", width="stretch")
 
     sql_p, params_p = _plasmids_sql(qp)
     with _get_engine().begin() as cx:
@@ -490,7 +490,7 @@ with tab_p:
                    "dose","units","at_hpf","notes","created_by","created_at"]
         edited_p = st.data_editor(
             dfp_view,
-            use_container_width=True, hide_index=True, column_order=order_p,
+            width="stretch", hide_index=True, column_order=order_p,
             column_config={
                 "✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False),
                 "code":     st.column_config.TextColumn("code", disabled=True),
@@ -535,7 +535,7 @@ with tab_r:
         qr = st.text_input("Search RNAs (code:, name:, source:)", "")
     with c2:
         st.write("")
-        add_r = st.button("Add selected RNAs to plan", use_container_width=True)
+        add_r = st.button("Add selected RNAs to plan", width="stretch")
 
     sql_r, params_r = _rnas_sql(qr)
     with _get_engine().begin() as cx:
@@ -554,7 +554,7 @@ with tab_r:
         order_r = ["✓ Select","code","name","source","dose","units","at_hpf","notes","created_by","created_at"]
         edited_r = st.data_editor(
             dfr_view,
-            use_container_width=True, hide_index=True, column_order=order_r,
+            width="stretch", hide_index=True, column_order=order_r,
             column_config={
                 "✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False),
                 "code":     st.column_config.TextColumn("code", disabled=True, help="RNA-<source_plasmid_code>"),
@@ -591,7 +591,7 @@ with tab_r:
 plan = st.session_state.get("clutch_treatments", [])
 st.subheader("Selected elements for clutch — treatments")
 if plan:
-    st.dataframe(pd.DataFrame(plan), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(plan), width="stretch", hide_index=True)
 else:
     st.info("No treatments selected yet.")
 
@@ -658,7 +658,7 @@ else:
         planned_clutch_nickname = st.text_input("planned_clutch_nickname (optional)", value=auto_name)
 
     save_note = st.text_input("Optional clutch note", "")
-    save_btn = st.button("💾 Save clutch plan", type="primary", use_container_width=True)
+    save_btn = st.button("💾 Save clutch plan", type="primary", width="stretch")
 
     ins_t = text("""
       insert into public.clutch_plan_treatments
@@ -737,4 +737,4 @@ else:
         st.info("No planned clutches yet.")
     else:
         cols = ["clutch_code","name","nickname","mom_code","dad_code","n_treatments","created_by","created_at"]
-        st.dataframe(df_recent[cols], use_container_width=True, hide_index=True)
+        st.dataframe(df_recent[cols], width="stretch", hide_index=True)

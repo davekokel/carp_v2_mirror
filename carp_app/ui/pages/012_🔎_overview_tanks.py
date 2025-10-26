@@ -60,31 +60,26 @@ def _since_days(ts) -> Optional[float]:
 def _load_tanks_overview(q: Optional[str], limit: int) -> pd.DataFrame:
     """
     Minimal, tank-centric overview pulled from public.v_tanks.
-    Columns returned:
-      id, tank_code, fish_code, status, created_at
+    Columns returned: id, tank_code, fish_code, status, created_at
     """
     sql = text("""
       select
-        v.tank_id::text                       as id,
-        v.tank_code::text                     as tank_code,
-        coalesce(v.fish_code, '')::text       as fish_code,
-        coalesce(v.status::text, '')          as status,
-        v.tank_created_at                     as created_at
+        v.tank_uuid::text                  as id,
+        v.tank_code::text                  as tank_code,
+        coalesce(v.fish_code,'')::text     as fish_code,
+        coalesce(v.status::text,'')        as status,
+        v.created_at                       as created_at
       from public.v_tanks v
       where (
         :q = '' or
-        coalesce(v.tank_code,'')      ilike :ql or
-        coalesce(v.fish_code,'')      ilike :ql or
-        coalesce(v.status::text,'')   ilike :ql
+        coalesce(v.tank_code,'')    ilike :ql or
+        coalesce(v.fish_code,'')    ilike :ql or
+        coalesce(v.status::text,'') ilike :ql
       )
-      order by v.tank_created_at desc nulls last, v.tank_code
+      order by v.created_at desc nulls last, v.tank_code
       limit :lim
     """)
-    params = {
-        "q": (q or ""),
-        "ql": f"%{q or ''}%",
-        "lim": int(limit),
-    }
+    params = {"q": (q or ""), "ql": f"%{q or ''}%", "lim": int(limit)}
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params=params)
 

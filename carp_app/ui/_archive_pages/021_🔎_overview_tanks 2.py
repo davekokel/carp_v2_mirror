@@ -88,7 +88,7 @@ def _render_containers(rows: list[Mapping]) -> None:
     })
 
     st.caption(f"{len(df)} matches")
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 # ---------- page ----------
 def main():

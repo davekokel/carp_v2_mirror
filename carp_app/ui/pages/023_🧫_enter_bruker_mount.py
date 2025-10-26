@@ -229,7 +229,7 @@ with st.form("enter_mounts_filters", clear_on_submit=False):
     with c4: qtxt = st.text_input("Search (code/cross/clutch/genotype/strain)", value="")
     r1, r2 = st.columns([1,3])
     with r1: ignore_dates = st.checkbox("Most recent (ignore dates)", value=False)
-    with r2: st.form_submit_button("Apply", use_container_width=True)
+    with r2: st.form_submit_button("Apply", width="stretch")
 
 # ─────────── Pick CI ───────────
 clutches = _load_clutches_filtered(d1, d2, created_by, qtxt, ignore_dates)
@@ -258,7 +258,7 @@ if last_ci and "clutch_code" in dfv.columns:
 picker = st.data_editor(
     dfv,
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     num_rows="fixed",
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
@@ -310,7 +310,7 @@ msg = st.session_state.pop("__enter_mounts_msg", None)
 if msg:
     st.success(msg)
 
-if st.button("Save mount", use_container_width=True, key=f"save_mount_btn_{nonce}"):
+if st.button("Save mount", width="stretch", key=f"save_mount_btn_{nonce}"):
     saved = _insert_bruker_mount_auto_code(
         cid=cid,
         mounting_orientation=mount_orient,
@@ -330,7 +330,7 @@ if latest.empty:
 else:
     cols = ["mount_code","mounting_orientation","n_top","n_bottom","time_mounted"]
     present = [c for c in cols if c in latest.columns]
-    st.dataframe(latest[present], use_container_width=True, hide_index=True)
+    st.dataframe(latest[present], width="stretch", hide_index=True)
 
 st.subheader("Recent mounts for this clutch instance")
 sql_recent = text("""
@@ -351,9 +351,9 @@ with eng.begin() as cx:
 if recent.empty:
     st.info("No previous mounts yet.")
 else:
-    st.dataframe(recent, use_container_width=True, hide_index=True)
+    st.dataframe(recent, width="stretch", hide_index=True)
     last = recent.iloc[0]
-    if st.button("Duplicate last mount", use_container_width=True, key=f"duplicate_mount_btn_{nonce}"):
+    if st.button("Duplicate last mount", width="stretch", key=f"duplicate_mount_btn_{nonce}"):
         saved = _insert_bruker_mount_auto_code(
             cid=cid,
             mounting_orientation=str(last["mounting_orientation"]),

@@ -186,7 +186,7 @@ with st.form("filters", clear_on_submit=False):
     with c4: qtxt = st.text_input("Search (code/cross/clutch/genotype/strain)", value="")
     r1, r2 = st.columns([1,3])
     with r1: ignore_dates = st.checkbox("Most recent (ignore dates)", value=False)
-    with r2: st.form_submit_button("Apply", use_container_width=True)
+    with r2: st.form_submit_button("Apply", width="stretch")
 
 clutches = _load_clutches_filtered(d1, d2, created_by, qtxt, ignore_dates)
 st.caption(f"{len(clutches)} clutch(es)")
@@ -219,7 +219,7 @@ if last_ci and "clutch_code" in dfv.columns:
 picker = st.data_editor(
     dfv,
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     num_rows="fixed",
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
@@ -259,7 +259,7 @@ with c3:
 
 save_col, = st.columns([1])
 with save_col:
-    if st.button("Save annotation", use_container_width=True, key="save_ci_annotation"):
+    if st.button("Save annotation", width="stretch", key="save_ci_annotation"):
         _update_ci_annotation(cid, red_txt, green_txt, note_txt, fallback_user=(getattr(user, "email", "") or ""))
         st.success("Annotation saved.")
 
@@ -273,4 +273,4 @@ else:
         "red_selected","green_selected","annotated_by","annotated_at","created_at"
     ]
     present = [c for c in show_cols if c in updated.columns]
-    st.dataframe(updated[present], use_container_width=True, hide_index=True)
+    st.dataframe(updated[present], width="stretch", hide_index=True)

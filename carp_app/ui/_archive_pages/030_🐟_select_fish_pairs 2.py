@@ -209,7 +209,7 @@ else:
 
     edited = st.data_editor(
         view,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
@@ -267,7 +267,7 @@ else:
     c1, c2 = st.columns(2)
     with c1:
         swap_disabled = not (st.session_state.get("mom_fish_code") and st.session_state.get("dad_fish_code"))
-        if st.button("Swap Mom/Dad", use_container_width=True, disabled=swap_disabled):
+        if st.button("Swap Mom/Dad", width="stretch", disabled=swap_disabled):
             st.session_state["mom_fish_code"], st.session_state["dad_fish_code"] = (
                 st.session_state.get("dad_fish_code"),
                 st.session_state.get("mom_fish_code"),
@@ -277,7 +277,7 @@ else:
                 st.session_state.get("mom_fish_id"),
             )
     with c2:
-        if st.button("Clear Mom/Dad", use_container_width=True):
+        if st.button("Clear Mom/Dad", width="stretch"):
             _clear_parents()
 
     st.write(f"**Mom (A) — fish:** {st.session_state.get('mom_fish_code','—')}")
@@ -398,14 +398,14 @@ else:
             df_edit = st.session_state[state_key].copy()
             ca, cb = st.columns([1,1])
             with ca:
-                if st.button(f"Select all ({label})", use_container_width=True):
+                if st.button(f"Select all ({label})", width="stretch"):
                     df_edit["inherit?"] = True
             with cb:
-                if st.button(f"Clear all ({label})", use_container_width=True):
+                if st.button(f"Clear all ({label})", width="stretch"):
                     df_edit["inherit?"] = False
             df_edit = st.data_editor(
                 df_edit,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_order=["inherit?","element","source"],
                 column_config={
@@ -435,7 +435,7 @@ else:
     else:
         combined = pd.concat(sel_frames, ignore_index=True) if len(sel_frames) > 0 else pd.DataFrame(columns=["element","source"])
         combined = combined.drop_duplicates(subset=["element"], keep="first")
-        st.dataframe(combined.reset_index(drop=True), use_container_width=True, hide_index=True)
+        st.dataframe(combined.reset_index(drop=True), width="stretch", hide_index=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 3 — Save clutch concept
@@ -479,7 +479,7 @@ else:
     with colB:
         planned_clutch_nickname = st.text_input("planned_clutch_nickname (optional)", value=auto_name)
     save_note = st.text_input("Optional clutch note", "")
-    save_btn = st.button("💾 Save clutch concept", type="primary", use_container_width=True)
+    save_btn = st.button("💾 Save clutch concept", type="primary", width="stretch")
     if save_btn:
         ins_hdr = text("""
           insert into public.clutch_plans
@@ -578,4 +578,4 @@ else:
         "created_by":"Created by",
         "created_at":"Created",
     })
-    st.dataframe(view2, use_container_width=True, hide_index=True)
+    st.dataframe(view2, width="stretch", hide_index=True)

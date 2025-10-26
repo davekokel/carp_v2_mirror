@@ -185,13 +185,13 @@ def load_containers_overview(engine: Engine, q: Optional[str] = None, limit: int
     """
     sql = """
         select
-          t.tank_id                       as id,
+          t.tank_uuid                       as id,
           'inventory_tank'                as container_type,   -- v_tanks is tank-only
           t.label                         as label,
           t.tank_code                     as tank_code,
           t.status                        as status,
           t.tank_updated_at               as status_changed_at,
-          t.tank_created_at               as created_at
+          t.created_at               as created_at
         from public.v_tanks t
         where (:q is null)
            or (coalesce(t.label,'') ilike :qpat
@@ -228,8 +228,8 @@ def load_clutch_instances_overview(engine: Engine, limit: int = 200) -> List[Map
         from public.clutch_instances ci
         join public.cross_instances x    on x.id = ci.cross_instance_id
         left join public.tank_pairs tp   on tp.id = x.tank_pair_id
-        left join public.v_tanks  vt_m   on vt_m.tank_id = tp.mother_tank_id
-        left join public.v_tanks  vt_f   on vt_f.tank_id = tp.father_tank_id
+        left join public.v_tanks  vt_m   on vt_m.tank_uuid = tp.mother_tank_id
+        left join public.v_tanks  vt_f   on vt_f.tank_uuid = tp.father_tank_id
       )
       select
         cross_instance_id, cross_run_code, birthday, clutch_code,

@@ -342,7 +342,7 @@ with csb:
 
 edited = st.data_editor(
     st.session_state["_ov_table"],
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False),
@@ -392,7 +392,7 @@ tanks_view = tanks_df.rename(columns={
 cols = ["fish_code","label","status","type","created_at","activated_at","deactivated_at","last_seen_at","container_id"]
 if "location" in tanks_view.columns:
     cols.insert(4, "location")
-st.dataframe(tanks_view[cols], use_container_width=True, hide_index=True)
+st.dataframe(tanks_view[cols], width="stretch", hide_index=True)
 
 only_new = st.checkbox("Only print tanks with status = new_tank", value=True)
 to_print = tanks_view if not only_new else tanks_view[tanks_view["status"] == "new_tank"]
@@ -419,4 +419,4 @@ if st.button("🖨️ Download labels (2.4 × 1.5 • QR)"):
         })
     pdf = _build_labels_pdf(rows)
     fname = f"tank_labels_2_4x1_5_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    st.download_button("Download PDF", data=pdf, file_name=fname, mime="application/pdf", type="primary", use_container_width=True)
+    st.download_button("Download PDF", data=pdf, file_name=fname, mime="application/pdf", type="primary", width="stretch")

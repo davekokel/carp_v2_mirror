@@ -79,8 +79,8 @@ def _load_fish_pairs_overview(d1: date, d2: date, q: str) -> pd.DataFrame:
           vtm.fish_code as mom_fish_code,
           vtf.fish_code as dad_fish_code
         from public.tank_pairs tp
-        left join public.v_tanks vtm on vtm.tank_id = tp.mother_tank_id
-        left join public.v_tanks vtf on vtf.tank_id = tp.father_tank_id
+        left join public.v_tanks vtm on vtm.tank_uuid = tp.mother_tank_id
+        left join public.v_tanks vtf on vtf.tank_uuid = tp.father_tank_id
         where coalesce(vtm.fish_code,'') <> '' and coalesce(vtf.fish_code,'') <> ''
       ),
       fp_distinct as (
@@ -170,8 +170,8 @@ def _load_tank_pairs_for_codes(mom_code: str, dad_code: str, status: t.Optional[
         vtf.fish_code as dad_fish_code,
         vtf.tank_code as dad_tank_code
       from public.tank_pairs tp
-      left join public.v_tanks vtm on vtm.tank_id = tp.mother_tank_id
-      left join public.v_tanks vtf on vtf.tank_id = tp.father_tank_id
+      left join public.v_tanks vtm on vtm.tank_uuid = tp.mother_tank_id
+      left join public.v_tanks vtf on vtf.tank_uuid = tp.father_tank_id
       where vtm.fish_code = :m and vtf.fish_code = :d
       {status_clause}
       order by tp.created_at desc nulls last
@@ -186,8 +186,8 @@ def _load_cross_instances_for_codes(mom_code: str, dad_code: str, d1: date, d2: 
       with tp as (
         select id
         from public.tank_pairs t
-        left join public.v_tanks vtm on vtm.tank_id = t.mother_tank_id
-        left join public.v_tanks vtf on vtf.tank_id = t.father_tank_id
+        left join public.v_tanks vtm on vtm.tank_uuid = t.mother_tank_id
+        left join public.v_tanks vtf on vtf.tank_uuid = t.father_tank_id
         where vtm.fish_code = :m and vtf.fish_code = :d
       )
       select
@@ -214,7 +214,7 @@ with st.form("filters", clear_on_submit=False):
     with c1: start = st.date_input("From", value=today - timedelta(days=30))
     with c2: end   = st.date_input("To", value=today)
     with c3: q     = st.text_input("Search fish (mom/dad code contains)", value="")
-    st.form_submit_button("Apply", use_container_width=True)
+    st.form_submit_button("Apply", width="stretch")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Level 1: Fish pairs (rich columns)
@@ -239,7 +239,7 @@ grid = fp[l1_cols].copy()
 grid.insert(0, "✓ Open", False)
 
 edit = st.data_editor(
-    grid, hide_index=True, use_container_width=True,
+    grid, hide_index=True, width="stretch",
     column_config={
         "✓ Open": st.column_config.CheckboxColumn("✓", default=False),
         "mom_fish_code": st.column_config.TextColumn("mom_fish_code", disabled=True),
@@ -286,7 +286,7 @@ for tab, r in zip(tabs, opened.itertuples(index=False)):
             disp_cols = ["tank_pair_code","status","mom_fish_code","mom_tank_code","dad_fish_code","dad_tank_code","created_by","created_at"]
             if "tank_pair_id" not in disp_cols:
                 disp_cols.append("tank_pair_id")
-            st.dataframe(tps[disp_cols], use_container_width=True, hide_index=True)
+            st.dataframe(tps[disp_cols], width="stretch", hide_index=True)
 
         st.caption("Recent scheduled cross instances")
         ci = _load_cross_instances_for_codes(mom_code, dad_code, start, end)
@@ -294,6 +294,6 @@ for tab, r in zip(tabs, opened.itertuples(index=False)):
             st.info("No recent cross instances for this fish pair.")
         else:
             ci2 = ci.rename(columns={"date":"cross_date"})
-            st.dataframe(ci2[["cross_run","cross_date","created_by","cross_code"]], use_container_width=True, hide_index=True)
+            st.dataframe(ci2[["cross_run","cross_date","created_by","cross_code"]], width="stretch", hide_index=True)
 
 st.caption("Tip: use **select parent tanks** to create new tank_pairs (status=selected), then promote them on **schedule new cross**.")

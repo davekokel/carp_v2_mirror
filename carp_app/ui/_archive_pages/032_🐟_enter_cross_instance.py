@@ -357,7 +357,7 @@ with st.form("filters", clear_on_submit=False):
         created_by = st.text_input("Created by", value=os.environ.get("USER") or os.environ.get("USERNAME") or "")
     with c4:
         q = st.text_input("Omni-search (code / mom / dad / plan)", value="")
-    st.form_submit_button("Apply", use_container_width=True)
+    st.form_submit_button("Apply", width="stretch")
 
 # ---------------- Load, pick, preview ----------------
 df = _load_runnable_concepts(start, end, created_by, q)
@@ -381,7 +381,7 @@ if store_key not in st.session_state or set(st.session_state[store_key].get("cod
 
 edited = st.data_editor(
     st.session_state[store_key]["df"],
-    hide_index=True, use_container_width=True,
+    hide_index=True, width="stretch",
     column_order=["✓ Select"] + desired,
     column_config={
         "✓ Select":        st.column_config.CheckboxColumn("✓", default=False),
@@ -421,7 +421,7 @@ else:
     preview_df = selected.copy()
     preview_df.insert(1, "date", run_date.isoformat())
 
-st.dataframe(preview_df, use_container_width=True, hide_index=True)
+st.dataframe(preview_df, width="stretch", hide_index=True)
 st.caption(f"{len(preview_df)} instance(s) in preview")
 
 # ---------------- Schedule (Button) ----------------
@@ -429,7 +429,7 @@ if "last_scheduled_runs" not in st.session_state:
     st.session_state["last_scheduled_runs"] = []
 
 creator = os.environ.get("USER") or os.environ.get("USERNAME") or "system"
-if st.button("➕ Save scheduled cross instance(s)", type="primary", use_container_width=True, disabled=selected.empty, key="btn_schedule"):
+if st.button("➕ Save scheduled cross instance(s)", type="primary", width="stretch", disabled=selected.empty, key="btn_schedule"):
     created = 0; errors: List[str] = []; new_run_codes: List[str] = []
     for _, r in preview_df.iterrows():
         try:
@@ -464,7 +464,7 @@ with _get_engine().begin() as cx:
         """),
         {"d1": start, "d2": end, "by": (created_by or None)},
     ).mappings().all()
-st.dataframe(pd.DataFrame([dict(r) for r in inst_rows]), use_container_width=True, hide_index=True)
+st.dataframe(pd.DataFrame([dict(r) for r in inst_rows]), width="stretch", hide_index=True)
 
 # ---------------- Downloads & Print (after the table) ----------------
 st.subheader("Downloads (scheduled instances)")
@@ -519,10 +519,10 @@ with c3:
         disabled=(not petri_pdf)
     )
 with c4:
-    if st.button("🖨️ Print crossing labels → Brother", use_container_width=True, disabled=(not cross_pdf), key="print_crossing"):
+    if st.button("🖨️ Print crossing labels → Brother", width="stretch", disabled=(not cross_pdf), key="print_crossing"):
         ok, msg = _print_pdf_bytes(cross_pdf, queue_name=os.getenv("BROTHER_QUEUE", "Brother_QL_1110NWB"), media_opt=os.getenv("BROTHER_MEDIA_CROSSING", "media=Custom.61x25mm"))
         (st.success if ok else st.error)(msg)
 with c5:
-    if st.button("🖨️ Print petri labels → Brother", use_container_width=True, disabled=(not petri_pdf), key="print_petri"):
+    if st.button("🖨️ Print petri labels → Brother", width="stretch", disabled=(not petri_pdf), key="print_petri"):
         ok, msg = _print_pdf_bytes(petri_pdf, queue_name=os.getenv("BROTHER_QUEUE", "Brother_QL_1110NWB"), media_opt=os.getenv("BROTHER_MEDIA_PETRI", "media=Custom.61x19mm"))
         (st.success if ok else st.error)(msg)

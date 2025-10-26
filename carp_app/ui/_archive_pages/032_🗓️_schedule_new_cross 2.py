@@ -157,7 +157,7 @@ with st.form("filters", clear_on_submit=False):
     with c4: q = st.text_input("Search (code/name/nickname)", value="")
     r1, r2 = st.columns([1,3])
     with r1: most_recent = st.checkbox("Most recent (ignore dates)", value=False)
-    with r2: st.form_submit_button("Apply", use_container_width=True)
+    with r2: st.form_submit_button("Apply", width="stretch")
 
 plans = _load_clutch_concepts(start, end, created_by, q)
 st.markdown("### 1) Select the clutch genotype you want to generate")
@@ -167,7 +167,7 @@ if "✓ Select" not in plan_df.columns:
     plan_df.insert(0,"✓ Select",False)
 plan_edited = st.data_editor(
     plan_df[["✓ Select","clutch_code","planned_name","planned_nickname","pairings","created_by","created_at"]],
-    hide_index=True, use_container_width=True,
+    hide_index=True, width="stretch",
     column_config={
         "✓ Select":  st.column_config.CheckboxColumn("✓", default=False),
         "pairings":  st.column_config.NumberColumn("pairings", disabled=True),
@@ -205,7 +205,7 @@ else:
                 "id","mother_tank_id","father_tank_id","created_by","created_at"]
         cols = [c for c in cols if c in tp.columns]
         tp_edit = st.data_editor(
-            tp[cols], use_container_width=True, hide_index=True, num_rows="fixed",
+            tp[cols], width="stretch", hide_index=True, num_rows="fixed",
             column_config={
                 "✓ Reschedule":    st.column_config.CheckboxColumn("✓", default=False),
                 "tank_pair_code":  st.column_config.TextColumn("tank_pair_code", disabled=True),
@@ -305,7 +305,7 @@ select * from ins
 
 if concept_id and isinstance(tp_edit, pd.DataFrame) and not tp_edit.empty:
     to_run = tp_edit[tp_edit["✓ Reschedule"] == True].reset_index(drop=True)
-    if st.button("↻ Schedule selected tank_pair(s)", type="primary", use_container_width=True, disabled=to_run.empty):
+    if st.button("↻ Schedule selected tank_pair(s)", type="primary", width="stretch", disabled=to_run.empty):
         made, dupes = _reschedule(to_run, concept_id, run_date_all, creator_val)
         if made:
             flash_here.success(f"Scheduled {len(made)} instance(s): {', '.join(made)}")
@@ -379,7 +379,7 @@ else:
     have_cols = [c for c in show_cols if c in ci.columns]
     st.dataframe(
     ci[have_cols],
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_config={
         "genotype_treatment_rollup": st.column_config.TextColumn(

@@ -83,12 +83,12 @@ importlib.reload(_app)
 
 c1, c2 = st.columns(2)
 with c1:
-    if st.button("Use Env (Supabase) now", use_container_width=True):
+    if st.button("Use Env (Supabase) now", width="stretch"):
         st.session_state.pop("DB_URL", None)
         _app.clear_engine_cache()
         st.rerun()
 with c2:
-    if st.button("Reconnect DB Engine", type="primary", use_container_width=True):
+    if st.button("Reconnect DB Engine", type="primary", width="stretch"):
         _app.clear_engine_cache()
         st.rerun()
 
@@ -143,11 +143,11 @@ def _counts(conn) -> pd.DataFrame:
     """)
     return pd.DataFrame(conn.execute(q).mappings().all())
 
-if st.button("Refresh diagnostics", type="primary", use_container_width=True):
+if st.button("Refresh diagnostics", type="primary", width="stretch"):
     try:
         with eng.begin() as cx:
             df = _counts(cx)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
     except Exception as e:
         st.error(f"Diagnostics failed: {e}")
 
@@ -239,14 +239,14 @@ def _wipe_public_schema_and_reset_sequences(conn):
 with st.expander("⚠️ Danger zone", expanded=False):
     if not IS_LOCAL:
         st.info("This deployment is **not LOCAL** — wipe controls are disabled by policy.")
-        st.button("Wipe disabled (non-LOCAL)", use_container_width=True, disabled=True, key="wipe_disabled")
+        st.button("Wipe disabled (non-LOCAL)", width="stretch", disabled=True, key="wipe_disabled")
     else:
         st.write("Wipe all data in the `public` schema (LOCAL only). Also resets all sequences.")
         ack1 = st.checkbox("I understand this is **destructive**.")
         ack2 = st.text_input("Type `wipe local` to confirm:")
         do_wipe = st.button(
             "🧨 Wipe local DB",
-            use_container_width=True,
+            width="stretch",
             type="primary",
             disabled=not (ack1 and ack2.strip().lower() == "wipe local"),
         )

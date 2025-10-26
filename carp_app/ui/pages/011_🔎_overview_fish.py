@@ -153,16 +153,16 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
     if not codes:
         return pd.DataFrame(columns=["fish_code","tank_code","container_id","status","created_at"])
     sql = text("""
-      select
-        vt.fish_code,
-        vt.tank_code,
-        vt.tank_id::text             as container_id,
-        vt.status::text              as status,
-        vt.tank_created_at           as created_at
-      from public.v_tanks vt
-      where vt.fish_code = any(:codes)
-      order by vt.fish_code, vt.tank_created_at desc nulls last
-    """)
+        select
+            vt.fish_code::text   as fish_code,
+            vt.tank_code::text   as tank_code,
+            vt.tank_uuid::text   as container_id,
+            vt.status::text      as status,
+            vt.created_at        as created_at
+        from public.v_tanks vt
+        where vt.fish_code = any(:codes)
+        order by vt.fish_code, vt.created_at desc nulls last
+        """)
     with _get_engine().begin() as cx:
         return pd.read_sql(sql, cx, params={"codes": list({c for c in codes if c})})
 
@@ -184,13 +184,13 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
       ),
       vt as (
         select
-          v.tank_id::uuid                 as tank_id,
-          v.fish_code::text               as fish_code,
-          v.tank_code::text               as tank_code,
-          v.status::text                  as status,
-          v.tank_created_at::timestamptz  as created_at
+            v.tank_uuid::uuid             as tank_id,
+            v.fish_code::text             as fish_code,
+            v.tank_code::text             as tank_code,
+            v.status::text                as status,
+            v.created_at::timestamptz     as created_at
         from public.v_tanks v
-      ),
+        ),
       geno as (
         select
           f.fish_code::text as fish_code,
@@ -215,7 +215,7 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
         coalesce(f.line_building_stage,'')   as stage,           -- ← was NULL before
         (f.date_birth)::date                 as dob
       from picked p
-      join vt on vt.tank_id = p.container_id
+      join vt on vt.tank_uuid = p.container_id
       left join public.fish f on f.fish_code = vt.fish_code
       left join geno g on g.fish_code = vt.fish_code
       order by vt.created_at asc, vt.tank_code asc
@@ -359,7 +359,7 @@ def main():
 
     edited = st.data_editor(
         st.session_state["_sft_table"],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         key="sft_editor",
     )
@@ -377,7 +377,7 @@ def main():
         else:
             st.dataframe(
                 tanks_details[["fish_code","tank_code","status","created_at"]],
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
 
@@ -401,7 +401,7 @@ def main():
     cols = ["✓ Print","fish_code","tank_code","status","created_at","container_id"]
     tanks_edit = st.data_editor(
         tanks_df[cols],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         key="sft_tanks_editor",
         column_config={
@@ -460,7 +460,7 @@ def main():
             file_name=f"tank_labels_2_4x1_5_{utc_now().strftime('%Y%m%d_%H%M%S')}.pdf",
             mime="application/pdf",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             disabled=(pdf_bytes == b""),
         )
     with right:
@@ -480,7 +480,7 @@ def main():
             queue = st.text_input("CUPS queue", value=PRINTER_QUEUE_DEFAULT, placeholder="Brother_QL_1110NWB")
             media = st.text_input("Media name", value=PRINTER_MEDIA_DEFAULT, help="e.g., Custom.61x38mm for 2.4×1.5 stock")
         can_print = bool(pdf_bytes) and bool(queue.strip())
-        if st.button("🖨️ Send to Brother", type="secondary", use_container_width=True, disabled=not can_print):
+        if st.button("🖨️ Send to Brother", type="secondary", width="stretch", disabled=not can_print):
             ok, msg = _print_pdf_to_cups(pdf_bytes, queue.strip(), media.strip())
             if ok:
                 st.success(f"Sent to printer '{queue}'. {msg}")

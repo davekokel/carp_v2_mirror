@@ -111,7 +111,7 @@ with _eng().begin() as cx:
 df = pd.DataFrame(rows)
 c1, c2 = st.columns([2,1])
 with c1:
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 with c2:
     st.metric("Hard OK", int((df["strict"]=="HARD").sum() - (df.query("strict=='HARD' and status=='❌'").shape[0])))
     st.metric("Hard Missing", int(df.query("strict=='HARD' and status=='❌'").shape[0]))
@@ -120,6 +120,6 @@ with c2:
 missing_hard = df.query("strict=='HARD' and status=='❌'")
 if not missing_hard.empty:
     st.error("Contract violations (HARD missing):")
-    st.dataframe(missing_hard, use_container_width=True, hide_index=True)
+    st.dataframe(missing_hard, width="stretch", hide_index=True)
 
 st.caption(f"Contract file: `{contract_path}` — edit via PR to add/retire objects.")
