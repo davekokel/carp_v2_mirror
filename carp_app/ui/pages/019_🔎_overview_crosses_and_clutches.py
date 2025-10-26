@@ -3,253 +3,166 @@ import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
 import os
-from pathlib import Path
-from typing import List
-
+from datetime import date, timedelta
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
-from carp_app.lib.db import get_engine
 from carp_app.ui.auth_gate import require_auth
-sb, session, user = require_auth()
 from carp_app.ui.email_otp_gate import require_email_otp
+from carp_app.lib.db import get_engine
+# 👇 your label helpers
+from carp_app.ui.lib.labels_components import download_button_for_labels
+
+# ── Auth / page ──────────────────────────────────────────────────────────────
+sb, session, user = require_auth()
 require_email_otp()
 
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+st.set_page_config(page_title="🔎 Cross & Clutch Instances", page_icon="🧪", layout="wide")
+st.title("🔎 Cross & Clutch Instances")
 
-st.set_page_config(page_title="Overview Clutches", page_icon="🧬", layout="wide")
-st.title("🔎 Overview crosses st.title("🧬 Clutches — Conceptual overview with instance counts") clutches")
-
-DB_URL = os.getenv("DB_URL")
-if not DB_URL:
+if not os.getenv("DB_URL"):
     st.error("DB_URL not set"); st.stop()
 eng = get_engine()
 
-# ───────────────────────── helpers ─────────────────────────
-def _annotations_for_clutches(selected_codes: List[str], limit: int = 100) -> pd.DataFrame:
-    if not selected_codes:
-        return pd.DataFrame()
+with eng.begin() as cx:
+    dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
+st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 
-    sql = """
-      select
-        cp.clutch_code,
-        ci.id::text                    as clutch_instance_code,
-        ci.birthday                    as birthday,
-        ci.red_intensity,
-        ci.green_intensity,
-        ci.notes,
-        ci.annotated_by,
-        ci.annotated_at
-      from public.clutch_plans cp
-      join public.planned_crosses pc    on pc.clutch_id = cp.id
-      join public.crosses x             on x.id = pc.cross_id
-      join public.cross_instances cinst on cinst.cross_id = x.id
-      join public.clutch_instances ci   on ci.cross_instance_id = cinst.id
-      where cp.clutch_code = any(%(codes)s::text[])
-      order by coalesce(ci.annotated_at, ci.created_at) desc,
-               ci.created_at desc
-      limit %(lim)s
-    """
-    with eng.begin() as cx:
-        return pd.read_sql(sql, cx, params={"codes": selected_codes, "lim": int(limit)})
-    
-def _exists(schema_dot_name: str) -> bool:
-    sch, tab = schema_dot_name.split(".", 1)
-    q = text("""
-      with t as (
-        select table_schema as s, table_name as t from information_schema.tables
-        union all
-        select table_schema as s, table_name as t from information_schema.views
-      )
-      select exists(select 1 from t where s=:s and t=:t) as ok
-    """)
-    with eng.begin() as cx:
-        return bool(pd.read_sql(q, cx, params={"s": sch, "t": tab})["ok"].iloc[0])
-
-def _load_concepts() -> pd.DataFrame:
-    if not _exists("public.v_clutches"):
-        st.error("Missing view public.v_clutches."); st.stop()
-    with eng.begin() as cx:
-        return pd.read_sql(
-            """
-            select
-              clutch_code,
-              name       as clutch_name,
-              nickname   as clutch_nickname,
-              mom_code,
-              dad_code,
-              created_at
-            from public.v_clutches
-            order by created_at desc nulls last, clutch_code
-            limit 2000
-            """,
-            cx,
-        )
-
-def _load_counts() -> pd.DataFrame:
-    if not _exists("public.v_clutch_counts"):
-        # Soft fallback if migration not applied yet
-        return pd.DataFrame(columns=[
-            "clutch_code","runs_count","annotations_count","last_birthday","last_annotated_at"
-        ])
-    with eng.begin() as cx:
-        return pd.read_sql(
-            """
-            select clutch_code, runs_count, annotations_count, last_birthday, last_annotated_at
-            from public.v_clutch_counts
-            """,
-            cx,
-        )
-
-def _runs_preview(selected_codes: List[str], limit: int = 50) -> pd.DataFrame:
-    if not selected_codes:
-        return pd.DataFrame()
-    sql = """
-      select
-        cp.clutch_code,
-        ci.cross_run_code,
-        ci.clutch_birthday as birthday,
-        ci.cross_date,
-        x.mother_code as mom_code,
-        x.father_code as dad_code
-      from public.clutch_plans cp
-      join public.planned_crosses pc on pc.clutch_id = cp.id
-      join public.crosses x          on x.id = pc.cross_id
-      join public.cross_instances ci  on ci.cross_id = x.id
-      where cp.clutch_code = any(%(codes)s::text[])
-      order by ci.clutch_birthday desc, ci.cross_date desc, ci.created_at desc nulls last
-      limit %(lim)s
-    """
-    with eng.begin() as cx:
-        return pd.read_sql(sql, cx, params={"codes": selected_codes, "lim": int(limit)})
-
-# ───────────────────────── load & merge ─────────────────────────
-concepts = _load_concepts()
-counts   = _load_counts()
-df = concepts.merge(counts, on="clutch_code", how="left")
-
-for c, default in [("runs_count", 0), ("annotations_count", 0)]:
-    if c not in df.columns:
-        df[c] = default
-
-st.caption("DB: " + (getattr(getattr(eng, "url", None), "host", None) or os.getenv("PGHOST", "(unknown)"))
-           + " • instances via planned_crosses → cross_instances")
-
-# ───────────────────────── session table with selection ─────────────────────────
-key = "_overview_clutches_table"
-def _sessionize(base: pd.DataFrame) -> pd.DataFrame:
-    t = base.copy()
-    if "✓ Select" not in t.columns:
-        t.insert(0, "✓ Select", False)
-    else:
-        cols = t.columns.tolist()
-        cols.remove("✓ Select")
-        t = t[["✓ Select"] + cols]
-    return t
-
-if key not in st.session_state:
-    st.session_state[key] = _sessionize(df)
-else:
-    # re-align but keep checkboxes when rows persist
-    current = st.session_state[key].set_index("clutch_code")
-    now     = _sessionize(df).set_index("clutch_code")
-    for code in now.index:
-        if code not in current.index:
-            current.loc[code] = now.loc[code]
-        else:
-            for col in now.columns:
-                if col != "✓ Select":
-                    current.at[code, col] = now.at[code, col]
-    current = current.loc[now.index]
-    st.session_state[key] = current.reset_index()
-
-# ───────────────────────── filters (lightweight search) ─────────────────────────
+# ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters"):
-    c1, c2 = st.columns([3, 1])
-    q  = c1.text_input("Search (clutch/code/nickname/mom/dad)")
-    lim = int(c2.number_input("Limit", min_value=10, max_value=2000, value=200, step=10))
-    _ = st.form_submit_button("Apply")
+    c1, c2, c3, c4 = st.columns([2,1,1,1])
+    q   = c1.text_input("Search (TP/FP/mom/dad/cross/clutch)")
+    d1  = c2.date_input("From", value=None)
+    d2  = c3.date_input("To", value=None)
+    lim = int(c4.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
+    st.form_submit_button("Apply", use_container_width=True)
 
-table = st.session_state[key]
+where, params = [], {}
 if q:
-    ql = q.strip().lower()
-    def _contains(s: pd.Series) -> pd.Series:
-        return s.fillna("").astype(str).str.lower().str.contains(ql)
-    mask = (
-        _contains(table["clutch_code"]) |
-        _contains(table.get("clutch_name", pd.Series())) |
-        _contains(table.get("clutch_nickname", pd.Series())) |
-        _contains(table.get("mom_code", pd.Series())) |
-        _contains(table.get("dad_code", pd.Series()))
-    )
-    table = table[mask]
+    params["q"] = f"%{q.strip()}%"
+    where.append("""(
+      tank_pair_code ilike :q or fish_pair_code ilike :q
+      or mom_fish_code ilike :q or dad_fish_code ilike :q
+      or mom_tank_code ilike :q or dad_tank_code ilike :q
+      or cross_code ilike :q or clutch_code ilike :q
+    )""")
+if d1:
+    params["d1"] = str(d1)
+    where.append("(cross_date >= :d1)")
+if d2:
+    params["d2"] = str(d2)
+    where.append("(cross_date <= :d2)")
+where_sql = (" where " + " and ".join(where)) if where else ""
 
-table = table.head(lim)
+sql = text(f"""
+  select *
+  from public.v_cross_clutch_instances
+  {where_sql}
+  order by cross_date desc nulls last, coalesce(clutch_created_at, cross_created_at) desc nulls last
+  limit :lim
+""")
+params["lim"] = lim
 
-# ───────────────────────── conceptual grid with counts ─────────────────────────
-cols_order = [
-    "✓ Select",
-    "clutch_code","clutch_name","clutch_nickname",
-    "mom_code","dad_code",
-    "runs_count","annotations_count",
-    "created_at",
+with eng.begin() as cx:
+    df = pd.read_sql(sql, cx, params=params)
+
+st.caption(f"{len(df)} instance(s)")
+if df.empty:
+    st.info("No instances yet."); st.stop()
+
+# ── Display + Selection ──────────────────────────────────────────────────────
+sel_col = "✓ Select"
+grid = df.copy()
+grid.insert(0, sel_col, False)
+
+cols_show = [
+    sel_col,
+    "tank_pair_code","fish_pair_code",
+    "mom_fish_code","dad_fish_code",
+    "mom_tank_code","dad_tank_code",
+    "mom_genotype","dad_genotype","clutch_genotype",
+    "cross_code","cross_date",
+    "clutch_code",
 ]
-present = [c for c in cols_order if c in table.columns]
+present = [c for c in cols_show if c in grid.columns]
+
 edited = st.data_editor(
-    table[present],
+    grid[present],
     hide_index=True,
-    width="stretch",
-    column_order=present,
+    use_container_width=True,
     column_config={
-        "✓ Select":           st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_code":        st.column_config.TextColumn("Clutch", disabled=True),
-        "clutch_name":        st.column_config.TextColumn("Cross name", disabled=True),
-        "clutch_nickname":    st.column_config.TextColumn("Nickname", disabled=True),
-        "mom_code":           st.column_config.TextColumn("Mom", disabled=True),
-        "dad_code":           st.column_config.TextColumn("Dad", disabled=True),
-        "runs_count":         st.column_config.NumberColumn("# runs", disabled=True, step=1, format="%d"),
-        "annotations_count":  st.column_config.NumberColumn("# annotations", disabled=True, step=1, format="%d"),
-        "created_at":         st.column_config.DatetimeColumn("Created", disabled=True),
+        sel_col: st.column_config.CheckboxColumn("✓", default=False),
+        "tank_pair_code":  st.column_config.TextColumn("TP code", disabled=True),
+        "fish_pair_code":  st.column_config.TextColumn("FP code", disabled=True),
+        "mom_fish_code":   st.column_config.TextColumn("Mom FSH", disabled=True),
+        "dad_fish_code":   st.column_config.TextColumn("Dad FSH", disabled=True),
+        "mom_tank_code":   st.column_config.TextColumn("Mom tank", disabled=True),
+        "dad_tank_code":   st.column_config.TextColumn("Dad tank", disabled=True),
+        "mom_genotype":    st.column_config.TextColumn("Mom genotype", disabled=True, width="large"),
+        "dad_genotype":    st.column_config.TextColumn("Dad genotype", disabled=True, width="large"),
+        "clutch_genotype": st.column_config.TextColumn("Clutch genotype", disabled=True, width="large"),
+        "cross_code":      st.column_config.TextColumn("Cross code", disabled=True),
+        "cross_date":      st.column_config.DateColumn("Cross date", disabled=True),
+        "clutch_code":     st.column_config.TextColumn("Clutch code", disabled=True),
     },
-    key="clutches_editor",
+    key="cross_clutch_instances_editor",
 )
-# push back selection
-st.session_state[key].loc[edited.index, "✓ Select"] = edited["✓ Select"]
 
-# ───────────────────────── KPI band for current selection ─────────────────────────
-sel_codes = edited.loc[edited.get("✓ Select", False) == True, "clutch_code"].astype(str).tolist()
+mask = edited.get(sel_col, pd.Series(False, index=edited.index)).fillna(False).astype(bool)
+picked = edited[mask]
+if picked.empty:
+    st.info("Select one or more rows to print labels.")
+    st.stop()
 
-if sel_codes:
-    sub = df[df["clutch_code"].isin(sel_codes)]
-    total_runs = int(sub["runs_count"].fillna(0).sum())
-    total_ann  = int(sub["annotations_count"].fillna(0).sum())
-    last_bday  = sub["last_birthday"].max() if "last_birthday" in sub.columns else None
-    last_ann   = sub["last_annotated_at"].max() if "last_annotated_at" in sub.columns else None
+# ── Map selected rows → your label builders’ expected fields ─────────────────
+def _rows_for_cross_labels(df_sel: pd.DataFrame) -> list[dict]:
+    rows: list[dict] = []
+    for r in df_sel.to_dict(orient="records"):
+        rows.append({
+            # crossing labels expect these keys (see labels_components.py)
+            "cross_code": r.get("cross_code"),
+            "cross_date": r.get("cross_date"),
+            "mother_tank_label": r.get("mom_tank_code"),
+            "father_tank_label": r.get("dad_tank_code"),
+            "clutch_instance_code": r.get("clutch_code") or "",
+            "clutch_name": "",  # not modeled yet
+        })
+    return rows
 
-    k1, k2, k3, k4 = st.columns([1,1,1,1])
-    k1.metric("Runs (selected)", f"{total_runs}")
-    k2.metric("Annotations (selected)", f"{total_ann}")
-    k3.metric("Last birthday", f"{last_bday}" if pd.notna(last_bday) else "—")
-    k4.metric("Last annotated", f"{last_ann}" if pd.notna(last_ann) else "—")
+def _rows_for_petri_labels(df_sel: pd.DataFrame) -> list[dict]:
+    rows: list[dict] = []
+    for r in df_sel.to_dict(orient="records"):
+        # DOB = cross_date + 1 day (your convention)
+        cd = r.get("cross_date")
+        dob = (cd + timedelta(days=1)) if isinstance(cd, (pd.Timestamp, date)) else None
+        rows.append({
+            "clutch_instance_code": r.get("clutch_code") or "",
+            "clutch_name": "",  # not modeled yet
+            "mom_code": r.get("mom_fish_code"),
+            "dad_code": r.get("dad_fish_code"),
+            "date_birth": dob,
+        })
+    return rows
 
-# ───────────────────────── optional: newest-first runs preview ─────────────────────────
-st.markdown("### Annotations (selected clutches)")
-if not sel_codes:
-    st.info("Select clutches above to see recent annotations.")
-else:
-    ann = _annotations_for_clutches(sel_codes, limit=200)
-    if ann.empty:
-        st.caption("No annotations yet for the selected clutch(es).")
-    else:
-        # Clutch-focused fields only; no cross_* columns
-        cols = [
-            "clutch_code",
-            "clutch_instance_code",
-            "birthday",
-            "red_intensity","green_intensity",
-            "notes","annotated_by","annotated_at",
-        ]
-        present = [c for c in cols if c in ann.columns]
-        st.dataframe(ann[present], hide_index=True, width="stretch")
+rows_cross  = _rows_for_cross_labels(picked)
+rows_petri  = _rows_for_petri_labels(picked)
+
+# ── PDF Label downloads (uses your helpers) ──────────────────────────────────
+st.subheader("Print labels")
+c1, c2 = st.columns(2)
+with c1:
+    download_button_for_labels(
+        rows=rows_cross,
+        builder="crossing",
+        file_prefix="cross_labels",
+        button_text="⬇️ Download CROSS labels (PDF)",
+    )
+with c2:
+    download_button_for_labels(
+        rows=rows_petri,
+        builder="petri",
+        file_prefix="clutch_labels",
+        button_text="⬇️ Download CLUTCH labels (PDF)",
+    )
+
+st.caption("Cross labels: CROSS code, date, mom/dad tanks → clutch code.  Petri labels: clutch code, parents, DOB.")
