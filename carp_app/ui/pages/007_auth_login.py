@@ -5,7 +5,7 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 import os, sys
 from pathlib import Path
 import streamlit as st
-from carp_app.lib.config import engine as get_engine, DB_URL
+from carp_app.ui.lib.app_ctx import get_engine, DB_URL
 
 st.set_page_config(page_title="Sign in — Code", page_icon="🔐")
 

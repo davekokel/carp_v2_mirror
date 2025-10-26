@@ -1,5 +1,5 @@
 from __future__ import annotations
-from carp_app.lib.config import engine as get_engine, DB_URL
+from carp_app.ui.lib.app_ctx import get_engine, DB_URL
 # supabase/ui/lib_shared.py
 
 import os
