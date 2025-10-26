@@ -7,7 +7,7 @@ vf as (
 ),
 fb as (
   select
-    f.id                  as fish_id,
+    f.fish_uuid                  as fish_id,
     f.fish_code           as fish_code,
     f.name                as fish_name,
     f.nickname            as fish_nickname,
@@ -20,25 +20,25 @@ fb as (
 ),
 live_cte as (
   select
-    ftm.fish_id,
+    ftm.fish_uuid,
     count(*) filter (where ftm.left_at is null)::int as n_living_tanks_derived
   from public.fish_tank_memberships ftm
-  group by ftm.fish_id
+  group by ftm.fish_uuid
 ),
 active_tanks as (
   select
-    ftm.fish_id,
+    ftm.fish_uuid,
     count(*)::int as active_tank_count
   from public.fish_tank_memberships ftm
   join public.tanks t
-    on t.tank_uuid = ftm.container_id
+    on t.tank_uuid = ftm.tank_uuid
   where ftm.left_at is null
     and coalesce(t.status,'') in ('active','new')
-  group by ftm.fish_id
+  group by ftm.fish_uuid
 ),
 alleles as (
   select
-    fta.fish_id,
+    fta.fish_uuid,
     min(fta.allele_number)::int as allele_number_primary,
     array_agg(fta.allele_number order by fta.allele_number) as allele_numbers,
     array_agg(fta.transgene_base_code || '-' || fta.allele_number
@@ -51,7 +51,7 @@ alleles as (
   left join public.transgene_alleles ta
     on ta.transgene_base_code = fta.transgene_base_code
    and ta.allele_number       = fta.allele_number
-  group by fta.fish_id
+  group by fta.fish_uuid
 ),
 base as (
   select
@@ -94,6 +94,6 @@ select
   b.created_by,
   b.date_birth
 from base b
-left join live_cte     l  on l.fish_id  = b.fish_id
-left join alleles      a  on a.fish_id  = b.fish_id
-left join active_tanks at on at.fish_id = b.fish_id;
+left join live_cte     l  on l.fish_uuid  = b.fish_id
+left join alleles      a  on a.fish_uuid  = b.fish_id
+left join active_tanks at on at.fish_uuid = b.fish_id;

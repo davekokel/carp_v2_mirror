@@ -30,32 +30,6 @@ alter table public.tank_pairs
 create unique index if not exists ux_tank_pairs_tank_pair_code
   on public.tank_pairs(tank_pair_code);
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'chk_fish_pair_code_fmt'
-      and conrelid = 'public.tank_pairs'::regclass
-  ) then
-    execute $$alter table public.tank_pairs
-             add constraint chk_fish_pair_code_fmt
-             check (fish_pair_code ~ '^FP-[0-9]{5}$') not valid$$;
-    execute $$alter table public.tank_pairs
-             validate constraint chk_fish_pair_code_fmt$$;
-  end if;
-
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'chk_tank_pair_code_fmt'
-      and conrelid = 'public.tank_pairs'::regclass
-  ) then
-    execute $$alter table public.tank_pairs
-             add constraint chk_tank_pair_code_fmt
-             check (tank_pair_code ~ '^TP\\(FP-[0-9]{5}\\)-[1-9][0-9]*$') not valid$$;
-    execute $$alter table public.tank_pairs
-             validate constraint chk_tank_pair_code_fmt$$;
-  end if;
-end$$;
 
 drop trigger if exists trg_gen_tank_pair_code on public.tank_pairs;
 create trigger trg_gen_tank_pair_code
@@ -85,22 +59,3 @@ left join public.v_tanks vtf on vtf.tank_uuid = t.father_tank_id
 left join public.v_fish_overview mv on mv.fish_code = vtm.fish_code
 left join public.v_fish_overview dv on dv.fish_code = vtf.fish_code;
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'chk_ci_tank_pair_code_fmt'
-      and conrelid = 'public.cross_instances'::regclass
-  ) then
-    execute $$alter table public.cross_instances
-             add constraint chk_ci_tank_pair_code_fmt
-             check (tank_pair_code ~ '^TP\\(FP-[0-9]{5}\\)-[1-9][0-9]*$') not valid$$;
-    execute $$alter table public.cross_instances
-             validate constraint chk_ci_tank_pair_code_fmt$$;
-  end if;
-end$$;
-
-create index if not exists ix_tank_pairs_fish_pair_code on public.tank_pairs(fish_pair_code);
-create index if not exists ix_ci_tank_pair_code on public.cross_instances(tank_pair_code);
-
-commit;

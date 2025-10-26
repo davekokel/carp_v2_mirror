@@ -1,6 +1,6 @@
 CREATE VIEW public.v_fish_overview_rich AS
  WITH current_tanks AS (
-         SELECT f_1.id AS fish_id,
+         SELECT f_1.fish_uuid AS fish_id,
             array_agg(DISTINCT t.tank_code ORDER BY t.tank_code) AS tank_codes,
             min(t.tank_code) AS tank_code,
             (array_agg(DISTINCT t.status ORDER BY t.status))[1] AS tank_status,
@@ -8,16 +8,16 @@ CREATE VIEW public.v_fish_overview_rich AS
             (array_agg(DISTINCT t."position" ORDER BY t."position"))[1] AS tank_position
            FROM (public.fish f_1
              LEFT JOIN public.tanks t ON ((t.fish_code = f_1.fish_code)))
-          GROUP BY f_1.id
+          GROUP BY f_1.fish_uuid
         ), geno_rows AS (
-         SELECT DISTINCT fta.fish_id,
+         SELECT DISTINCT fta.fish_uuid,
             fta.transgene_base_code,
             fta.allele_number,
             ((('Tg('::text || fta.transgene_base_code) || ')'::text) || COALESCE(ta.allele_name, ta.allele_nickname, ('#'::text || (fta.allele_number)::text))) AS transgene_pretty
            FROM (public.fish_transgene_alleles fta
              LEFT JOIN public.transgene_alleles ta ON (((ta.transgene_base_code = fta.transgene_base_code) AND (ta.allele_number = fta.allele_number))))
         ), geno AS (
-         SELECT r.fish_id,
+         SELECT r.fish_uuid,
             min(r.transgene_base_code) AS transgene_base_code,
             array_agg(r.transgene_base_code ORDER BY r.transgene_base_code) AS transgene_base_codes,
             array_agg(r.allele_number ORDER BY r.allele_number) AS allele_number_list,
@@ -25,13 +25,13 @@ CREATE VIEW public.v_fish_overview_rich AS
             string_agg(r.transgene_pretty, '; '::text ORDER BY r.transgene_base_code, r.allele_number) AS transgene_pretty_name,
             string_agg(r.transgene_pretty, '; '::text ORDER BY r.transgene_base_code, r.allele_number) AS genotype_rollup
            FROM geno_rows r
-          GROUP BY r.fish_id
+          GROUP BY r.fish_uuid
         ), counts AS (
          SELECT vf.fish_code,
             COALESCE(vf.n_tanks, 0) AS n_living_tanks
            FROM public.v_fish vf
         )
- SELECT f.id,
+ SELECT f.fish_uuid,
     f.fish_code,
     COALESCE(f.name, ''::text) AS fish_name,
     COALESCE(f.nickname, ''::text) AS fish_nickname,
@@ -54,5 +54,5 @@ CREATE VIEW public.v_fish_overview_rich AS
     COALESCE(g.genotype_rollup, ''::text) AS genotype_rollup
    FROM (((public.fish f
      LEFT JOIN counts cnt ON ((cnt.fish_code = f.fish_code)))
-     LEFT JOIN current_tanks ct ON ((ct.fish_id = f.id)))
-     LEFT JOIN geno g ON ((g.fish_id = f.id)));
+     LEFT JOIN current_tanks ct ON ((ct.fish_id = f.fish_uuid)))
+     LEFT JOIN geno g ON ((g.fish_uuid = f.fish_uuid)));

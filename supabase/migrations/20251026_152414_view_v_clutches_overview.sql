@@ -13,10 +13,10 @@ create or replace view public.v_clutches_overview as  WITH cp AS (
            FROM clutch_plans c
         ), parent AS (
          SELECT v.fish_code,
-            v.genotype_text,
+            NULL::text AS genotype_text,
             v.genetic_background,
             COALESCE(t.n_live, 0::bigint)::integer AS live_tanks
-           FROM v_fish_overview v
+           FROM v_fish_rich v
              LEFT JOIN ( SELECT v_tanks.fish_code,
                     count(*) FILTER (WHERE v_tanks.status = ANY (ARRAY['active'::text, 'new_tank'::text])) AS n_live
                    FROM v_tanks

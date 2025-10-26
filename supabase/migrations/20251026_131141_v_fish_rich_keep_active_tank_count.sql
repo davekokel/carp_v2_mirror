@@ -1,105 +1,48 @@
-create or replace view public.v_fish_rich as
-with
-vf as (
-  select * from public.v_fish
+CREATE OR REPLACE VIEW public.v_fish_rich_keep_active_tank_count AS
+WITH
+base AS (
+  SELECT
+    f.fish_uuid,
+    f.fish_code,
+    f.name                AS fish_name,
+    f.nickname            AS fish_nickname,
+    f.genetic_background,
+    f.line_building_stage,
+    f.created_at          AS fish_created_at,
+    f.created_by          AS fish_created_by,
+    f.date_birth
+  FROM public.fish f
 ),
-fb as (
-  select
-    f.id                  as fish_id,
-    f.fish_code           as fish_code,
-    f.name                as fish_name,
-    f.nickname            as fish_nickname,
-    f.genetic_background  as genetic_background,
-    f.line_building_stage as line_building_stage,
-    f.created_at          as fish_created_at,
-    f.created_by          as fish_created_by,
-    f.date_birth          as date_birth
-  from public.fish f
+live_cte AS (
+  SELECT
+    m.fish_uuid,
+    COUNT(*) FILTER (WHERE m.ended_at IS NULL)::int AS n_living_tanks_derived
+  FROM public.fish_tank_memberships m
+  GROUP BY m.fish_uuid
 ),
-live_cte as (
-  -- total active memberships (regardless of tank status)
-  select
-    ftm.fish_id,
-    count(*) filter (where ftm.left_at is null)::int as n_living_tanks_derived
-  from public.fish_tank_memberships ftm
-  group by ftm.fish_id
-),
-active_tanks as (
-  -- active/new tanks only; we keep just the count
-  select
-    ftm.fish_id,
-    count(*)::int as active_tank_count
-  from public.fish_tank_memberships ftm
-  join public.tanks t
-    on t.tank_uuid = ftm.container_id
-  where ftm.left_at is null
-    and coalesce(t.status,'') in ('active','new')
-  group by ftm.fish_id
-),
-alleles as (
-  -- allele summaries + pretty/rollup fallbacks
-  select
-    fta.fish_id,
-    min(fta.allele_number)::int as allele_number_primary,
-    array_agg(fta.allele_number order by fta.allele_number) as allele_numbers,
-    array_agg(fta.transgene_base_code || '-' || fta.allele_number
-              order by fta.transgene_base_code, fta.allele_number) as allele_codes,
-    string_agg('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''),
-               '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as transgene_pretty_derived,
-    string_agg('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''),
-               '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as genotype_rollup_derived
-  from public.fish_transgene_alleles fta
-  left join public.transgene_alleles ta
-    on ta.transgene_base_code = fta.transgene_base_code
-   and ta.allele_number       = fta.allele_number
-  group by fta.fish_id
-),
-base as (
-  -- join on fish_code (stable natural key)
-  select
-    coalesce(vf.fish_id,  fb.fish_id)   as fish_id,
-    coalesce(vf.fish_code,fb.fish_code) as fish_code,
-    fb.fish_name,
-    fb.fish_nickname,
-    fb.genetic_background,
-    fb.line_building_stage,
-    fb.date_birth,
-    coalesce((to_jsonb(vf)->>'created_at')::timestamp, fb.fish_created_at) as created_at,
-    coalesce( to_jsonb(vf)->>'created_by', fb.fish_created_by )            as created_by,
-    to_jsonb(vf)->>'transgene_pretty_name' as transgene_pretty_name,
-    to_jsonb(vf)->>'genotype_rollup'       as genotype_rollup,
-    to_jsonb(vf)->>'transgene_base_code'   as transgene_base_code,
-    (to_jsonb(vf)->>'n_living_tanks')::int as n_living_tanks
-  from vf
-  full join fb on vf.fish_code = fb.fish_code
+active_tanks AS (
+  SELECT
+    m.fish_uuid,
+    COUNT(*) FILTER (
+      WHERE m.ended_at IS NULL
+        AND COALESCE(t.status,'active') IN ('active','living')
+    )::int AS active_tank_count
+  FROM public.fish_tank_memberships m
+  JOIN public.tanks t ON t.tank_uuid = m.tank_uuid
+  GROUP BY m.fish_uuid
 )
-select
-  b.fish_id,
+SELECT
+  b.fish_uuid,
   b.fish_code,
   b.fish_name,
   b.fish_nickname,
   b.genetic_background,
   b.line_building_stage,
-
-  a.allele_number_primary as allele_number,
-  case
-    when a.allele_number_primary is not null and b.transgene_base_code is not null
-      then b.transgene_base_code || '-' || a.allele_number_primary
-    else null
-  end as allele_code,
-  a.allele_numbers,
-  a.allele_codes,
-
-  coalesce(b.transgene_pretty_name, a.transgene_pretty_derived, '') as transgene,
-  coalesce(b.genotype_rollup,       a.genotype_rollup_derived, '')  as genotype_rollup,
-
-  coalesce(b.n_living_tanks, l.n_living_tanks_derived, 0) as n_living_tanks,
-  coalesce(at.active_tank_count, 0)                       as active_tank_count,
-
-  b.created_at,
-  b.created_by,
+  COALESCE(l.n_living_tanks_derived, 0) AS n_living_tanks,
+  COALESCE(a.active_tank_count, 0)      AS active_tank_count,
+  b.fish_created_at,
+  b.fish_created_by,
   b.date_birth
-from base b
-left join live_cte     l  on l.fish_id  = b.fish_id
-left join alleles      a  on a.fish_id  = b.fish_id
-left join active_tanks at on at.fish_id = b.fish_id;
+FROM base b
+LEFT JOIN live_cte     l USING (fish_uuid)
+LEFT JOIN active_tanks a USING (fish_uuid);

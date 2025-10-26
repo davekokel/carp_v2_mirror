@@ -1,14 +1,14 @@
 create or replace view public.v_containers as
 with live as (
   select
-    ftm.container_id,
+    ftm.tank_uuid,
     count(*)::int as live_count
   from public.fish_tank_memberships ftm
   where ftm.left_at is null
-  group by ftm.container_id
+  group by ftm.tank_uuid
 )
 select
-  t.tank_id                        as container_id,
+  t.tank_uuid as tank_uuid,
   t.tank_code                      as container_code,
   'tank'::text                     as container_type,
   coalesce(t.status,'')            as status,
@@ -17,7 +17,7 @@ select
   null::int                        as free_slots,
   t.created_at                     as created_at
 from public.tanks t
-left join live on live.container_id = t.tank_uuid;
+left join live on live.tank_uuid = t.tank_uuid;
 
 drop view if exists public.v_containers_crossing_candidates cascade;
 create view public.v_containers_crossing_candidates as
