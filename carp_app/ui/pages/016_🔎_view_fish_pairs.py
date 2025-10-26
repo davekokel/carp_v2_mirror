@@ -49,38 +49,73 @@ st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 VIEW_TP = "public.v_tank_pairs"
 
 # ── Data loads ───────────────────────────────────────────────────────────────
+@st.cache_data(show_spinner=False)
+def _vtp_cols() -> set[str]:
+    with _eng().begin() as cx:
+        df = pd.read_sql(text("""
+            select column_name
+            from information_schema.columns
+            where table_schema='public' and table_name='v_tank_pairs'
+        """), cx)
+    return set(df["column_name"].tolist())
+
 def _load_fish_pairs_overview(d1: date, d2: date, q: str) -> pd.DataFrame:
-    sql = text(f"""
+    cols = _vtp_cols()
+
+    # base pairs (require fish_pair_code + mom/dad codes)
+    base_where = "coalesce(mom_fish_code,'') <> '' and coalesce(dad_fish_code,'') <> ''"
+    base_sql = f"""
       with base as (
         select
           fish_pair_code,
           least(mom_fish_code, dad_fish_code) as mom_code,
           greatest(mom_fish_code, dad_fish_code) as dad_code
-        from {VIEW_TP}
-        where coalesce(mom_fish_code,'') <> '' and coalesce(dad_fish_code,'') <> ''
+        from public.v_tank_pairs
+        where {base_where}
       ),
       pairs as (
-        select distinct fish_pair_code, mom_code, dad_code
-        from base
-      ),
-      tps as (
+        select distinct fish_pair_code, mom_code, dad_code from base
+      )
+    """
+
+    # counts over v_tank_pairs
+    have_status = "status" in cols
+    have_created = "created_at" in cols
+    have_tp_code = "tank_pair_code" in cols
+
+    n_selected_expr  = "count(*) filter (where v.status='selected')::int"  if have_status else "0::int"
+    n_scheduled_expr = "count(*) filter (where v.status='scheduled')::int" if have_status else "0::int"
+    date_filter = "and v.created_at::date between :d1 and :d2" if have_created else ""
+    last_tp_ts  = "max(v.created_at)" if have_created else "null::timestamp as"
+
+    tps_sql = f"""
+      , tps as (
         select
           v.fish_pair_code,
-          count(*) filter (where v.status='selected')::int  as n_selected,
-          count(*) filter (where v.status='scheduled')::int as n_scheduled,
-          max(v.created_at)                                  as last_tank_pair_at
-        from {VIEW_TP} v
-        where v.created_at::date between :d1 and :d2
+          {n_selected_expr}  as n_selected,
+          {n_scheduled_expr} as n_scheduled,
+          {last_tp_ts} last_tank_pair_at
+        from public.v_tank_pairs v
+        {'where 1=1 ' + date_filter if date_filter else ''}
         group by v.fish_pair_code
-      ),
-      last_cross as (
+      )
+    """
+
+    # last cross time (only if we have tank_pair_code to join)
+    last_cross_sql = f"""
+      , last_cross as (
         select
           v.fish_pair_code,
           max(ci.created_at) as last_cross_at
-        from {VIEW_TP} v
-        join public.cross_instances ci on ci.tank_pair_code = v.tank_pair_code
+        from public.v_tank_pairs v
+        join public.cross_instances ci
+          on {'v.tank_pair_code = ci.tank_pair_code' if have_tp_code else '1=0'}
         group by v.fish_pair_code
       )
+    """
+
+    # final select with search
+    sql = text(base_sql + tps_sql + last_cross_sql + """
       select
         p.fish_pair_code,
         p.mom_code as mom_fish_code,
@@ -94,14 +129,23 @@ def _load_fish_pairs_overview(d1: date, d2: date, q: str) -> pd.DataFrame:
           coalesce(lc.last_cross_at,     timestamp 'epoch')
         ) as last_activity_at
       from pairs p
-      left join tps on tps.fish_pair_code = p.fish_pair_code
+      left join tps       on tps.fish_pair_code = p.fish_pair_code
       left join last_cross lc on lc.fish_pair_code = p.fish_pair_code
       where (:qq = '' or p.fish_pair_code ilike :ql or p.mom_code ilike :ql or p.dad_code ilike :ql)
       order by last_activity_at desc nulls last, p.mom_code, p.dad_code
       limit 1000
     """)
+
+    params = {
+        "qq": q or "",
+        "ql": f"%{q or ''}%"
+    }
+    if have_created:
+        params["d1"] = d1
+        params["d2"] = d2
+
     with _eng().begin() as cx:
-        return pd.read_sql(sql, cx, params={"d1": d1, "d2": d2, "qq": q or "", "ql": f"%{q or ''}%"})
+        return pd.read_sql(sql, cx, params=params)
 
 def _load_tank_pairs_for_fp(fp_code: str, status: t.Optional[str] = None) -> pd.DataFrame:
     sql = f"""

@@ -23,9 +23,7 @@ from typing import List, Dict, Any, Set, Optional
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
-from sqlalchemy import text as _sql
 from carp_app.ui.lib.app_ctx import get_engine
-
 
 st.set_page_config(page_title="🐟 Select fish pairs", page_icon="🐟", layout="wide")
 st.title("🐟 Select fish pairs")
@@ -47,21 +45,39 @@ with _eng().begin() as cx:
 st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 
 # =============================================================================
-# HELPERS
+# Helpers
 # =============================================================================
 
-def _colset(schema: str, rel: str) -> set[str]:
-    with _eng().begin() as cx:
-        rows = cx.execute(_sql("""
-          select column_name
-          from information_schema.columns
-          where table_schema=:s and table_name=:r
-        """), {"s": schema, "r": rel}).fetchall()
-    return {r[0] for r in rows}
+@st.cache_data(show_spinner=False)
 
-def _vf(cols: set[str], base: str) -> str:
-    # prefer prefixed v_* columns if present, else plain
-    return f"f.v_{base}" if f"v_{base}" in cols else f"f.{base}"
+def _pick_fish_view() -> str:
+    with _eng().begin() as cx:
+        rows = pd.read_sql(
+            text("""select table_name
+                    from information_schema.views
+                    where table_schema='public'
+                      and table_name in ('v_fish_rich','v_fish')"""),
+            cx
+        )
+    names = set(rows["table_name"].tolist())
+    return "public.v_fish_rich" if "v_fish_rich" in names else "public.v_fish"
+
+@st.cache_data(show_spinner=False)
+def _fish_cols(view: str) -> list[str]:
+    schema, tbl = view.split(".", 1)
+    with _eng().begin() as cx:
+        df = pd.read_sql(
+            text("""select column_name
+                    from information_schema.columns
+                    where table_schema=:s and table_name=:t
+                    order by ordinal_position"""),
+            cx,
+            params={"s": schema, "t": tbl}
+        )
+    return df["column_name"].tolist()
+
+def _has(col: str, cols: list[str]) -> bool:
+    return col in cols
 
 def _split_genotype(g: str) -> list[str]:
     if not g:
@@ -79,17 +95,18 @@ def _default_expected_genotype(combined_df: pd.DataFrame, mom_code: str, dad_cod
     saved = st.session_state.get("planned_genotype_elements") or []
     if saved:
         return "; ".join([str(x) for x in saved])
+    view = _pick_fish_view()
+    cols = _fish_cols(view)
+    pick = "transgene_pretty_name" if _has("transgene_pretty_name", cols) else ("genotype_rollup" if _has("genotype_rollup", cols) else None)
+    if not pick:
+        return ""
     try:
         with _eng().begin() as cx:
-            df = pd.read_sql(text("""
-              with src as (
-                select fish_code, null::text as genotype, transgene_pretty_name
-                from public.v_fish_overview_rich where fish_code = any(:codes)
-              )
-              select fish_code,
-                     coalesce(genotype, transgene_pretty_name) as g
-              from src
-            """), cx, params={"codes": [c for c in [mom_code, dad_code] if c]})
+            df = pd.read_sql(
+                text(f"select fish_code, {pick} as g from {view} where fish_code = any(:codes)"),
+                cx,
+                params={"codes": [c for c in (mom_code, dad_code) if c]}
+            )
         toks = set()
         for g in df["g"].dropna():
             for t in re.split(r"[;,|]+", str(g)):
@@ -108,57 +125,31 @@ created_by = st.text_input("Created by", value=created_by_default)
 
 @st.cache_data(show_spinner=False)
 def _search_fish_enriched(q: Optional[str], limit: int) -> pd.DataFrame:
-    where = []
-    params: Dict[str, Any] = {"lim": int(limit)}
+    view = _pick_fish_view()
+    cols = _fish_cols(view)
+    where, params = [], {"lim": int(limit)}
     if q and q.strip():
-        params["qq"] = f"%{q.strip()}%"
-        hay = " || ' ' || ".join([
-            "coalesce(b.fish_code,'')",
-            "coalesce(b.fish_name,'')",
-            "coalesce(b.fish_nickname,'')",
-            "coalesce(b.genetic_background,'')",
-            "coalesce(b.transgene_pretty_name,'')",
-            "coalesce(b.genotype_rollup,'')",
-        ])
-        where.append(f"({hay}) ilike :qq")
+        params["ql"] = f"%{q.strip()}%"
+        hay_parts = ["coalesce(b.fish_code,'')"]
+        for c in ("fish_name","fish_nickname","genetic_background","transgene_base_code","transgene_pretty_name","genotype_rollup"):
+            if _has(c, cols):
+                hay_parts.append(f"coalesce(b.{c},'')")
+        hay = " || ' ' || ".join(hay_parts)
+        where.append(f"({hay}) ilike :ql")
     where_sql = (" where " + " and ".join(where)) if where else ""
-
     sql = text(f"""
-      select
-        b.fish_code                                  as fish_code,
-        b.fish_name                                  as name,
-        b.fish_nickname                              as nickname,
-        b.genetic_background                         as genetic_background,
-        b.transgene_pretty_name                      as genotype,
-        b.line_building_stage                        as line_building_stage,
-        b.date_birth                                  as birthday,
-        b.created_at                                  as created_at,
-        b.created_by                                  as created_by,
-        b.transgene_base_code                        as transgene_base_code,
-        ''                                            as allele_number,
-        ''                                            as allele_name,
-        ''                                            as allele_nickname,
-        b.transgene_pretty_name                       as transgene_pretty_name,
-        b.transgene_pretty_name                       as transgene_pretty_nickname,
-        b.genotype_rollup                             as genotype_rollup_clean,
-        b.n_living_tanks                              as n_living_tanks
-      from public.v_fish_overview_rich b
-      {where_sql}
-      order by b.created_at desc nulls last, b.fish_code
-      limit :lim
+        select *
+        from {view} b
+        {where_sql}
+        order by coalesce(b.created_at, now()) desc, b.fish_code
+        limit :lim
     """)
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
-
-    for c in [
-        "fish_code","name","nickname","genetic_background","genotype",
-        "line_building_stage","created_by","transgene_base_code","allele_name",
-        "allele_nickname","transgene_pretty_nickname","transgene_pretty_name",
-        "genotype_rollup_clean"
-    ]:
-        if c in df.columns:
-            df[c] = df[c].astype("string").fillna("")
-    df["n_living_tanks"] = pd.to_numeric(df.get("n_living_tanks", 0), errors="coerce").fillna(0).astype(int)
+    if "fish_code" not in df.columns:
+        df["fish_code"] = ""
+    for c in df.select_dtypes(include=["object","string"]).columns:
+        df[c] = df[c].astype("string").fillna("")
     return df
 
 st.header("Step 1 — Select parents (unordered fish pair)")
@@ -171,6 +162,7 @@ with st.form("fish_filters"):
     submitted = st.form_submit_button("Run")
 
 if submitted:
+    st.cache_data.clear()
     st.session_state.pop("_picker_sig", None)
     st.session_state.pop("_picker_src", None)
 
@@ -191,77 +183,25 @@ sel_set: Set[str] = set(st.session_state.get("_picker_sel", []))
 if src.empty:
     st.info("No fish match your filters.")
 else:
-    # ── REPLACE everything from your current `cols = [` down through the `st.data_editor(...)` call with this block ──
-    cols = [
-        "fish_code","name","nickname","genetic_background",
-        "transgene_base_code","allele_number","allele_name","allele_nickname",
-        "transgene_pretty_nickname","transgene_pretty_name",
-        "genotype","genotype_rollup_clean",
-        "n_living_tanks","birthday","line_building_stage","created_at","created_by",
-    ]
-    for c in cols:
-        if c not in src.columns:
-            src[c] = "" if c != "n_living_tanks" else 0
+    cols_all = list(src.columns)
+    ordered = ["fish_code"] + [c for c in cols_all if c != "fish_code"] if "fish_code" in cols_all else cols_all[:]
+    view_df = src[ordered].copy()
+    view_df.insert(0, "✓ Select", view_df.get("fish_code", pd.Series("", index=view_df.index)).astype(str).isin(sel_set))
 
-    nonempty_cols = []
-    for c in cols:
-        s = src[c]
-        if c == "n_living_tanks":
-            if pd.to_numeric(s, errors="coerce").fillna(0).astype(int).sum() != 0 or s.notna().any():
-                nonempty_cols.append(c)
-        else:
-            if s.astype(str).replace({"": None, "nan": None}).notna().any():
-                nonempty_cols.append(c)
-
-    ordered = ["fish_code"] + [c for c in nonempty_cols if c != "fish_code"]
-    view = src[ordered].copy()
-    view.insert(0, "✓ Select", view["fish_code"].astype(str).isin(sel_set))
-
-    name_map = {
-        "fish_code":"Fish code",
-        "name":"Fish name",
-        "nickname":"Fish nickname",
-        "genetic_background":"Genetic background",
-        "transgene_base_code":"Transgene base code",
-        "allele_number":"Allele number",
-        "allele_name":"Allele name",
-        "allele_nickname":"Allele nickname",
-        "transgene_pretty_nickname":"Transgene (pretty nickname)",
-        "transgene_pretty_name":"Transgene (pretty name)",
-        "genotype":"Genotype",
-        "genotype_rollup_clean":"Genotype rollup",
-        "n_living_tanks":"# living tanks",
-        "birthday":"Birth date",
-        "line_building_stage":"Stage",
-        "created_at":"Created",
-        "created_by":"Created by",
+    cfg: dict[str, st.column_config.Column] = {
+        "✓ Select": st.column_config.CheckboxColumn("✓", default=False)
     }
-    view = view.rename(columns={k: v for k, v in name_map.items() if k in view.columns})
-
-    cfg = {
-        "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-        "Fish code": st.column_config.TextColumn("Fish code", disabled=True),
-        "Fish name": st.column_config.TextColumn("Fish name", disabled=True),
-        "Fish nickname": st.column_config.TextColumn("Fish nickname", disabled=True),
-        "Genetic background": st.column_config.TextColumn("Genetic background", disabled=True),
-        "Stage": st.column_config.TextColumn("Stage", disabled=True),
-        "Transgene base code": st.column_config.TextColumn("Transgene base code", disabled=True),
-        "Allele number": st.column_config.TextColumn("Allele number", disabled=True),
-        "Allele name": st.column_config.TextColumn("Allele name", disabled=True),
-        "Allele nickname": st.column_config.TextColumn("Allele nickname", disabled=True),
-        "Transgene (pretty nickname)": st.column_config.TextColumn("Transgene (pretty nickname)", disabled=True),
-        "Transgene (pretty name)": st.column_config.TextColumn("Transgene (pretty name)", disabled=True),
-        "Genotype": st.column_config.TextColumn("Genotype", disabled=True),
-        "Genotype rollup": st.column_config.TextColumn("Genotype rollup", disabled=True),
-        "# living tanks": st.column_config.NumberColumn("# living tanks", disabled=True, width="small"),
-        "Birth date": st.column_config.DateColumn("Birth date", disabled=True, format="YYYY-MM-DD"),
-        "Created": st.column_config.DatetimeColumn("Created", disabled=True, format="YYYY-MM-DD HH:mm:ss"),
-        "Created by": st.column_config.TextColumn("Created by", disabled=True),
-    }
-    cfg = {k: v for k, v in cfg.items() if k in view.columns}
+    for c in view_df.columns:
+        lc = c.lower()
+        if lc.endswith("_at") or lc.endswith("_time") or lc in {"created_at","updated_at"}:
+            cfg[c] = st.column_config.DatetimeColumn(c, disabled=True, format="YYYY-MM-DD HH:mm:ss")
+        elif lc.startswith("date_") or lc.endswith("_date"):
+            cfg[c] = st.column_config.DateColumn(c, disabled=True, format="YYYY-MM-DD")
+        elif c == "fish_code":
+            cfg[c] = st.column_config.TextColumn("Fish code", disabled=True)
 
     edited = st.data_editor(
-        view,
+        view_df,
         width="stretch",
         hide_index=True,
         column_config=cfg,
@@ -270,6 +210,8 @@ else:
 
     if not edited.empty and "✓ Select" in edited.columns and "Fish code" in edited.columns:
         sel_set = set(edited.loc[edited["✓ Select"], "Fish code"].astype(str).tolist())
+    else:
+        sel_set = set()
     st.session_state["_picker_sel"] = list(sel_set)
 
     selected_codes = sorted(list(sel_set))
@@ -312,32 +254,29 @@ dad_code = st.session_state.get("dad_fish_code")
 @st.cache_data(show_spinner=False)
 def _fetch_parent_rows(codes: list[str]) -> pd.DataFrame:
     if not codes:
-        return pd.DataFrame(columns=[
-            "fish_code","name","nickname","genotype","genetic_background","stage","date_birth","created_at",
-            "transgene_pretty_name"
-        ])
-    sql = text("""
-      select
-        b.fish_code                         as fish_code,
-        b.fish_name                         as name,
-        b.fish_nickname                     as nickname,
-        b.transgene_pretty_name             as genotype,
-        b.genetic_background                as genetic_background,
-        b.line_building_stage               as stage,
-        b.date_birth                         as date_birth,
-        b.created_at                         as created_at
-      from public.v_fish_overview_rich b
+        return pd.DataFrame(columns=["fish_code","genotype","created_at","transgene_pretty_name"])
+    view = _pick_fish_view()
+    cols = _fish_cols(view)
+    pick = "transgene_pretty_name" if _has("transgene_pretty_name", cols) else ("genotype_rollup" if _has("genotype_rollup", cols) else None)
+    base_select = ["b.fish_code as fish_code"]
+    if pick: base_select.append(f"b.{pick} as genotype")
+    if _has("created_at", cols): base_select.append("b.created_at as created_at")
+    sql = text(f"""
+      select {", ".join(base_select)}
+      from {view} b
       where b.fish_code = any(:codes)
     """)
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": codes})
-    pretty = df[["fish_code","genotype"]].rename(columns={"genotype":"transgene_pretty_name"})
-    return df.merge(pretty, on="fish_code", how="left")
+    if pick:
+        pretty = df[["fish_code","genotype"]].rename(columns={"genotype":"transgene_pretty_name"})
+        df = df.merge(pretty, on="fish_code", how="left")
+    return df
 
 if not (mom_code or dad_code):
     st.info("Pick two parents above to preview and select genotype elements.")
 else:
-    parents = _fetch_parent_rows([c for c in [mom_code, dad_code] if c])
+    parents = _fetch_parent_rows([c for c in (mom_code, dad_code) if c])
     by_code = {r["fish_code"]: r for _, r in parents.iterrows()} if not parents.empty else {}
 
     def _parent_block(label: str, code: str, key_prefix: str):
@@ -350,17 +289,8 @@ else:
             row = by_code.get(code)
             if row is None:
                 st.warning(f"{code}: not found"); return pd.DataFrame(columns=["element","inherit?","source"])
-            st.markdown(f"**{code}** — {row.get('name') or ''}")
-            meta = {
-                "nickname": row.get("nickname"),
-                "stage": row.get("stage"),
-                "genetic_background": row.get("genetic_background"),
-                "date_birth": row.get("date_birth"),
-            }
-            show_meta = {k: v for k, v in meta.items() if v not in (None, "", pd.NaT)}
-            if show_meta:
-                st.write(show_meta)
-            tpn = (row.get("transgene_pretty_name") or "").strip()
+            st.markdown(f"**{code}**")
+            tpn = (row.get("transgene_pretty_name") or "").strip() if "transgene_pretty_name" in parents.columns else ""
             elems = [tpn] if tpn else _split_genotype((row.get("genotype") or "").strip())
             if not elems:
                 st.info("No genotype text available for this fish.")
@@ -421,13 +351,11 @@ else:
 # =============================================================================
 st.subheader("Save pair + clutch")
 
-# Compute expected genotype silently (not shown as a field)
 computed_geno = _default_expected_genotype(
     locals().get("combined", pd.DataFrame(columns=["element"])),
     mom_code, dad_code
 )
 
-# Guard: need both parents and at least one selected element
 combined = locals().get("combined", pd.DataFrame(columns=["element","source"]))
 can_save_both = bool(mom_code) and bool(dad_code) and isinstance(combined, pd.DataFrame) and not combined.empty
 
@@ -471,9 +399,7 @@ if st.button("💾 Save fish pair + clutch", type="primary", width="stretch", di
                 "elts": combined["element"].astype(str).tolist(),
                 "by":   (os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"),
             }).mappings().first()
-
             fish_pair_code = got["fish_pair_code"]
-
         st.success(f"Saved fish pair {fish_pair_code}.")
         st.cache_data.clear()
     except Exception as e:
@@ -501,14 +427,12 @@ def _recent_fish_pairs(limit: int = 20) -> pd.DataFrame:
     """)
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"lim": int(limit)})
-    # Pretty column names expected by your renderer
     df = df.rename(columns={
         "fish_pair_code": "Fish pair",
         "mom": "Parent 1",
         "dad": "Parent 2",
         "created_at": "Created",
     })
-    # Derive display clutch column (none yet)
     df["Clutch"] = ""
     df["Clutch genotype"] = df.get("genotype_elems").apply(
         lambda a: "; ".join(a) if isinstance(a, list) else ""
