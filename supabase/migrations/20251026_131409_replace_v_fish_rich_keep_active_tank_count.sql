@@ -12,14 +12,13 @@ fb as (
     f.name                as fish_name,
     f.nickname            as fish_nickname,
     f.genetic_background  as genetic_background,
-    f.line_building_atage as line_building_stage
+    f.line_building_stage as line_building_stage,
     f.created_at          as fish_created_at,
     f.created_by          as fish_created_by,
     f.date_birth          as date_birth
   from public.fish f
 ),
 live_cte as (
-  -- count of *active* memberships regardless of tank status
   select
     ftm.fish_id,
     count(*) filter (where ftm.left_at is null)::int as n_living_tanks_derived
@@ -27,7 +26,6 @@ live_cte as (
   group by ftm.fish_id
 ),
 active_tanks as (
-  -- count of active/new tanks (this is what we keep as the sole tank summary)
   select
     ftm.fish_id,
     count(*)::int as active_tank_count
@@ -39,18 +37,16 @@ active_tanks as (
   group by ftm.fish_id
 ),
 alleles as (
-  -- allele summaries + pretty/rollup fallbacks
   select
     fta.fish_id,
     min(fta.allele_number)::int as allele_number_primary,
     array_agg(fta.allele_number order by fta.allele_number) as allele_numbers,
     array_agg(fta.transgene_base_code || '-' || fta.allele_number
-              order by fta.transgene_base_code, fta.allele_number) as allele_codes,
+      order by fta.transgene_base_code, fta.allele_number) as allele_codes,
     string_agg('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''),
-               '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as transgene_pretty_derived,
+      '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as transgene_pretty_derived,
     string_agg('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''),
-               '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,''))
-               as genotype_rollup_derived
+      '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as genotype_rollup_derived
   from public.fish_transgene_alleles fta
   left join public.transgene_alleles ta
     on ta.transgene_base_code = fta.transgene_base_code
@@ -58,7 +54,6 @@ alleles as (
   group by fta.fish_id
 ),
 base as (
-  -- join on fish_code (stable natural key)
   select
     coalesce(vf.fish_id,  fb.fish_id)   as fish_id,
     coalesce(vf.fish_code,fb.fish_code) as fish_code,
@@ -67,8 +62,8 @@ base as (
     fb.genetic_background,
     fb.line_building_stage,
     fb.date_birth,
-    coalesce( (to_jsonb(vf)->>'created_at')::timestamp, fb.fish_created_at ) as created_at,
-    coalesce(  to_jsonb(vf)->>'created_by',                   fb.fish_created_by ) as created_by,
+    coalesce((to_jsonb(vf)->>'created_at')::timestamp, fb.fish_created_at) as created_at,
+    coalesce(to_jsonb(vf)->>'created_by', fb.fish_created_by)              as created_by,
     to_jsonb(vf)->>'transgene_pretty_name' as transgene_pretty_name,
     to_jsonb(vf)->>'genotype_rollup'       as genotype_rollup,
     to_jsonb(vf)->>'transgene_base_code'   as transgene_base_code,
@@ -83,7 +78,6 @@ select
   b.fish_nickname,
   b.genetic_background,
   b.line_building_stage,
-
   a.allele_number_primary as allele_number,
   case
     when a.allele_number_primary is not null and b.transgene_base_code is not null
@@ -92,13 +86,10 @@ select
   end as allele_code,
   a.allele_numbers,
   a.allele_codes,
-
   coalesce(b.transgene_pretty_name, a.transgene_pretty_derived, '') as transgene,
   coalesce(b.genotype_rollup,       a.genotype_rollup_derived, '')  as genotype_rollup,
-
   coalesce(b.n_living_tanks, l.n_living_tanks_derived, 0) as n_living_tanks,
   coalesce(at.active_tank_count, 0)                       as active_tank_count,
-
   b.created_at,
   b.created_by,
   b.date_birth
