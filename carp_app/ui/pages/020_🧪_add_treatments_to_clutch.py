@@ -12,7 +12,7 @@ from sqlalchemy import text
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
-from carp_app.lib.config import engine as get_engine
+from carp_app.ui.lib.app_ctx import get_engine
 
 sb, session, user = require_auth()
 require_email_otp()
@@ -38,73 +38,74 @@ def _table_exists(schema: str, name: str) -> bool:
     with _eng().begin() as cx:
         q = text("select 1 from information_schema.tables where table_schema=:s and table_name=:t limit 1")
         return bool(pd.read_sql(q, cx, params={"s": schema, "t": name}).shape[0])
+    
+CLUTCHES_VIEW = "public.v_clutch_instances"
+
+def _assert_view_exists() -> None:
+    if not _view_exists("public", "cross_clutch_instances"):
+        st.error("Required view public.cross_clutch_instances not found."); st.stop()
 
 def _safe_date(v):
     try:
         return pd.to_datetime(v).date() if pd.notna(v) else None
     except Exception:
         return None
+    
+def _pick_clutches_view() -> Optional[str]:
+    candidates = [
+        "v_clutches",
+        "v_clutch_instances",
+    ]
+    for name in candidates:
+        if _view_exists("public", name):
+            return f"public.{name}"
+    return None
 
 def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
-    """
-    Source of truth: public.v_clutches (canonical).
-    We pull the minimal columns and alias to what the grid expects.
-    """
     where, params = [], {}
-
     if not most_recent:
-        where.append("created_at::date between :d1 and :d2")
+        where.append("created_at_instance::date between :d1 and :d2")
         params.update({"d1": d_from, "d2": d_to})
-
     if created_by.strip():
-        where.append("coalesce(created_by,'') ilike :by")
+        where.append("coalesce(created_by_instance,'') ilike :by")
         params["by"] = f"%{created_by.strip()}%"
-
     if q.strip():
         params["q"] = f"%{q.strip()}%"
         where.append("""
           (
-            coalesce(clutch_code,'') ilike :q OR
-            coalesce(name,'')        ilike :q OR
-            coalesce(nickname,'')    ilike :q OR
-            coalesce(mom_code,'')    ilike :q OR
-            coalesce(dad_code,'')    ilike :q
+            coalesce(clutch_code,'')                 ilike :q OR
+            coalesce(cross_name_pretty,'')           ilike :q OR
+            coalesce(clutch_name,'')                 ilike :q OR
+            coalesce(clutch_genotype_pretty,'')      ilike :q OR
+            coalesce(clutch_strain_pretty,'')        ilike :q OR
+            coalesce(treatments_pretty_effective,'') ilike :q
           )
         """)
-
     where_sql = ("where " + " AND ".join(where)) if where else ""
-
     sql = text(f"""
       select
         clutch_code,
-        name     as clutch_name,
-        nickname as clutch_nickname,
-        mom_code,
-        dad_code,
-        created_by,
-        created_at
-      from public.v_clutches
+        clutch_birthday,
+        cross_name_pretty,
+        clutch_name,
+        clutch_genotype_pretty,
+        clutch_strain_pretty,
+        treatments_count_effective,
+        treatments_pretty_effective,
+        genotype_treatment_rollup_effective,
+        created_by_instance,
+        created_at_instance
+      from {CLUTCHES_VIEW}
       {where_sql}
-      order by created_at desc nulls last, clutch_code
+      order by created_at_instance desc nulls last, clutch_code
       limit 1000
     """)
-
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
-
-    # hygiene for grid
-    for c in ["clutch_code","clutch_name","clutch_nickname","mom_code","dad_code","created_by"]:
-        if c in df.columns:
-            df[c] = df[c].fillna("").astype(str)
-
-    # keep shape the rest of the page tolerates
-    for c in ["treatments_count","treatments_pretty","created_by_instance","created_at_instance","clutch_birthday"]:
-        if c not in df.columns:
-            df[c] = pd.NA
-    if "created_at" in df.columns:
-        df["created_at_instance"] = df["created_at"]
-
+    if "treatments_count_effective" in df.columns:
+        df["treatments_count_effective"] = pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
     return df
+
 
 def _resolve_ids_from_ci_or_cr(code_in: str) -> Tuple[Optional[str], Optional[str]]:
     import re, unicodedata
@@ -263,14 +264,12 @@ def _insert_instance_treatments(clutch_instance_id: str, created_by: str, items:
     return inserted, errs
 
 def _load_run_overview(ci_code: str) -> pd.DataFrame:
-    view = "public.v_clutches"
-    if not _view_exists("public", "v_clutches"):
-        return pd.DataFrame()
+    _assert_view_exists()
 
     with _eng().begin() as cx:
         df = pd.read_sql(text(f"""
             select *
-            from {view}
+            from {CLUTCHES_VIEW}
             where clutch_code = :cc
             order by created_at desc nulls last
             limit 1
@@ -279,11 +278,10 @@ def _load_run_overview(ci_code: str) -> pd.DataFrame:
     if df.empty:
         return df
 
-    # Normalize column names so the UI can read a stable set
-    # Accept either “…_effective” or base names
+    # normalize optional columns this page expects to display if present
     name_map = {
-        "treatments_count_effective":        ["treatments_count_effective", "treatments_count"],
-        "treatments_pretty_effective":       ["treatments_pretty_effective","treatments_pretty"],
+        "treatments_count_effective":         ["treatments_count_effective","treatments_count"],
+        "treatments_pretty_effective":        ["treatments_pretty_effective","treatments_pretty"],
         "genotype_treatment_rollup_effective":["genotype_treatment_rollup_effective","genotype_treatment_rollup"],
     }
     for target, options in name_map.items():
@@ -296,8 +294,7 @@ def _load_run_overview(ci_code: str) -> pd.DataFrame:
 
     if "treatments_count_effective" in df.columns:
         df["treatments_count_effective"] = (
-            pd.to_numeric(df["treatments_count_effective"], errors="coerce")
-              .fillna(0).astype(int)
+            pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
         )
 
     df = df.loc[:, ~df.columns.duplicated()]
@@ -327,6 +324,7 @@ view_cols = [
     "genotype_treatment_rollup_effective",
     "created_by_instance","created_at_instance",
 ]
+
 have = [c for c in view_cols if c in clutches.columns]
 dfv = clutches[have].copy()
 dfv = dfv.loc[:, ~dfv.columns.duplicated()]

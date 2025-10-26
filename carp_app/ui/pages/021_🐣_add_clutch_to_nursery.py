@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
-from carp_app.lib.config import engine as get_engine
+from carp_app.ui.lib.app_ctx import get_engine
 
 sb, session, user = require_auth()
 require_email_otp()

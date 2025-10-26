@@ -130,7 +130,7 @@ REQUIRED_VIEWS = [
     ("public", "v_fish"),
     ("public", "v_tanks"),
     ("public", "v_crosses"),
-    ("public", "v_cross_runs"),
+    ("public","v_clutch_instances"),
 ]
 OPTIONAL_VIEWS = [
     ("public", "v_crosses_status"),

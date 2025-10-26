@@ -56,7 +56,7 @@ where_sql = (" where " + " and ".join(where)) if where else ""
 
 sql = text(f"""
   select *
-  from public.v_cross_clutch_instances
+  from public.v_clutch_instances
   {where_sql}
   order by cross_date desc nulls last, coalesce(clutch_created_at, cross_created_at) desc nulls last
   limit :lim
@@ -119,27 +119,28 @@ def _rows_for_cross_labels(df_sel: pd.DataFrame) -> list[dict]:
     rows: list[dict] = []
     for r in df_sel.to_dict(orient="records"):
         rows.append({
-            # crossing labels expect these keys (see labels_components.py)
             "cross_code": r.get("cross_code"),
             "cross_date": r.get("cross_date"),
-            "mother_tank_label": r.get("mom_tank_code"),
-            "father_tank_label": r.get("dad_tank_code"),
+            "mother_tank_code": r.get("mom_tank_code"),
+            "father_tank_code": r.get("dad_tank_code"),
+            "mom_genotype": r.get("mom_genotype"),
+            "dad_genotype": r.get("dad_genotype"),
             "clutch_instance_code": r.get("clutch_code") or "",
-            "clutch_name": "",  # not modeled yet
+            "clutch_name": "",
         })
     return rows
 
 def _rows_for_petri_labels(df_sel: pd.DataFrame) -> list[dict]:
     rows: list[dict] = []
     for r in df_sel.to_dict(orient="records"):
-        # DOB = cross_date + 1 day (your convention)
         cd = r.get("cross_date")
         dob = (cd + timedelta(days=1)) if isinstance(cd, (pd.Timestamp, date)) else None
         rows.append({
             "clutch_instance_code": r.get("clutch_code") or "",
-            "clutch_name": "",  # not modeled yet
+            "clutch_name": "",
             "mom_code": r.get("mom_fish_code"),
             "dad_code": r.get("dad_fish_code"),
+            "clutch_genotype": r.get("clutch_genotype"),
             "date_birth": dob,
         })
     return rows
