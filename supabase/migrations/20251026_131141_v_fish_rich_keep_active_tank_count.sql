@@ -19,7 +19,6 @@ fb as (
 live_cte as (
   -- total active memberships (regardless of tank status)
   select
-    ftm.four
     ftm.fish_id,
     count(*) filter (where ftm.left_at is null)::int as n_living_tanks_derived
   from public.fish_tank_memberships ftm
@@ -38,7 +37,7 @@ active_tanks as (
   group by ftm.fish_id
 ),
 alleles as (
-  -- allele summaries + pretty fallbacks
+  -- allele summaries + pretty/rollup fallbacks
   select
     fta.fish_id,
     min(fta.allele_number)::int as allele_number_primary,
@@ -49,14 +48,14 @@ alleles as (
                '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as transgene_pretty_derived,
     string_agg('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''),
                '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as genotype_rollup_derived
-  from public.fish_transgene_les fta
+  from public.fish_transgene_alleles fta
   left join public.transgene_alleles ta
     on ta.transgene_base_code = fta.transgene_base_code
    and ta.allele_number       = fta.allele_number
   group by fta.fish_id
 ),
 base as (
-  -- join on fish_code (stable natural key for imports/UI)
+  -- join on fish_code (stable natural key)
   select
     coalesce(vf.fish_id,  fb.fish_id)   as fish_id,
     coalesce(vf.fish_code,fb.fish_code) as fish_code,
