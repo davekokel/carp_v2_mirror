@@ -1,3 +1,0 @@
-BEGIN;
-CREATE SEQUENCE IF NOT EXISTS public.tank_code_seq START 1;
-COMMIT;
