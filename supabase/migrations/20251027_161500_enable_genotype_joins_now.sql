@@ -65,7 +65,7 @@ parent AS (
       COUNT(*) FILTER (WHERE vt.status IN ('active','new_tank')) AS n_live
     FROM public.v_tanks vt
     GROUP BY vt.fish_code
-  ) t USING (fish_code)
+  ) t ON t.fish_code = v.fish_code
 ),
 pc AS (
   SELECT c.id AS clutch_plan_id, p.id AS planned_cross_id

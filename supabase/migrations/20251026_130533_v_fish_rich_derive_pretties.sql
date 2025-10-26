@@ -19,7 +19,7 @@ fb as (
 live_cte as (
   select
     ftm.fish_uuid,
-    count(*) filter (where ftm.left_at is null)::int as n_living_tanks_derived
+    count(*) filter (where ftm.ended_at is null)::int as n_living_tanks_derived
   from public.fish_tank_memberships ftm
   group by ftm.fish_uuid
 ),
@@ -32,7 +32,7 @@ first_tank as (
   from public.fish_tank_memberships ftm
   join public.tanks t
     on t.tank_uuid = ftm.tank_uuid
-  where ftm.left_at is null
+  where ftm.ended_at is null
   order by ftm.fish_uuid, ftm.started_at asc nulls last
 ),
 alleles as (
@@ -58,7 +58,7 @@ alleles as (
 ),
 base as (
   select
-    coalesce(vf.fish_id,  fb.fish_id)   as fish_id,
+    coalesce(vf.fish_uuid,  fb.fish_id)   as fish_id,
     coalesce(vf.fish_code,fb.fish_code) as fish_code,
     fb.fish_name,
     fb.fish_nickname,
