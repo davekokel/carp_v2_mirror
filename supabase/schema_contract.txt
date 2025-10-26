@@ -31,7 +31,7 @@ public.tank_pairs  trg_tp_set_updated_at
 # Views
 public.v_fish_overview_human_min
 public.v_overview_crosses_adaptive
-public.v_clutches_overview_enriched
+public.v_clutch_instances
 
 # Functions
 public.fn_ensure_transgene_base(text)
