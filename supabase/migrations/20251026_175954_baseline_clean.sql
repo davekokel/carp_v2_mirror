@@ -19,19 +19,19 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'container_status') THEN
     CREATE TYPE public.container_status AS ENUM ('active','to_kill','retired');
   END IF;
-END $$ LANGUAGE plpgsql;
+END 74404;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cross_plan_status') THEN
     CREATE TYPE public.cross_plan_status AS ENUM ('draft','planned','cancelled','done');
   END IF;
-END $$ LANGUAGE plpgsql;
+END 74404;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'tank_status') THEN
     CREATE TYPE public.tank_status AS ENUM ('active','to_kill','retired');
   END IF;
-END $$ LANGUAGE plpgsql;
+END 74404;
 
 SELECT pg_catalog.set_config('search_path', '', false);
 SET check_function_bodies = false;
@@ -61,7 +61,7 @@ CREATE FUNCTION public.ensure_inventory_tank_text(p_label text, p_by text, p_sta
     AS $$
 BEGIN
   RETURN public.ensure_inventory_tank(p_label, p_by, p_status::container_status);
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: ensure_inventory_tank_v(text, text, public.container_status, integer); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -93,7 +93,7 @@ BEGIN
   END IF;
 
   RETURN rid;
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: ensure_inventory_tank_v_text(text, text, text, integer); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -103,7 +103,7 @@ CREATE FUNCTION public.ensure_inventory_tank_v_text(p_label text, p_by text, p_s
     AS $$
 BEGIN
   RETURN public.ensure_inventory_tank_v(p_label, p_by, p_status::container_status, p_volume_l);
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: ensure_rna_for_plasmid(text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -441,7 +441,7 @@ BEGIN
     out := '0' || out;
   END LOOP;
   RETURN 'CL-' || yy || out;
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: gen_clutch_instance_code(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -531,7 +531,7 @@ BEGIN
   RETURNING n INTO c;
 
   RETURN format('TANK-%02s-%04s', yy, c);
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: inherit_transgene_alleles(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -706,7 +706,7 @@ BEGIN
       status_changed_at=now(),
       activated_at=COALESCE(activated_at, now())
   WHERE id_uuid=p_id;
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: mark_container_inactive(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -733,7 +733,7 @@ BEGIN
       note = CASE WHEN p_reason IS NOT NULL AND p_reason <> '' THEN COALESCE(note,'') || CASE WHEN note IS NULL OR note='' THEN '' ELSE E'
 ' END || ('retired @ '||now()||' by '||COALESCE(p_by,'?')||COALESCE(' — '||p_reason,'')) ELSE note END
   WHERE id_uuid=p_id;
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: mark_container_to_kill(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -749,7 +749,7 @@ BEGIN
       note = CASE WHEN p_reason IS NOT NULL AND p_reason <> '' THEN COALESCE(note,'') || CASE WHEN note IS NULL OR note='' THEN '' ELSE E'
 ' END || ('to_kill @ '||now()||' by '||COALESCE(p_by,'?')||COALESCE(' — '||p_reason,'')) ELSE note END
   WHERE id_uuid=p_id;
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: next_clutch_code_b36(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -860,7 +860,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_views WHERE schemaname=_schema AND viewname=_name) THEN
     EXECUTE format('DROP VIEW %I.%I CASCADE', _schema, _name);
   END IF;
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: set_container_status(uuid, public.container_status, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -1007,7 +1007,7 @@ BEGIN
     NEW.clutch_code := public.gen_clutch_code();
   END IF;
   RETURN NEW;
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: trg_clutch_instance_code(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -1439,7 +1439,7 @@ BEGIN
   ON CONFLICT (transgene_base_code, allele_number) DO NOTHING;
 
   RETURN;
-END $$ LANGUAGE plpgsql;
+END 74404;
 --
 -- Name: upsert_transgene_allele_name(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -1483,7 +1483,7 @@ BEGIN
   ON CONFLICT (transgene_base_code, allele_number) DO NOTHING;
 
   RETURN;
-END $$ LANGUAGE plpgsql;
+END 74404;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
