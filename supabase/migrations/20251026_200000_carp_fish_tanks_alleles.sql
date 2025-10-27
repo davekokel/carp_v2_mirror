@@ -221,7 +221,8 @@ where has is null;
 
 COMMIT;
 
-CREATE FUNCTION public.upsert_transgene_allele(
+DROP FUNCTION IF EXISTS public.upsert_transgene_allele(text, text);
+CREATE OR REPLACE FUNCTION public.upsert_transgene_allele(
   p_base text,
   p_nickname_in text
 )
