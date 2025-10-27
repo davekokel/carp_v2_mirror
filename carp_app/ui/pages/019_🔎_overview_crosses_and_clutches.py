@@ -31,9 +31,10 @@ with eng.begin() as cx:
     dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
 st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 
+# ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters"):
     c1, c2, c3, c4 = st.columns([2,1,1,1])
-    q   = c1.text_input("Search (TP/FP/mom/dad/cross/clutch)")
+    q   = c1.text_input("Search (TP/FP/mom/dad/cross/clutch/genotype)")
     d1  = c2.date_input("From", value=None)
     d2  = c3.date_input("To", value=None)
     lim = int(c4.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
@@ -48,6 +49,7 @@ if q:
       tank_pair_code ilike :q or fish_pair_code ilike :q
       or mom_fish_code ilike :q or dad_fish_code ilike :q
       or mom_tank_code ilike :q or dad_tank_code ilike :q
+      or mom_genotype ilike :q or dad_genotype ilike :q or clutch_genotype ilike :q
       or cross_code ilike :q or clutch_code ilike :q
     )""")
 
@@ -60,25 +62,26 @@ if d2:
 
 WHERE_SQL = (" where " + " and ".join(where_parts)) if where_parts else ""
 
+# ── Query ────────────────────────────────────────────────────────────────────
 sql = text(f"""
   with base as (
     select
-      cross_instance_id::uuid  as cross_instance_id,
-      cross_code::text         as cross_code,
-      tank_pair_code::text     as tank_pair_code,
-      fish_pair_code::text     as fish_pair_code,
-      mom_fish_code::text      as mom_fish_code,
-      dad_fish_code::text      as dad_fish_code,
-      mom_tank_code::text      as mom_tank_code,
-      dad_tank_code::text      as dad_tank_code,
-      mom_genotype::text       as mom_genotype,
-      dad_genotype::text       as dad_genotype,
-      clutch_genotype::text    as clutch_genotype,
-      cross_date::date         as cross_date,
-      cross_created_at::timestamptz as cross_created_at,
-      clutch_instance_id::uuid as clutch_instance_id,
-      clutch_code::text        as clutch_code,
-      clutch_created_at::timestamptz as clutch_created_at
+      cross_instance_id::uuid         as cross_instance_id,
+      cross_code::text                as cross_code,
+      tank_pair_code::text            as tank_pair_code,
+      fish_pair_code::text            as fish_pair_code,
+      mom_fish_code::text             as mom_fish_code,
+      dad_fish_code::text             as dad_fish_code,
+      mom_tank_code::text             as mom_tank_code,
+      dad_tank_code::text             as dad_tank_code,
+      mom_genotype::text              as mom_genotype,
+      dad_genotype::text              as dad_genotype,
+      clutch_genotype::text           as clutch_genotype,
+      cross_date::date                as cross_date,
+      cross_created_at::timestamptz   as cross_created_at,
+      clutch_instance_id::uuid        as clutch_instance_id,
+      clutch_code::text               as clutch_code,
+      clutch_created_at::timestamptz  as clutch_created_at
     from public.v_cross_clutch_instances
   )
   select *
@@ -97,6 +100,7 @@ st.caption(f"{len(df)} instance(s)")
 if df.empty:
     st.info("No instances yet."); st.stop()
 
+# ── Display + Selection ──────────────────────────────────────────────────────
 sel_col = "✓ Select"
 grid = df.copy()
 grid.insert(0, sel_col, False)
@@ -139,6 +143,7 @@ if picked.empty:
     st.info("Select one or more rows to print labels.")
     st.stop()
 
+# ── Label rows ───────────────────────────────────────────────────────────────
 def _rows_for_cross_labels(df_sel: pd.DataFrame) -> list[dict]:
     rows: list[dict] = []
     for r in df_sel.to_dict(orient="records"):
