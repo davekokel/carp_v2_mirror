@@ -11,7 +11,7 @@ DECLARE
   v_code text;
 BEGIN
   v_code := public.make_tank_code_for_fish(NEW.fish_code);
-  INSERT INTO public.tanks(status, tank_code) VALUES ('active', v_code);
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_allow_backfill') THEN INSERT INTO public.tanks(status, tank_code) VALUES ('active', v_code); END IF;
   RETURN NEW;
 END
 $$;

@@ -1,0 +1,5 @@
+-- Backfill flag table (documented only; not created by default)
+-- To enable backfills once:
+--   CREATE TABLE IF NOT EXISTS public._allow_backfill(dummy int);
+--   -- reapply backfill migrations here
+--   DROP TABLE IF EXISTS public._allow_backfill;

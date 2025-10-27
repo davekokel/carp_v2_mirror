@@ -44,7 +44,7 @@ BEGIN
   FOR v_try IN 1..100 LOOP
     v_code := 'TANK(' || p_fish_code || ')#' || public.next_tank_num_for_fish(p_fish_code)::text;
     BEGIN
-      INSERT INTO public.tanks(status, tank_code) VALUES ('active', v_code);
+      IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_allow_backfill') THEN INSERT INTO public.tanks(status, tank_code) VALUES ('active', v_code); END IF;
       RETURN v_code;
     EXCEPTION WHEN unique_violation THEN
       -- someone else took it; try again

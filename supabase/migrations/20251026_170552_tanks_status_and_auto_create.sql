@@ -32,9 +32,9 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  INSERT INTO public.tanks(status) VALUES ('active') RETURNING tank_uuid INTO v_tank_uuid;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_allow_backfill') THEN INSERT INTO public.tanks(status) VALUES ('active') RETURNING tank_uuid INTO v_tank_uuid;
 
-  INSERT INTO public.fish_tank_memberships(fish_uuid, tank_uuid)
+   ELSE NULL; END IF;INSERT INTO public.fish_tank_memberships(fish_uuid, tank_uuid)
   VALUES (NEW.fish_uuid, v_tank_uuid)
   ON CONFLICT DO NOTHING;
 
