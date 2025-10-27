@@ -103,8 +103,8 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
         p.fish_code,
         p.genetic_background,
         p.line_building_stage,
-        p.genotype_text AS transgene_pretty
-      FROM public.v_fish_richrich_derive_pretties p
+        p.genotype_pretty AS transgene_pretty
+      FROM public.v_fish_rich p
     ),
     ages AS (
       SELECT f.fish_uuid, f.date_birth, f.created_at
@@ -112,7 +112,7 @@ def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
     ),
     tank AS (
       SELECT fish_uuid, current_tanks
-      FROM public.v_fish_richcurrent_tank_counts
+      FROM public.v_fish_current_tank_counts
     )
     SELECT
       b.fish_uuid,

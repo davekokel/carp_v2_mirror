@@ -284,13 +284,18 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
                 p_notes = (r.get("notes") or None),
                 p_by    = created_by_uuid,
             )
-            got = cx.execute(fn_upsert, params).mappings().first()
+            got = cx.execute(fn_upsert, params).mappings().first() or {}
             if not got:
                 continue
             inserted.append(dict(got))
-            batch_fish_codes.append(got["fish_code"])
-            fish_id = got["fish_id"]
-            fish_code = got["fish_code"]
+            batch_fish_codes.append(got.get("fish_code"))
+
+            # use fish_uuid now, not fish_id
+            fish_id = got.get("fish_uuid")
+            fish_code = got.get("fish_code")
+
+            if not fish_id:
+                raise RuntimeError(f"Upsert failed for {fish_code or '(unknown)'} — no fish_uuid returned")
 
             # ensure a default tank exists (uuid cast stays here)
             exists = cx.execute(sql_tank_exists, {"fc": fish_code}).fetchone()
