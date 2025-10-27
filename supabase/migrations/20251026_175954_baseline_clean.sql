@@ -30,37 +30,46 @@ SET row_security = off;
 -- Name: container_status; Type: TYPE; Schema: public; Owner: -
 --
 
-DO 72983 BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='container_status') THEN CREATE TYPE public.container_status AS ENUM (
-    'planned',
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='container_status') THEN DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'container_status') THEN
+    CREATE TYPE public.container_status AS ENUM ('planned',
     'active',
     'to_kill',
-    'retired'
-); END IF; END72807;
+    'retired');
+  END IF;
+END$$; END IF; END72807;
 
 
 --
 -- Name: cross_plan_status; Type: TYPE; Schema: public; Owner: -
 --
 
-DO 72983 BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='cross_plan_status') THEN CREATE TYPE public.cross_plan_status AS ENUM (
-    'planned',
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='cross_plan_status') THEN DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cross_plan_status') THEN
+    CREATE TYPE public.cross_plan_status AS ENUM ('planned',
     'canceled',
-    'executed'
-); END IF; END72807;
+    'executed');
+  END IF;
+END$$; END IF; END72807;
 
 
 --
 -- Name: tank_status; Type: TYPE; Schema: public; Owner: -
 --
 
-DO 72983 BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='tank_status') THEN CREATE TYPE public.tank_status AS ENUM (
-    'vacant',
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='tank_status') THEN DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'tank_status') THEN
+    CREATE TYPE public.tank_status AS ENUM ('vacant',
     'occupied',
     'quarantine',
     'maintenance',
     'retired',
-    'decommissioned'
-); END IF; END72807;
+    'decommissioned');
+  END IF;
+END$$; END IF; END72807;
 
 
 --
