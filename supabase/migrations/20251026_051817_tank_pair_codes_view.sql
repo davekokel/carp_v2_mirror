@@ -1,3 +1,6 @@
+DROP VIEW IF EXISTS public.cross_clutch_instances;
+DROP VIEW IF EXISTS public.v_cross_clutch_instances;
+DROP VIEW IF EXISTS public.v_tank_pairs;
 
 DROP VIEW IF EXISTS public.v_tank_pairs;
 begin;
