@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.upsert_transgene_allele(text,text) CASCADE;
 create sequence if not exists public.transgene_allele_number_seq start 1;
 
 create table if not exists public.transgene_alleles (
