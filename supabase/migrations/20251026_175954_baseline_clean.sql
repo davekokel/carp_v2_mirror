@@ -30,37 +30,37 @@ SET row_security = off;
 -- Name: container_status; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.container_status AS ENUM (
+DO 72807 BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='container_status') THEN CREATE TYPE public.container_status AS ENUM (
     'planned',
     'active',
     'to_kill',
     'retired'
-);
+); END IF; END72807;
 
 
 --
 -- Name: cross_plan_status; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.cross_plan_status AS ENUM (
+DO 72807 BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='cross_plan_status') THEN CREATE TYPE public.cross_plan_status AS ENUM (
     'planned',
     'canceled',
     'executed'
-);
+); END IF; END72807;
 
 
 --
 -- Name: tank_status; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.tank_status AS ENUM (
+DO 72807 BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='tank_status') THEN CREATE TYPE public.tank_status AS ENUM (
     'vacant',
     'occupied',
     'quarantine',
     'maintenance',
     'retired',
     'decommissioned'
-);
+); END IF; END72807;
 
 
 --
