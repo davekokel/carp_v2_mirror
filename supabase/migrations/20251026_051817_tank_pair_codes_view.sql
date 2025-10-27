@@ -1,3 +1,5 @@
+
+DROP VIEW IF EXISTS public.v_tank_pairs;
 begin;
 
 create or replace function public.gen_tank_pair_code()
