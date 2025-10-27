@@ -1,3 +1,4 @@
+ALTER TABLE public.fish_tank_memberships ADD COLUMN IF NOT EXISTS left_at timestamptz;
 create or replace view public.v_containers as
 with live as (
   select
