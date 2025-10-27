@@ -1,4 +1,5 @@
-CREATE VIEW public.v_fish_overview_rich AS
+DROP VIEW IF EXISTS public.v_fish_overview_rich;
+CREATE OR REPLACE VIEW public.v_fish_overview_rich AS
  WITH current_tanks AS (
          SELECT f_1.fish_uuid AS fish_id,
             array_agg(DISTINCT t.tank_code ORDER BY t.tank_code) AS tank_codes,
