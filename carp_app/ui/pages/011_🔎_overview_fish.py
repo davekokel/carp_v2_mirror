@@ -24,8 +24,6 @@ from sqlalchemy.engine import Engine
 from carp_app.ui.lib.app_ctx import get_engine as _create_engine
 from carp_app.ui.lib.labels_components import build_tank_labels_pdf
 
-@lru_cache := None  # placeholder if you want to add memo later
-
 @st.cache_resource(show_spinner=False)
 def _cached_engine() -> Engine:
     url = os.getenv("DB_URL", "")
@@ -40,7 +38,7 @@ st.set_page_config(page_title="CARP — Search Fish → Tanks", page_icon="🔎"
 
 # ───────────── helpers (no caching on DB reads to avoid stale results) ─────────────
 def _normalize_q(q_raw: str) -> str | None:
-    q = (q_raw or "").trim() if hasattr(str, "trim") else (q_raw or "").strip()
+    q = (q_raw or "").strip()
     return q or None
 
 def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
@@ -93,10 +91,10 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
         return pd.DataFrame(columns=["fish_code","tank_code","status","created_at","container_id"])
     sql = text("""
       SELECT
-        v.tank_uuid::text AS container_id,
-        v.tank_code::text AS tank_code,
-        v.status::text    AS status,
-        v.fish_code::text AS fish_code,
+        v.tank_uuid::text         AS container_id,
+        v.tank_code::text         AS tank_code,
+        v.status::text            AS status,
+        v.fish_code::text         AS fish_code,
         v.created_at::timestamptz AS created_at
       FROM public.v_tanks v
       WHERE v.fish_code = ANY(:codes)
@@ -106,7 +104,7 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
         df = pd.read_sql(sql, cx, params={"codes": codes})
     return _coerce_strings(df)
 
-def _load_fish_rich_all(q: str | None, limit: int) -> pd.fram.DataFrame:
+def _load_fish_rich_all(q: str | None, limit: int) -> pd.DataFrame:
     sql = text("""
       SELECT * FROM public.v_fish_rich v
       WHERE (:q IS NULL)
@@ -128,7 +126,7 @@ def _load_fish_rich_all(q: str | None, limit: int) -> pd.fram.DataFrame:
 # ───────────── page ─────────────
 def main():
     st.title("🔎 Search Fish → Tanks")
-    st.caption(f"DB_URL = {os.getenv('DB_URL', '')}")
+    st.caption(f"DB_URL = {os.getenv('DB_URL','')}")
 
     with st.form("filters", clear_on_submit=False):
         c1, c2 = st.columns([3,1])
@@ -187,16 +185,19 @@ def main():
     table = df[show_cols].copy()
     table.insert(0, "✓ Select", False)
 
-    if st.button("Select all"):  # simple bulk toggles
-        table["✓ Select"] = True
-    st.dataframe(table, use_absolute_column_widths=True, hide_index=True, key="fish_table")
+    # editable table; capture selection directly
+    fish_table = st.data_editor(
+        table,
+        use_container_width=True,
+        hide_index=True,
+        key="fish_table",
+    )
 
     # Tanks for selected fish
     st.subheader("Tanks for selected fish")
-    sel = st.session_state.get("fish_table")
     selected_codes = []
-    if isinstance(sel, pd.DataFrame) and "✓ Select" in sel.columns:
-        selected_codes = sel.loc[sel["✓ Select"] == True, "Fish code"].dropna().astype(str).tolist()
+    if isinstance(fish_table, pd.DataFrame) and "✓ Select" in fish_table.columns:
+        selected_codes = fish_table.loc[fish_table["✓ Select"] == True, "Fish code"].dropna().astype(str).tolist()
 
     if not selected_codes:
         st.info("Select one or more fish to show their tanks.")
@@ -206,75 +207,60 @@ def main():
             st.info("No tanks for selected fish.")
         else:
             tcols = [c for c in ["fish_code","tank_code","status","created_at","container_id"] if c in tdf.columns]
-            st.dataframe(tdf[tcols], use_container_width=True, hide_index=True)
+            tanks_table = st.data_editor(
+                tdf[tcols].copy().assign(**{"✓ Print": False}),
+                use_container_width=True,
+                hide_index=True,
+                key="tank_table",
+            )
 
-    # Labels
-    st.subheader("Print labels")
-    if not selected_codes:
-        st.info("Select fish to load their tanks for printing.")
-        return
+            # Labels
+            st.subheader("Print labels")
+            if isinstance(tanks_table, pd.DataFrame) and "✓ Print" in tanks_table.columns:
+                chosen_rows = tanks_table.loc[tanks_table["✓ Print"] == True]
+            else:
+                chosen_rows = pd.DataFrame()
 
-    tdf = _load_tanks_for_codes(selected_codes)
-    if tdf.empty:
-        st.info("No tanks found for selected fish.")
-        return
+            st.caption(f"{len(chosen_rows)} tank(s) selected for labels")
+            if not chosen_rows.empty:
+                ids = chosen_rows["container_id"].astype(str).tolist() if "container_id" in chosen_rows.columns else []
+                edf = _fetch_enriched_for_containers(ids)
+                if edf.empty:
+                    st.info("No enriched tank data to print.")
+                else:
+                    rows = []
+                    for _, r in edf.iterrows():
+                        dob = r.get("dob")
+                        if pd.notna(dob):
+                            try:
+                                if hasattr(dob, "to_pydatetime"):
+                                    dob = dob.to_pydatetime().date()
+                                elif isinstance(dob, str):
+                                    dob_parsed = pd.to_datetime(dob, errors="coerce")
+                                    dob = None if pd.isna(dob_parsed) else dob_parsed.date()
+                            except Exception:
+                                dob = None
+                        rows.append({
+                            "tank_code":            r.get("tank_code"),
+                            "label":                r.get("tank_code"),
+                            "fish_code":            r.get("fish_code") or "",
+                            "nickname":             r.get("nickname") or "",
+                            "name":                 r.get("name") or "",
+                            "genotype":             r.get("genotype", ""),
+                            "genetic_background":   r.get("genetic_background") or "",
+                            "stage":                r.get("stage") or "",
+                            "dob":                  dob,
+                        })
 
-    tdf = tdf.copy()
-    tdf.insert(0, "✓ Print", False)
-    pcols = [c for c in ["✓ Print","fish_code","tank_code","status","created_at","container_id"] if c in tdf.columns]
-    tsel = st.dataframe(
-        tdf[pcols],
-        use_container_width=True,
-        hide_index=True,
-        key="tank_table",
-    )
+                    pdf_bytes = build_tank_labels_pdf(rows)
+                    st.download_button(
+                        "⬇︎ Download PDF labels (2.4×1.5 • QR)",
+                        data=pdf_bytes,
+                        file_name=f"tank_labels_2_4x1_5_{utc_now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf",
+                        type="primary",
+                        use_container_width=True,
+                    )
 
-    chosen = st.session_state.get("tank_table")
-    if isinstance(chosen, pd.DataFrame):
-        chosen_rows = chosen.loc[chosen["✓ Print"] == True]
-    else:
-        chosen_rows = pd.DataFrame()
-
-    st.caption(f"{len(chosen_rows)} tank(s) selected for labels")
-    if chosen_rows.empty:
-        return
-
-    ids = chosen_rows["container_id"].astype(str).tolist()
-    edf = _fetch_enriched_for_containers(ids)
-    if edf.empty:
-        st.info("No enriched tank data to print.")
-        return
-
-    rows = []
-    for _, r in edf.iterrows():
-        dob = r.get("dob")
-        if pd.notna(dob):
-            try:
-                if hasattr(dob, "to_pydatetime"):
-                    dob = dob.to_pydatetime().date()
-                elif isinstance(dob, str):
-                    dob_parsed = pd.to_datetime(dob, errors="coerce")
-                    dob = None if pd.isna(dob_parsed) else dob_parsed.date()
-            except Exception:
-                dob = None
-        rows.append({
-            "tank_code":            r.get("tank_code"),
-            "label":                r.get("tank_code"),
-            "fish_code":            r.get("fish_code") or "",
-            "nickname":             r.get("nickname") or "",
-            "name":                 r.get("name") or "",
-            "genotype":             r.get "genotype") if "genotype" in r else "",
-            "genetic_background":   r.get("genetic_background") or "",
-            "stage":                r.get("stage") or "",
-            "dob":                  dob,
-        })
-
-    pdf_bytes = build_tank_labels_pdf(rows)
-    st.download_button(
-        "⬇︎ Download PDF labels (2.4×1.5 • QR)",
-        data=pdf_bytes,
-        file_name=f"tank_labels_2_4x1_5_{utc_now().strftime('%Y%m%d_%H%M%S')}.pdf",
-        mime="application/pdf",
-        type="primary",
-        use_container_width=True,
-    )
+if __name__ == "__main__":
+    main()
