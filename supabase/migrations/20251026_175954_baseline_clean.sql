@@ -36,10 +36,13 @@ BEGIN
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'container_status') THEN
-    CREATE TYPE public.container_status AS ENUM ('planned',
-    'active',
-    'to_kill',
-    'retired');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'container_status') THEN
+    CREATE TYPE public.container_status AS ENUM ('active','to_kill','retired');
+  END IF;
+END $$ LANGUAGE plpgsql;
+
   END IF;
 END $$ LANGUAGE plpgsql;
 
@@ -58,9 +61,13 @@ BEGIN
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cross_plan_status') THEN
-    CREATE TYPE public.cross_plan_status AS ENUM ('planned',
-    'canceled',
-    'executed');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'cross_plan_status') THEN
+    CREATE TYPE public.cross_plan_status AS ENUM ('draft','planned','cancelled','done');
+  END IF;
+END $$ LANGUAGE plpgsql;
+
   END IF;
 END $$ LANGUAGE plpgsql;
 
@@ -79,12 +86,13 @@ BEGIN
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'tank_status') THEN
-    CREATE TYPE public.tank_status AS ENUM ('vacant',
-    'occupied',
-    'quarantine',
-    'maintenance',
-    'retired',
-    'decommissioned');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'tank_status') THEN
+    CREATE TYPE public.tank_status AS ENUM ('active','to_kill','retired');
+  END IF;
+END $$ LANGUAGE plpgsql;
+
   END IF;
 END $$ LANGUAGE plpgsql;
 
