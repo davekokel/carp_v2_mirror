@@ -113,7 +113,7 @@ def _load_fish_rich_all(q: str | None, limit: int) -> pd.DataFrame:
           OR COALESCE(v.fish_nickname,'') ILIKE :q
           OR COALESCE(v.genetic_background,'') ILIKE :q
           OR COALESCE(v.line_building_stage,'') ILIKE :q
-          OR COALESCE(v.genotype_pretty,'') ILIKE :q
+          OR COALESCE(v.transgene_pretty,'') ILIKE :q OR COALESCE(v.genotype_rollup,'') ILIKE :q
           OR COALESCE(v.n_active_tanks::text,'') ILIKE :q)
       ORDER BY v.fish_code
       LIMIT :lim
