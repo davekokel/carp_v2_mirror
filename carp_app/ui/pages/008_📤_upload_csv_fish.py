@@ -219,10 +219,13 @@ def _build_upsert_results(fish_codes: List[str]) -> pd.DataFrame:
 
 sql_tank_exists = text("""
   select 1
-  from public.tanks
-  where fish_code = :fc
+  from public.tanks t
+  where t.status = 'active'
+    and t.tank_code like ('TANK(' || :fc || ')#%')
   limit 1
 """)
+
+sql_ensure_tank = text("select public.ensure_active_tank_for_fish(:fish_code)")
 
 sql_insert_tank = text("""
   insert into public.tanks (tank_uuid, tank_code, fish_code, rack, position, created_at, created_by)
@@ -300,11 +303,7 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
             # ensure a default tank exists (uuid cast stays here)
             exists = cx.execute(sql_tank_exists, {"fc": fish_code}).fetchone()
             if not exists:
-                cx.execute(sql_insert_tank, {
-                    "tank_code": f"TANK-{fish_code}-#1",
-                    "fish_code": fish_code,
-                    "by": created_by_uuid
-                })
+                cx.execute(sql_ensure_tank, {"fish_code": fish_code})
 
             # optional allele link from CSV
             if col_tg:
