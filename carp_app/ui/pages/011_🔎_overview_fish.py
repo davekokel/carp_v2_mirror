@@ -1,11 +1,12 @@
 from __future__ import annotations
-from carp_app.lib.time import utc_now
 
 # ── sys.path prime ───────────────────────────────────────────────────────────
 import sys, pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from carp_app.lib.time import utc_now  # now this is safe
 
 # ── auth gates ───────────────────────────────────────────────────────────────
 from carp_app.ui.auth_gate import require_auth
@@ -63,7 +64,7 @@ def _pick_fish_view() -> str:
             cx,
         )
     names = set(df["table_name"].tolist())
-    return "public.v_fish_rich" if "v_fish_rich" in names else "public.v_fish"
+    return "public.v_fish_richrich" if "v_fish_rich" in names else "public.v_fish"
 
 @st.cache_data(show_spinner=False)
 def _view_cols(view: str) -> list[str]:
@@ -82,12 +83,11 @@ def _view_cols(view: str) -> list[str]:
     return df["column_name"].tolist()
 
 def _build_haystack(cols: list[str]) -> str:
-    parts = ["coalesce(fish_code,'')"]
-    for c in ("fish_name", "fish_nickname", "genetic_background",
-              "transgene_base_code", "transgene_pretty_name", "genotype_rollup"):
-        if c in cols:
-            parts.append(f"coalesce({c},'')")
-    return " || ' ' || ".join(parts)
+    # include modern fields if they exist
+    fields = ["fish_code", "fish_name", "fish_nickname",
+              "genetic_background", "genotype_text"]
+    parts = [f"coalesce({c},'')" for c in fields if c in cols]
+    return " || ' ' || ".join(parts) if parts else "coalesce(fish_code,'')"
 
 def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
     for c in df.select_dtypes(include=["object", "string"]).columns:
@@ -95,62 +95,85 @@ def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def _load_fish_overview(q: str | None, limit: int) -> list[dict]:
-    view = _pick_fish_view()
-    cols = _view_cols(view)
-
-    where_terms = []
-    params: dict[str, object] = {"lim": int(limit)}
-    if q:
-        params["ql"] = f"%{q}%"
-        where_terms.append(f"({_build_haystack(cols)} ilike :ql)")
-    where_sql = (" where " + " and ".join(where_terms)) if where_terms else ""
-
-    sql = text(f"""
-        select *
-          from {view}
-          {where_sql}
-         order by coalesce(created_at, now()) desc, fish_code
-         limit :lim
+    # explicit rich query: pretties + tank counts + dates
+    sql = text("""
+    WITH base AS (
+      SELECT
+        p.fish_uuid,
+        p.fish_code,
+        p.genetic_background,
+        p.line_building_stage,
+        p.genotype_text AS transgene_pretty
+      FROM public.v_fish_richrich_derive_pretties p
+    ),
+    ages AS (
+      SELECT f.fish_uuid, f.date_birth, f.created_at
+      FROM public.fish f
+    ),
+    tank AS (
+      SELECT fish_uuid, current_tanks
+      FROM public.v_fish_richcurrent_tank_counts
+    )
+    SELECT
+      b.fish_uuid,
+      b.fish_code,
+      b.genetic_background,
+      b.line_building_stage,
+      b.transgene_pretty,
+      a.date_birth,
+      a.created_at,
+      COALESCE(t.current_tanks, 0) AS current_tanks
+    FROM base b
+    LEFT JOIN ages a USING (fish_uuid)
+    LEFT JOIN tank t USING (fish_uuid)
+    WHERE (:q IS NULL) OR (
+      (b.fish_code ILIKE :q) OR
+      (b.genetic_background ILIKE :q) OR
+      (b.line_building_stage ILIKE :q) OR
+      (b.transgene_pretty ILIKE :q)
+    )
+    ORDER BY a.created_at DESC NULLS LAST, b.fish_code
+    LIMIT :lim
     """)
+    params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    if "fish_code" not in df.columns:
-        df["fish_code"] = ""
-
+    # display-friendly names
     df = _coerce_strings(df)
+    df.rename(columns={
+        "genetic_background": "Genetic background",
+        "line_building_stage": "Line-building stage",
+        "transgene_pretty": "Transgene (pretty)",
+        "date_birth": "Birth date",
+        "created_at": "Created time",
+        "current_tanks": "Current tanks",
+        "fish_code": "Fish code",
+    }, inplace=True)
 
-    # unify expected names for downstream table
-    if "date_birth" in df.columns and "birth_date" not in df.columns:
-        df["birth_date"] = df["date_birth"]
-    if "created_at" in df.columns and "created_time" not in df.columns:
-        df["created_time"] = df["created_at"]
-    if "transgene" not in df.columns:
-        if "transgene_pretty_name" in df.columns:
-            df["transgene"] = df["transgene_pretty_name"]
-        elif "genotype_rollup" in df.columns:
-            df["transgene"] = df["genotype_rollup"]
-        else:
-            df["transgene"] = ""
-
-    return df.to_dict(orient="records")
+    # keep a consistent column order
+    want = ["Fish code", "Genetic background", "Line-building stage",
+            "Transgene (pretty)", "Birth date", "Created time", "Current tanks"]
+    cols = [c for c in want if c in df.columns]
+    return df[cols].to_dict(orient="records")
 
 def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
     if not codes:
-        return pd.DataFrame(columns=["fish_code","container_id","status","created_at"])
+        return pd.DataFrame(columns=["fish_code","tank_code","status","created_at","container_id"])
     sql = text("""
-        select
-            vt.fish_code::text   as fish_code,
-            vt.tank_code::text   as tank_code,
-            vt.tank_uuid::text   as container_id,
-            vt.status::text      as status,
-            vt.created_at        as created_at
-        from public.v_tanks vt
-        where vt.fish_code = any(:codes)
-        order by vt.fish_code, vt.created_at desc nulls last
+      SELECT
+        v.tank_uuid::text AS container_id,
+        v.tank_code::text AS tank_code,
+        v.status::text    AS status,
+        v.fish_code::text AS fish_code,
+        v.created_at::timestamptz AS created_at
+      FROM public.v_tanks v
+      WHERE v.fish_code = ANY(:codes)
+      ORDER BY v.created_at ASC, v.tank_code ASC
     """)
     with _get_engine().begin() as cx:
-        return pd.read_sql(sql, cx, params={"codes": list({c for c in codes if c})})
+        df = pd.read_sql(sql, cx, params={"codes": codes})
+    return df
 
 def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
     want_cols = [
@@ -182,7 +205,7 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
           string_agg('Tg('||fta.transgene_base_code||')'||coalesce(ta.allele_name,''),
                      '; ' order by fta.transgene_base_code, coalesce(ta.allele_name,'')) as genotype
         from public.fish f
-        left join public.fish_transgene_alleles fta on fta.id = f.primary_allele_id or fta.fish_id = f.id
+        left join public.fish_transgene_alleles fta on fta.id = f.primary_allele_id or fta.fish_uuid = f.fish_uuid
         left join public.transgene_alleles ta
                on ta.transgene_base_code = fta.transgene_base_code
               and ta.allele_number       = fta.allele_number

@@ -365,8 +365,8 @@ with cs2:
       from public.tank_pairs tp
       left join public.tanks tm on tm.tank_uuid = tp.mother_tank_id
       left join public.tanks tf on tf.tank_uuid = tp.father_tank_id
-      left join public.v_fish_overview_rich vm on vm.fish_code = tm.fish_code
-      left join public.v_fish_overview_rich vf on vf.fish_code = tf.fish_code
+      left join public.v_fish_richoverview_rich vm on vm.fish_code = tm.fish_code
+      left join public.v_fish_richoverview_rich vf on vf.fish_code = tf.fish_code
       where tp.mother_tank_id = cast(:mom as uuid)
          or tp.father_tank_id = cast(:dad as uuid)
       order by tp.created_at desc nulls last

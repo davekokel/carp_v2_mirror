@@ -171,8 +171,8 @@ def insert_fish(cx, df_fish, default_batch: Optional[str]):
 
 def insert_links_by_name(cx, df_links):
     sql = """
-        insert into public.fish_transgene_alleles(fish_id, transgene_base_code, allele_number, zygosity)
-        select f.id, :tbc, nullif(:alle,''), nullif(:zyg,'')
+        insert into public.fish_transgene_alleles(fish_uuid, transgene_base_code, allele_number, zygosity)
+        select f.fish_uuid, :tbc, nullif(:alle,''), nullif(:zyg,'')
         from public.fish f
         where f.name = :fname
         on conflict do nothing
@@ -196,9 +196,9 @@ def assign_missing_tanks(cx):
         cx,
         """
         insert into public.tank_assignments(fish_id, tank_label, status)
-        select f.id, public.next_tank_code('TANK-'), 'inactive'
+        select f.fish_uuid, public.next_tank_code('TANK-'), 'inactive'
         from public.fish f
-        left join public.tank_assignments ta on ta.fish_id = f.id
+        left join public.tank_assignments ta on ta.fish_id = f.fish_uuid
         where ta.fish_id is null
         """,
     )

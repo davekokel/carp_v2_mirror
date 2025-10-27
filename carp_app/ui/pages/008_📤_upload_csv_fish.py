@@ -172,7 +172,7 @@ def _build_upsert_results(fish_codes: List[str]) -> pd.DataFrame:
           ('gu' || fta.allele_number::text) as allele_name,
           ('Tg(' || fta.transgene_base_code || ')' || ('gu' || fta.allele_number::text)) as transgene_pretty
         from public.fish f
-        left join public.fish_transgene_alleles fta on fta.fish_id = f.id
+        left join public.fish_transgene_alleles fta on fta.fish_uuid = f.fish_uuid
         left join public.transgene_alleles ta
                on ta.transgene_base_code = fta.transgene_base_code
               and ta.allele_number       = fta.allele_number
@@ -317,7 +317,7 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
                         cx.execute(
                             text("""update public.fish_transgene_alleles
                                     set zygosity=:zyg
-                                    where fish_id=:fid and transgene_base_code=:base"""),
+                                    where fish_uuid=:fid and transgene_base_code=:base"""),
                             {"zyg": zy, "fid": fish_id, "base": tg}
                         )
                     linked += 1

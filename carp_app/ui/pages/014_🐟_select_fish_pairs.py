@@ -60,7 +60,7 @@ def _pick_fish_view() -> str:
             cx
         )
     names = set(rows["table_name"].tolist())
-    return "public.v_fish_rich" if "v_fish_rich" in names else "public.v_fish"
+    return "public.v_fish_richrich" if "v_fish_rich" in names else "public.v_fish"
 
 @st.cache_data(show_spinner=False)
 def _fish_cols(view: str) -> list[str]:

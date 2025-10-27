@@ -165,10 +165,10 @@ if st.button("Upsert plasmids (on code)", type="primary", width="stretch"):
         st.stop()
 
     sql_upsert = f"""
-        INSERT INTO public.plasmids ({cols_sql})
-        VALUES ({vals_sql})
-        ON CONFLICT (code)
-        DO UPDATE SET {', '.join(set_parts)}
+    INSERT INTO public.plasmids ({cols_sql})
+    VALUES ({vals_sql})
+    ON CONFLICT (code)
+    DO UPDATE SET {', '.join(set_parts)};
     """
 
     # Optional RNA ensure function (kept as-is; adjust signature if your function differs)

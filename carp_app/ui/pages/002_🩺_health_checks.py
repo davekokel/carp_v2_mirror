@@ -28,7 +28,7 @@ if st.button("DB ping"):
 
 targets = [
     ("public.v_fish", "select * from public.v_fish limit 1"),
-    ("public.v_fish_with_label", "select * from public.v_fish_with_label limit 1"),
+    ("public.v_fish_richwith_label", "select * from public.v_fish_richwith_label limit 1"),
     ("public.plasmids", "select * from public.plasmids limit 1"),
 ]
 for name, sql in targets:

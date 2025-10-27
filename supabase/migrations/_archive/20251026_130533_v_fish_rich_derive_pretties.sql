@@ -58,7 +58,7 @@ alleles as (
 ),
 base as (
   select
-    coalesce(vf.fish_uuid,  fb.fish_id)   as fish_id,
+    coalesce(vf.fish_id,  fb.fish_id)   as fish_id,
     coalesce(vf.fish_code,fb.fish_code) as fish_code,
     fb.fish_name,
     fb.fish_nickname,
