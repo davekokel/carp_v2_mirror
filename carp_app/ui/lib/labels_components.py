@@ -253,16 +253,13 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     """
     2.4\" × 1.5\"; paddings L/R/T/B = 10/10/8/8 pt; QR = 40 pt; gap = 6 pt.
     Lines (top→bottom):
-      nickname (Helvetica-Oblique, 9.0)
-      name     (Helvetica-Bold,    10.5)
-      tank_code|label|fish_code    (Helvetica-Bold, 11.0)
-      genotype (mono 9.2; fall back to Helvetica if mono font not found)
+      header_name (nickname if set, else name)  (Helvetica-Bold, 10.5)
+      alias / short code                        (Helvetica-Oblique, 9.0)      [NEW]
+      tank_display (e.g., TANK(FSH-…)#N)        (Helvetica-Bold, 11.0)        [NEW]
+      genotype (mono 9.2)
       genetic_background (Helvetica 8.2)
       stage    (Helvetica 8.2)
       dob      (Helvetica 8.2)
-
-    CHANGE: top 4 lines render against FULL width (not QR-reserved), so they print to the right edge.
-    Lower lines use QR-reserved width to avoid collision with the QR in the lower-right quadrant.
     """
     canvas, stringWidth, inch, mm, TTFont, pdfmetrics = _rl_or_none()
     W = 2.4 * 72.0
@@ -273,13 +270,13 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     MIN_FS = 7.0
 
     if canvas is None:
-        # fallback: render as generic pages
         pages: List[List[str]] = []
         for r in rows:
+            header_name = _safe(r.get("nickname")) or _safe(r.get("name"))
             pages.append([
-                _safe(r.get("nickname")),
-                _safe(r.get("name")),
-                _safe(r.get("tank_code") or r.get("label") or r.get("fish_code")),
+                header_name,
+                _safe(r.get("alias")),
+                _safe(r.get("tank_display") or r.get("tank_code")),
                 _safe(r.get("genotype")),
                 _safe(r.get("genetic_background")),
                 _safe(r.get("stage")),
@@ -287,7 +284,6 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
             ])
         return _labels_pdf_pages(pages, 2.4, 1.5, header_pt=11.0, body_pt=8.2, leading_pt=9.0)
 
-    # Try to register mono font for genotype
     mono_font_name = "Helvetica"
     try:
         pdfmetrics.registerFont(TTFont("LabelMono", "/Library/Fonts/SourceCodePro-Regular.ttf"))
@@ -303,9 +299,8 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(W, H))
 
-    # Two measuring widths:
-    text_w_full = W - PAD_L - PAD_R                            # for top 4 lines
-    text_w_qr   = W - PAD_L - PAD_R - QR_SIZE - QR_GAP         # for lower lines
+    text_w_full = W - PAD_L - PAD_R
+    text_w_qr   = W - PAD_L - PAD_R - QR_SIZE - QR_GAP
 
     def _ellipsize(txt: str, font_name: str, font_size: float, max_w: float) -> str:
         if not txt:
@@ -315,7 +310,7 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
         ell = "…"
         lo, hi = 0, len(txt)
         while lo < hi:
-            mid = (lo + hi)//2
+            mid = (lo + hi) // 2
             if _sw(txt[:mid] + ell, font_name, font_size) <= max_w:
                 lo = mid + 1
             else:
@@ -340,39 +335,40 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
         w  = W - PAD_L - PAD_R
         h  = H - PAD_B - PAD_T
 
-        # QR anchored bottom-right
         qr_x, qr_y = x0 + w - QR_SIZE, y0
 
-        nickname = _safe(r.get("nickname"))
-        name     = _safe(r.get("name"))
-        tankline = _safe(r.get("tank_code") or r.get("label") or r.get("fish_code"))
-        genotype = _safe(r.get("genotype"))
-        backgrnd = _safe(r.get("genetic_background"))
-        stage    = _safe(r.get("stage"))
-        dob      = _safe(r.get("dob"))
+        name      = _safe(r.get("name"))
+        nickname  = _safe(r.get("nickname"))
+        header    = nickname or name or _safe(r.get("fish_code")) or _safe(r.get("tank_code"))
+        alias     = _safe(r.get("alias"))  # e.g., mem-tdmSG-8m
+        tankdisp  = _safe(r.get("tank_display") or r.get("tank_code"))
+        genotype  = _safe(r.get("genotype"))
+        backgrnd  = _safe(r.get("genetic_background"))
+        stage     = _safe(r.get("stage"))
+        dob       = _safe(r.get("dob"))
 
+        # Top 3 lines use full width; lower lines respect QR width
         lines = [
-            ("Helvetica-Oblique",  9.0, nickname, text_w_full),   # 0
-            ("Helvetica-Bold",    10.5, name,     text_w_full),   # 1
-            ("Helvetica-Bold",    11.0, tankline, text_w_full),   # 2
-            (mono_font_name,       9.2, genotype, text_w_full),   # 3  ← now full width
-            ("Helvetica",          8.2, backgrnd, text_w_qr),     # 4
-            ("Helvetica",          8.2, stage,    text_w_qr),     # 5
-            ("Helvetica",          8.2, dob,      text_w_qr),     # 6
+            ("Helvetica-Bold",    10.5, header,   text_w_full),
+            ("Helvetica-Oblique",  9.0, alias,    text_w_full),
+            ("Helvetica-Bold",    11.0, tankdisp, text_w_full),
+            (mono_font_name,       9.2, genotype, text_w_full),
+            ("Helvetica",          8.2, backgrnd, text_w_qr),
+            ("Helvetica",          8.2, stage,    text_w_qr),
+            ("Helvetica",          8.2, dob,      text_w_qr),
         ]
 
         lane_h = h / len(lines)
         y_top = y0 + h
 
         for idx, (fn, fs, txt, max_w) in enumerate(lines):
+            if not txt:
+                continue
             fs_lane = min(fs, max(MIN_FS, lane_h - 1.0))
             fs_use = fs_lane
-
-            # shrink bold title lines to fit width
             if fn.endswith("Bold") and txt:
                 while fs_use > MIN_FS and _sw(txt, fn, fs_use) > max_w:
                     fs_use -= 0.3
-
             y = y_top - (idx * lane_h) - (fs_use * TOP_PAD_FRAC)
             c.setFont(fn, fs_use)
             c.drawString(x0, y, _ellipsize(txt, fn, fs_use, max_w))

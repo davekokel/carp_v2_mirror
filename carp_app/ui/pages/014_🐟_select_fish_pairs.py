@@ -47,9 +47,29 @@ st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 # =============================================================================
 # Helpers
 # =============================================================================
+def _col_exists(schema: str, table: str, col: str) -> bool:
+    with _eng().begin() as cx:
+        q = text("""
+            select 1
+            from information_schema.columns
+            where table_schema=:s and table_name=:t and column_name=:c
+            limit 1
+        """)
+        return cx.execute(q, {"s": schema, "t": table, "c": col}).first() is not None
+
+def _fish_pk_col() -> str:
+    for c in ("fish_uuid", "id_uuid", "uuid", "id"):
+        if _col_exists("public", "fish", c):
+            return c
+    raise RuntimeError("public.fish has no recognized PK column")
+
+def _fishpair_fk_cols() -> tuple[str, str]:
+    for momc, dadc in (("mom_fish_uuid","dad_fish_uuid"), ("mom_fish_id","dad_fish_id")):
+        if _col_exists("public", "fish_pairs", momc) and _col_exists("public", "fish_pairs", dadc):
+            return momc, dadc
+    raise RuntimeError("public.fish_pairs lacks expected mom/dad FK columns")
 
 @st.cache_data(show_spinner=False)
-
 def _pick_fish_view() -> str:
     with _eng().begin() as cx:
         rows = pd.read_sql(
@@ -60,7 +80,7 @@ def _pick_fish_view() -> str:
             cx
         )
     names = set(rows["table_name"].tolist())
-    return "public.v_fish_richrich" if "v_fish_rich" in names else "public.v_fish"
+    return "public.v_fish_rich" if "v_fish_rich" in names else "public.v_fish"
 
 @st.cache_data(show_spinner=False)
 def _fish_cols(view: str) -> list[str]:
@@ -198,7 +218,7 @@ else:
         elif lc.startswith("date_") or lc.endswith("_date"):
             cfg[c] = st.column_config.DateColumn(c, disabled=True, format="YYYY-MM-DD")
         elif c == "fish_code":
-            cfg[c] = st.column_config.TextColumn("Fish code", disabled=True)
+            cfg[c] = st.column_config.TextColumn("fish_code", disabled=True)
 
     edited = st.data_editor(
         view_df,
@@ -208,8 +228,8 @@ else:
         key="cross_picker_editor",
     )
 
-    if not edited.empty and "✓ Select" in edited.columns and "Fish code" in edited.columns:
-        sel_set = set(edited.loc[edited["✓ Select"], "Fish code"].astype(str).tolist())
+    if not edited.empty and "✓ Select" in edited.columns and "fish_code" in edited.columns:
+        sel_set = set(edited.loc[edited["✓ Select"], "fish_code"].astype(str).tolist())
     else:
         sel_set = set()
     st.session_state["_picker_sel"] = list(sel_set)
@@ -361,33 +381,35 @@ can_save_both = bool(mom_code) and bool(dad_code) and isinstance(combined, pd.Da
 
 if st.button("💾 Save fish pair + clutch", type="primary", width="stretch", disabled=not can_save_both):
     try:
+        pk = _fish_pk_col()
+        mom_fk, dad_fk = _fishpair_fk_cols()
         with _eng().begin() as cx:
-            sql = text("""
+            sql = text(f"""
               with canon as (
                 select least(:mom_code, :dad_code) as a, greatest(:mom_code, :dad_code) as b
               ),
               ids as (
                 select
-                  (select id from public.fish where fish_code = (select a from canon) limit 1) as mom_id,
-                  (select id from public.fish where fish_code = (select b from canon) limit 1) as dad_id
+                  (select {pk} from public.fish where fish_code = (select a from canon) limit 1) as mom_pk,
+                  (select {pk} from public.fish where fish_code = (select b from canon) limit 1) as dad_pk
               ),
               existing as (
-                select id, fish_pair_code
-                from public.fish_pairs
-                where mom_fish_id = (select mom_id from ids)
-                  and dad_fish_id = (select dad_id from ids)
+                select fp.fish_pair_code
+                from public.fish_pairs fp
+                where fp.{mom_fk} = (select mom_pk from ids)
+                  and fp.{dad_fk} = (select dad_pk from ids)
               ),
               up as (
-                update public.fish_pairs
+                update public.fish_pairs fp
                    set genotype_elems = :elts,
                        created_by     = :by,
                        created_at     = now()
-                 where id in (select id from existing)
+                 where fp.fish_pair_code in (select fish_pair_code from existing)
                 returning fish_pair_code
               ),
               ins as (
-                insert into public.fish_pairs (mom_fish_id, dad_fish_id, genotype_elems, created_by)
-                select (select mom_id from ids), (select dad_id from ids), :elts, :by
+                insert into public.fish_pairs ({mom_fk}, {dad_fk}, genotype_elems, created_by)
+                select (select mom_pk from ids), (select dad_pk from ids), :elts, :by
                 where not exists (select 1 from existing)
                 returning fish_pair_code
               )
@@ -399,6 +421,8 @@ if st.button("💾 Save fish pair + clutch", type="primary", width="stretch", di
                 "elts": combined["element"].astype(str).tolist(),
                 "by":   (os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"),
             }).mappings().first()
+            if not got or not got.get("fish_pair_code"):
+                raise RuntimeError("Insert/update returned no fish_pair_code")
             fish_pair_code = got["fish_pair_code"]
         st.success(f"Saved fish pair {fish_pair_code}.")
         st.cache_data.clear()
@@ -412,7 +436,9 @@ st.subheader("Recent fish pairs")
 
 @st.cache_data(show_spinner=False)
 def _recent_fish_pairs(limit: int = 20) -> pd.DataFrame:
-    sql = text("""
+    pk = _fish_pk_col()
+    mom_fk, dad_fk = _fishpair_fk_cols()
+    sql = text(f"""
       select
         fp.fish_pair_code,
         mom.fish_code as mom,
@@ -420,8 +446,8 @@ def _recent_fish_pairs(limit: int = 20) -> pd.DataFrame:
         fp.genotype_elems,
         fp.created_at
       from public.fish_pairs fp
-      left join public.fish mom on mom.id = fp.mom_fish_id
-      left join public.fish dad on dad.id = fp.dad_fish_id
+      left join public.fish mom on mom.{pk} = fp.{mom_fk}
+      left join public.fish dad on dad.{pk} = fp.{dad_fk}
       order by fp.created_at desc nulls last
       limit :lim
     """)

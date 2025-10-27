@@ -357,7 +357,7 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
                 results_df[c] = pd.Series(dtype="string")
 
         show = results_df[cols_exact].rename(columns={
-            "fish_code":           "Fish code",
+            "fish_code":           "fish_code",
             "name":                "Fish name",
             "nickname":            "Fish nickname",
             "genetic_background":  "Genetic background",

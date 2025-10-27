@@ -49,6 +49,28 @@ st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 VIEW_TP = "public.v_tank_pairs"
 
 # ── Data loads ───────────────────────────────────────────────────────────────
+def _col_exists(schema: str, table: str, col: str) -> bool:
+    with _eng().begin() as cx:
+        return cx.execute(text("""
+            select 1
+            from information_schema.columns
+            where table_schema=:s and table_name=:t and column_name=:c
+            limit 1
+        """), {"s": schema, "t": table, "c": col}).first() is not None
+
+def _fish_pk_col() -> str:
+    for c in ("fish_uuid", "id_uuid", "uuid", "id"):
+        if _col_exists("public", "fish", c):
+            return c
+    raise RuntimeError("public.fish: no recognized PK column")
+
+def _fishpair_fk_cols() -> tuple[str, str]:
+    for momc, dadc in (("mom_fish_uuid","dad_fish_uuid"), ("mom_fish_id","dad_fish_id")):
+        if _col_exists("public", "fish_pairs", momc) and _col_exists("public", "fish_pairs", dadc):
+            return momc, dadc
+    raise RuntimeError("public.fish_pairs: missing mom/dad FK columns")
+
+
 @st.cache_data(show_spinner=False)
 def _vtp_cols() -> set[str]:
     with _eng().begin() as cx:
@@ -60,113 +82,129 @@ def _vtp_cols() -> set[str]:
     return set(df["column_name"].tolist())
 
 def _load_fish_pairs_overview(d1: date, d2: date, q: str) -> pd.DataFrame:
-    cols = _vtp_cols()
+    pk = _fish_pk_col()
+    mom_fk, dad_fk = _fishpair_fk_cols()
 
-    # base pairs (require fish_pair_code + mom/dad codes)
-    base_where = "coalesce(mom_fish_code,'') <> '' and coalesce(dad_fish_code,'') <> ''"
-    base_sql = f"""
-      with base as (
+    with _eng().begin() as cx:
+        vcols = set(pd.read_sql(text("""
+            select column_name from information_schema.columns
+            where table_schema='public' and table_name='v_tank_pairs'
+        """), cx)["column_name"].tolist())
+
+    have_status  = "status" in vcols
+    have_created = "created_at" in vcols
+    have_tp_code = "tank_pair_code" in vcols
+
+    tps_where = "where v.created_at::date between :d1 and :d2" if have_created else ""
+    n_selected_expr  = "count(*) filter (where v.status='selected')"  if have_status else "0"
+    n_scheduled_expr = "count(*) filter (where v.status='scheduled')" if have_status else "0"
+    last_tp_ts       = "max(v.created_at)::timestamptz" if have_created else "null::timestamptz"
+
+    sql = text(f"""
+      with pairs as (
         select
-          fish_pair_code,
-          least(mom_fish_code, dad_fish_code) as mom_code,
-          greatest(mom_fish_code, dad_fish_code) as dad_code
-        from public.v_tank_pairs
-        where {base_where}
+          fp.fish_pair_code,
+          mom.fish_code as mom_fish_code,
+          dad.fish_code as dad_fish_code,
+          fp.created_at::timestamptz as fp_created_at
+        from public.fish_pairs fp
+        left join public.fish mom on mom.{pk} = fp.{mom_fk}
+        left join public.fish dad on dad.{pk} = fp.{dad_fk}
+        where fp.created_at::date between :d1 and :d2
       ),
-      pairs as (
-        select distinct fish_pair_code, mom_code, dad_code from base
-      )
-    """
-
-    # counts over v_tank_pairs
-    have_status = "status" in cols
-    have_created = "created_at" in cols
-    have_tp_code = "tank_pair_code" in cols
-
-    n_selected_expr  = "count(*) filter (where v.status='selected')::int"  if have_status else "0::int"
-    n_scheduled_expr = "count(*) filter (where v.status='scheduled')::int" if have_status else "0::int"
-    date_filter = "and v.created_at::date between :d1 and :d2" if have_created else ""
-    last_tp_ts  = "max(v.created_at)" if have_created else "null::timestamp as"
-
-    tps_sql = f"""
-      , tps as (
+      tps as (
         select
           v.fish_pair_code,
-          {n_selected_expr}  as n_selected,
-          {n_scheduled_expr} as n_scheduled,
-          {last_tp_ts} last_tank_pair_at
+          {n_selected_expr}::int  as n_selected,
+          {n_scheduled_expr}::int as n_scheduled,
+          {last_tp_ts}            as last_tank_pair_at
         from public.v_tank_pairs v
-        {'where 1=1 ' + date_filter if date_filter else ''}
+        {tps_where}
         group by v.fish_pair_code
-      )
-    """
-
-    # last cross time (only if we have tank_pair_code to join)
-    last_cross_sql = f"""
-      , last_cross as (
+      ),
+      last_cross as (
         select
           v.fish_pair_code,
-          max(ci.created_at) as last_cross_at
+          max(ci.created_at)::timestamptz as last_cross_at
         from public.v_tank_pairs v
-        join public.cross_instances ci
-          on {'v.tank_pair_code = ci.tank_pair_code' if have_tp_code else '1=0'}
+        {"join public.cross_instances ci on v.tank_pair_code = ci.tank_pair_code" if have_tp_code else "join public.cross_instances ci on 1=0"}
         group by v.fish_pair_code
       )
-    """
-
-    # final select with search
-    sql = text(base_sql + tps_sql + last_cross_sql + """
       select
         p.fish_pair_code,
-        p.mom_code as mom_fish_code,
-        p.dad_code as dad_fish_code,
+        p.mom_fish_code,
+        p.dad_fish_code,
         coalesce(tps.n_selected,0)  as n_selected,
         coalesce(tps.n_scheduled,0) as n_scheduled,
         tps.last_tank_pair_at,
         lc.last_cross_at,
         greatest(
-          coalesce(tps.last_tank_pair_at, timestamp 'epoch'),
-          coalesce(lc.last_cross_at,     timestamp 'epoch')
+          coalesce(tps.last_tank_pair_at, timestamptz 'epoch'),
+          coalesce(lc.last_cross_at,     timestamptz 'epoch'),
+          p.fp_created_at
         ) as last_activity_at
       from pairs p
-      left join tps       on tps.fish_pair_code = p.fish_pair_code
+      left join tps        on tps.fish_pair_code = p.fish_pair_code
       left join last_cross lc on lc.fish_pair_code = p.fish_pair_code
-      where (:qq = '' or p.fish_pair_code ilike :ql or p.mom_code ilike :ql or p.dad_code ilike :ql)
-      order by last_activity_at desc nulls last, p.mom_code, p.dad_code
+      where (:qq = '' or p.fish_pair_code ilike :ql or p.mom_fish_code ilike :ql or p.dad_fish_code ilike :ql)
+      order by last_activity_at desc nulls last, p.mom_fish_code, p.dad_fish_code
       limit 1000
     """)
 
-    params = {
-        "qq": q or "",
-        "ql": f"%{q or ''}%"
-    }
-    if have_created:
-        params["d1"] = d1
-        params["d2"] = d2
-
+    params = {"d1": d1, "d2": d2, "qq": q or "", "ql": f"%{q or ''}%"}
     with _eng().begin() as cx:
         return pd.read_sql(sql, cx, params=params)
 
+@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def _load_tank_pairs_for_fp(fp_code: str, status: t.Optional[str] = None) -> pd.DataFrame:
-    sql = f"""
+    cols = _vtp_cols()
+
+    def has(c: str) -> bool:
+        return c in cols
+
+    def pick(cands: list[str], cast: str, alias: str) -> str:
+        for c in cands:
+            if has(c):
+                return f"v.{c}::{cast} as {alias}"
+        return f"null::{cast} as {alias}"
+
+    sel = [
+        pick(["tank_pair_code"], "text", "tank_pair_code"),
+        pick(["fish_pair_code"], "text", "fish_pair_code"),
+        pick(["status"], "text", "status"),
+        pick(["created_by"], "text", "created_by"),
+        pick(["created_at","tank_pair_created_at","pair_created_at"], "timestamptz", "created_at"),
+        pick(["mom_fish_code"], "text", "mom_fish_code"),
+        pick(["mom_tank_code","mother_tank_code"], "text", "mom_tank_code"),
+        pick(["mom_genotype"], "text", "mom_genotype"),
+        pick(["dad_fish_code"], "text", "dad_fish_code"),
+        pick(["dad_tank_code","father_tank_code"], "text", "dad_tank_code"),
+        pick(["dad_genotype"], "text", "dad_genotype"),
+    ]
+
+    where = ["v.fish_pair_code = :fp"]
+    params: dict[str, t.Any] = {"fp": fp_code}
+
+    if status and has("status"):
+        where.append("v.status = :st")
+        params["st"] = status
+
+    order_by = "created_at desc nulls last" if has("created_at") else \
+               "tank_pair_created_at desc nulls last" if has("tank_pair_created_at") else \
+               "pair_created_at desc nulls last" if has("pair_created_at") else \
+               "tank_pair_code asc"
+
+    sql = text(f"""
       select
-        v.id::uuid                as tank_pair_id,
-        v.tank_pair_code,
-        v.fish_pair_code,
-        v.status,
-        v.created_by,
-        v.created_at,
-        v.mom_fish_code, v.mom_tank_code, v.mom_genotype,
-        v.dad_fish_code, v.dad_tank_code, v.dad_genotype
+        {", ".join(sel)}
       from {VIEW_TP} v
-      where v.fish_pair_code = :fp
-      {("and v.status = :st" if status else "")}
-      order by v.created_at desc nulls last
-    """
-    params = {"fp": fp_code}
-    if status: params["st"] = status
+      where {" and ".join(where)}
+      order by {order_by}
+    """)
+
     with _eng().begin() as cx:
-        return pd.read_sql(text(sql), cx, params=params)
+        return pd.read_sql(sql, cx, params=params)
 
 def _load_cross_instances_for_fp(fp_code: str, d1: date, d2: date) -> pd.DataFrame:
     sql = text(f"""

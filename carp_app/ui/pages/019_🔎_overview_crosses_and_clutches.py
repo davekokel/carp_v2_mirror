@@ -1,19 +1,22 @@
+# =============================================================================
+# 🔎 Cross & Clutch Instances (uses public.v_cross_clutch_instances)
+# =============================================================================
 from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
 import os
 from datetime import date, timedelta
+import typing as t
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 from carp_app.lib.db import get_engine
-# 👇 your label helpers
 from carp_app.ui.lib.labels_components import download_button_for_labels
 
-# ── Auth / page ──────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 
@@ -28,37 +31,61 @@ with eng.begin() as cx:
     dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
 st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 
-# ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters"):
     c1, c2, c3, c4 = st.columns([2,1,1,1])
     q   = c1.text_input("Search (TP/FP/mom/dad/cross/clutch)")
     d1  = c2.date_input("From", value=None)
     d2  = c3.date_input("To", value=None)
     lim = int(c4.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
-    st.form_submit_button("Apply", use_container_width=True)
+    st.form_submit_button("Apply")
 
-where, params = [], {}
+where_parts: list[str] = []
+params: dict[str, t.Any] = {}
+
 if q:
     params["q"] = f"%{q.strip()}%"
-    where.append("""(
+    where_parts.append("""(
       tank_pair_code ilike :q or fish_pair_code ilike :q
       or mom_fish_code ilike :q or dad_fish_code ilike :q
       or mom_tank_code ilike :q or dad_tank_code ilike :q
       or cross_code ilike :q or clutch_code ilike :q
     )""")
+
 if d1:
     params["d1"] = str(d1)
-    where.append("(cross_date >= :d1)")
+    where_parts.append("(cross_date >= :d1)")
 if d2:
     params["d2"] = str(d2)
-    where.append("(cross_date <= :d2)")
-where_sql = (" where " + " and ".join(where)) if where else ""
+    where_parts.append("(cross_date <= :d2)")
+
+WHERE_SQL = (" where " + " and ".join(where_parts)) if where_parts else ""
 
 sql = text(f"""
+  with base as (
+    select
+      cross_instance_id::uuid  as cross_instance_id,
+      cross_code::text         as cross_code,
+      tank_pair_code::text     as tank_pair_code,
+      fish_pair_code::text     as fish_pair_code,
+      mom_fish_code::text      as mom_fish_code,
+      dad_fish_code::text      as dad_fish_code,
+      mom_tank_code::text      as mom_tank_code,
+      dad_tank_code::text      as dad_tank_code,
+      mom_genotype::text       as mom_genotype,
+      dad_genotype::text       as dad_genotype,
+      clutch_genotype::text    as clutch_genotype,
+      cross_date::date         as cross_date,
+      cross_created_at::timestamptz as cross_created_at,
+      clutch_instance_id::uuid as clutch_instance_id,
+      clutch_code::text        as clutch_code,
+      clutch_created_at::timestamptz as clutch_created_at
+    from public.v_cross_clutch_instances
+  )
   select *
-  from public.v_clutch_instances
-  {where_sql}
-  order by cross_date desc nulls last, coalesce(clutch_created_at, cross_created_at) desc nulls last
+  from base
+  {WHERE_SQL}
+  order by cross_date desc nulls last,
+           coalesce(clutch_created_at, cross_created_at) desc nulls last
   limit :lim
 """)
 params["lim"] = lim
@@ -70,7 +97,6 @@ st.caption(f"{len(df)} instance(s)")
 if df.empty:
     st.info("No instances yet."); st.stop()
 
-# ── Display + Selection ──────────────────────────────────────────────────────
 sel_col = "✓ Select"
 grid = df.copy()
 grid.insert(0, sel_col, False)
@@ -81,15 +107,14 @@ cols_show = [
     "mom_fish_code","dad_fish_code",
     "mom_tank_code","dad_tank_code",
     "mom_genotype","dad_genotype","clutch_genotype",
-    "cross_code","cross_date",
-    "clutch_code",
+    "cross_code","cross_date","clutch_code",
 ]
 present = [c for c in cols_show if c in grid.columns]
 
 edited = st.data_editor(
     grid[present],
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     column_config={
         sel_col: st.column_config.CheckboxColumn("✓", default=False),
         "tank_pair_code":  st.column_config.TextColumn("TP code", disabled=True),
@@ -102,7 +127,7 @@ edited = st.data_editor(
         "dad_genotype":    st.column_config.TextColumn("Dad genotype", disabled=True, width="large"),
         "clutch_genotype": st.column_config.TextColumn("Clutch genotype", disabled=True, width="large"),
         "cross_code":      st.column_config.TextColumn("Cross code", disabled=True),
-        "cross_date":      st.column_config.DateColumn("Cross date", disabled=True),
+        "cross_date":      st.column_config.DateColumn("Cross date", disabled=True, format="YYYY-MM-DD"),
         "clutch_code":     st.column_config.TextColumn("Clutch code", disabled=True),
     },
     key="cross_clutch_instances_editor",
@@ -114,7 +139,6 @@ if picked.empty:
     st.info("Select one or more rows to print labels.")
     st.stop()
 
-# ── Map selected rows → your label builders’ expected fields ─────────────────
 def _rows_for_cross_labels(df_sel: pd.DataFrame) -> list[dict]:
     rows: list[dict] = []
     for r in df_sel.to_dict(orient="records"):
@@ -145,25 +169,27 @@ def _rows_for_petri_labels(df_sel: pd.DataFrame) -> list[dict]:
         })
     return rows
 
-rows_cross  = _rows_for_cross_labels(picked)
-rows_petri  = _rows_for_petri_labels(picked)
+have_parents = all(c in df.columns for c in ["mom_tank_code","dad_tank_code"])
 
-# ── PDF Label downloads (uses your helpers) ──────────────────────────────────
 st.subheader("Print labels")
 c1, c2 = st.columns(2)
 with c1:
-    download_button_for_labels(
-        rows=rows_cross,
-        builder="crossing",
-        file_prefix="cross_labels",
-        button_text="⬇️ Download CROSS labels (PDF)",
-    )
+    if have_parents:
+        download_button_for_labels(
+            rows=_rows_for_cross_labels(picked),
+            builder="crossing",
+            file_prefix="cross_labels",
+            button_text="⬇️ Download CROSS labels (PDF)",
+        )
+    else:
+        st.button("⬇️ Download CROSS labels (PDF)", disabled=True)
+        st.caption("Need mom/dad tank codes in the view to print cross labels.")
 with c2:
     download_button_for_labels(
-        rows=rows_petri,
+        rows=_rows_for_petri_labels(picked),
         builder="petri",
         file_prefix="clutch_labels",
         button_text="⬇️ Download CLUTCH labels (PDF)",
     )
 
-st.caption("Cross labels: CROSS code, date, mom/dad tanks → clutch code.  Petri labels: clutch code, parents, DOB.")
+st.caption("Source: public.v_cross_clutch_instances • Petri DOB = cross_date + 1 day")

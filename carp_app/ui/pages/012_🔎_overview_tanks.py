@@ -99,7 +99,7 @@ def _render_tanks(df: pd.DataFrame) -> None:
     ] if c in df.columns]
     df = df[order].rename(columns={
         "tank_code": "Tank code",
-        "fish_code": "Fish code",
+        "fish_code": "fish_code",
         "status": "Status",
         "since_days": "Since (days)",
         "created_at": "Created",

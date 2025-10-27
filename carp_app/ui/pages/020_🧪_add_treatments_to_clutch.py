@@ -1,10 +1,13 @@
+# =============================================================================
+# 🧪 Add treatments to clutch — deterministic (strict v_clutch_instances)
+# =============================================================================
 from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
-import os, time
+import os
 from datetime import date, timedelta
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 
 import pandas as pd
 import streamlit as st
@@ -14,12 +17,14 @@ from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 from carp_app.ui.lib.app_ctx import get_engine
 
+# ── Auth / page ──────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 
 st.set_page_config(page_title="🧪 Add treatments to clutch", page_icon="🧪", layout="wide")
 st.title("🧪 Add treatments to clutch")
 
+# ── Engine ───────────────────────────────────────────────────────────────────
 _ENGINE = None
 def _eng():
     global _ENGINE
@@ -29,38 +34,68 @@ def _eng():
     _ENGINE = get_engine()
     return _ENGINE
 
-def _view_exists(schema: str, name: str) -> bool:
+# ── Deterministic contracts ──────────────────────────────────────────────────
+CLUTCHES_VIEW = "public.v_clutch_instances"          # single source of truth
+TREATMENTS_TABLE = "public.clutch_instance_treatments"
+
+REQUIRED_VIEW_COLS = [
+    # identity / display
+    "clutch_code",
+    "clutch_birthday",
+    "cross_name_pretty",
+    "clutch_name",
+    "clutch_genotype_pretty",
+    "clutch_strain_pretty",
+    # rollups
+    "treatments_count_effective",
+    "treatments_pretty_effective",
+    "genotype_treatment_rollup_effective",
+    # audit / filter
+    "created_by_instance",
+    "created_at_instance",
+]
+
+def _assert_view_contract() -> None:
     with _eng().begin() as cx:
-        q = text("select 1 from information_schema.views where table_schema=:s and table_name=:t limit 1")
-        return bool(pd.read_sql(q, cx, params={"s": schema, "t": name}).shape[0])
+        got = pd.read_sql(text("""
+            select column_name
+            from information_schema.columns
+            where table_schema='public' and table_name='v_clutch_instances'
+            order by ordinal_position
+        """), cx)["column_name"].tolist()
+    missing = [c for c in REQUIRED_VIEW_COLS if c not in got]
+    if missing:
+        st.error(
+            "Schema contract mismatch for public.v_clutch_instances.\n"
+            "Missing columns: " + ", ".join(missing)
+        ); st.stop()
 
-def _table_exists(schema: str, name: str) -> bool:
+def _assert_table_exists(schema: str, name: str) -> None:
     with _eng().begin() as cx:
-        q = text("select 1 from information_schema.tables where table_schema=:s and table_name=:t limit 1")
-        return bool(pd.read_sql(q, cx, params={"s": schema, "t": name}).shape[0])
-    
-CLUTCHES_VIEW = "public.v_clutch_instances"
+        ok = pd.read_sql(text("""
+            select 1
+            from information_schema.tables
+            where table_schema=:s and table_name=:t
+            limit 1
+        """), cx, params={"s": schema, "t": name}).shape[0] > 0
+    if not ok:
+        st.error(f"Required table {schema}.{name} not found."); st.stop()
 
-def _assert_view_exists() -> None:
-    if not _view_exists("public", "cross_clutch_instances"):
-        st.error("Required view public.cross_clutch_instances not found."); st.stop()
+_assert_view_contract()
+_assert_table_exists("public", "clutch_instances")   # needed by resolver
+_assert_table_exists("public", "cross_instances")    # needed by resolver
+_assert_table_exists("public", "plasmids")           # for plasmid picker (optional fetch still handled)
+# treatments table is asserted when we try to write, but we can also assert early:
+_assert_table_exists("public", "clutch_instance_treatments")
 
+# ── Utilities ────────────────────────────────────────────────────────────────
 def _safe_date(v):
     try:
         return pd.to_datetime(v).date() if pd.notna(v) else None
     except Exception:
         return None
-    
-def _pick_clutches_view() -> Optional[str]:
-    candidates = [
-        "v_clutches",
-        "v_clutch_instances",
-    ]
-    for name in candidates:
-        if _view_exists("public", name):
-            return f"public.{name}"
-    return None
 
+# ── Load clutches strictly from the view ─────────────────────────────────────
 def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
     where, params = [], {}
     if not most_recent:
@@ -73,12 +108,12 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
         params["q"] = f"%{q.strip()}%"
         where.append("""
           (
-            coalesce(clutch_code,'')                 ilike :q OR
-            coalesce(cross_name_pretty,'')           ilike :q OR
-            coalesce(clutch_name,'')                 ilike :q OR
-            coalesce(clutch_genotype_pretty,'')      ilike :q OR
-            coalesce(clutch_strain_pretty,'')        ilike :q OR
-            coalesce(treatments_pretty_effective,'') ilike :q
+            clutch_code                      ilike :q OR
+            cross_name_pretty                ilike :q OR
+            clutch_name                      ilike :q OR
+            clutch_genotype_pretty           ilike :q OR
+            clutch_strain_pretty             ilike :q OR
+            treatments_pretty_effective      ilike :q
           )
         """)
     where_sql = ("where " + " AND ".join(where)) if where else ""
@@ -102,123 +137,31 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
     """)
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
-    if "treatments_count_effective" in df.columns:
-        df["treatments_count_effective"] = pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
-    return df
 
+    df["treatments_count_effective"] = pd.to_numeric(
+        df["treatments_count_effective"], errors="coerce"
+    ).fillna(0).astype(int)
 
-def _resolve_ids_from_ci_or_cr(code_in: str) -> Tuple[Optional[str], Optional[str]]:
-    import re, unicodedata
-    def norm(s: str) -> str:
-        if not s: return ""
-        s = unicodedata.normalize("NFKC", s)
-        s = s.replace("–", "-").replace("—", "-").replace("−", "-")
-        s = re.sub(r"\s+", "", s)
-        return s.upper()
-    code = norm(code_in)
-    if not code:
-        return None, None
-    def _ensure_ci_for_xid(xid: str) -> Optional[str]:
-        with _eng().begin() as cx:
-            lab = pd.read_sql(text("""
-                select (cp.clutch_code || ' / ' || x.cross_run_code) as lbl
-                from public.cross_instances x
-                join public.crosses c          on c.id = x.cross_id
-                join public.planned_crosses pc on pc.cross_id = c.id
-                join public.clutch_plans cp    on cp.id = pc.clutch_id
-                where x.id = cast(:xid as uuid)
-                limit 1
-            """), cx, params={"xid": xid})
-            label = lab["lbl"].iloc[0] if not lab.empty else "clutch"
-            cx.execute(text("""
-                insert into public.clutch_instances (cross_instance_id, label, created_at)
-                values (cast(:xid as uuid), :label, now())
-                on conflict (cross_instance_id) do nothing
-            """), {"xid": xid, "label": label})
-            ci = pd.read_sql(text("""
-                select id::text as clutch_instance_id
-                from public.clutch_instances
-                where cross_instance_id = cast(:xid as uuid)
-                limit 1
-            """), cx, params={"xid": xid})
-            return ci["clutch_instance_id"].iloc[0] if not ci.empty else None
-    if code.startswith("CI-"):
-        with _eng().begin() as cx:
-            exact = pd.read_sql(text("""
-                select x.id::text as cross_instance_id,
-                       ci.id::text as clutch_instance_id
-                from public.clutch_instances ci
-                join public.cross_instances x on x.id = ci.cross_instance_id
-                where upper(replace(ci.clutch_instance_code, ' ', '')) = :ci
-                limit 1
-            """), cx, params={"ci": code})
-        if not exact.empty:
-            return exact["cross_instance_id"].iloc[0], exact["clutch_instance_id"].iloc[0]
-        remainder = code[3:] if len(code) > 3 else ""
-        candidates: List[str] = []
-        if remainder:
-            candidates.append(remainder)
-        tokens = re.findall(r"(CR(?:OSS)?-[A-Z0-9\-]+)", code)
-        candidates += tokens
-        cand = []
-        seen = set()
-        for c in candidates:
-            c = norm(c)
-            if c and c not in seen:
-                seen.add(c); cand.append(c)
-        if cand:
-            with _eng().begin() as cx:
-                run = pd.read_sql(text("""
-                    select x.id::text as cross_instance_id
-                    from public.cross_instances x
-                    where upper(replace(x.cross_run_code, ' ', '')) = any(:codes)
-                    limit 1
-                """), cx, params={"codes": cand})
-            if not run.empty:
-                xid = run["cross_instance_id"].iloc[0]
-                cid = _ensure_ci_for_xid(xid)
-                return xid, cid
-        if cand:
-            like_params = [f"%{c}%" for c in cand]
-            with _eng().begin() as cx:
-                run = pd.read_sql(text("""
-                    select x.id::text as cross_instance_id
-                    from public.cross_instances x
-                    where """ + " OR ".join([f"x.cross_run_code ILIKE :p{i}" for i in range(len(like_params))]) + """
-                    order by x.created_at desc nulls last
-                    limit 1
-                """), cx, params={f"p{i}": like_params[i] for i in range(len(like_params))})
-            if not run.empty:
-                xid = run["cross_instance_id"].iloc[0]
-                cid = _ensure_ci_for_xid(xid)
-                return xid, cid
-        return None, None
-    if code.startswith("CR"):
-        with _eng().begin() as cx:
-            cr = pd.read_sql(text("""
-                select x.id::text as cross_instance_id
-                from public.cross_instances x
-                where upper(replace(x.cross_run_code, ' ', '')) = :rc
-                limit 1
-            """), cx, params={"rc": code})
-        if cr.empty:
-            with _eng().begin() as cx:
-                cr = pd.read_sql(text("""
-                    select x.id::text as cross_instance_id
-                    from public.cross_instances x
-                    where x.cross_run_code ILIKE :rc
-                    order by x.created_at desc nulls last
-                    limit 1
-                """), cx, params={"rc": f"%{code}%"})
-        if not cr.empty:
-            xid = cr["cross_instance_id"].iloc[0]
-            cid = _ensure_ci_for_xid(xid)
-            return xid, cid
-    return None, None
+    # De-dup any weirdness
+    return df.loc[:, ~df.columns.duplicated()]
 
+# ── Resolve CI/CR → IDs (deterministic rules; no heuristics beyond what’s here) ─
+def _resolve_ids_from_ci_or_cr(code_in: str):
+    code = (code_in or "").strip()
+    if not code: return None, None
+    with _eng().begin() as cx:
+        row = pd.read_sql(text("""
+            select ci.id::text as clutch_instance_id,
+                   ci.cross_instance_id::text as cross_instance_id
+            from public.clutch_instances ci
+            where ci.clutch_instance_code = :code
+            limit 1
+        """), cx, params={"code": code})
+    if row.empty: return None, None
+    return row["cross_instance_id"].iloc[0], row["clutch_instance_id"].iloc[0]
+
+# ── Treatments I/O ───────────────────────────────────────────────────────────
 def _load_instance_treatments(clutch_instance_id: str) -> pd.DataFrame:
-    if not _table_exists("public", "clutch_instance_treatments"):
-        return pd.DataFrame()
     with _eng().begin() as cx:
         sql = text("""
           select created_at, material_type, material_code, material_name, notes, created_by
@@ -229,8 +172,6 @@ def _load_instance_treatments(clutch_instance_id: str) -> pd.DataFrame:
         return pd.read_sql(sql, cx, params={"cid": clutch_instance_id})
 
 def _insert_instance_treatments(clutch_instance_id: str, created_by: str, items: List[Dict], note: str):
-    if not _table_exists("public", "clutch_instance_treatments"):
-        st.error("Table public.clutch_instance_treatments not found"); return 0, []
     inserted, errs = 0, []
     with _eng().begin() as cx:
         for it in items:
@@ -263,43 +204,28 @@ def _insert_instance_treatments(clutch_instance_id: str, created_by: str, items:
                 errs.append(f"{code} → {e}")
     return inserted, errs
 
+# ── Run overview (strictly from the clutch view) ─────────────────────────────
 def _load_run_overview(ci_code: str) -> pd.DataFrame:
-    _assert_view_exists()
-
     with _eng().begin() as cx:
         df = pd.read_sql(text(f"""
             select *
             from {CLUTCHES_VIEW}
             where clutch_code = :cc
-            order by created_at desc nulls last
+            order by created_at_instance desc nulls last
             limit 1
         """), cx, params={"cc": ci_code})
 
     if df.empty:
         return df
 
-    # normalize optional columns this page expects to display if present
-    name_map = {
-        "treatments_count_effective":         ["treatments_count_effective","treatments_count"],
-        "treatments_pretty_effective":        ["treatments_pretty_effective","treatments_pretty"],
-        "genotype_treatment_rollup_effective":["genotype_treatment_rollup_effective","genotype_treatment_rollup"],
-    }
-    for target, options in name_map.items():
-        for src in options:
-            if src in df.columns:
-                df[target] = df[src]
-                break
-        if target not in df.columns:
-            df[target] = pd.NA
+    # enforce the expected rollup cols (already required, but keep explicit)
+    df["treatments_count_effective"] = pd.to_numeric(
+        df["treatments_count_effective"], errors="coerce"
+    ).fillna(0).astype(int)
 
-    if "treatments_count_effective" in df.columns:
-        df["treatments_count_effective"] = (
-            pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
-        )
+    return df.loc[:, ~df.columns.duplicated()]
 
-    df = df.loc[:, ~df.columns.duplicated()]
-    return df
-
+# ── Filters + picker ─────────────────────────────────────────────────────────
 with st.form("filters_form", clear_on_submit=False):
     today = date.today()
     c1,c2,c3,c4 = st.columns([1,1,1,3])
@@ -317,30 +243,19 @@ st.caption(f"{len(clutches)} clutch(es)")
 if clutches.empty:
     st.info("No clutches found with the current filters."); st.stop()
 
-view_cols = [
-    "clutch_code","clutch_birthday","cross_name_pretty",
-    "clutch_name","clutch_genotype_pretty","clutch_strain_pretty",
-    "treatments_count_effective","treatments_pretty_effective",
-    "genotype_treatment_rollup_effective",
-    "created_by_instance","created_at_instance",
-]
-
-have = [c for c in view_cols if c in clutches.columns]
-dfv = clutches[have].copy()
-dfv = dfv.loc[:, ~dfv.columns.duplicated()]
-if "treatments_count_effective" in dfv.columns:
-    dfv["treatments_count_effective"] = pd.to_numeric(dfv["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
+view_cols = REQUIRED_VIEW_COLS.copy()
+dfv = clutches[view_cols].copy()
+dfv.insert(0, "✓ Select", False)
 
 last_ci = st.session_state.get("last_ci")
-dfv.insert(0, "✓ Select", False)
-if last_ci and "clutch_code" in dfv.columns:
+if last_ci:
     dfv.loc[dfv["clutch_code"] == last_ci, "✓ Select"] = True
 
 picker = st.data_editor(
     dfv, hide_index=True, width="stretch", num_rows="fixed",
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True),
+        "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
         "created_at_instance": st.column_config.DatetimeColumn("created_at_instance", disabled=True),
     },
     key="ci_only_picker_v1",
@@ -357,21 +272,14 @@ row = picked.iloc[0]
 ci_code = str(row.get("clutch_code","")).strip()
 st.session_state["last_ci"] = ci_code
 
-if not ci_code.startswith("CI-"):
-    st.warning("This looks like a plan (CL-…). Schedule a run to get a CI-… row, then attach treatments.")
-    st.stop()
-
 cross_instance_id, clutch_instance_id = _resolve_ids_from_ci_or_cr(ci_code)
 if not cross_instance_id:
     st.error("Could not resolve the run from this CI/CR code."); st.stop()
 if not clutch_instance_id:
     st.error("Could not create/find the clutch_instance for this run."); st.stop()
 
-st.subheader("Add treatments to this clutch instance")
-tabs = st.tabs(["Plasmids","RNAs"])
-
+# ── Pickers for materials ────────────────────────────────────────────────────
 def _load_plasmids(search: str) -> pd.DataFrame:
-    if not _table_exists("public","plasmids"): return pd.DataFrame()
     with _eng().begin() as cx:
         return pd.read_sql(text("""
           select code, name, coalesce(nickname,'') as nickname, created_at, created_by
@@ -382,15 +290,21 @@ def _load_plasmids(search: str) -> pd.DataFrame:
         """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
 
 def _load_rnas(search: str) -> pd.DataFrame:
-    if not _view_exists("public","v_rna_plasmids"): return pd.DataFrame()
+    view = "v_rna_plasmids"
+    if not _view_exists("public", view):
+        st.info("RNA library view not installed (public.v_rna_plasmids). Showing nothing.")
+        return pd.DataFrame(columns=["code","name","nickname","created_at","created_by"])
     with _eng().begin() as cx:
-        return pd.read_sql(text("""
+        return pd.read_sql(text(f"""
           select code, name, coalesce(nickname,'') as nickname, created_at, created_by
-          from public.v_rna_plasmids
+          from public.{view}
           where (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
           order by coalesce(created_at, now()) desc
           limit 1000
         """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
+
+st.subheader("Add treatments to this clutch instance")
+tabs = st.tabs(["Plasmids","RNAs"])
 
 with tabs[0]:
     c1, c2 = st.columns([2,1])
@@ -428,6 +342,7 @@ with tabs[1]:
         picked_rna = eg_rna[eg_rna["✓ Select"]].reset_index(drop=True)
         if not picked_rna.empty: picked_rna["source"] = "v_rna_plasmids"
 
+# ── Save actions ─────────────────────────────────────────────────────────────
 st.subheader("Save")
 creator = os.environ.get("USER") or os.environ.get("USERNAME") or (getattr(user, "email", "") or "system")
 
@@ -446,6 +361,7 @@ with col3:
     if st.button("↻ Refresh", width="stretch", key="refresh_ci_v1"):
         st.session_state["__manual_refresh__"] = True
 
+# ── Feedback ─────────────────────────────────────────────────────────────────
 _tmsg = st.session_state.pop("treatments_result", None)
 if _tmsg:
     if _tmsg.get("instance"):
@@ -453,6 +369,7 @@ if _tmsg:
     if _tmsg.get("errs"):
         st.warning("Some items were skipped:\n- " + "\n- ".join(_tmsg["errs"]))
 
+# ── Updated run summary (from the same deterministic view) ───────────────────
 st.subheader("Updated run summary")
 run_df = _load_run_overview(ci_code)
 if run_df.empty:
@@ -466,6 +383,7 @@ else:
         st.caption(f"Genotype + treatments: {gt_roll}")
     st.dataframe(run_df, width="stretch", hide_index=True)
 
+# ── Treatments on this run ───────────────────────────────────────────────────
 st.subheader("Treatments on this run")
 treat_df = _load_instance_treatments(clutch_instance_id)
 if not treat_df.empty:

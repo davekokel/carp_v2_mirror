@@ -49,9 +49,65 @@ st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 # =============================================================================
 # Helpers
 # =============================================================================
+def _fish_genotype_col(view: str) -> str | None:
+    schema, tbl = view.split(".", 1)
+    with _eng().begin() as cx:
+        df = pd.read_sql(
+            text("""
+              select column_name
+              from information_schema.columns
+              where table_schema=:s and table_name=:t
+            """),
+            cx, params={"s": schema, "t": tbl}
+        )
+    cols = set(df["column_name"].tolist())
+    for c in ("transgene_pretty_name", "genotype_rollup"):
+        if c in cols:
+            return c
+    return None
+
+@st.cache_data(show_spinner=False)
+def _pick_fish_view() -> str:
+    with _eng().begin() as cx:
+        rows = pd.read_sql(
+            text("""
+                select table_name
+                from information_schema.views
+                where table_schema='public'
+                  and table_name in ('v_fish_rich','v_fish')
+            """),
+            cx
+        )
+    names = set(rows["table_name"].tolist())
+    return "public.v_fish_rich" if "v_fish_rich" in names else "public.v_fish"
+
+def _col_exists(schema: str, table: str, col: str) -> bool:
+    with _eng().begin() as cx:
+        q = text("""
+            select 1
+            from information_schema.columns
+            where table_schema=:s and table_name=:t and column_name=:c
+            limit 1
+        """)
+        return cx.execute(q, {"s": schema, "t": table, "c": col}).first() is not None
+
+def _fish_pk_col() -> str:
+    for c in ("fish_uuid", "id_uuid", "uuid", "id"):
+        if _col_exists("public", "fish", c):
+            return c
+    raise RuntimeError("public.fish has no recognized PK column")
+
+def _fishpair_fk_cols() -> tuple[str, str]:
+    for momc, dadc in (("mom_fish_uuid","dad_fish_uuid"), ("mom_fish_id","dad_fish_id")):
+        if _col_exists("public", "fish_pairs", momc) and _col_exists("public", "fish_pairs", dadc):
+            return momc, dadc
+    raise RuntimeError("public.fish_pairs lacks expected mom/dad FK columns")
+
 @st.cache_data(show_spinner=False)
 def _load_fish_pairs(q: str, limit: int = 200) -> pd.DataFrame:
-    sql = text("""
+    pk = _fish_pk_col()
+    mom_fk, dad_fk = _fishpair_fk_cols()
+    sql = text(f"""
       with pairs as (
         select
           fp.id::text                        as fish_pair_id,
@@ -62,8 +118,8 @@ def _load_fish_pairs(q: str, limit: int = 200) -> pd.DataFrame:
           fp.created_by                      as created_by,
           fp.created_at                      as created_at
         from public.fish_pairs fp
-        left join public.fish mom on mom.id = fp.mom_fish_id
-        left join public.fish dad on dad.id = fp.dad_fish_id
+        left join public.fish mom on mom.{pk} = fp.{mom_fk}
+        left join public.fish dad on dad.{pk} = fp.{dad_fk}
       )
       select
         p.fish_pair_id,
@@ -90,13 +146,8 @@ def _load_fish_pairs(q: str, limit: int = 200) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
-    """
-    Live tanks for given fish_code list from v_tanks (status IN ('active','new')).
-    Must include tanks.tank_id so we can satisfy FKs to public.tanks(tank_id).
-    """
     if not codes:
         return pd.DataFrame()
-    # ensure we always return tank_id + tank_code
     sql = text("""
         select
             vt.fish_code,
@@ -113,24 +164,22 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
         return pd.read_sql(sql, cx, params={"codes": list({c for c in codes if c}), "live": ["active","new"]})
 
 def _ensure_fish_pair(a_code: str, b_code: str, created_by_val: str) -> str:
-    """
-    Ensure fish_pairs row exists (unordered -> ordered by code).
-    Returns fish_pairs.id (UUID as string).
-    """
+    pk = _fish_pk_col()
+    mom_fk, dad_fk = _fishpair_fk_cols()
     with _eng().begin() as cx:
-        got = cx.execute(text("""
+        got = cx.execute(text(f"""
           with canon as (
             select least(:a,:b) as a, greatest(:a,:b) as b
           ),
           ids as (
             select
-              (select id from public.fish where fish_code = (select a from canon) limit 1) as mom_id,
-              (select id from public.fish where fish_code = (select b from canon) limit 1) as dad_id
+              (select {pk} from public.fish where fish_code = (select a from canon) limit 1) as mom_pk,
+              (select {pk} from public.fish where fish_code = (select b from canon) limit 1) as dad_pk
           ),
           existing as (
             select id from public.fish_pairs
-            where mom_fish_id = (select mom_id from ids)
-              and dad_fish_id = (select dad_id from ids)
+            where {mom_fk} = (select mom_pk from ids)
+              and {dad_fk} = (select dad_pk from ids)
           ),
           up as (
             update public.fish_pairs
@@ -141,17 +190,17 @@ def _ensure_fish_pair(a_code: str, b_code: str, created_by_val: str) -> str:
           ),
           ins as (
             insert into public.fish_pairs
-              (fish_pair_code, mom_fish_id, dad_fish_id, genotype_elems, created_by)
+              (fish_pair_code, {mom_fk}, {dad_fk}, genotype_elems, created_by)
             select
               'FP-'||to_char(extract(year from now())::int % 100,'FM00')||
               lpad((
                 select coalesce(max((regexp_match(coalesce(fish_pair_code,''),
-                     '^FP-\\d{2}(\\d{4})$'))[1]::int),0) + 1
+                     '^FP-\\d{{2}}(\\d{{4}})$'))[1]::int),0) + 1
                 from public.fish_pairs
                 where fish_pair_code like 'FP-'||to_char(extract(year from now())::int % 100,'FM00')||'%'
               )::text, 4, '0') as fish_pair_code,
-              ids.mom_id,
-              ids.dad_id,
+              ids.mom_pk,
+              ids.dad_pk,
               null,
               :by
             from ids
@@ -349,29 +398,37 @@ with cs1:
 
 with cs2:
     st.markdown("**Recent tank_pairs for these tanks**")
-    sql_recent = text("""
+
+    vf = _pick_fish_view()
+    geno_col = _fish_genotype_col(vf)
+
+    mom_geno_expr = "''" if not geno_col else f"coalesce(vfm.{geno_col}, '')"
+    dad_geno_expr = "''" if not geno_col else f"coalesce(vfd.{geno_col}, '')"
+
+    sql_recent = text(f"""
       select
         tp.tank_pair_code,
         tp.status,
-        tm.fish_code                                as mom_fish_code,
-        tm.tank_code                                as mom_tank_code,
-        coalesce(vm.transgene_pretty_name, '')      as mom_genotype,
-        tf.fish_code                                as dad_fish_code,
-        tf.tank_code                                as dad_tank_code,
-        coalesce(vf.transgene_pretty_name, '')      as dad_genotype,
+        vtm.fish_code  as mom_fish_code,
+        vtm.tank_code  as mom_tank_code,
+        {mom_geno_expr} as mom_genotype,
+        vtf.fish_code  as dad_fish_code,
+        vtf.tank_code  as dad_tank_code,
+        {dad_geno_expr} as dad_genotype,
         tp.note,
         tp.created_by,
         tp.created_at
       from public.tank_pairs tp
-      left join public.tanks tm on tm.tank_uuid = tp.mother_tank_id
-      left join public.tanks tf on tf.tank_uuid = tp.father_tank_id
-      left join public.v_fish_richoverview_rich vm on vm.fish_code = tm.fish_code
-      left join public.v_fish_richoverview_rich vf on vf.fish_code = tf.fish_code
+      left join public.v_tanks vtm on vtm.tank_uuid = tp.mother_tank_id
+      left join public.v_tanks vtf on vtf.tank_uuid = tp.father_tank_id
+      left join {vf} vfm on vfm.fish_code = vtm.fish_code
+      left join {vf} vfd on vfd.fish_code = vtf.fish_code
       where tp.mother_tank_id = cast(:mom as uuid)
          or tp.father_tank_id = cast(:dad as uuid)
       order by tp.created_at desc nulls last
       limit 50
     """)
+
     with _eng().begin() as cx:
         recent = pd.read_sql(sql_recent, cx, params={"mom": mother_tank_id, "dad": father_tank_id})
 

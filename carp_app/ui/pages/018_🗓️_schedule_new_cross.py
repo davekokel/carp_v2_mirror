@@ -10,7 +10,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
-from sqlalchemy.engine import Engine, CursorResult
+from sqlalchemy.engine import Engine
 from sqlalchemy.sql.elements import TextClause
 
 from carp_app.ui.auth_gate import require_auth
@@ -36,6 +36,23 @@ def _safe(cx, sql_or_text, params=None) -> pd.DataFrame:
     q = sql_or_text if isinstance(sql_or_text, TextClause) else text(sql_or_text)
     return pd.read_sql(q, cx, params=params or {})
 
+@st.cache_data(show_spinner=False)
+def _vtp_cols() -> set[str]:
+    with eng.begin() as cx:
+        df = pd.read_sql(text("""
+            select column_name
+            from information_schema.columns
+            where table_schema='public' and table_name='v_tank_pairs'
+        """), cx)
+    return set(df["column_name"].tolist())
+
+cols_vtp = _vtp_cols()
+def _has(c: str) -> bool: return c in cols_vtp
+def _pick(cands: list[str], cast: str, alias: str) -> str:
+    for c in cands:
+        if _has(c): return f"v.{c}::{cast} as {alias}"
+    return f"null::{cast} as {alias}"
+
 # ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters"):
     c1, c2 = st.columns([3,1])
@@ -43,24 +60,39 @@ with st.form("filters"):
     limit = int(c2.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
     st.form_submit_button("Apply", use_container_width=True)
 
-# ── Load candidate tank pairs from v_tank_pairs ──────────────────────────────
+# ── Load candidate tank pairs from v_tank_pairs (column-adaptive) ────────────
+select_parts = [
+    _pick(["tank_pair_code"], "text", "tank_pair_code"),
+    _pick(["fish_pair_code"], "text", "fish_pair_code"),
+    _pick(["mom_fish_code"], "text", "mom_fish_code"),
+    _pick(["mom_tank_code","mother_tank_code"], "text", "mom_tank_code"),
+    "''::text as mom_genotype",
+    _pick(["dad_fish_code"], "text", "dad_fish_code"),
+    _pick(["dad_tank_code","father_tank_code"], "text", "dad_tank_code"),
+    "''::text as dad_genotype",
+    _pick(["created_at","tank_pair_created_at","pair_created_at"], "timestamptz", "created_at"),
+]
+where_parts = [
+    "(:q = '' OR",
+    " v.tank_pair_code ilike :ql OR",
+    " v.fish_pair_code ilike :ql OR",
+    " v.mom_fish_code  ilike :ql OR",
+    " v.dad_fish_code  ilike :ql OR",
+    f" {('v.mom_tank_code' if _has('mom_tank_code') else 'v.mother_tank_code')} ilike :ql OR",
+    f" {('v.dad_tank_code' if _has('dad_tank_code') else 'v.father_tank_code')} ilike :ql)",
+]
+order_by = (
+    "v.created_at desc nulls last" if _has("created_at")
+    else "v.tank_pair_created_at desc nulls last" if _has("tank_pair_created_at")
+    else "v.pair_created_at desc nulls last" if _has("pair_created_at")
+    else "v.tank_pair_code asc"
+)
 sql_pairs = text(f"""
   select
-    v.id::uuid          as tank_pair_id,           -- uuid for display only
-    v.tank_pair_code,                              -- authoritative TP key
-    v.fish_pair_code,
-    v.mom_fish_code, v.mom_tank_code, v.mom_genotype,
-    v.dad_fish_code, v.dad_tank_code, v.dad_genotype,
-    v.created_at
+    {", ".join(select_parts)}
   from public.v_tank_pairs v
-  where (:q = '' OR
-         v.tank_pair_code ilike :ql OR
-         v.fish_pair_code ilike :ql OR
-         v.mom_fish_code  ilike :ql OR
-         v.dad_fish_code  ilike :ql OR
-         v.mom_tank_code  ilike :ql OR
-         v.dad_tank_code  ilike :ql)
-  order by v.created_at desc nulls last
+  where {' '.join(where_parts)}
+  order by {order_by}
   limit :lim
 """)
 with eng.begin() as cx:
@@ -81,7 +113,6 @@ pairs_view["genotype"]   = (
     .combine(pairs_view["dad_genotype"].fillna("").replace("", pd.NA).astype("object"),
              lambda a,b: f"{a} × {b}" if pd.notna(a) and pd.notna(b) else (a if pd.notna(a) else b))
 )
-
 pairs_view.insert(0,"✓ Select", False)
 pairs_edit = st.data_editor(
     pairs_view[["✓ Select","tank_pair_code","fish_pair_code","pair_fish","pair_tanks","genotype","created_at"]],
@@ -108,7 +139,6 @@ if st.button("⏱ Schedule cross" + (" + clutch" if make_clutch else ""), type="
     creator = (user.get('email') or user.get('id') or 'unknown')
     try:
         with eng.begin() as cx:
-            # Insert cross: requires cross_id (NOT NULL) and id; returns cross_run_code
             row = _safe(cx, """
               insert into public.cross_instances
                 (cross_id, id, tank_pair_code, cross_date, created_by, note)
@@ -118,25 +148,21 @@ if st.button("⏱ Schedule cross" + (" + clutch" if make_clutch else ""), type="
             """, {"tp_code": tp_code, "d": str(run_date), "by": creator, "note": note})
             if row.empty:
                 st.error("Insert failed (no cross row returned)."); st.stop()
-
             cross_id   = str(row.iloc[0]["id"])
             cross_code = str(row.iloc[0]["cross_run_code"])
 
             if make_clutch:
-                # Insert clutch linked to the cross (requires tank_pair_code for trigger)
                 cl = _safe(cx, """
                   insert into public.clutch_instances (id, cross_instance_id, tank_pair_code)
                   values (gen_random_uuid(), :cid, :tp_code)
                   returning id, clutch_instance_code, created_at
                 """, {"cid": cross_id, "tp_code": tp_code})
-
                 if cl.empty:
                     st.warning(f"Cross {cross_code} saved; clutch insert returned no row.")
                 else:
                     st.success(f"Saved: **{cross_code}**; clutch **{cl.iloc[0]['clutch_instance_code']}** "
-                              f"(created {cl.iloc[0]['created_at']:%Y-%m-%d})")
+                               f"(created {cl.iloc[0]['created_at']:%Y-%m-%d})")
 
-        # Preview recent activity
         with eng.begin() as cx:
             preview = _safe(cx, """
               select
