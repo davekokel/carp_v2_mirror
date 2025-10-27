@@ -126,15 +126,15 @@ as $$
 declare v_code text;
 begin
   v_code := public.make_tank_code_for_fish(new.fish_code);
-  insert into public.tanks(status, tank_code) values ('active', v_code);
+  -- purged: insert into public.tanks(status, tank_code) values ('active', v_code);
   return new;
 end
 $$;
 
 alter function public.fish_auto_tank() owner to current_user;
 
-drop trigger if exists trg_fish_auto_tank on public.fish;
-create trigger trg_fish_auto_tank after insert on public.fish for each row execute function public.fish_auto_tank();
+
+
 
 do $$
 begin
@@ -209,7 +209,7 @@ from public.fish f
 left join first_allele fa on fa.fish_uuid = f.fish_uuid
 left join allele_rollups ar on ar.fish_uuid = f.fish_uuid;
 
-insert into public.tanks(status, tank_code)
+-- purged: insert into public.tanks(status, tank_code)
 select 'active', 'TANK('||f.fish_code||')#1'
 from public.fish f
 left join lateral (
