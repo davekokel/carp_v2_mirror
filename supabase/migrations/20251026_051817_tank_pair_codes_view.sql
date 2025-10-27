@@ -58,6 +58,6 @@ select
 from public.tank_pairs t
 left join public.v_tanks vtm on vtm.tank_uuid = t.mother_tank_id
 left join public.v_tanks vtf on vtf.tank_uuid = t.father_tank_id
-left join public.v_fish_overview mv on mv.fish_code = vtm.fish_code
-left join public.v_fish_overview dv on dv.fish_code = vtf.fish_code;
+left join public.v_fish_rich mv on mv.fish_code = vtm.fish_code
+left join public.v_fish_rich dv on dv.fish_code = vtf.fish_code;
 
