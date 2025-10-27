@@ -324,3 +324,74 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
     df["label"] = df["tank_code"].fillna("")
     df = _coerce_strings(df)
     return df[[c for c in want_cols if c in df.columns]]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helper: enrich tank labels with fish/genotype context
+# ─────────────────────────────────────────────────────────────────────────────
+def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
+    want_cols = [
+        "container_id","label","status","fish_code",
+        "nickname","name","genotype","genetic_background","stage","dob"
+    ]
+    if not container_ids:
+        return pd.DataFrame(columns=want_cols)
+    ids = [x for x in container_ids if x]
+    if not ids:
+        return pd.DataFrame(columns=want_cols)
+
+    sql = text("""
+      WITH picked AS (
+        SELECT unnest(cast(:ids AS uuid[])) AS container_id
+      ),
+      vt AS (
+        SELECT
+            v.tank_uuid::uuid         AS tank_id,
+            v.fish_code::text         AS fish_code,
+            v.tank_code::text         AS tank_code,
+            v.status::text            AS status,
+            v.created_at::timestamptz AS created_at
+        FROM public.v_tanks v
+      ),
+      vf AS (
+        SELECT
+            f.fish_code::text               AS fish_code,
+            f.genetic_background::text      AS genetic_background,
+            f.line_building_stage::text     AS stage,
+            f.date_birth::date              AS dob,
+            COALESCE(f.genotype_rollup,'')  AS genotype
+        FROM public.v_fish_rich f
+      )
+      SELECT
+        p.container_id::text         AS container_id,
+        vt.tank_code                 AS tank_code,
+        vt.status                    AS status,
+        vt.fish_code                 AS fish_code,
+        ''                           AS nickname,
+        ''                           AS name,
+        vf.genotype                  AS genotype,
+        vf.genetic_background        AS genetic_background,
+        vf.stage                     AS stage,
+        vf.dob                       AS dob
+      FROM picked p
+      JOIN vt  ON vt.tank_id = p.container_id
+      LEFT JOIN vf ON vf.fish_code = vt.fish_code
+      ORDER BY vt.created_at ASC, vt.tank_code ASC
+    """)
+    with _get_engine().begin() as cx:
+        df = pd.read_sql(sql, cx, params={"ids": ids})
+
+    if df.empty:
+        return df
+
+    df["label"] = df["tank_code"].fillna("")
+    for c in ["label","fish_code","genotype","genetic_background","stage","status"]:
+        if c in df.columns:
+            df[c] = df[c].fillna("").astype(str)
+
+    if "dob" in df.columns:
+        try:
+            df["dob"] = pd.to_datetime(df["dob"], errors="coerce").dt.date
+        except Exception:
+            df["dob"] = None
+
+    return df[[c for c in want_cols if c in df.columns]]
