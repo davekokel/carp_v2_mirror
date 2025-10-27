@@ -31,25 +31,12 @@ SET row_security = off;
 --
 
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='container_status') THEN DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'container_status') THEN
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'container_status') THEN
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'container_status') THEN
     CREATE TYPE public.container_status AS ENUM ('active','to_kill','retired');
   END IF;
 END $$ LANGUAGE plpgsql;
-
-  END IF;
-END $$ LANGUAGE plpgsql;
-
-  END IF;
-END $$ LANGUAGE plpgsql;
-END IF; END72807;
-
 
 --
 -- Name: cross_plan_status; Type: TYPE; Schema: public; Owner: -
