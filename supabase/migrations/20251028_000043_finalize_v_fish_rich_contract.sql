@@ -1,7 +1,8 @@
--- Finalize v_fish_rich contract (idempotent, CREATE OR REPLACE only)
--- No DROP VIEW to avoid dependency conflicts
+-- Safe rebuild of v_fish_rich with full contract
+-- Drops stub version first to allow column additions/renames
+DROP VIEW IF EXISTS public.v_fish_rich CASCADE;
 
-CREATE OR REPLACE VIEW public.v_fish_rich AS
+CREATE VIEW public.v_fish_rich AS
 WITH tcounts AS (
   SELECT m.fish_uuid, COUNT(*)::int AS n_active_tanks
   FROM public.fish_tank_memberships m
