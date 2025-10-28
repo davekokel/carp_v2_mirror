@@ -29,8 +29,8 @@ CREATE VIEW public.v_tank_pairs AS
 SELECT
   tp.tank_pair_code::text           AS tank_pair_code,
   fp.fish_pair_code::text           AS fish_pair_code,
-  fp.mom_fish_code::text            AS mom_fish_code,
-  fp.dad_fish_code::text            AS dad_fish_code,
+  (SELECT f.fish_code FROM public.fish f WHERE f.fish_uuid = fp.mom_fish_id)::text AS mom_fish_code,
+  (SELECT f.fish_code FROM public.fish f WHERE f.fish_uuid = fp.dad_fish_id)::text AS dad_fish_code,
   tm.tank_code::text                AS mother_tank_code,
   tf.tank_code::text                AS father_tank_code
 FROM public.tank_pairs tp

@@ -1,17 +1,21 @@
--- v_tanks built from tanks + open memberships + fish (idempotent)
-CREATE OR REPLACE VIEW public.v_tanks AS
+BEGIN;
+
+-- Preserve legacy shape; append fish_uuid after fish_code.
+-- Final order: tank_uuid, tank_code, status, created_at, fish_code, fish_uuid, started_at, ended_at, is_active
+CREATE OR REPLACE VIEW public.v_tanks
+(tank_uuid, tank_code, status, created_at, fish_code, fish_uuid, started_at, ended_at, is_active) AS
 SELECT
-  t.tank_uuid::uuid         AS tank_uuid,
-  t.tank_code::text         AS tank_code,
-  t.status::text            AS status,
-  t.created_at::timestamptz AS created_at,
-  m.joined_at::timestamptz  AS joined_at,
-  f.fish_uuid::uuid         AS fish_uuid,
-  f.fish_code::text         AS fish_code
-FROM public.tanks t
-LEFT JOIN public.fish_tank_memberships m
-  ON m.tank_uuid = t.tank_uuid
- AND m.left_at IS NULL                    -- only open memberships
-LEFT JOIN public.fish f
-  ON f.fish_uuid = m.fish_uuid
-WHERE t.status = 'active';
+  t.tank_uuid,
+  t.tank_code,
+  CASE WHEN m.ended_at IS NULL THEN 'active'::text ELSE 'ended'::text END AS status,
+  COALESCE(t.created_at, m.started_at) AS created_at,
+  f.fish_code,
+  m.fish_uuid,
+  m.started_at,
+  m.ended_at,
+  (m.ended_at IS NULL) AS is_active
+FROM public.fish_tank_memberships m
+JOIN public.tanks t ON t.tank_uuid = m.tank_uuid
+JOIN public.fish  f ON f.fish_uuid  = m.fish_uuid;
+
+COMMIT;

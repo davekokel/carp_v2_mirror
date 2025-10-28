@@ -270,6 +270,7 @@ def main():
         return
 
     # Rename to display headers
+    # Rename to display headers (you already have this)
     df = df.rename(columns={
         "fish_code": "fish_code",
         "fish_name": "Fish name",
@@ -295,16 +296,20 @@ def main():
         "Birth date", "Created time",
     ]
     show_cols = [c for c in show_cols if c in df.columns]
+
     st.subheader(f"Fish ({len(df)} rows)")
+
     table = df[show_cols].copy()
     table.insert(0, "✓ Select", False)
 
-    # Editable table; capture selection directly
+    # force the column order and avoid stale layout by using a versioned key
+    editor_cols = ["✓ Select"] + show_cols
     fish_table = st.data_editor(
         table,
-        use_container_width=True,
         hide_index=True,
-        key="fish_table",
+        use_container_width=True,
+        column_order=editor_cols,            # <-- this ensures names show
+        key=f"fish_table_v2",                # <-- bump key to avoid cached layout
     )
 
     # Tanks for selected fish
