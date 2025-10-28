@@ -1,19 +1,17 @@
 DROP VIEW IF EXISTS public.v_cross_clutch_instances;
 
--- Genotypes are read from v_fish_genotypes via fish_uuid; v_fish_rich provides fish_uuid/fish_code
+CREATE VIEW public.v_cross_clutch_instances AS
 WITH mom AS (
   SELECT r.fish_code,
          COALESCE(g.genotype_rollup, g.transgene_pretty, ''::text) AS mom_genotype
   FROM public.v_fish_rich r
   LEFT JOIN public.v_fish_genotypes g ON g.fish_uuid = r.fish_uuid
-),
-dad AS (
+), dad AS (
   SELECT r.fish_code,
          COALESCE(g.genotype_rollup, g.transgene_pretty, ''::text) AS dad_genotype
   FROM public.v_fish_rich r
   LEFT JOIN public.v_fish_genotypes g ON g.fish_uuid = r.fish_uuid
 )
-CREATE VIEW public.v_cross_clutch_instances AS
 SELECT
   x.id::uuid                    AS cross_instance_id,
   x.cross_run_code::text        AS cross_code,
