@@ -1,3 +1,4 @@
+# carp_app/ui/pages/020_🧪_annotate_clutch_instances.py
 from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
@@ -5,7 +6,7 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 import os
 from datetime import date, timedelta
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
@@ -29,115 +30,134 @@ if not DB_URL:
     st.error("DB_URL not set"); st.stop()
 eng = get_engine()
 
-def _exists(full: str) -> bool:
-    sch, tab = full.split(".", 1)
-    q = text("""
-      with t as (
-        select table_schema as s, table_name as t from information_schema.tables
-        union all
-        select table_schema as s, table_name as t from information_schema.views
-      )
-      select exists(select 1 from t where s=:s and t=:t) as ok
-    """)
-    with eng.begin() as cx:
-        return bool(pd.read_sql(q, cx, params={"s": sch, "t": tab})["ok"].iloc[0])
-
+# ─────────────────────────────────────────────────────────────────────────────
+# Data loaders
+# ─────────────────────────────────────────────────────────────────────────────
 def _load_clutches_filtered(d1: date, d2: date, created_by: str, qtxt: str, ignore_dates: bool) -> pd.DataFrame:
-    view = "public.v_clutches"
-    if not _exists(view):
-        st.error(f"Required view {view} not found."); st.stop()
-
+    """
+    Source of truth: public.v_clutch_instances_display
+    Extra search keys: mom/dad fish codes via v_cross_clutch_instances
+    """
     where_bits, params = [], {}
     if not ignore_dates:
-        where_bits.append("created_at::date between :d1 and :d2")
+        where_bits.append("v.created_at_instance::date BETWEEN :d1 AND :d2")
         params["d1"], params["d2"] = d1, d2
     if (created_by or "").strip():
-        where_bits.append("(coalesce(created_by,'') ilike :byl)")
+        where_bits.append("COALESCE(v.created_by_instance,'') ILIKE :byl")
         params["byl"] = f"%{created_by.strip()}%"
     if (qtxt or "").strip():
         where_bits.append("""(
-          coalesce(clutch_code,'') ilike :ql or
-          coalesce(name,'')        ilike :ql or
-          coalesce(nickname,'')    ilike :ql or
-          coalesce(mom_code,'')    ilike :ql or
-          coalesce(dad_code,'')    ilike :ql
+          COALESCE(v.clutch_code,'')                        ILIKE :ql OR
+          COALESCE(v.cross_name_pretty,'')                  ILIKE :ql OR
+          COALESCE(v.clutch_name,'')                        ILIKE :ql OR
+          COALESCE(v.clutch_genotype_pretty,'')             ILIKE :ql OR
+          COALESCE(v.clutch_strain_pretty,'')               ILIKE :ql OR
+          COALESCE(v.treatments_pretty_effective,'')        ILIKE :ql OR
+          COALESCE(v.genotype_treatment_rollup_effective,'') ILIKE :ql OR
+          COALESCE(cci.mom_fish_code,'')                    ILIKE :ql OR
+          COALESCE(cci.dad_fish_code,'')                    ILIKE :ql
         )""")
         params["ql"] = f"%{qtxt.strip()}%"
-    where_sql = " AND ".join(where_bits) if where_bits else "true"
+    where_sql = ("WHERE " + " AND ".join(where_bits)) if where_bits else ""
 
     sql = text(f"""
-      select
-        clutch_code,
-        name     as clutch_name,
-        nickname as clutch_nickname,
-        mom_code,
-        dad_code,
-        created_by         as created_by_instance,
-        created_at         as created_at_instance
-      from {view}
-      where {where_sql}
-      order by created_at desc nulls last, clutch_code
-      limit 500
+      WITH base AS (
+        SELECT
+          v.clutch_code,
+          v.cross_name_pretty,
+          v.clutch_name,
+          v.clutch_genotype_pretty,
+          v.genotype_treatment_rollup_effective,
+          v.treatments_count_effective,
+          v.treatments_pretty_effective,
+          v.clutch_birthday,
+          v.created_by_instance,
+          v.created_at_instance
+        FROM public.v_clutch_instances_display v
+        LEFT JOIN public.v_cross_clutch_instances cci
+          ON cci.clutch_code = v.clutch_code
+        {where_sql}
+        ORDER BY v.created_at_instance DESC NULLS LAST, v.clutch_code
+        LIMIT 500
+      )
+      SELECT * FROM base
     """)
     with eng.begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    # add optional columns the grid references (as empty) so the rest of the page doesn't break
-    for missing in [
-        "cross_name_pretty",
+    # normalize types used by the grid
+    for c in [
+        "clutch_name",
         "clutch_genotype_pretty",
         "genotype_treatment_rollup_effective",
-        "treatments_count_effective",
         "treatments_pretty_effective",
-        "clutch_birthday",
+        "cross_name_pretty",
+        "created_by_instance",
     ]:
-        if missing not in df.columns:
-            df[missing] = pd.NA
-
+        if c in df.columns:
+            df[c] = df[c].astype("string").fillna("")
     if "treatments_count_effective" in df.columns:
-        df["treatments_count_effective"] = pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
+        df["treatments_count_effective"] = (
+            pd.to_numeric(df["treatments_count_effective"], errors="coerce")
+            .fillna(0)
+            .astype(int)
+        )
 
-    df = df.loc[:, ~df.columns.duplicated()]
-    return df
+    return df.loc[:, ~df.columns.duplicated()]
 
 def _resolve_ci_id(ci_code: str) -> Optional[str]:
     if not ci_code or not isinstance(ci_code, str):
         return None
     with eng.begin() as cx:
-        df = pd.read_sql(text("""
-            select id::text as clutch_instance_id
-            from public.clutch_instances
-            where clutch_instance_code = :ci
-            limit 1
-        """), cx, params={"ci": ci_code})
+        # exact match
+        df = pd.read_sql(
+            text("""
+              SELECT id::text AS clutch_instance_id
+              FROM public.clutch_instances
+              WHERE clutch_instance_code = :ci
+              LIMIT 1
+            """),
+            cx,
+            params={"ci": ci_code},
+        )
         if not df.empty:
             return df["clutch_instance_id"].iloc[0]
-        df = pd.read_sql(text("""
-            select id::text as clutch_instance_id
-            from public.clutch_instances
-            where upper(regexp_replace(coalesce(clutch_instance_code,''), '-[0-9]{2}$','')) =
-                  upper(regexp_replace(:ci, '^CI-',''))
-            limit 1
-        """), cx, params={"ci": ci_code})
+        # forgiving match (strip CI-/suffix)
+        df = pd.read_sql(
+            text("""
+              SELECT id::text AS clutch_instance_id
+              FROM public.clutch_instances
+              WHERE upper(regexp_replace(COALESCE(clutch_instance_code,''), '-[0-9]{2}$','')) =
+                    upper(regexp_replace(:ci, '^CI-',''))
+              LIMIT 1
+            """),
+            cx,
+            params={"ci": ci_code},
+        )
         if not df.empty:
             return df["clutch_instance_id"].iloc[0]
-        df = pd.read_sql(text("""
-            select ci.id::text as clutch_instance_id
-            from public.clutch_instances ci
-            join public.cross_instances x on x.id = ci.cross_instance_id
-            where upper(regexp_replace(x.cross_run_code, '-[0-9]{2}$','')) =
-                  upper(regexp_replace(:ci, '^CI-',''))
-            order by ci.created_at desc nulls last
-            limit 1
-        """), cx, params={"ci": ci_code})
+        # fallback via cross run code
+        df = pd.read_sql(
+            text("""
+              SELECT ci.id::text AS clutch_instance_id
+              FROM public.clutch_instances ci
+              JOIN public.cross_instances x ON x.id = ci.cross_instance_id
+              WHERE upper(regexp_replace(x.cross_run_code, '-[0-9]{2}$','')) =
+                    upper(regexp_replace(:ci, '^CI-',''))
+              ORDER BY ci.created_at DESC NULLS LAST
+              LIMIT 1
+            """),
+            cx,
+            params={"ci": ci_code},
+        )
         if not df.empty:
             return df["clutch_instance_id"].iloc[0]
     return None
 
 def _load_ci_annotation(cid: str) -> pd.DataFrame:
     sql = text("""
-      select
-        id::text                    as clutch_instance_id,
+      SELECT
+        id::text         AS clutch_instance_id,
         clutch_instance_code,
         label,
         red_intensity,
@@ -148,25 +168,25 @@ def _load_ci_annotation(cid: str) -> pd.DataFrame:
         annotated_by,
         annotated_at,
         created_at
-      from public.clutch_instances
-      where id = cast(:cid as uuid)
-      limit 1
+      FROM public.clutch_instances
+      WHERE id = CAST(:cid AS uuid)
+      LIMIT 1
     """)
     with eng.begin() as cx:
         return pd.read_sql(sql, cx, params={"cid": cid})
 
 def _update_ci_annotation(cid: str, red: str, green: str, note: str, fallback_user: str):
     sql = text("""
-      update public.clutch_instances
-      set
-        red_intensity   = nullif(:red,''),
-        green_intensity = nullif(:green,''),
-        notes           = nullif(:note,''),
-        red_selected    = case when nullif(:red,'')   is not null then true else false end,
-        green_selected  = case when nullif(:green,'') is not null then true else false end,
-        annotated_by    = coalesce(current_setting('app.user', true), :fallback_user),
+      UPDATE public.clutch_instances
+      SET
+        red_intensity   = NULLIF(:red,''),
+        green_intensity = NULLIF(:green,''),
+        notes           = NULLIF(:note,''),
+        red_selected    = CASE WHEN NULLIF(:red,'')   IS NOT NULL THEN TRUE ELSE FALSE END,
+        green_selected  = CASE WHEN NULLIF(:green,'') IS NOT NULL THEN TRUE ELSE FALSE END,
+        annotated_by    = COALESCE(current_setting('app.user', TRUE), :fallback_user),
         annotated_at    = now()
-      where id = cast(:cid as uuid)
+      WHERE id = CAST(:cid AS uuid)
     """)
     with eng.begin() as cx:
         cx.execute(sql, {
@@ -177,9 +197,12 @@ def _update_ci_annotation(cid: str, red: str, green: str, note: str, fallback_us
             "fallback_user": (getattr(user, "email", "") or fallback_user or ""),
         })
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Filters
+# ─────────────────────────────────────────────────────────────────────────────
 with st.form("filters", clear_on_submit=False):
     today = date.today()
-    c1,c2,c3,c4 = st.columns([1,1,1,3])
+    c1, c2, c3, c4 = st.columns([1,1,1,3])
     with c1: d1 = st.date_input("From", value=today - timedelta(days=120))
     with c2: d2 = st.date_input("To",   value=today + timedelta(days=14))
     with c3: created_by = st.text_input("Created by (plan/instance)", value="")
@@ -194,12 +217,15 @@ st.caption(f"{len(clutches)} clutch(es)")
 if clutches.empty:
     st.info("No clutches found with the current filters."); st.stop()
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Picker grid
+# ─────────────────────────────────────────────────────────────────────────────
 view_cols = [
     "clutch_code",
     "cross_name_pretty",
     "clutch_name",
     "clutch_genotype_pretty",
-    "genotype_treatment_rollup_effective",
+    "genotype_treatment_rollup_effective",   # arrow string
     "treatments_count_effective",
     "treatments_pretty_effective",
     "clutch_birthday",
@@ -209,7 +235,11 @@ have = [c for c in view_cols if c in clutches.columns]
 dfv = clutches[have].copy()
 dfv = dfv.loc[:, ~dfv.columns.duplicated()]
 if "treatments_count_effective" in dfv.columns:
-    dfv["treatments_count_effective"] = pd.to_numeric(dfv["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
+    dfv["treatments_count_effective"] = (
+        pd.to_numeric(dfv["treatments_count_effective"], errors="coerce")
+        .fillna(0)
+        .astype(int)
+    )
 
 last_ci = st.session_state.get("__annot_last_ci")
 dfv.insert(0, "✓ Select", False)
@@ -221,37 +251,34 @@ picker = st.data_editor(
     hide_index=True,
     width="stretch",
     num_rows="fixed",
-    column_config={
-        "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True),
-    },
+    column_config={...},
     key="annotate_ci_picker_v1",
+    column_order=["✓ Select"] + view_cols,
+    use_container_width=True,
 )
 
 sel_mask = picker.get("✓ Select", pd.Series(False, index=picker.index)).fillna(False).astype(bool)
 picked = dfv.loc[sel_mask, :].reset_index(drop=True)
 
 if picked.empty:
-    st.info("Select a **CI-…** row to annotate it directly.")
+    st.info("Select a clutch instance row to annotate it.")
     st.stop()
 
-ci_code = str(picked.iloc[0].get("clutch_code","")).strip()
+ci_code = str(picked.iloc[0].get("clutch_code", "")).strip()
 st.session_state["__annot_last_ci"] = ci_code
 
-if not ci_code.startswith("CI-"):
-    st.warning("Pick a **CI-…** row (runs only). Plan rows (CL-…) can’t be annotated here."); st.stop()
-
+# Allow either CI-… or CL(…) codes; resolve to clutch_instance_id
 cid = _resolve_ci_id(ci_code)
 if not cid:
-    st.error("Could not resolve clutch_instance_id from this CI code."); st.stop()
+    st.error("Could not resolve clutch_instance_id from this code."); st.stop()
 
 st.subheader("Annotate this clutch instance")
 current = _load_ci_annotation(cid)
 cur = current.iloc[0] if not current.empty else {}
 
-c1, c2, c3 = st.columns([1,1,2])
+c1, c2, c3 = st.columns([1, 1, 2])
 with c1:
-    red_txt = st.text_input("red",  value=str(cur.get("red_intensity") or ""), placeholder="text")
+    red_txt = st.text_input("red", value=str(cur.get("red_intensity") or ""), placeholder="text")
 with c2:
     green_txt = st.text_input("green", value=str(cur.get("green_intensity") or ""), placeholder="text")
 with c3:
@@ -269,8 +296,8 @@ if updated.empty:
     st.info("No record found (unexpected).")
 else:
     show_cols = [
-        "clutch_instance_code","label","red_intensity","green_intensity","notes",
-        "red_selected","green_selected","annotated_by","annotated_at","created_at"
+        "clutch_instance_code", "label", "red_intensity", "green_intensity", "notes",
+        "red_selected", "green_selected", "annotated_by", "annotated_at", "created_at",
     ]
     present = [c for c in show_cols if c in updated.columns]
     st.dataframe(updated[present], width="stretch", hide_index=True)

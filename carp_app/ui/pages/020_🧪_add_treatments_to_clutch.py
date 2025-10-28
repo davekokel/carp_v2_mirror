@@ -35,7 +35,7 @@ def _eng():
     return _ENGINE
 
 # ── Deterministic contracts ──────────────────────────────────────────────────
-CLUTCHES_VIEW = "public.v_clutch_instances"          # single source of truth
+CLUTCHES_VIEW = "public.v_clutch_instances_display"          # single source of truth
 TREATMENTS_TABLE = "public.clutch_instance_treatments"
 
 REQUIRED_VIEW_COLS = [
@@ -96,6 +96,25 @@ def _safe_date(v):
         return None
 
 # ── Load clutches strictly from the view ─────────────────────────────────────
+from sqlalchemy import text as _sql  # if not already imported
+
+def _view_exists(schema: str, name: str) -> bool:
+    """
+    Return True if a normal or materialized view exists as schema.name.
+    """
+    q = _sql("""
+      SELECT 1
+      FROM information_schema.views
+      WHERE table_schema = :schema AND table_name = :name
+      UNION ALL
+      SELECT 1
+      FROM pg_catalog.pg_matviews
+      WHERE schemaname = :schema AND matviewname = :name
+      LIMIT 1
+    """)
+    with _eng().begin() as cx:   # 👈 changed from _get_engine()
+        return cx.execute(q, {"schema": schema, "name": name}).first() is not None
+
 def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
     where, params = [], {}
     if not most_recent:

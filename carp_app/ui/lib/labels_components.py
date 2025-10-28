@@ -272,16 +272,19 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     if canvas is None:
         pages: List[List[str]] = []
         for r in rows:
-            header_name = _safe(r.get("nickname")) or _safe(r.get("name"))
-            pages.append([
-                header_name,
-                _safe(r.get("alias")),
+            header_name = _safe(r.get("label"))
+            nick = _safe(r.get("nickname"))
+            lines = [header_name]
+            if nick:
+                lines.append(nick)
+            lines += [
                 _safe(r.get("tank_display") or r.get("tank_code")),
                 _safe(r.get("genotype")),
                 _safe(r.get("genetic_background")),
                 _safe(r.get("stage")),
                 _safe(r.get("dob")),
-            ])
+            ]
+            pages.append(lines)
         return _labels_pdf_pages(pages, 2.4, 1.5, header_pt=11.0, body_pt=8.2, leading_pt=9.0)
 
     mono_font_name = "Helvetica"
@@ -339,18 +342,17 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
 
         name      = _safe(r.get("name"))
         nickname  = _safe(r.get("nickname"))
-        header    = nickname or name or _safe(r.get("fish_code")) or _safe(r.get("tank_code"))
-        alias     = _safe(r.get("alias"))  # e.g., mem-tdmSG-8m
+        header    = _safe(r.get("label"))
+        # alias is not used anymore
         tankdisp  = _safe(r.get("tank_display") or r.get("tank_code"))
         genotype  = _safe(r.get("genotype"))
         backgrnd  = _safe(r.get("genetic_background"))
         stage     = _safe(r.get("stage"))
         dob       = _safe(r.get("dob"))
 
-        # Top 3 lines use full width; lower lines respect QR width
         lines = [
-            ("Helvetica-Bold",    10.5, header,   text_w_full),
-            ("Helvetica-Oblique",  9.0, alias,    text_w_full),
+            ("Helvetica-Bold",    10.5, header,   text_w_full),   # line 1: label
+            ("Helvetica",         10.0, nickname, text_w_full),   # line 2: nickname (blank if none)
             ("Helvetica-Bold",    11.0, tankdisp, text_w_full),
             (mono_font_name,       9.2, genotype, text_w_full),
             ("Helvetica",          8.2, backgrnd, text_w_qr),
