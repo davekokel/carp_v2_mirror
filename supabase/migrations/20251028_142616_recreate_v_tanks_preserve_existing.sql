@@ -1,0 +1,18 @@
+BEGIN;
+CREATE OR REPLACE VIEW public.v_tanks
+(tank_uuid, tank_code, status, created_at, fish_code, fish_uuid, started_at, ended_at, is_active) AS
+SELECT
+  t.tank_uuid::uuid,
+  t.tank_code::text,
+  t.status::text,
+  t.created_at::timestamptz,
+  f.fish_code::text,
+  f.fish_uuid::uuid,
+  m.joined_at::timestamptz  AS started_at,
+  m.left_at::timestamptz    AS ended_at,
+  (m.left_at IS NULL)       AS is_active
+FROM public.fish_tank_memberships m
+JOIN public.tanks t ON t.tank_uuid = m.tank_uuid AND t.status = 'active'
+JOIN public.fish  f ON f.fish_uuid = m.fish_uuid
+WHERE m.left_at IS NULL;
+COMMIT;
