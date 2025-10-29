@@ -19,10 +19,8 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: _realtime; Type: SCHEMA; Schema: -; Owner: -
 --
 
-CREATE SCHEMA _realtime;
 
 
 --
@@ -4259,10 +4257,8 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: extensions; Type: TABLE; Schema: _realtime; Owner: -
 --
 
-CREATE TABLE _realtime.extensions (
     id uuid NOT NULL,
     type text,
     settings jsonb,
@@ -4273,20 +4269,16 @@ CREATE TABLE _realtime.extensions (
 
 
 --
--- Name: schema_migrations; Type: TABLE; Schema: _realtime; Owner: -
 --
 
-CREATE TABLE _realtime.schema_migrations (
     version bigint NOT NULL,
     inserted_at timestamp(0) without time zone
 );
 
 
 --
--- Name: tenants; Type: TABLE; Schema: _realtime; Owner: -
 --
 
-CREATE TABLE _realtime.tenants (
     id uuid NOT NULL,
     name text,
     external_id text,
@@ -7406,10 +7398,8 @@ COMMENT ON COLUMN storage.buckets.owner IS 'Field is deprecated, use owner_id in
 
 
 --
--- Name: buckets_analytics; Type: TABLE; Schema: storage; Owner: -
 --
 
-CREATE TABLE storage.buckets_analytics (
     id text NOT NULL,
     type storage.buckettype DEFAULT 'ANALYTICS'::storage.buckettype NOT NULL,
     format text DEFAULT 'ICEBERG'::text NOT NULL,
@@ -7664,26 +7654,20 @@ ALTER TABLE ONLY supabase_functions.hooks ALTER COLUMN id SET DEFAULT nextval('s
 
 
 --
--- Name: extensions extensions_pkey; Type: CONSTRAINT; Schema: _realtime; Owner: -
 --
 
-ALTER TABLE ONLY _realtime.extensions
     ADD CONSTRAINT extensions_pkey PRIMARY KEY (id);
 
 
 --
--- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: _realtime; Owner: -
 --
 
-ALTER TABLE ONLY _realtime.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
 
 
 --
--- Name: tenants tenants_pkey; Type: CONSTRAINT; Schema: _realtime; Owner: -
 --
 
-ALTER TABLE ONLY _realtime.tenants
     ADD CONSTRAINT tenants_pkey PRIMARY KEY (id);
 
 
@@ -8544,11 +8528,8 @@ ALTER TABLE ONLY realtime.schema_migrations
 
 
 --
--- Name: buckets_analytics buckets_analytics_pkey; Type: CONSTRAINT; Schema: storage; Owner: -
 --
 
-ALTER TABLE ONLY storage.buckets_analytics
-    ADD CONSTRAINT buckets_analytics_pkey PRIMARY KEY (id);
 
 
 --
@@ -8648,24 +8629,18 @@ ALTER TABLE ONLY supabase_migrations.seed_files
 
 
 --
--- Name: extensions_tenant_external_id_index; Type: INDEX; Schema: _realtime; Owner: -
 --
 
-CREATE INDEX extensions_tenant_external_id_index ON _realtime.extensions USING btree (tenant_external_id);
 
 
 --
--- Name: extensions_tenant_external_id_type_index; Type: INDEX; Schema: _realtime; Owner: -
 --
 
-CREATE UNIQUE INDEX extensions_tenant_external_id_type_index ON _realtime.extensions USING btree (tenant_external_id, type);
 
 
 --
--- Name: tenants_external_id_index; Type: INDEX; Schema: _realtime; Owner: -
 --
 
-CREATE UNIQUE INDEX tenants_external_id_index ON _realtime.tenants USING btree (external_id);
 
 
 --
@@ -10034,10 +10009,8 @@ CREATE UNIQUE INDEX ux_transgene_alleles_base_num ON public.transgene_alleles US
 
 
 --
--- Name: ix_realtime_subscription_entity; Type: INDEX; Schema: realtime; Owner: -
 --
 
-CREATE INDEX ix_realtime_subscription_entity ON realtime.subscription USING btree (entity);
 
 
 --
@@ -10811,11 +10784,8 @@ CREATE TRIGGER update_objects_updated_at BEFORE UPDATE ON storage.objects FOR EA
 
 
 --
--- Name: extensions extensions_tenant_external_id_fkey; Type: FK CONSTRAINT; Schema: _realtime; Owner: -
 --
 
-ALTER TABLE ONLY _realtime.extensions
-    ADD CONSTRAINT extensions_tenant_external_id_fkey FOREIGN KEY (tenant_external_id) REFERENCES _realtime.tenants(external_id) ON DELETE CASCADE;
 
 
 --
@@ -11919,10 +11889,8 @@ ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: buckets_analytics; Type: ROW SECURITY; Schema: storage; Owner: -
 --
 
-ALTER TABLE storage.buckets_analytics ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: migrations; Type: ROW SECURITY; Schema: storage; Owner: -
@@ -11955,10 +11923,8 @@ ALTER TABLE storage.s3_multipart_uploads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage.s3_multipart_uploads_parts ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: supabase_realtime; Type: PUBLICATION; Schema: -; Owner: -
 --
 
-CREATE PUBLICATION supabase_realtime WITH (publish = 'insert, update, delete, truncate');
 
 
 --
