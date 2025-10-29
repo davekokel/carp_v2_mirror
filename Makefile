@@ -34,10 +34,10 @@ parity:
 	@git rev-parse --short org_mirror/prod
 	@git diff --name-status org_mirror/staging..org_mirror/prod
 app-local:
-	. scripts/use_db.sh && use_local && python -m streamlit run supabase/ui/streamlit_app.py
+	. scripts/use_db.sh && use_local && python -m streamlit run carp_app/ui/streamlit_app.py
 
 app-staging:
-	. scripts/use_db.sh && use_staging && python -m streamlit run supabase/ui/streamlit_app.py
+	. scripts/use_db.sh && use_staging && python -m streamlit run carp_app/ui/streamlit_app.py
 
 app-prod:
-	. scripts/use_db.sh && use_prod && python -m streamlit run supabase/ui/streamlit_app.py
+	. scripts/use_db.sh && use_prod && python -m streamlit run carp_app/ui/streamlit_app.py
