@@ -35,19 +35,19 @@ ALTER TABLE public.fish
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint c
-    JOIN pg_class rel ON rel.oid = c.conrelid
-    JOIN pg_namespace n ON n.oid = rel.relnamespace
-    WHERE n.nspname='public' AND rel.relname='fish'
-      AND c.contype='u' AND c.conname='uq_fish_seed_name_dob'
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname='public'
+      AND tablename='fish'
+      AND indexname='uq_fish_seed_name_dob_idx'
   ) THEN
     CREATE UNIQUE INDEX uq_fish_seed_name_dob_idx
       ON public.fish (COALESCE(seed_batch_id,''), COALESCE(name,''), date_birth);
-    ALTER TABLE public.fish
-      DO $$ BEGIN RAISE NOTICE 'Skipping UNIQUE constraint from expression index uq_fish_seed_name_dob_idx'; END $$;
-      UNIQUE USING INDEX uq_fish_seed_name_dob_idx;
+    RAISE NOTICE 'Created expression unique index uq_fish_seed_name_dob_idx (not promoted to constraint).';
+  ELSE
+    RAISE NOTICE 'Skipping: unique index uq_fish_seed_name_dob_idx already exists.';
   END IF;
-END$$;
+END $$;
 
 -- 4) Canonical, idempotent upsert using natural key; mint fish_code on insert only
 CREATE OR REPLACE FUNCTION public.upsert_fish_by_batch_name_dob(
@@ -95,7 +95,7 @@ BEGIN
     nickname            = COALESCE(EXCLUDED.nickname,            f.nickname),
     genetic_background  = COALESCE(EXCLUDED.genetic_background,  f.genetic_background),
     line_building_stage = COALESCE(EXCLUDED.line_building_stage, f.line_building_stage),
-    date_birth          = COALESCE(EXCLUDED.date_birth,          f.date_birth),  -- keep if provided
+    date_birth          = COALESCE(EXCLUDED.date_birth,          f.date_birth),
     description         = COALESCE(EXCLUDED.description,         f.description),
     notes               = COALESCE(EXCLUDED.notes,               f.notes),
     updated_at          = now()
