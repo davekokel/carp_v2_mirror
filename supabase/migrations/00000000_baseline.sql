@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Q9WXq97SDvY6vsT4lY5FCWLCVMDUUiafbQD2DejOTXl4mpJ63cPdRfUV48vGy2P
+\restrict ZANToU4M9aoLg9SzXqxkQeEAbtgWiMymZnzhFtKiZR7NoJU5Ke1hhMpELWxYioB
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.0
@@ -460,25 +460,25 @@ CREATE VIEW public.v_conventions_checks AS
                    FROM pk_fish) AS ok,
             'PK(fish.fish_uuid)'::text AS details
         UNION ALL
-         SELECT 'tanks_pk_is_tank_uuid'::text,
+         SELECT 'tanks_pk_is_tank_uuid'::text AS text,
             ( SELECT pk_tanks.ok
                    FROM pk_tanks) AS ok,
-            'PK(tanks.tank_uuid)'::text
+            'PK(tanks.tank_uuid)'::text AS text
         UNION ALL
-         SELECT 'ftm_required_columns'::text,
+         SELECT 'ftm_required_columns'::text AS text,
             ( SELECT ftm_cols.ok
                    FROM ftm_cols) AS ok,
-            'fish_uuid,tank_uuid,started_at,ended_at'::text
+            'fish_uuid,tank_uuid,started_at,ended_at'::text AS text
         UNION ALL
-         SELECT 'ftm_one_active_fish_per_tank'::text,
+         SELECT 'ftm_one_active_fish_per_tank'::text AS text,
             ( SELECT idx_active.ok
                    FROM idx_active) AS ok,
-            'uq_tank_active with predicate ended_at IS NULL'::text
+            'uq_tank_active with predicate ended_at IS NULL'::text AS text
         UNION ALL
-         SELECT 'ftm_updated_at_trigger'::text,
+         SELECT 'ftm_updated_at_trigger'::text AS text,
             ( SELECT trg_updated.ok
                    FROM trg_updated) AS ok,
-            'trigger trg_fish_tank_memberships_updated_at'::text) s;
+            'trigger trg_fish_tank_memberships_updated_at'::text AS text) s;
 
 
 --
@@ -539,5 +539,5 @@ CREATE TRIGGER bi_set_fish_code BEFORE INSERT ON public.fish FOR EACH ROW EXECUT
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Q9WXq97SDvY6vsT4lY5FCWLCVMDUUiafbQD2DejOTXl4mpJ63cPdRfUV48vGy2P
+\unrestrict ZANToU4M9aoLg9SzXqxkQeEAbtgWiMymZnzhFtKiZR7NoJU5Ke1hhMpELWxYioB
 
