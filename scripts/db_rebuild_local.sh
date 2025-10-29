@@ -2,23 +2,20 @@
 set -euo pipefail
 : "${DB_URL:?DB_URL is required}"
 
-DB_NAME="$(printf '%s\n' "$DB_URL" | sed -E 's#\?.*$##; s#.*/##')"
-ADMIN_URL="$(printf '%s\n' "$DB_URL" | sed -E "s#/${DB_NAME}(\\?|$|$)#/postgres\\1#")"
+echo "────────────────────────────────────────────"
+echo "🧱 Rebuilding database from migrations: postgres"
+echo "────────────────────────────────────────────"
 
-echo "────────────────────────────────────────────────────────────"
-echo "🧱 Rebuilding local database from migrations: $DB_NAME"
-echo "────────────────────────────────────────────────────────────"
+# Fresh public schema
+psql "$DB_URL" -v ON_ERROR_STOP=1 -c "drop schema if exists public cascade;"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -c "create schema public;"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -c "alter schema public owner to postgres;"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -c "grant usage on schema public to anon, authenticated, service_role;"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -c "create extension if not exists \"uuid-ossp\";"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -c "create extension if not exists pgcrypto;"
 
-# Drop and recreate the database every time
-psql "$ADMIN_URL" -Atc "select pg_terminate_backend(pid)
-  from pg_stat_activity where datname='${DB_NAME}' and pid<>pg_backend_pid();" || true
-psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c "drop database if exists \"${DB_NAME}\";"
-psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c "create database \"${DB_NAME}\";"
+# Apply all migrations in order
+ls supabase/migrations/*.sql | sort | xargs -I{} psql "$DB_URL" -v ON_ERROR_STOP=1 -f {}
 
-# Run every migration file in lexical order
-for f in $(ls -1 supabase/migrations/*.sql | LC_ALL=C sort); do
-  printf '>> %s\n' "$(basename "$f")"
-  psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"
-done
-
-echo "✅ Database now exactly reflects supabase/migrations"
+psql "$DB_URL" -Atc "select 'tables', count(*) from information_schema.tables where table_schema='public'"
+psql "$DB_URL" -Atc "select 'views', count(*) from information_schema.views where table_schema='public'"
