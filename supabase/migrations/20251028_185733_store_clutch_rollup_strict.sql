@@ -1,37 +1,27 @@
 BEGIN;
 
--- 0) Preconditions: ensure columns we rely on exist
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema='public' AND table_name='clutch_instances' AND column_name='clutch_genotype_pretty'
-  ) THEN
-    RAISE EXCEPTION 'Expected column public.clutch_instances.clutch_genotype_pretty is missing';
-  END IF;
-END $$;
-
--- 1) Stored column (no fallback values)
+-- 0) Preconditions: ensure columns we rely on exist (create if missing)
 ALTER TABLE public.clutch_instances
+  ADD COLUMN IF NOT EXISTS clutch_genotype_pretty text,
   ADD COLUMN IF NOT EXISTS treatments_genotype_rollup text;
 
--- 2) Deterministic recompute function (no fallback; raises if inputs missing)
+-- 1) Deterministic recompute function (no fallback; requires both inputs)
 CREATE OR REPLACE FUNCTION public.clutch_rollup_recompute(p_ci uuid)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_gen text;
+  v_gen   text;
   v_treat text;
 BEGIN
   -- genotype from clutch_instances (must be non-empty)
-  SELECT NULLIF(trim(clutch_genotype_pretty),'')
+  SELECT NULLIF(trim(ci.clutch_genotype_pretty),'')
     INTO v_gen
-  FROM public.clutch_instances
-  WHERE id = p_ci;
+  FROM public.clutch_instances ci
+  WHERE ci.id = p_ci;
 
   -- treatments pretty from clutch_instance_treatments (distinct codes, newest first)
-  SELECT NULLIF(string_agg(distinct t.material_code, ' + ' ORDER BY max(t.created_at) DESC),'')
+  SELECT NULLIF(string_agg(DISTINCT t.material_code, ' + ' ORDER BY max(t.created_at) DESC),'')
     INTO v_treat
   FROM public.clutch_instance_treatments t
   WHERE t.clutch_instance_id = p_ci
@@ -48,13 +38,12 @@ BEGIN
 END
 $$;
 
--- 3) Triggers to recompute and ENFORCE presence (no fallback)
--- 3a) When genotype changes on clutch_instances
+-- 2) AFTER triggers to recompute when inputs change
+-- 2a) When genotype changes on clutch_instances
 CREATE OR REPLACE FUNCTION public.trg_ci_rollup_after_ci()
 RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-  -- Only recompute when genotype changes
   IF NEW.clutch_genotype_pretty IS DISTINCT FROM OLD.clutch_genotype_pretty THEN
     PERFORM public.clutch_rollup_recompute(NEW.id);
   END IF;
@@ -66,7 +55,7 @@ CREATE TRIGGER trg_ci_rollup_after_ci
 AFTER UPDATE OF clutch_genotype_pretty ON public.clutch_instances
 FOR EACH ROW EXECUTE FUNCTION public.trg_ci_rollup_after_ci();
 
--- 3b) When treatments change on clutch_instance_treatments
+-- 2b) When treatments change on clutch_instance_treatments
 CREATE OR REPLACE FUNCTION public.trg_ci_rollup_after_treatment()
 RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -92,34 +81,39 @@ CREATE TRIGGER trg_ci_rollup_after_treatment_d
 AFTER DELETE ON public.clutch_instance_treatments
 FOR EACH ROW EXECUTE FUNCTION public.trg_ci_rollup_after_treatment();
 
--- 4) Strict BEFORE triggers to enforce "always there" on writes (no fallback)
--- If client tries to insert/update a clutch_instance without both inputs resolvable,
--- we block the write (raise), not silently fallback.
+-- 3) STRICT enforcement: block writes that would leave rollup absent (no fallback)
+-- Use an AFTER CONSTRAINT trigger so NEW.id exists and FK rows can be seen.
 CREATE OR REPLACE FUNCTION public.trg_ci_enforce_rollup()
 RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
-  v_gen text := NULLIF(trim(NEW.clutch_genotype_pretty),'');
+  v_gen text;
   v_has_treat boolean;
 BEGIN
+  SELECT NULLIF(trim(NEW.clutch_genotype_pretty),'') INTO v_gen;
   SELECT EXISTS (
     SELECT 1 FROM public.clutch_instance_treatments t
-    WHERE t.clutch_instance_id = COALESCE(NEW.id, OLD.id)
+    WHERE t.clutch_instance_id = NEW.id
   ) INTO v_has_treat;
 
   IF v_gen IS NULL OR NOT v_has_treat THEN
     RAISE EXCEPTION 'Both genotype and at least one treatment are required (no fallback).';
   END IF;
 
+  -- Compute/store now (guaranteed inputs present)
+  PERFORM public.clutch_rollup_recompute(NEW.id);
   RETURN NEW;
 END $$;
 
+-- Drop any legacy version and install as an AFTER CONSTRAINT trigger
 DROP TRIGGER IF EXISTS trg_ci_enforce_rollup ON public.clutch_instances;
-CREATE TRIGGER trg_ci_enforce_rollup
-BEFORE INSERT OR UPDATE OF clutch_genotype_pretty ON public.clutch_instances
+CREATE CONSTRAINT TRIGGER trg_ci_enforce_rollup
+AFTER INSERT OR UPDATE OF clutch_genotype_pretty
+ON public.clutch_instances
+DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW EXECUTE FUNCTION public.trg_ci_enforce_rollup();
 
--- 5) Backfill existing rows that already have both sides
+-- 4) Backfill existing rows that already have both sides
 DO $$
 DECLARE r RECORD;
 BEGIN
@@ -132,13 +126,12 @@ BEGIN
     BEGIN
       PERFORM public.clutch_rollup_recompute(r.id);
     EXCEPTION WHEN OTHERS THEN
-      -- skip rows that still fail; enforcement applies to future writes
       RAISE NOTICE 'Skipped backfill for CI=% due to: %', r.id, SQLERRM;
     END;
   END LOOP;
 END $$;
 
--- 6) Try to enforce NOT NULL if nothing is missing
+-- 5) Try to enforce NOT NULL if nothing is missing
 DO $$
 DECLARE c_missing int;
 BEGIN
