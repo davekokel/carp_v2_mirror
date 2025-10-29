@@ -30,7 +30,7 @@ CREATE SCHEMA public;
 -- Name: util_mig; Type: SCHEMA; Schema: -; Owner: -
 --
 
-CREATE SCHEMA util_mig;
+CREATE SCHEMA IF NOT EXISTS util_mig;
 
 
 --
