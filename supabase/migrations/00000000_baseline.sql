@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ZANToU4M9aoLg9SzXqxkQeEAbtgWiMymZnzhFtKiZR7NoJU5Ke1hhMpELWxYioB
+\restrict ZD7VfvKodnsDgJx6chwm6tJGq94DoabYLMFRsrvoCbSrta83imBRmAGCnetDGUL
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.0
@@ -539,5 +539,5 @@ CREATE TRIGGER bi_set_fish_code BEFORE INSERT ON public.fish FOR EACH ROW EXECUT
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ZANToU4M9aoLg9SzXqxkQeEAbtgWiMymZnzhFtKiZR7NoJU5Ke1hhMpELWxYioB
+\unrestrict ZD7VfvKodnsDgJx6chwm6tJGq94DoabYLMFRsrvoCbSrta83imBRmAGCnetDGUL
 
