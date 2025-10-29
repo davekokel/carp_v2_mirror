@@ -1,4 +1,6 @@
-# carp_app/ui/pages/021_🔎_overview_clutch_instances.py
+# =============================================================================
+# 🔎 Overview — Clutch instances (canonical effective view)
+# =============================================================================
 from __future__ import annotations
 import sys, pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -40,9 +42,11 @@ def _eng() -> Engine:
     return _cached_engine()
 
 # ── Config ───────────────────────────────────────────────────────────────────
-CLUTCHES_VIEW = "public.v_clutch_instances_display"  # pretty display view
+# Canonical effective view (stored → view → fallback)
+CLUTCHES_VIEW = "public.v_clutch_instances_effective"
+# Base tables used only for detail panes (optional)
 TREATMENTS_TABLE = "public.clutch_instance_treatments"
-ANNOTATIONS_TABLE = "public.clutch_instance_annotations"  # optional
+ANNOTATIONS_TABLE = "public.clutch_instance_annotations"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 def _table_exists(schema: str, name: str) -> bool:
@@ -54,21 +58,7 @@ def _table_exists(schema: str, name: str) -> bool:
     with _eng().begin() as cx:
         return cx.execute(q, {"s": schema, "t": name}).first() is not None
 
-def _view_exists(schema: str, name: str) -> bool:
-    q = _sql("""
-      SELECT 1
-      FROM information_schema.views
-      WHERE table_schema = :s AND table_name = :n
-      UNION ALL
-      SELECT 1
-      FROM pg_catalog.pg_matviews
-      WHERE schemaname = :s AND matviewname = :n
-      LIMIT 1
-    """)
-    with _eng().begin() as cx:
-        return cx.execute(q, {"s": schema, "n": name}).first() is not None
-
-def _safe_str(s) -> str:
+def _safe(s) -> str:
     return ("" if s is None else str(s)).strip()
 
 # ── Filters ──────────────────────────────────────────────────────────────────
@@ -82,34 +72,32 @@ with st.form("filters", clear_on_submit=False):
     c5, c6 = st.columns([1,1])
     with c5: most_recent = st.checkbox("Most recent only (ignore dates)", value=False)
     with c6: lim = int(st.number_input("Limit", min_value=1, max_value=5000, value=500, step=100))
-    submitted = st.form_submit_button("Apply", use_container_width=True)
+    submitted = st.form_submit_button("Apply", width="stretch")
 
-# ── Data loader ──────────────────────────────────────────────────────────────
+# ── Data loader (effective view + minimal joins for IDs) ─────────────────────
 def _load_clutches_summary() -> pd.DataFrame:
     where, params = [], {}
     if not most_recent:
-        where.append("created_at_instance::date BETWEEN :d1 AND :d2")
+        where.append("v.created_at_instance::date BETWEEN :d1 AND :d2")
         params.update({"d1": d_from, "d2": d_to})
-    if _safe_str(who):
-        where.append("COALESCE(created_by_instance,'') ILIKE :who")
-        params["who"] = f"%{_safe_str(who)}%"
-    if _safe_str(qtxt):
-        params["q"] = f"%{_safe_str(qtxt)}%"
+    if _safe(who):
+        where.append("COALESCE(v.created_by_instance,'') ILIKE :who")
+        params["who"] = f"%{_safe(who)}%"
+    if _safe(qtxt):
+        params["q"] = f"%{_safe(qtxt)}%"
         where.append("""(
-            clutch_code ILIKE :q OR
-            cross_name_pretty ILIKE :q OR
-            clutch_name ILIKE :q OR
-            clutch_genotype_pretty ILIKE :q OR
-            clutch_strain_pretty ILIKE :q OR
-            treatments_pretty_effective ILIKE :q OR
-            genotype_treatment_rollup_effective ILIKE :q
+            v.clutch_code ILIKE :q OR
+            v.cross_name_pretty ILIKE :q OR
+            v.clutch_genotype_effective ILIKE :q OR
+            v.treatments_pretty_effective ILIKE :q OR
+            v.treatments_genotype_effective ILIKE :q
         )""")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
-    # Treatments rollup (string_agg) and optional annotations rollup
     have_treat = _table_exists("public", "clutch_instance_treatments")
     have_ann   = _table_exists("public", "clutch_instance_annotations")
 
+    # LATERAL aggregates for details (optional)
     agg_treat = """
       LEFT JOIN LATERAL (
         SELECT
@@ -134,20 +122,16 @@ def _load_clutches_summary() -> pd.DataFrame:
     sql = text(f"""
       WITH base AS (
         SELECT
-          ci.id::text                           AS clutch_instance_id,
-          v.clutch_code                         AS clutch_code,
-          v.clutch_birthday                     AS clutch_birthday,
-          v.cross_name_pretty                   AS cross_name_pretty,
-          v.clutch_name                         AS clutch_name,
-          v.clutch_genotype_pretty              AS clutch_genotype_pretty,
-          v.clutch_strain_pretty                AS clutch_strain_pretty,
-          v.treatments_count_effective          AS treatments_count_effective,
-          v.treatments_pretty_effective         AS treatments_pretty_effective,
-          v.genotype_treatment_rollup_effective AS genotype_treatment_rollup_effective,
-          v.created_by_instance                 AS created_by_instance,
-          v.created_at_instance                 AS created_at_instance,
-          v.clutch_label                        AS clutch_label,
-          v.genotype_label                      AS genotype_label
+          ci.id::text                      AS clutch_instance_id,
+          v.clutch_code                    AS clutch_code,
+          v.clutch_birthday                AS clutch_birthday,
+          v.cross_name_pretty              AS cross_name_pretty,
+          v.clutch_genotype_effective      AS clutch_genotype_effective,
+          v.treatments_count_effective     AS treatments_count_effective,
+          v.treatments_pretty_effective    AS treatments_pretty_effective,
+          v.treatments_genotype_effective  AS treatments_genotype_effective,
+          v.created_by_instance            AS created_by_instance,
+          v.created_at_instance            AS created_at_instance
         FROM {CLUTCHES_VIEW} v
         JOIN public.clutch_instances ci ON ci.clutch_instance_code = v.clutch_code
         {where_sql}
@@ -168,6 +152,7 @@ def _load_clutches_summary() -> pd.DataFrame:
     """)
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={**params, "lim": lim})
+
     # Normalize strings
     for c in df.select_dtypes(include=["object"]).columns:
         df[c] = df[c].astype("string").fillna("")
@@ -193,27 +178,29 @@ def _load_detail_rows(clutch_instance_id: str) -> tuple[pd.DataFrame, pd.DataFra
             """), cx, params={"cid": clutch_instance_id})
     return tdf, adf
 
-# ── Main table ────────────────────────────────────────────────────────────────
+# ── Main table (slim; rollup is 4th column) ──────────────────────────────────
 df = _load_clutches_summary()
 st.caption(f"{len(df)} clutch instance(s)")
 
 if df.empty:
     st.info("No clutch instances with the current filters."); st.stop()
 
-display_cols = [
-    "clutch_code","clutch_birthday","cross_name_pretty",
-    "clutch_label","genotype_label",
-    "genotype_treatment_rollup_effective",
-    "treatments_count_effective","treatments_pretty_effective",
-    "clutch_name","clutch_genotype_pretty","clutch_strain_pretty",
-    "treatments_count","treatments_codes",
-    "annotations_count","annotations_notes",
-    "created_by_instance","created_at_instance",
+tbl = df.copy()
+cols = [
+    "clutch_code",                 # 1
+    "clutch_birthday",             # 2
+    "cross_name_pretty",           # 3
+    "treatments_genotype_effective",  # 4 ← Treatments > genotype
+    "treatments_count_effective",  # 5
+    "treatments_pretty_effective", # 6
 ]
-present_cols = [c for c in display_cols if c in df.columns]
+for c in cols:
+    if c not in tbl.columns:
+        tbl[c] = ""
 
-table = df[present_cols].copy()
+table = tbl[cols].copy()
 table.insert(0, "✓ Select", False)
+
 st.subheader("Clutch instances")
 grid = st.data_editor(
     table,
@@ -221,15 +208,19 @@ grid = st.data_editor(
     width="stretch",
     num_rows="fixed",
     column_config={
-        "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
-        "created_at_instance": st.column_config.DatetimeColumn("created_at_instance", disabled=True),
+        "✓ Select":                     st.column_config.CheckboxColumn("✓", default=False),
+        "clutch_birthday":              st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
+        "treatments_genotype_effective":st.column_config.TextColumn("Treatments > genotype", disabled=True),
+        "treatments_count_effective":   st.column_config.NumberColumn("n treatments", disabled=True),
+        "treatments_pretty_effective":  st.column_config.TextColumn("treatments_pretty", disabled=True),
     },
     key="overview_ci_v1",
 )
 
+# Map selection back to the full df using clutch_code
 sel_mask = grid.get("✓ Select", pd.Series(False, index=grid.index)).fillna(False).astype(bool)
-picked = df.loc[sel_mask, :].reset_index(drop=True)
+picked_codes = table.loc[sel_mask, "clutch_code"].tolist()
+picked = df[df["clutch_code"].isin(picked_codes)].reset_index(drop=True)
 
 # ── Details pane ─────────────────────────────────────────────────────────────
 st.subheader("Details")

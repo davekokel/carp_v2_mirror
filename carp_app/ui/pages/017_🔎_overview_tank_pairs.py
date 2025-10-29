@@ -59,7 +59,7 @@ with st.form("filters"):
     d1 = c2.date_input("Created from", value=None) if have("created_at") else None
     d2 = c3.date_input("Created to",   value=None) if have("created_at") else None
     status_val = c4.selectbox("Status", ["(any)","selected","scheduled","retired","closed"], index=0) if have("status") else "(any)"
-    st.form_submit_button("Apply", use_container_width=True)
+    st.form_submit_button("Apply", width="stretch")
 
 where, params = [], {}
 

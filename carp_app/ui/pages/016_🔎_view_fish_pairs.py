@@ -234,7 +234,7 @@ with st.form("filters", clear_on_submit=False):
     with c1: start = st.date_input("From", value=today - timedelta(days=30))
     with c2: end   = st.date_input("To", value=today)
     with c3: q     = st.text_input("Search (fish_pair_code or fish codes contains)", value="")
-    st.form_submit_button("Apply", use_container_width=True)
+    st.form_submit_button("Apply", width="stretch")
 
 # ── Level 1: Fish pairs ─────────────────────────────────────────────────────
 st.header("Level 1 — Fish pairs")
@@ -253,7 +253,7 @@ edit = st.data_editor(
         "last_tank_pair_at","last_cross_at","last_activity_at",
     ]],
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     column_config={
         "✓ Open": st.column_config.CheckboxColumn("✓", default=False),
         "fish_pair_code": st.column_config.TextColumn("fish_pair_code", disabled=True),
@@ -293,13 +293,13 @@ for tab, r in zip(tabs, opened.itertuples(index=False)):
                 "mom_fish_code","mom_tank_code","mom_genotype",
                 "dad_fish_code","dad_tank_code","dad_genotype",
             ]]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width="stretch", hide_index=True)
 
         st.caption("Recent scheduled cross instances")
         ci = _load_cross_instances_for_fp(fp_code, start, end)
         if ci.empty:
             st.info("No recent cross instances for this fish pair.")
         else:
-            st.dataframe(ci[["cross_run","cross_date","created_by","tank_pair_code"]], use_container_width=True, hide_index=True)
+            st.dataframe(ci[["cross_run","cross_date","created_by","tank_pair_code"]], width="stretch", hide_index=True)
 
 st.caption("Tank pairs are keyed by tank_pair_code (TP), grouped under fish_pair_code (FP). Crosses reference TP via cross_instances.tank_pair_code.")

@@ -58,7 +58,7 @@ with st.form("filters"):
     c1, c2 = st.columns([3,1])
     q = c1.text_input("Search tank pairs (code / fish / tank)")
     limit = int(c2.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
-    st.form_submit_button("Apply", use_container_width=True)
+    st.form_submit_button("Apply", width="stretch")
 
 # ── Load candidate tank pairs from v_tank_pairs (column-adaptive) ────────────
 select_parts = [
@@ -116,7 +116,7 @@ pairs_view["genotype"]   = (
 pairs_view.insert(0,"✓ Select", False)
 pairs_edit = st.data_editor(
     pairs_view[["✓ Select","tank_pair_code","fish_pair_code","pair_fish","pair_tanks","genotype","created_at"]],
-    hide_index=True, use_container_width=True,
+    hide_index=True, width="stretch",
     column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)}
 )
 mask = pairs_edit["✓ Select"].fillna(False)
@@ -153,15 +153,14 @@ if st.button("⏱ Schedule cross" + (" + clutch" if make_clutch else ""), type="
 
             if make_clutch:
                 cl = _safe(cx, """
-                  insert into public.clutch_instances (id, cross_instance_id, tank_pair_code)
-                  values (gen_random_uuid(), :cid, :tp_code)
-                  returning id, clutch_instance_code, created_at
-                """, {"cid": cross_id, "tp_code": tp_code})
-                if cl.empty:
-                    st.warning(f"Cross {cross_code} saved; clutch insert returned no row.")
-                else:
-                    st.success(f"Saved: **{cross_code}**; clutch **{cl.iloc[0]['clutch_instance_code']}** "
-                               f"(created {cl.iloc[0]['created_at']:%Y-%m-%d})")
+                    insert into public.clutch_instances (
+                        id, cross_instance_id, tank_pair_code
+                    )
+                    values (
+                        gen_random_uuid(), :cid, :tp_code
+                    )
+                    returning id, clutch_instance_code, created_at
+                    """, {"cid": cross_id, "tp_code": tp_code})
 
         with eng.begin() as cx:
             preview = _safe(cx, """
@@ -177,6 +176,6 @@ if st.button("⏱ Schedule cross" + (" + clutch" if make_clutch else ""), type="
               limit 5
             """)
         st.subheader("Recent CX events")
-        st.dataframe(preview, use_container_width=True, hide_index=True)
+        st.dataframe(preview, width="stretch", hide_index=True)
     except Exception as e:
         st.error(f"Schedule failed: {e}")

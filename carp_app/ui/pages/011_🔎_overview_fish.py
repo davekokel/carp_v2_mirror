@@ -259,7 +259,7 @@ def main():
             raw = _load_fish_rich_all(q, limit)
             st.caption(f"{len(raw)} row(s) • columns: {', '.join(raw.columns)}")
             if not raw.empty:
-                st.dataframe(raw, use_container_width=True, hide_index=True)
+                st.dataframe(raw, width="stretch", hide_index=True)
                 st.download_button(
                     "⬇︎ Download v_fish_rich.csv",
                     data=raw.to_csv(index=False).encode("utf-8"),
@@ -307,7 +307,7 @@ def main():
     fish_table = st.data_editor(
         table,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_order=editor_cols,            # <-- this ensures names show
         key=f"fish_table_v2",                # <-- bump key to avoid cached layout
     )
@@ -332,7 +332,7 @@ def main():
     tcols = [c for c in ["fish_code","tank_code","status","created_at","container_id"] if c in tdf.columns]
     tanks_table = st.data_editor(
         tdf[tcols].copy().assign(**{"✓ Print": False}),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         key="tank_table",
     )
@@ -394,7 +394,7 @@ def main():
         file_name=f"tank_labels_2_4x1_5_{utc_now().strftime('%Y%m%d_%H%M%S')}.pdf",
         mime="application/pdf",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         disabled=(pdf_bytes == b""),
     )
     

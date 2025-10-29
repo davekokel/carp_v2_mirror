@@ -225,7 +225,7 @@ with st.form("filters"):
             ["auto (try view, then table)", "view: public.v_overview_mounts", "table: public.mounts"],
             index=0
         )
-    submitted = st.form_submit_button("Apply", use_container_width=True)
+    submitted = st.form_submit_button("Apply", width="stretch")
 
 # ── source resolution ────────────────────────────────────────────────────────
 resolved: Optional[tuple[str, str, str]] = None  # (kind, schema, name)
@@ -285,7 +285,7 @@ tbl.insert(0, "✓ Select", False)
 picker = st.data_editor(
     tbl,
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     num_rows="fixed",
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
@@ -309,7 +309,7 @@ else:
         file_name=fname,
         mime="application/pdf",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     )
 
 st.caption(f"{len(df)} row(s) in result")

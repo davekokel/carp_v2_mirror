@@ -49,6 +49,39 @@ st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 # =============================================================================
 # Helpers
 # =============================================================================
+def _ensure_fish_pair_code(a_code: str, b_code: str, created_by_val: str) -> str:
+    pk = _fish_pk_col()
+    mom_fk, dad_fk = _fishpair_fk_cols()
+    with _eng().begin() as cx:
+        got = cx.execute(text(f"""
+          with canon as (
+            select least(:a,:b) as a, greatest(:a,:b) as b
+          ),
+          ids as (
+            select
+              (select {pk} from public.fish where fish_code = (select a from canon) limit 1) as mom_pk,
+              (select {pk} from public.fish where fish_code = (select b from canon) limit 1) as dad_pk
+          ),
+          existing as (
+            select fish_pair_code
+            from public.fish_pairs
+            where {mom_fk} = (select mom_pk from ids)
+              and {dad_fk} = (select dad_pk from ids)
+            limit 1
+          ),
+          ins as (
+            insert into public.fish_pairs ({mom_fk}, {dad_fk}, created_by)
+            select (select mom_pk from ids), (select dad_pk from ids), :by
+            where not exists (select 1 from existing)
+            returning fish_pair_code
+          )
+          select coalesce((select fish_pair_code from existing),
+                          (select fish_pair_code from ins))::text as fish_pair_code;
+        """), {"a": a_code, "b": b_code, "by": created_by_val}).mappings().first()
+        if not got or not got["fish_pair_code"]:
+            raise RuntimeError("Failed to create or find fish_pair_code")
+        return str(got["fish_pair_code"])
+
 def _fish_genotype_col(view: str) -> str | None:
     schema, tbl = view.split(".", 1)
     with _eng().begin() as cx:
@@ -226,7 +259,7 @@ def _find_existing_tank_pair(mother_id: str, father_id: str) -> str | None:
         )
     return (df["id"].iloc[0] if not df.empty else None)
 
-def _upsert_one_pair(fish_pair_id: str, mother_tank_id: str, father_tank_id: str,
+def _upsert_one_pair(fish_pair_code: str, mother_tank_id: str, father_tank_id: str,
                      created_by_val: str, note: str) -> tuple[bool, str]:
     existing = _find_existing_tank_pair(mother_tank_id, father_tank_id)
     with _eng().begin() as cx:
@@ -245,11 +278,11 @@ def _upsert_one_pair(fish_pair_id: str, mother_tank_id: str, father_tank_id: str
 
         tp_code = cx.execute(text("""
           insert into public.tank_pairs
-            (concept_id, fish_pair_id, mother_tank_id, father_tank_id, status, created_by, note)
+            (fish_pair_code, mother_tank_id, father_tank_id, status, created_by, note)
           values
-            (null, cast(:fp as uuid), cast(:mom as uuid), cast(:dad as uuid), 'selected', :by, nullif(:note,''))
+            (:fp_code, cast(:mom as uuid), cast(:dad as uuid), 'selected', :by, nullif(:note,''))
           returning tank_pair_code
-        """), {"fp": fish_pair_id, "mom": mother_tank_id, "dad": father_tank_id,
+        """), {"fp_code": fish_pair_code, "mom": mother_tank_id, "dad": father_tank_id,
                "by": created_by_val, "note": note}).scalar() or ""
         return (True, tp_code)
 
@@ -378,6 +411,16 @@ if mother_tank_id == father_tank_id:
     st.error("Mother and Father cannot be the same tank."); st.stop()
 
 # =============================================================================
+# 2b) Build clutch genotype label from selected fish pair elements
+# =============================================================================
+st.markdown("### 2b) Define clutch genotype label")
+default_geno = str(chosen.iloc[0].get("clutch_genotype", "")).strip()
+geno_for_clutch = st.text_input(
+    "Clutch genotype label (auto-filled, editable)",
+    value=default_geno,
+    key="geno_label_for_clutch"
+).strip()
+# =============================================================================
 # 3) Save tank_pair (mother/father)
 # =============================================================================
 st.markdown("### 3) Save tank_pair parents")
@@ -388,13 +431,54 @@ with cs1:
     can_save = bool(mother_tank_id and father_tank_id)
 
     if st.button("💾 Save mother/father pairing", type="primary", width="stretch", disabled=not can_save):
-        fp_id = _ensure_fish_pair(parent_a, parent_b, created_by_val)
-        inserted, tp_code = _upsert_one_pair(fp_id, mother_tank_id, father_tank_id, created_by_val, note_val)
-        if inserted:
-            st.success(f"Saved tank_pair {tp_code} (mother={mother_fsh}, father={father_fsh}).")
-        else:
-            st.success(f"Updated tank_pair {tp_code} (mother={mother_fsh}, father={father_fsh}).")
-        st.cache_data.clear()
+        try:
+            # 1) ensure fish_pair_code for the unordered conceptual parents
+            fp_code = _ensure_fish_pair_code(parent_a, parent_b, created_by_val)
+
+            # 2) upsert the physical tank_pair to get tp_code
+            inserted, tp_code = _upsert_one_pair(fp_code, mother_tank_id, father_tank_id, created_by_val, note_val)
+            if inserted:
+                st.success(f"Saved tank_pair {tp_code} (mother={mother_fsh}, father={father_fsh}).")
+            else:
+                st.success(f"Updated tank_pair {tp_code} (mother={mother_fsh}, father={father_fsh}).")
+
+            # 3) create a cross_instance for this tank_pair (required for clutch code trigger)
+            from datetime import date as _date
+            with _eng().begin() as cx:
+                x = cx.execute(text("""
+                    insert into public.cross_instances
+                    (cross_id, id, tank_pair_code, cross_date, created_by, note)
+                    values
+                    (gen_random_uuid(), gen_random_uuid(), :tp_code, :d, :by, nullif(:note,''))
+                    returning id, cross_run_code
+                """), {"tp_code": tp_code, "d": str(_date.today()), "by": created_by_val, "note": note_val}).mappings().first()
+            cross_instance_id = x["id"]
+            cross_code = x.get("cross_run_code")
+
+            # 4) create the clutch, linked to the cross, with genotype from step 2b
+            sent_geno = (st.session_state.get("geno_label_for_clutch") or geno_for_clutch or "").strip()
+            with _eng().begin() as cx:
+                cl = cx.execute(text("""
+                    insert into public.clutch_instances (
+                        id, cross_instance_id, tank_pair_code, clutch_genotype_pretty
+                    )
+                    values (
+                        gen_random_uuid(), :cid, :tp_code, nullif(:geno,'')
+                    )
+                    returning clutch_instance_code
+                """), {
+                    "cid": cross_instance_id,
+                    "tp_code": tp_code,
+                    "geno": sent_geno,
+                }).mappings().first()
+
+            if cl:
+                st.success(f"→ Cross {cross_code or '(new)'}; clutch {cl['clutch_instance_code']} (genotype={sent_geno or '—'})")
+
+            st.cache_data.clear()
+
+        except Exception as e:
+            st.exception(e)
 
 with cs2:
     st.markdown("**Recent tank_pairs for these tanks**")

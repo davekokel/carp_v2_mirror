@@ -55,18 +55,25 @@ REQUIRED_VIEW_COLS = [
     "created_at_instance",
 ]
 
+def _treatments_first_rollup(treatments: str | None, genotype: str | None) -> str:
+    t = (treatments or '').strip()
+    g = (genotype or '').strip()
+    if t and g:
+        return f"{t} > {g}"
+    return t or g
+
 def _assert_view_contract() -> None:
     with _eng().begin() as cx:
         got = pd.read_sql(text("""
             select column_name
             from information_schema.columns
-            where table_schema='public' and table_name='v_clutch_instances'
+            where table_schema='public' and table_name='v_clutch_instances_display'
             order by ordinal_position
         """), cx)["column_name"].tolist()
     missing = [c for c in REQUIRED_VIEW_COLS if c not in got]
     if missing:
         st.error(
-            "Schema contract mismatch for public.v_clutch_instances.\n"
+            "Schema contract mismatch for public.v_clutch_instances_display.\n"
             "Missing columns: " + ", ".join(missing)
         ); st.stop()
 
@@ -118,50 +125,69 @@ def _view_exists(schema: str, name: str) -> bool:
 def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
     where, params = [], {}
     if not most_recent:
-        where.append("created_at_instance::date between :d1 and :d2")
+        where.append("v.created_at_instance::date between :d1 and :d2")
         params.update({"d1": d_from, "d2": d_to})
     if created_by.strip():
-        where.append("coalesce(created_by_instance,'') ilike :by")
+        where.append("coalesce(v.created_by_instance,'') ilike :by")
         params["by"] = f"%{created_by.strip()}%"
     if q.strip():
         params["q"] = f"%{q.strip()}%"
         where.append("""
           (
-            clutch_code                      ilike :q OR
-            cross_name_pretty                ilike :q OR
-            clutch_name                      ilike :q OR
-            clutch_genotype_pretty           ilike :q OR
-            clutch_strain_pretty             ilike :q OR
-            treatments_pretty_effective      ilike :q
+            v.clutch_code                   ilike :q OR
+            v.cross_name_pretty             ilike :q OR
+            v.clutch_name                   ilike :q OR
+            v.clutch_genotype_pretty        ilike :q OR
+            v.clutch_strain_pretty          ilike :q OR
+            v.treatments_pretty_effective   ilike :q
           )
         """)
     where_sql = ("where " + " AND ".join(where)) if where else ""
+
     sql = text(f"""
       select
-        clutch_code,
-        clutch_birthday,
-        cross_name_pretty,
-        clutch_name,
-        clutch_genotype_pretty,
-        clutch_strain_pretty,
-        treatments_count_effective,
-        treatments_pretty_effective,
-        genotype_treatment_rollup_effective,
-        created_by_instance,
-        created_at_instance
-      from {CLUTCHES_VIEW}
+        v.clutch_code,
+        v.clutch_birthday,
+        v.cross_name_pretty,
+        v.clutch_name                            as view_clutch_name,
+        v.clutch_genotype_pretty                 as view_genotype,
+        v.clutch_strain_pretty,
+        v.treatments_count_effective,
+        v.treatments_pretty_effective,
+        v.genotype_treatment_rollup_effective    as view_rollup,
+        v.created_by_instance,
+        v.created_at_instance,
+        ci.clutch_genotype_pretty                as stored_genotype,
+        ci.treatments_genotype_rollup            as stored_rollup
+      from {CLUTCHES_VIEW} v
+      left join public.clutch_instances ci
+        on ci.clutch_instance_code = v.clutch_code
       {where_sql}
-      order by created_at_instance desc nulls last, clutch_code
+      order by v.created_at_instance desc nulls last, v.clutch_code
       limit 1000
     """)
+
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
+    # Effective (what the UI should use)
+    df = df.copy()
     df["treatments_count_effective"] = pd.to_numeric(
         df["treatments_count_effective"], errors="coerce"
     ).fillna(0).astype(int)
 
-    # De-dup any weirdness
+    df["clutch_genotype_effective"] = (
+        df["stored_genotype"].fillna("").replace("", None)
+         .combine_first(df["view_genotype"])
+    )
+    df["clutch_name_effective"] = (
+        df["view_clutch_name"].fillna("").replace("", None)
+    )
+    df["rollup_effective"] = (
+        df["stored_rollup"].fillna("").replace("", None)
+         .combine_first(df["view_rollup"])
+    )
+
     return df.loc[:, ~df.columns.duplicated()]
 
 # ── Resolve CI/CR → IDs (deterministic rules; no heuristics beyond what’s here) ─
@@ -227,23 +253,44 @@ def _insert_instance_treatments(clutch_instance_id: str, created_by: str, items:
 def _load_run_overview(ci_code: str) -> pd.DataFrame:
     with _eng().begin() as cx:
         df = pd.read_sql(text(f"""
-            select *
-            from {CLUTCHES_VIEW}
-            where clutch_code = :cc
-            order by created_at_instance desc nulls last
+            select
+              v.clutch_code,
+              v.clutch_birthday,
+              v.cross_name_pretty,
+              v.clutch_name,
+              v.clutch_genotype_pretty           as view_genotype,
+              v.clutch_strain_pretty,
+              v.treatments_count_effective,
+              v.treatments_pretty_effective,
+              v.genotype_treatment_rollup_effective as view_rollup,
+              v.created_by_instance,
+              v.created_at_instance,
+              ci.clutch_genotype_pretty          as stored_genotype,
+              ci.treatments_genotype_rollup      as stored_rollup
+            from {CLUTCHES_VIEW} v
+            left join public.clutch_instances ci
+              on ci.clutch_instance_code = v.clutch_code
+            where v.clutch_code = :cc
+            order by v.created_at_instance desc nulls last
             limit 1
         """), cx, params={"cc": ci_code})
 
     if df.empty:
         return df
 
-    # enforce the expected rollup cols (already required, but keep explicit)
     df["treatments_count_effective"] = pd.to_numeric(
         df["treatments_count_effective"], errors="coerce"
     ).fillna(0).astype(int)
 
+    # Build effective fields the UI should show
+    df = df.copy()
+    df["genotype_effective"] = df["stored_genotype"].fillna("").replace("", None).combine_first(df["view_genotype"])
+    df["rollup_effective"]   = df["stored_rollup"].fillna("").replace("", None).combine_first(
+        df["view_rollup"]
+    )
     return df.loc[:, ~df.columns.duplicated()]
 
+# ── Filters + picker ─────────────────────────────────────────────────────────
 # ── Filters + picker ─────────────────────────────────────────────────────────
 with st.form("filters_form", clear_on_submit=False):
     today = date.today()
@@ -262,8 +309,27 @@ st.caption(f"{len(clutches)} clutch(es)")
 if clutches.empty:
     st.info("No clutches found with the current filters."); st.stop()
 
-view_cols = REQUIRED_VIEW_COLS.copy()
-dfv = clutches[view_cols].copy()
+# Build a grid that shows EFFECTIVE fields (stored preferred, view fallback)
+dfv = clutches[[
+    "clutch_code",
+    "clutch_birthday",
+    "cross_name_pretty",
+    "clutch_genotype_effective",
+    "treatments_count_effective",
+    "treatments_pretty_effective",
+    "rollup_effective",
+    "created_by_instance",
+    "created_at_instance",
+]].copy()
+
+# Final fallback for rollup: compute locally if both sides present but no stored/view rollup
+dfv["rollup_effective"] = dfv.apply(
+    lambda r: r["rollup_effective"]
+              or _treatments_first_rollup(r.get("treatments_pretty_effective"), r.get("clutch_genotype_effective")),
+    axis=1,
+)
+
+# Picker selection column
 dfv.insert(0, "✓ Select", False)
 
 last_ci = st.session_state.get("last_ci")
@@ -271,11 +337,17 @@ if last_ci:
     dfv.loc[dfv["clutch_code"] == last_ci, "✓ Select"] = True
 
 picker = st.data_editor(
-    dfv, hide_index=True, width="stretch", num_rows="fixed",
+    dfv,
+    hide_index=True,
+    width="stretch",
+    num_rows="fixed",
     column_config={
-        "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
-        "created_at_instance": st.column_config.DatetimeColumn("created_at_instance", disabled=True),
+        "✓ Select":                  st.column_config.CheckboxColumn("✓", default=False),
+        "clutch_birthday":           st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
+        "created_at_instance":       st.column_config.DatetimeColumn("created_at_instance", disabled=True),
+        "clutch_name_effective":     st.column_config.TextColumn("clutch_name", disabled=True),
+        "clutch_genotype_effective": st.column_config.TextColumn("clutch_genotype_pretty", disabled=True),
+        "rollup_effective":          st.column_config.TextColumn("Treatments > genotype", disabled=True),
     },
     key="ci_only_picker_v1",
 )
@@ -394,13 +466,48 @@ run_df = _load_run_overview(ci_code)
 if run_df.empty:
     st.info("No overview row found for this run.")
 else:
-    cnt = int(run_df.get("treatments_count_effective", pd.Series([0])).iloc[0])
-    pretty = str(run_df.get("treatments_pretty_effective", pd.Series([""])).iloc[0] or "")
-    gt_roll = str(run_df.get("genotype_treatment_rollup_effective", pd.Series([""])).iloc[0] or "")
-    st.caption(f"Effective treatments: {cnt} — {pretty}")
-    if gt_roll:
-        st.caption(f"Genotype + treatments: {gt_roll}")
-    st.dataframe(run_df, width="stretch", hide_index=True)
+    cnt       = int(run_df["treatments_count_effective"].iloc[0])
+    pretty    = str(run_df["treatments_pretty_effective"].iloc[0] or "")
+    geno_eff  = str(run_df["genotype_effective"].iloc[0] or "")
+    roll_eff  = str(run_df["rollup_effective"].iloc[0] or "")
+
+    # If both are still blank, fall back to local builder once (optional)
+    if not roll_eff:
+        roll_eff = _treatments_first_rollup(pretty, geno_eff)
+
+    st.caption(f"Effective treatments: {cnt} — {pretty or '—'}")
+    st.caption(f"Treatments > genotype (stored): {roll_eff or '—'}")
+
+    # Show a compact grid with the *effective* genotype and rollup
+    # Show a compact grid: drop unused name/strain, promote Treatments > genotype to 4th col
+    out = pd.DataFrame([{
+        "clutch_code":                run_df["clutch_code"].iloc[0],
+        "clutch_birthday":            run_df["clutch_birthday"].iloc[0],
+        "cross_name_pretty":          run_df["cross_name_pretty"].iloc[0],
+        "treatments_genotype":        roll_eff,                       # 4th column
+        "treatments_count_effective": cnt,
+        "treatments_pretty_effective": pretty,
+    }])
+
+    st.dataframe(
+        out[[
+            "clutch_code",
+            "clutch_birthday",
+            "cross_name_pretty",
+            "treatments_genotype",
+            "treatments_count_effective",
+            "treatments_pretty_effective",
+        ]],
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "clutch_birthday":             st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
+            "cross_name_pretty":           st.column_config.TextColumn("cross_name_pretty", disabled=True),
+            "treatments_genotype":         st.column_config.TextColumn("Treatments > genotype", disabled=True),
+            "treatments_count_effective":  st.column_config.NumberColumn("treatments_count_effective", disabled=True),
+            "treatments_pretty_effective": st.column_config.TextColumn("treatments_pretty_effective", disabled=True),
+        },
+    )
 
 # ── Treatments on this run ───────────────────────────────────────────────────
 st.subheader("Treatments on this run")

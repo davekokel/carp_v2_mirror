@@ -70,7 +70,7 @@ st.download_button(
     file_name="fish_example.csv",
     mime="text/csv",
     type="secondary",
-    use_container_width=True,
+    width="stretch",
 )
 
 LEGACY_DATE_ALIASES = {"date_birth", "dob"}
@@ -146,7 +146,7 @@ for col in (
         df[col] = df[col].fillna("").astype(str)
 
 st.subheader("Preview (first 50 rows)")
-st.dataframe(df.head(50), use_container_width=True, hide_index=True)
+st.dataframe(df.head(50), width="stretch", hide_index=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Column resolution
@@ -211,7 +211,7 @@ upsert_allele = text("""
 # Upsert logic
 # ─────────────────────────────────────────────────────────────────────────────
 inserted: List[Dict[str, Any]] = []
-if st.button("Upsert fish batch", type="primary", use_container_width=True):
+if st.button("Upsert fish batch", type="primary", width="stretch"):
     linked, skipped_links = 0, 0
     batch_fish_codes: List[str] = []
 
@@ -292,7 +292,7 @@ if st.button("Upsert fish batch", type="primary", use_container_width=True):
             st.data_editor(
                 results_df,
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 key="upsert_results_vfr_v1",
             )
             st.download_button(

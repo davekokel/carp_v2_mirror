@@ -142,7 +142,7 @@ last_ci = st.session_state.get("__annot_last_ci")
 if last_ci: dfv.loc[dfv["clutch_code"] == last_ci, "✓ Select"] = True
 
 picker = st.data_editor(
-    dfv, hide_index=True, use_container_width=True, num_rows="fixed",
+    dfv, hide_index=True, width="stretch", num_rows="fixed",
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
         "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True),
