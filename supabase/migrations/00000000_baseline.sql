@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict CmHYxUYwFybPX6MEs5yAYioo0qR1j9o68Zi4OD59tUe3Z3KiDDQvPoqZRsP5AWD
+\restrict GHUdXR8rPjLsCUAGN1KOb22W97gNjlXTEi8Anla91LPFbCxBoNoX2i0hAEkaPYZ
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.0
@@ -24,6 +24,13 @@ SET row_security = off;
 --
 
 CREATE SCHEMA public;
+
+
+--
+-- Name: util_mig; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA util_mig;
 
 
 --
@@ -2176,6 +2183,42 @@ BEGIN
 
   RETURN;
 END$$;
+
+
+--
+-- Name: _to_base36(bigint, integer); Type: FUNCTION; Schema: util_mig; Owner: -
+--
+
+CREATE FUNCTION util_mig._to_base36(n bigint, width integer DEFAULT 4) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+DECLARE
+    digits TEXT := '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    result TEXT := '';
+    v BIGINT := n;
+    r INT;
+BEGIN
+    IF n IS NULL OR n < 0 THEN
+        RETURN NULL;
+    END IF;
+
+    IF v = 0 THEN
+        result := '0';
+    ELSE
+        WHILE v > 0 LOOP
+            r := (v % 36)::INT;
+            result := substr(digits, r + 1, 1) || result;
+            v := v / 36;
+        END LOOP;
+    END IF;
+
+    WHILE length(result) < width LOOP
+        result := '0' || result;
+    END LOOP;
+
+    RETURN result;
+END;
+$$;
 
 
 SET default_tablespace = '';
@@ -6920,5 +6963,5 @@ ALTER TABLE public.transgenes ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict CmHYxUYwFybPX6MEs5yAYioo0qR1j9o68Zi4OD59tUe3Z3KiDDQvPoqZRsP5AWD
+\unrestrict GHUdXR8rPjLsCUAGN1KOb22W97gNjlXTEi8Anla91LPFbCxBoNoX2i0hAEkaPYZ
 
