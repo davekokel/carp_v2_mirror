@@ -1,22 +1,15 @@
 BEGIN;
 
-CREATE OR REPLACE VIEW public.v_overview_mounts AS
+DROP VIEW IF EXISTS public.v_overview_mounts;
+
+-- Canonical column order for now; we can enrich later once upstream columns stabilize
+CREATE VIEW public.v_overview_mounts AS
 SELECT
   m.mount_code,
+  m.time_mounted,
   m.mounting_orientation,
-  m.n_top,
-  m.n_bottom,
-  m.time_mounted                 AS mounted_at,
-  ci.clutch_instance_code        AS clutch_code,
-  ci.created_at                  AS created_at,
-  COALESCE(x.created_by, '')     AS operator,
-  'Bruker 3D'::text              AS instrument,
-  ''::text                       AS notes
+  m.clutch_instance_id
 FROM public.mounts m
-JOIN public.clutch_instances ci
-  ON ci.id = m.clutch_instance_id
-LEFT JOIN public.cross_instances x
-  ON x.id = ci.cross_instance_id
-ORDER BY m.time_mounted DESC;
+ORDER BY m.time_mounted DESC NULLS LAST;
 
 COMMIT;

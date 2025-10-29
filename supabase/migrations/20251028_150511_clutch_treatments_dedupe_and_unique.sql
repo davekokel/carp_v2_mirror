@@ -26,15 +26,5 @@ ON public.clutch_instance_treatments (
   lower(coalesce(material_code,''))
 );
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname='con_uq_clutch_instance_treatments_dedup'
-  ) THEN
-    EXECUTE 'ALTER TABLE public.clutch_instance_treatments
-             ADD CONSTRAINT con_uq_clutch_instance_treatments_dedup
-             UNIQUE USING INDEX uq_clutch_instance_treatments_dedup';
-  END IF;
-END $$;
-
+DO $$ BEGIN RAISE NOTICE 'Skipped table UNIQUE: using unique functional index uq_clutch_instance_treatments_dedup for dedup enforcement'; END $$;
 COMMIT;

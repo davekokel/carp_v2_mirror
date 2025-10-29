@@ -1,5 +1,7 @@
 BEGIN;
-CREATE OR REPLACE VIEW public.v_clutch_instances_display
+DROP VIEW IF EXISTS public.v_overview_mounts;
+DROP VIEW IF EXISTS public.v_clutch_instances_display CASCADE;
+CREATE VIEW public.v_clutch_instances_display
 (clutch_code, clutch_birthday, cross_name_pretty, clutch_name,
  clutch_genotype_pretty, clutch_strain_pretty, treatments_count_effective,
  treatments_pretty_effective, genotype_treatment_rollup_effective,
