@@ -52,3 +52,5 @@ use_local 2
 supabase/migrations/* [2-9].sql
 .env.staging.direct
 .env.staging.pooler
+supabase/snapshots/
+docs/DB Connection Playbook v2*
