@@ -2189,7 +2189,7 @@ END$$;
 -- Name: _to_base36(bigint, integer); Type: FUNCTION; Schema: util_mig; Owner: -
 --
 
-CREATE FUNCTION util_mig._to_base36(n bigint, width integer DEFAULT 4) RETURNS text
+CREATE OR REPLACE FUNCTION util_mig._to_base36(n bigint, width integer DEFAULT 4) RETURNS text
     LANGUAGE plpgsql IMMUTABLE
     AS $$
 DECLARE
