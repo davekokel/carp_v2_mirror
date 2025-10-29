@@ -44,7 +44,7 @@ BEGIN
     CREATE UNIQUE INDEX uq_fish_seed_name_dob_idx
       ON public.fish (COALESCE(seed_batch_id,''), COALESCE(name,''), date_birth);
     ALTER TABLE public.fish
-      ADD CONSTRAINT uq_fish_seed_name_dob
+      DO $$ BEGIN RAISE NOTICE 'Skipping UNIQUE constraint from expression index uq_fish_seed_name_dob_idx'; END $$;
       UNIQUE USING INDEX uq_fish_seed_name_dob_idx;
   END IF;
 END$$;
