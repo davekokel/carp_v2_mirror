@@ -11,3 +11,10 @@ app-staging:
 	python -m streamlit run carp_app/ui/streamlit_app.py
 app-prod:
 	. scripts/use_db.sh && use_prod && python -m streamlit run carp_app/ui/streamlit_app.py
+
+.PHONY: run-staging-direct run-staging-pooler
+run-staging-direct:
+	./scripts/run_staging_direct.sh
+
+run-staging-pooler:
+	./scripts/run_staging_pooler.sh

@@ -50,3 +50,7 @@ supabase/migrations/* [2-9].sql
 use_local 2
 # ignore accidental Finder/editor duplicates
 supabase/migrations/* [2-9].sql
+.env.staging.direct
+.env.staging.pooler
+supabase/snapshots/
+docs/DB Connection Playbook v2*
