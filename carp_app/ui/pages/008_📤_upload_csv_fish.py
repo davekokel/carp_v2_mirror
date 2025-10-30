@@ -111,7 +111,7 @@ def _parse_birthday(x) -> Optional[date]:
     except Exception:
         return None
 
-uploaded = st.file_uploader("Upload fish CSV", type=["csv"])
+uploaded = st.file_uploader("Upload fish file (.csv or .xlsx)", type=["csv", "xlsx"])
 if not uploaded:
     st.info("Choose a CSV to preview."); st.stop()
 
@@ -122,9 +122,18 @@ creator_uuid = getattr(user, "id", None)
 created_by_uuid = str(creator_uuid) if creator_uuid else None
 
 try:
-    df = pd.read_csv(io.BytesIO(uploaded.getvalue()))
+    fname = (uploaded.name or "").lower()
+    raw_bytes = uploaded.getvalue()
+    if fname.endswith(".xlsx"):
+        # Excel: let the user choose a sheet
+        xls = pd.ExcelFile(io.BytesIO(raw_bytes))  # requires openpyxl
+        sheet = st.selectbox("Choose worksheet", xls.sheet_names, index=0)
+        df = xls.parse(sheet, dtype=object)
+    else:
+        # CSV: robust to BOM, keeps strings as-is
+        df = pd.read_csv(io.BytesIO(raw_bytes), dtype=object)
 except Exception as e:
-    st.error(f"Failed to read CSV: {e}")
+    st.error(f"Failed to read file: {e}")
     st.stop()
 
 df.columns = [c.strip().lower() for c in df.columns]
