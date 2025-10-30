@@ -1,14 +1,14 @@
 plasmid_code,plasmid_name,nickname,fusion_name,fluor_name,tag_name,fluors,tag_description,resistance,notes,supports_invitro_rna
 pDQM001,CMV-SP6-mSG(J) IDT opt,,,mSG,,mStayGold(J),,Amp,"IDT optimized, for mRNA production with SP6 - clone 2",0
 pDQM002,CMV-SP6-mSG(J) IDT opt,,,mSG,,mStayGold(J),,Amp,"IDT optimized, for mRNA production with SP6 - clone 5",0
-pDQM005,ef1a-tdmSG(J),,,mSG|tdmSG,,tandem mStayGold(J) iCodon opt,,Amp,iCodon optimized for tol2 insertions - clone 4,0
-pDQM006,ef1a-tdmSG-syntrons(J),,,mSG|tdmSG,,tandem mStayGold(J) iCodon opt,,Amp,each mStayGold contains a 51bp syntron to boost expression - clone 6,0
-pDQM007,ef1a-tdmSG-syntrons(J),,,mSG|tdmSG,,tandem mStayGold(J) iCodon opt,,Amp,each mStayGold contains a 51bp syntron to boost expression - clone 3,0
-pDQM008,ef1a-tdmSG-syntrons(J),,,mSG|tdmSG,,tandem mStayGold(J) iCodon opt,,Amp,each mStayGold contains a 51bp syntron to boost expression - clone 8,0
+pDQM005,ef1a-tdmSG(J),,,tdmSG,,tandem mStayGold(J) iCodon opt,,Amp,iCodon optimized for tol2 insertions - clone 4,0
+pDQM006,ef1a-tdmSG-syntrons(J),,,tdmSG,,tandem mStayGold(J) iCodon opt,,Amp,each mStayGold contains a 51bp syntron to boost expression - clone 6,0
+pDQM007,ef1a-tdmSG-syntrons(J),,,tdmSG,,tandem mStayGold(J) iCodon opt,,Amp,each mStayGold contains a 51bp syntron to boost expression - clone 3,0
+pDQM008,ef1a-tdmSG-syntrons(J),,,tdmSG,,tandem mStayGold(J) iCodon opt,,Amp,each mStayGold contains a 51bp syntron to boost expression - clone 8,0
 pDQM009,skittles2.0-4FP,,,,,cryaa:mScarlet before recombination,,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK1,0
 pDQM010,skittles2.0-4FP,,,,,cryaa:mScarlet before recombination,,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK4,0
-pDQM011,pCM268_ccdB-Electra2,,,Electra|Electra2,,Electra2 (iCodon),,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),0
-pDQM012,pCM268_ccdB-Electra2,,,Electra|Electra2,,Electra2 (iCodon),,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),0
+pDQM011,pCM268_ccdB-Electra2,,,Electra2,,Electra2 (iCodon),,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),0
+pDQM012,pCM268_ccdB-Electra2,,,Electra2,,Electra2 (iCodon),,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),0
 pDQM013,pCM268_ccdB-mKOK,,,mKOK,,mKOK (iCodon),,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),0
 pDQM014,pCM268_ccdB-mKate2,,,mKate2,,mKate2 (iCodon),,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),0
 pDQM015,pCM268_ccdB-mKate2,,,mKate2,,mKate2 (iCodon),,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),0
@@ -79,7 +79,7 @@ pDQM079,ef1a:2xLynk-mSG,,2xLynk::mSG,mSG,2xLynk,moved pDQM047 into pIA005 (pIGLE
 pDQM080,ef1a:2xLynk-mSG,,2xLynk::mSG,mSG,2xLynk,moved pDQM047 into pIA005 (pIGLET),,Amp,Clone 2,0
 pDQM081,ef1a:2xLynk:mSG-tPT2A:mChilada,,2xLynk::mSG,mSG,2xLynk,PCR off pDQM065 into pDQM065 (tol2),,Amp,Clone 4,0
 pDQM082,ef1a:2xLynk:tdmChilada,,2xLynk::tdmChilada,tdmChilada,2xLynk,PCR off pDQM065 into pDQM065 (tol2),,Amp,Clone 4,0
-pDQM083,ef1a:linker:Electra2:linker-attB,,,Electra|Electra2,,PCR off pDQM12 into pDQM005,,Amp,Clone 12-1,0
+pDQM083,ef1a:linker:Electra2:linker-attB,,,Electra2,,PCR off pDQM12 into pDQM005,,Amp,Clone 12-1,0
 pDQM084,ef1a:linker:mKOK:linker-attB,,,mKOK,,PCR off pDQM13 into pDQM005,,Amp,Clone 13-2,0
 pDQM085,ef1a:linker:mKate2:linker-attB,,,mKate2,,PCR off pDQM14 into pDQM005,,Amp,Clone 14-2,0
 pDQM086,ef1a:linker:mCitrine:linker-attB,,,mCitrine,,PCR off pDQM43 into pDQM005,,Amp,Clone 43-1,0
