@@ -14,22 +14,18 @@ from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 from carp_app.lib.db import get_engine
 
-# ── auth ─────────────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 
-# ── page config ──────────────────────────────────────────────────────────────
 st.set_page_config(page_title="CARP — Plasmids Overview", page_icon="🧪", layout="wide")
 st.title("🧪 Plasmids Overview")
 
-# optional unlock
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
 require_app_unlock()
 
-# ── engine ───────────────────────────────────────────────────────────────────
 _ENGINE: Optional[Engine] = None
 def _get_engine() -> Engine:
     global _ENGINE
@@ -41,7 +37,6 @@ def _get_engine() -> Engine:
     return _ENGINE
 
 def _fn_exists(schema: str, name: str) -> bool:
-    """Return True if a function with proname exists in schema (any signature)."""
     with _get_engine().begin() as cx:
         return bool(cx.execute(text("""
             select exists(
@@ -52,26 +47,25 @@ def _fn_exists(schema: str, name: str) -> bool:
             )
         """), {"s": schema, "n": name}).scalar())
 
-# ── query helpers (deterministic: always v_plasmids) ─────────────────────────
 def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str, Any]]:
-    """
-    Multi-term AND search against public.v_plasmids.
-    Field filters supported: code:, name:, nickname:, fluors:, resistance:
-    """
     haystack = (
         "concat_ws(' ', "
-        "coalesce(v.v_code,''), coalesce(v.v_name,''), coalesce(v.v_nickname,''), "
-        "coalesce(v.v_fluors,''), coalesce(v.v_resistance,''), coalesce(v.v_notes,''))"
+        "coalesce(r.plasmid_code,''), coalesce(r.plasmid_name,''), coalesce(v.v_nickname,''), "
+        "array_to_string(coalesce(r.fluor_names,'{}'),','), "
+        "array_to_string(coalesce(r.tag_names,'{}'),','), "
+        "array_to_string(coalesce(r.fusion_names,'{}'),','), "
+        "coalesce(v.v_resistance,''), coalesce(v.v_notes,''))"
     )
     field_map = {
-        "code":       "v.v_code",
-        "name":       "v.v_name",
+        "code":       "r.plasmid_code",
+        "name":       "r.plasmid_name",
         "nickname":   "v.v_nickname",
-        "fluors":     "v.v_fluors",
+        "fluors":     "array_to_string(coalesce(r.fluor_names,'{}'),',')",
+        "tags":       "array_to_string(coalesce(r.tag_names,'{}'),',')",
+        "fusions":    "array_to_string(coalesce(r.fusion_names,'{}'),',')",
         "resistance": "v.v_resistance",
     }
 
-    import shlex
     tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
     params: Dict[str, Any] = {"lim": int(limit)}
     where: List[str] = []
@@ -91,27 +85,43 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str
         where.append(("NOT " if neg else "") + f"({haystack} ILIKE :{key})")
 
     if supports_only:
-        where.append("v.v_supports_invitro_rna = true")
+        where.append("(v.v_supports_invitro_rna = true)")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     sql = f"""
+      with rich as (
+        select
+          r.plasmid_code,
+          r.plasmid_name,
+          r.nickname as r_nickname,
+          r.resistance as r_resistance,
+          r.supports_invitro_rna as r_supports_invitro_rna,
+          r.notes as r_notes,
+          r.fusion_names,
+          r.fluor_names,
+          r.tag_names
+        from public.v_plasmids_rich r
+      )
       select
-        v.vid                         as id,
-        v.v_code                      as code,
-        v.v_name                      as name,
-        v.v_nickname                  as nickname,
-        v.v_fluors                    as fluors,
-        v.v_resistance                as resistance,
-        v.v_supports_invitro_rna      as supports_invitro_rna,
-        v.v_created_by                as created_by,
-        v.v_notes                     as notes,
-        v.v_created_at                as created_at,
-        v.v_rna_id                    as rna_id,
-        v.v_rna_code                  as rna_code,
-        v.v_rna_name                  as rna_name
-      from public.v_plasmids v
+        r.plasmid_code            as code,
+        r.plasmid_name            as name,
+        coalesce(v.v_nickname, r.r_nickname)         as nickname,
+        coalesce(array_to_string(r.fluor_names, ', '), '')  as fluor_names,
+        coalesce(array_to_string(r.tag_names, ', '), '')    as tag_names,
+        coalesce(array_to_string(r.fusion_names, ', '), '') as fusion_names,
+        coalesce(v.v_resistance, r.r_resistance)     as resistance,
+        coalesce(v.v_supports_invitro_rna, r.r_supports_invitro_rna) as supports_invitro_rna,
+        v.v_created_by            as created_by,
+        v.v_created_at            as created_at,
+        v.v_rna_id                as rna_id,
+        v.v_rna_code              as rna_code,
+        v.v_rna_name              as rna_name,
+        coalesce(v.v_notes, r.r_notes) as notes
+      from rich r
+      left join public.v_plasmids v
+        on v.v_code = r.plasmid_code
       {where_sql}
-      order by v.v_code
+      order by r.plasmid_code
       limit :lim
     """
     return sql, params
@@ -121,18 +131,16 @@ def _load_plasmids(q: str, supports_only: bool, limit: int) -> pd.DataFrame:
     with _get_engine().begin() as cx:
         return pd.read_sql(text(sql), cx, params=params)
 
-# ── filters ──────────────────────────────────────────────────────────────────
 with st.form("filters"):
     c1, c2, c3 = st.columns([2,2,1])
     with c1:
-        q = st.text_input("Search plasmids (multi-term; field filters like code:, name:, resistance:)", "")
+        q = st.text_input("Search (supports field filters code:, name:, nickname:, fluors:, tags:, fusions:, resistance:)", "")
     with c2:
         supports_only = st.checkbox("Supports in-vitro RNA only", value=False)
     with c3:
         limit = int(st.number_input("Limit", min_value=1, max_value=10000, value=1000, step=200))
     submitted = st.form_submit_button("Apply")
 
-# ── load ─────────────────────────────────────────────────────────────────────
 try:
     df = _load_plasmids(q, supports_only, limit)
 except Exception as e:
@@ -143,18 +151,18 @@ except Exception as e:
 
 st.caption(f"{len(df)} rows")
 
-# normalize columns used below
 for c in [
-    "code","name","nickname","fluors","resistance","supports_invitro_rna",
-    "rna_code","rna_name","created_by","created_at","notes"
+    "code","name","nickname","fluor_names","tag_names","fusion_names",
+    "resistance","supports_invitro_rna","rna_code","rna_name",
+    "created_by","created_at","notes"
 ]:
     if c not in df.columns:
         df[c] = None
 
-# ── data editor with selection ───────────────────────────────────────────────
 view_cols = [
     "✓ Select",
-    "code","name","nickname","fluors","resistance","supports_invitro_rna",
+    "code","name","nickname","fluor_names","tag_names","fusion_names",
+    "resistance","supports_invitro_rna",
     "rna_code","rna_name","created_by","created_at","notes"
 ]
 df_view = df.copy()
@@ -175,7 +183,9 @@ edited = st.data_editor(
         "code": st.column_config.TextColumn("code", disabled=True),
         "name": st.column_config.TextColumn("name", disabled=True),
         "nickname": st.column_config.TextColumn("nickname", disabled=True),
-        "fluors": st.column_config.TextColumn("fluors", disabled=True),
+        "fluor_names": st.column_config.TextColumn("fluors", disabled=True),
+        "tag_names": st.column_config.TextColumn("tags", disabled=True),
+        "fusion_names": st.column_config.TextColumn("fusions", disabled=True),
         "resistance": st.column_config.TextColumn("resistance", disabled=True),
         "supports_invitro_rna": st.column_config.CheckboxColumn("supports_invitro_rna", disabled=True),
         "rna_code": st.column_config.TextColumn("rna_code", disabled=True),
@@ -188,7 +198,6 @@ edited = st.data_editor(
 )
 st.session_state["_plasmids_table"] = edited.copy()
 
-# ── actions ──────────────────────────────────────────────────────────────────
 st.divider()
 st.subheader("Actions")
 

@@ -54,3 +54,5 @@ supabase/migrations/* [2-9].sql
 .env.staging.pooler
 supabase/snapshots/
 docs/DB Connection Playbook v2*
+carp_app/seed_kits/**/~.xlsx
+carp_app/seed_kits/**/~.xlsx

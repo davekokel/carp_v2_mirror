@@ -18,3 +18,8 @@ run-staging-direct:
 
 run-staging-pooler:
 	./scripts/run_staging_pooler.sh
+
+
+.PHONY: run-local
+run-local:
+	./scripts/run_local.sh
