@@ -12,71 +12,70 @@ sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-import io, os
+import io, os, shlex
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-
 from carp_app.ui.lib.app_ctx import get_engine
 
-PAGE_TITLE = "📤 Upload Plasmids (Upsert on code + optional fusions loader)"
+PAGE_TITLE = "📤 Upload Plasmids — single format (upsert + link fusions)"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
 st.title(PAGE_TITLE)
+st.caption("Format: one CSV/XLSX with plasmid fields and fusion fields. Multiple fusions per plasmid are separated by `;` or `|`. Within each fusion use `tag::fluor` (back-compat `tag+fluor`). If `fluor_name` / `tag_name` columns exist, they override parsing of `fusion_name`.")
 
-st.caption("New format supports multi-fusions. Use `;` or `|` to separate multiple fusions per plasmid. Inside each fusion use `tag::fluor` (back-compat: `tag+fluor`). If `fluor_name` / `tag_name` columns are present, they override parsing of `fusion_name`.")
-
-def _example_plasmids_bytes_name_mime():
+# ---------------------------------------------------------------------------
+# Example template (new format)
+# ---------------------------------------------------------------------------
+def _example_bytes_name_mime():
     cols = [
         "code","name","nickname","resistance","supports_invitro_rna","notes",
-        "fusion_name","fluor_name","tag_name"
+        "plasmid_name","tag_description",
+        "fusion_name","fluor_name","tag_name",
     ]
     sample = pd.DataFrame([
-        {"code":"pEX001","name":"Example 1","nickname":"ex1","resistance":"Amp","supports_invitro_rna":True,"notes":"single fusion via columns","fluor_name":"mStayGold","tag_name":"2Xcox8A"},
-        {"code":"pEX002","name":"Example 2","nickname":"ex2","resistance":"Kan","supports_invitro_rna":False,"notes":"multi fusions in fusion_name","fusion_name":"2Xcox8A::mStayGold; sec61b::mChilada"},
-        {"code":"pEX003","name":"Example 3","nickname":"ex3","resistance":"Amp","supports_invitro_rna":True,"notes":"back-compat using +","fusion_name":"Halo+sec61b"},
+        {"code":"pEX001","name":"Example 1","nickname":"ex1","resistance":"Amp","supports_invitro_rna":True,"notes":"columns win","plasmid_name":"Example 1 full name","tag_description":"Mito anchor","fluor_name":"mStayGold","tag_name":"2Xcox8A"},
+        {"code":"pEX002","name":"Example 2","nickname":"ex2","resistance":"Kan","supports_invitro_rna":False,"notes":"multi via fusion_name","plasmid_name":"Example 2 full","fusion_name":"2Xcox8A::mStayGold; sec61b::mChilada"},
+        {"code":"pEX003","name":"Example 3","nickname":"ex3","resistance":"Amp","supports_invitro_rna":True,"notes":"back-compat +","plasmid_name":"Example 3 full","fusion_name":"sec61b+mChilada"},
     ], columns=cols)
     data = sample.to_csv(index=False).encode()
-    return data, "plasmids_new_format_example.csv", "text/csv"
+    return data, "plasmids_single_format_example.csv", "text/csv"
 
-_data, _name, _mime = _example_plasmids_bytes_name_mime()
-st.download_button("⬇️ Download example — New plasmids format", data=_data, file_name=_name, mime=_mime, type="secondary", width="stretch")
+_data, _name, _mime = _example_bytes_name_mime()
+st.download_button("⬇️ Download example — single format", data=_data, file_name=_name, mime=_mime, type="secondary", use_container_width=True)
 
-_ENGINE: Engine | None = None
+# ---------------------------------------------------------------------------
+# Engine / helpers
+# ---------------------------------------------------------------------------
+_ENGINE: Optional[Engine] = None
 def _eng() -> Engine:
     global _ENGINE
     if _ENGINE is None:
+        if not os.getenv("DB_URL"): st.error("DB_URL not set"); st.stop()
         _ENGINE = get_engine()
     return _ENGINE
 
-def _list_table_columns(schema: str, table: str) -> list[str]:
+def _table_cols(schema: str, table: str) -> list[str]:
     sql = """
       select column_name
       from information_schema.columns
-      where table_schema=:schema and table_name=:table
+      where table_schema=:s and table_name=:t
       order by ordinal_position
     """
     with _eng().begin() as cx:
-        df = pd.read_sql(text(sql), cx, params={"schema": schema, "table": table})
+        df = pd.read_sql(text(sql), cx, params={"s": schema, "t": table})
     return df["column_name"].tolist()
 
-def _clean_df_for_table(df: pd.DataFrame, table_cols: list[str]) -> pd.DataFrame:
-    keep = [c for c in df.columns if c in table_cols]
-    out = df[keep].copy()
-    for c in out.columns:
-        if pd.api.types.is_string_dtype(out[c]) or out[c].dtype == object:
-            out[c] = out[c].where(out[c].notna(), None)
-            out[c] = out[c].map(lambda x: x.strip() if isinstance(x, str) else x)
-    return out.dropna(how="all", subset=keep)
+def _norm_bool(v):
+    if v is None or (isinstance(v, float) and pd.isna(v)): return False
+    return str(v).strip().lower() in {"1","true","t","yes","y"}
 
-file = st.file_uploader("Upload plasmids file (.csv or .xlsx)", type=["csv", "xlsx"])
-chunk_size = st.number_input("Batch size", 100, 5000, 1000, 100)
-
-creator_uuid = getattr(user, "id", None)
-created_by_uuid = str(creator_uuid) if creator_uuid else None
-
+# ---------------------------------------------------------------------------
+# Upload
+# ---------------------------------------------------------------------------
+file = st.file_uploader("Upload single-format file (.csv or .xlsx)", type=["csv","xlsx"])
 if not file:
     st.info("Choose a CSV/XLSX to begin.")
     st.stop()
@@ -91,114 +90,112 @@ except Exception as e:
     st.stop()
 
 df_raw.columns = [c.strip() for c in df_raw.columns]
-st.subheader("Preview of uploaded data")
-st.dataframe(df_raw.head(20), width="stretch", hide_index=True)
-st.caption(f"{len(df_raw)} rows total")
+st.subheader("Preview")
+st.dataframe(df_raw.head(20), use_container_width=True, hide_index=True)
+st.caption(f"{len(df_raw)} rows")
 
-schema, table = "public", "plasmids"
-table_cols = _list_table_columns(schema, table)
-df = _clean_df_for_table(df_raw, table_cols)
+# ---------------------------------------------------------------------------
+# One-button process: stage → upsert plasmids → load fluors/tags/fusions
+# ---------------------------------------------------------------------------
+creator_uuid = getattr(user, "id", None)
+created_by_uuid = str(creator_uuid) if creator_uuid else None
 
-if "created_by" in table_cols and "created_by" not in df.columns:
-    df["created_by"] = created_by_uuid
+if st.button("Process upload (upsert plasmids + link fusions)", type="primary", use_container_width=True):
+    # shape & stage into raw
+    expected = [
+        "plasmid_code","plasmid_name","nickname","fluors","tag_description","resistance","notes","supports_invitro_rna",
+        "fusion_name","fluor_name","tag_name"
+    ]
+    # map aliases from sheet to expected
+    df_stage = df_raw.copy()
+    alias_map = {
+        "code":"plasmid_code",
+        "name":"plasmid_name",
+    }
+    for a, b in alias_map.items():
+        if a in df_stage.columns and b not in df_stage.columns:
+            df_stage[b] = df_stage[a]
 
-if "supports_invitro_rna" in df.columns:
-    def _norm_flag(v):
-        if v is None or (isinstance(v, float) and pd.isna(v)): return False
-        s = str(v).strip().lower()
-        return s in {"1","true","t","yes","y"}
-    df["supports_invitro_rna"] = df["supports_invitro_rna"].map(_norm_flag)
+    for c in expected:
+        if c not in df_stage.columns:
+            df_stage[c] = None
 
-st.success(f"Columns to upsert into public.plasmids: {', '.join(df.columns)}")
-st.caption(f"DB_URL → {os.getenv('DB_URL')}")
-st.caption(f"CSV rows (for plasmids upsert): {len(df)}")
+    with _eng().begin() as cx:
+        # ensure raw schema/table and column rename (tag -> tag_description) once
+        cx.execute(text("create schema if not exists raw;"))
+        cx.execute(text("""
+            create table if not exists raw.plasmids_option1_full (
+              plasmid_code text,
+              plasmid_name text,
+              nickname text,
+              fluors text,
+              tag_description text,
+              resistance text,
+              notes text,
+              supports_invitro_rna text,
+              fusion_name text,
+              fluor_name text,
+              tag_name text
+            )
+        """))
+        cx.execute(text("""
+            do $$
+            begin
+              if exists (
+                select 1 from information_schema.columns
+                where table_schema='raw' and table_name='plasmids_option1_full' and column_name='tag'
+              ) then
+                execute 'alter table raw.plasmids_option1_full rename column tag to tag_description';
+              end if;
+            end $$;
+        """))
+        cx.execute(text("truncate raw.plasmids_option1_full;"))
 
-c1, c2 = st.columns(2)
+        # bind only expected fields and cast NaN→NULL
+        df_stage = df_stage[expected]
+        recs_raw = df_stage.where(pd.notna(df_stage), None).to_dict(orient="records")
+        cx.execute(text("""
+            insert into raw.plasmids_option1_full (
+              plasmid_code, plasmid_name, nickname, fluors, tag_description,
+              resistance, notes, supports_invitro_rna,
+              fusion_name, fluor_name, tag_name
+            )
+            values (
+              :plasmid_code, :plasmid_name, :nickname, :fluors, :tag_description,
+              :resistance, :notes, :supports_invitro_rna,
+              :fusion_name, :fluor_name, :tag_name
+            )
+        """), recs_raw)
 
-with c1:
-    if st.button("Upsert plasmids (on code)", type="primary", use_container_width=True):
-        ok = fail = rna_ok = rna_fail = 0
-        cols = list(df.columns)
+    # upsert public.plasmids (base fields only)
+    plasmid_cols_allowed = ["code","name","nickname","resistance","supports_invitro_rna","notes","created_by"]
+    df_pl = pd.DataFrame({
+        "code": df_stage["plasmid_code"],
+        "name": df_stage["plasmid_name"],
+        "nickname": df_stage["nickname"],
+        "resistance": df_stage["resistance"],
+        "supports_invitro_rna": df_stage["supports_invitro_rna"].map(_norm_bool),
+        "notes": df_stage["notes"],
+        "created_by": created_by_uuid,
+    })
+    # drop completely empty codes
+    df_pl["code"] = df_pl["code"].fillna("").map(str).str.strip()
+    df_pl = df_pl[df_pl["code"] != ""].drop_duplicates(subset=["code"])
+    recs_pl = df_pl.where(pd.notna(df_pl), None).to_dict(orient="records")
+
+    with _eng().begin() as cx:
+        cols = [c for c in plasmid_cols_allowed if c in df_pl.columns]
         cols_sql = ", ".join(cols)
         vals_sql = ", ".join([f":{c}" for c in cols])
-        updateable = ["name","nickname","resistance","notes","created_by","supports_invitro_rna"]
-        set_parts = [f"{c} = EXCLUDED.{c}" for c in cols if c in updateable and c in table_cols]
-        if not set_parts:
-            st.error("No updateable columns detected; add at least one of: " + ", ".join(updateable))
-            st.stop()
-        sql_upsert = f"""
-        INSERT INTO public.plasmids ({cols_sql})
-        VALUES ({vals_sql})
-        ON CONFLICT (code)
-        DO UPDATE SET {', '.join(set_parts)};
-        """
-        sql_ensure = text("select * from public.ensure_rna_for_plasmid(:plasmid_code, 'RNA', :rna_name, :by, :notes)")
-        recs: List[Dict[str, Any]] = df.where(pd.notna(df), None).to_dict(orient="records")
-        with _eng().begin() as cx:
-            try:
-                cx.execute(text(sql_upsert), recs)
-                ok += len(recs)
-            except Exception as e:
-                fail += len(recs)
-                st.error(f"❌ Upsert failed for {len(recs)} rows: {e}")
-            for r in recs:
-                try:
-                    if r.get("supports_invitro_rna") is True:
-                        code = (r.get("code") or "").strip()
-                        if not code:
-                            rna_fail += 1
-                            continue
-                        cx.execute(sql_ensure, {
-                            "plasmid_code": code,
-                            "rna_name": (r.get("name") or f"{code}-RNA"),
-                            "by": created_by_uuid,
-                            "notes": r.get("notes"),
-                        })
-                        rna_ok += 1
-                except Exception as e:
-                    rna_fail += 1
-                    st.error(f"RNA ensure failed for {r.get('code')}: {e}")
-        st.success(f"Done. Upserted: {ok}. Failed: {fail}. RNA ensured: {rna_ok}. RNA failures: {rna_fail}.")
+        set_parts = [f"{c}=excluded.{c}" for c in cols if c not in {"code"}]
+        cx.execute(text(f"""
+            insert into public.plasmids ({cols_sql})
+            values ({vals_sql})
+            on conflict (code) do update set {', '.join(set_parts)};
+        """), recs_pl)
 
-with c2:
-    st.write(" ")
-    st.write("**Or** load fusions/fluors/tags from this file → `fluors`,`tags`,`fusions`,`plasmid_fusions`")
-    wants_loader = st.checkbox("Enable fusions loader (uses raw.plasmids_option1_full)")
-    if wants_loader and st.button("Load fusions/fluors/tags", type="secondary", use_container_width=True):
-        for need in ["plasmid_code","fusion_name","fluor_name","tag_name"]:
-            if need not in df_raw.columns:
-                st.error(f"Missing required column for loader: {need}")
-                st.stop()
-        with _eng().begin() as cx:
-            cx.execute(text("create schema if not exists raw;"))
-            cx.execute(text("""
-                create table if not exists raw.plasmids_option1_full (
-                  plasmid_code text,
-                  plasmid_name text,
-                  nickname text,
-                  fluors text,
-                  tag text,
-                  resistance text,
-                  notes text,
-                  supports_invitro_rna text,
-                  fusion_name text,
-                  fluor_name text,
-                  tag_name text
-                )
-            """))
-            cx.execute(text("truncate raw.plasmids_option1_full;"))
-            recs_raw = df_raw.where(pd.notna(df_raw), None).to_dict(orient="records")
-            cx.execute(text("""
-                insert into raw.plasmids_option1_full (
-                  plasmid_code, plasmid_name, nickname, fluors, tag, resistance, notes,
-                  supports_invitro_rna, fusion_name, fluor_name, tag_name
-                )
-                values (
-                  :plasmid_code, :plasmid_name, :nickname, :fluors, :tag, :resistance, :notes,
-                  :supports_invitro_rna, :fusion_name, :fluor_name, :tag_name
-                )
-            """), recs_raw)
-            loader_sql = """
+    # loader: derive catalogs and links (require a fluor)
+    loader_sql = """
 with params as (
   select '[;|]'::text as list_sep, '::|\\+'::text as inner_sep
 ),
@@ -221,10 +218,8 @@ exploded as (
 ),
 parsed as (
   select e.plasmid_code, e.fusion_name_raw, e.fluor_name_raw, e.tag_name_raw,
-         case when e.fusion_name_raw is null then null
-              else nullif(trim((regexp_split_to_array(e.fusion_name_raw,(select inner_sep from params)))[2]),'') end as fluor_from_fusion,
-         case when e.fusion_name_raw is null then null
-              else nullif(trim((regexp_split_to_array(e.fusion_name_raw,(select inner_sep from params)))[1]),'') end as tag_from_fusion
+         case when e.fusion_name_raw is null then null else nullif(trim((regexp_split_to_array(e.fusion_name_raw,(select inner_sep from params)))[2]),'') end as fluor_from_fusion,
+         case when e.fusion_name_raw is null then null else nullif(trim((regexp_split_to_array(e.fusion_name_raw,(select inner_sep from params)))[1]),'') end as tag_from_fusion
   from exploded e
 ),
 clean as (
@@ -235,61 +230,97 @@ clean as (
          nullif(trim(coalesce(tag_name_raw, tag_from_fusion)),'') as tag_name
   from parsed
 ),
-fluor_catalog as (select distinct fluor_name from clean where fluor_name is not null),
-tag_catalog   as (select distinct tag_name   from clean where tag_name   is not null),
-up_fluors as (
-  insert into public.fluors (fluor_code, fluor_name)
-  select 'flu-'||lower(regexp_replace(fluor_name,'[^A-Za-z0-9]+','-','g')), fluor_name
-  from fluor_catalog
-  on conflict (fluor_code) do update set fluor_name=excluded.fluor_name
-  returning 1
+clean_with_fluor as (
+  select * from clean where fluor_name is not null
 ),
-up_tags as (
-  insert into public.tags (tag_code, tag_name)
-  select 'tag-'||lower(regexp_replace(tag_name,'[^A-Za-z0-9]+','-','g')), tag_name
-  from tag_catalog
-  on conflict (tag_code) do update set tag_name=excluded.tag_name
-  returning 1
-),
-fusion_rows_base as (
-  select distinct
-    coalesce(fusion_name, concat_ws(' + ', fluor_name, tag_name)) fusion_name_norm,
-    case when fluor_name is not null then 'flu-'||lower(regexp_replace(fluor_name,'[^A-Za-z0-9]+','-','g')) end fluor_code,
-    case when tag_name   is not null then 'tag-'||lower(regexp_replace(tag_name,  '[^A-Za-z0-9]+','-','g')) end tag_code
-  from clean
-  where fusion_name is not null or fluor_name is not null or tag_name is not null
-),
-fusion_codes as (
-  select distinct
-    'fus-'||lower(regexp_replace(concat_ws('--',fusion_name_norm,coalesce(fluor_code,''),coalesce(tag_code,'')),'[^A-Za-z0-9]+','-','g')) fusion_code,
-    min(fusion_name_norm) fusion_name_norm,
-    min(fluor_code) fluor_code,
-    min(tag_code) tag_code
-  from fusion_rows_base
+-- fluors
+tmp_fluors as (
+  select 'flu-'||lower(regexp_replace(fluor_name,'[^A-Za-z0-9]+','-','g')) as fluor_code,
+         min(fluor_name) as fluor_name
+  from clean_with_fluor
   group by 1
 ),
-up_fusions as (
+-- tags
+tmp_tags as (
+  select 'tag-'||lower(regexp_replace(tag_name,'[^A-Za-z0-9]+','-','g')) as tag_code,
+         min(tag_name) as tag_name
+  from clean_with_fluor where tag_name is not null
+  group by 1
+),
+-- fusions
+tmp_fusions as (
+  select distinct
+    'fus-'||lower(regexp_replace(
+       concat_ws('--',
+         coalesce(fusion_name, concat_ws(' + ', fluor_name, tag_name)),
+         'flu-'||lower(regexp_replace(fluor_name,'[^A-Za-z0-9]+','-','g')),
+         coalesce(case when tag_name is not null then 'tag-'||lower(regexp_replace(tag_name,'[^A-Za-z0-9]+','-','g')) end,'')
+       ), '[^A-Za-z0-9]+','-','g')) as fusion_code,
+    coalesce(fusion_name, concat_ws(' + ', fluor_name, tag_name)) as fusion_name_norm,
+    'flu-'||lower(regexp_replace(fluor_name,'[^A-Za-z0-9]+','-','g')) as fluor_code,
+    case when tag_name is not null then 'tag-'||lower(regexp_replace(tag_name,'[^A-Za-z0-9]+','-','g')) end as tag_code
+  from clean_with_fluor
+),
+-- insert catalogs (do nothing on exist), then update to keep names fresh
+ins_fluors as (
+  insert into public.fluors (fluor_code, fluor_name)
+  select fluor_code, fluor_name from tmp_fluors
+  on conflict (fluor_code) do nothing
+  returning 1
+),
+upd_fluors as (
+  update public.fluors f
+  set fluor_name = t.fluor_name
+  from tmp_fluors t
+  where f.fluor_code = t.fluor_code
+    and f.fluor_name is distinct from t.fluor_name
+  returning 1
+),
+ins_tags as (
+  insert into public.tags (tag_code, tag_name)
+  select tag_code, tag_name from tmp_tags
+  on conflict (tag_code) do nothing
+  returning 1
+),
+upd_tags as (
+  update public.tags t0
+  set tag_name = t.tag_name
+  from tmp_tags t
+  where t0.tag_code = t.tag_code
+    and t0.tag_name is distinct from t.tag_name
+  returning 1
+),
+ins_fusions as (
   insert into public.fusions (fusion_code, fusion_name, fluor_code, tag_code)
-  select fusion_code, fusion_name_norm, fluor_code, tag_code
-  from fusion_codes
-  on conflict (fusion_code) do update
-    set fusion_name=excluded.fusion_name, fluor_code=excluded.fluor_code, tag_code=excluded.tag_code
+  select fusion_code, fusion_name_norm, fluor_code, tag_code from tmp_fusions
+  on conflict (fusion_code) do nothing
+  returning 1
+),
+upd_fusions as (
+  update public.fusions f
+  set fusion_name = t.fusion_name_norm,
+      fluor_code  = t.fluor_code,
+      tag_code    = t.tag_code
+  from tmp_fusions t
+  where f.fusion_code = t.fusion_code
+    and (f.fusion_name is distinct from t.fusion_name_norm
+         or f.fluor_code is distinct from t.fluor_code
+         or f.tag_code   is distinct from t.tag_code)
   returning 1
 )
 insert into public.plasmid_fusions (plasmid_code, fusion_code, position_in_plasmid)
 select distinct
-  c.plasmid_code,
-  'fus-'||lower(regexp_replace(
-    concat_ws('--',
-      coalesce(c.fusion_name, concat_ws(' + ', c.fluor_name, c.tag_name)),
-      coalesce(case when c.fluor_name is not null then 'flu-'||lower(regexp_replace(c.fluor_name,'[^A-Za-z0-9]+','-','g')) end,''),
-      coalesce(case when c.tag_name   is not null then 'tag-'||lower(regexp_replace(c.tag_name,  '[^A-Za-z0-9]+','-','g')) end,'')
-    ),'[^A-Za-z0-9]+','-','g')),
-  null::int
-from clean c
-where c.plasmid_code is not null
-  and (c.fusion_name is not null or c.fluor_name is not null or c.tag_name is not null)
-on conflict (plasmid_code,fusion_code) do nothing;
+  c.plasmid_code, t.fusion_code, null::int
+from clean_with_fluor c
+join tmp_fusions t
+  on t.fusion_name_norm = coalesce(c.fusion_name, concat_ws(' + ', c.fluor_name, c.tag_name))
+on conflict (plasmid_code, fusion_code) do nothing;
 """
+    try:
+        with _eng().begin() as cx:
             cx.execute(text(loader_sql))
-        st.success("Loaded fusions/fluors/tags into public.fluors/tags/fusions and public.plasmid_fusions from this file.")
+        st.success("Upload processed: plasmids upserted and fusions/fluors/tags linked.")
+    except Exception as e:
+        st.error(f"Loader failed: {e}")
+        with st.expander("Debug SQL"):
+            st.code(loader_sql, language="sql")
