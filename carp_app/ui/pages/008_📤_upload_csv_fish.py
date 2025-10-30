@@ -12,7 +12,7 @@ sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-import io, os, re, math
+import io, os, re, math, hashlib
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import date, timedelta
@@ -25,31 +25,34 @@ from sqlalchemy.engine import Engine
 from carp_app.ui.lib.app_ctx import get_engine
 from carp_app.lib.time import utc_now
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Page setup
-# ─────────────────────────────────────────────────────────────────────────────
 PAGE_TITLE = "CARP — New Fish from CSV"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
 st.title(PAGE_TITLE)
-st.caption(
-    "Upserts by (seed_batch_id, name, birthday). Fish codes are assigned automatically. "
-    "Founders (F0) may mint new alleles per rules. CSV must include the 'birthday' column."
-)
+st.caption("Upserts by explicit identity key; fish codes assigned automatically. CSV must include the 'birthday' column.")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DB engine (cached)
-# ─────────────────────────────────────────────────────────────────────────────
 _ENGINE: Optional[Engine] = None
-
 def _get_engine() -> Engine:
     if _ENGINE is None:
-        # rebind outer-scope variable without using 'global'
         globals()["_ENGINE"] = get_engine()
     return _ENGINE
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CSV helpers
-# ─────────────────────────────────────────────────────────────────────────────
+def _norm_str(v):
+    if v is None: return ""
+    s = str(v).strip().lower()
+    return " ".join(s.split())
+
+def _identity_key(r: pd.Series) -> str:
+    parts = [
+        _norm_str(r.get("name")),
+        str(r.get("birthday") or "").strip(),
+        _norm_str(r.get("genetic_background")),
+        _norm_str(r.get("line_building_stage")),
+        _norm_str(r.get("transgene_base_code")),
+        _norm_str(r.get("allele_nickname")),
+    ]
+    base = " | ".join(parts)
+    return base
+
 def _example_fish_csv_bytes() -> bytes:
     example = pd.DataFrame([{
         "name": "",
@@ -108,9 +111,6 @@ def _parse_birthday(x) -> Optional[date]:
     except Exception:
         return None
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Upload + preview
-# ─────────────────────────────────────────────────────────────────────────────
 uploaded = st.file_uploader("Upload fish CSV", type=["csv"])
 if not uploaded:
     st.info("Choose a CSV to preview."); st.stop()
@@ -148,9 +148,6 @@ for col in (
 st.subheader("Preview (first 50 rows)")
 st.dataframe(df.head(50), width="stretch", hide_index=True)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Column resolution
-# ─────────────────────────────────────────────────────────────────────────────
 ALIASES = {
     "transgene_base_code": ["transgene_base_code","base_code","tg_base_code","transgene_base","tg_base"],
     "allele_nickname":     ["allele_nickname","allele_nick","allele_name","allele"],
@@ -174,9 +171,6 @@ with st.expander("Detected allele-link columns"):
         "zygosity": col_zyg or "—",
     })
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DB helpers
-# ─────────────────────────────────────────────────────────────────────────────
 def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
@@ -184,65 +178,56 @@ def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
         df[c] = df[c].astype("string").fillna("")
     return df
 
-def _build_upsert_results_from_view(fish_codes: List[str]) -> pd.DataFrame:
-    if not fish_codes:
-        return pd.DataFrame()
+def _build_upsert_results_for_batch(seed_batch_id: str) -> pd.DataFrame:
     sql = text("""
-        SELECT *
-        FROM public.v_fish_rich
-        WHERE fish_code = ANY(:codes)
-        ORDER BY fish_code
+        select v.*
+        from public.v_fish_rich v
+        join public.fish f on f.fish_code = v.fish_code
+        where f.seed_batch_id = :bid
+        order by v.fish_code
     """)
     with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"codes": fish_codes})
+        df = pd.read_sql(sql, cx, params={"bid": seed_batch_id})
     return _coerce_strings(df)
 
 sql_tank_exists = text("""
-  SELECT 1 FROM public.tanks
-  WHERE status='active' AND tank_code LIKE ('TANK(' || :fc || ')#%')
-  LIMIT 1
+  select 1 from public.tanks
+  where status='active' and tank_code like ('TANK(' || :fc || ')#%')
+  limit 1
 """)
-sql_ensure_tank = text("SELECT public.ensure_active_tank_for_fish(:fish_code)")
-upsert_allele = text("""
-  SELECT * FROM public.upsert_fish_allele_from_csv(:fish_id, :base_code, :allele_nickname)
-""")
+sql_ensure_tank = text("select public.ensure_active_tank_for_fish(:fish_code)")
+upsert_allele = text("select * from public.upsert_fish_allele_from_csv(:fish_id, :base_code, :allele_nickname)")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Upsert logic
-# ─────────────────────────────────────────────────────────────────────────────
 inserted: List[Dict[str, Any]] = []
 if st.button("Upsert fish batch", type="primary", width="stretch"):
     linked, skipped_links = 0, 0
-    batch_fish_codes: List[str] = []
 
     fn_upsert = text("""
-        SELECT * FROM public.upsert_fish_by_batch_name_dob(
-            p_batch          => (:p_batch)::text,
-            p_dob            => (:p_dob)::date,
-            p_seed_batch_id  => (:p_seed_batch_id)::text,
-            p_name           => (:p_name)::text,
-            p_bg             => (:p_bg)::text,
-            p_nick           => (:p_nick)::text,
-            p_stage          => (:p_stage)::text,
-            p_desc           => (:p_desc)::text,
-            p_notes          => (:p_notes)::text,
-            p_by             => (:p_by)::text
-        )
-    """).bindparams(
-        bindparam("p_batch"), bindparam("p_dob"), bindparam("p_seed_batch_id"),
-        bindparam("p_name"), bindparam("p_bg"), bindparam("p_nick"),
-        bindparam("p_stage"), bindparam("p_desc"), bindparam("p_notes"), bindparam("p_by")
-    )
+      select * from public.upsert_fish_by_identity(
+        :p_seed_batch_id,
+        :p_identity_key,
+        :p_dob,
+        :p_name_human,
+        :p_bg,
+        :p_nick,
+        :p_stage,
+        :p_desc,
+        :p_notes,
+        :p_by
+      )
+    """)
 
     with _get_engine().begin() as cx:
         for _, r in df.iterrows():
+            ident = _identity_key(r)
+            human_name = (r.get("name") or None)
             params = {
-                "p_batch": seed_batch_id,
                 "p_seed_batch_id": seed_batch_id,
+                "p_identity_key": ident,
                 "p_dob": r.get("birthday"),
-                "p_name": (r.get("name") or None),
+                "p_name_human": human_name,
                 "p_bg": (r.get("genetic_background") or None),
-                "p_nick": (r.get("nickname") or None),
+                "p_nick": (_canon_nickname(r.get("nickname")) or None),
                 "p_stage": (r.get("line_building_stage") or None),
                 "p_desc": (r.get("description") or None),
                 "p_notes": (r.get("notes") or None),
@@ -253,7 +238,6 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
                 continue
             fish_id, fish_code = got.get("fish_uuid"), got.get("fish_code")
             inserted.append(dict(got))
-            batch_fish_codes.append(fish_code)
 
             if not fish_id:
                 raise RuntimeError(f"Upsert failed for {fish_code or '(unknown)'} — no fish_uuid returned")
@@ -270,11 +254,7 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
                     cx.execute(upsert_allele, {"fish_id": fish_id, "base_code": tg, "allele_nickname": nn})
                     if zy:
                         cx.execute(
-                            text("""
-                                UPDATE public.fish_transgene_alleles
-                                   SET zygosity=:zyg
-                                 WHERE fish_uuid=:fid AND transgene_base_code=:base
-                            """),
+                            text("update public.fish_transgene_alleles set zygosity=:zyg where fish_uuid=:fid and transgene_base_code=:base"),
                             {"zyg": zy, "fid": fish_id, "base": tg},
                         )
                     linked += 1
@@ -283,22 +263,14 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
 
     st.success(f"Upserted {len(inserted)} fish. Linked {linked} allele rows (skipped {skipped_links}).")
 
-    if inserted:
-        st.subheader("Upsert results (all cols from v_fish_rich)")
-        results_df = _build_upsert_results_from_view(batch_fish_codes)
-        st.caption(f"{len(results_df)} row(s) • columns: {', '.join(results_df.columns)}")
-
-        if not results_df.empty:
-            st.data_editor(
-                results_df,
-                hide_index=True,
-                width="stretch",
-                key="upsert_results_vfr_v1",
-            )
-            st.download_button(
-                "⬇︎ Download upsert results (v_fish_rich.csv)",
-                data=results_df.to_csv(index=False).encode("utf-8"),
-                file_name=f"upsert_results_v_fish_rich_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
-                type="secondary",
-                mime="text/csv",
-            )
+    results_df = _build_upsert_results_for_batch(seed_batch_id)
+    st.caption(f"{len(results_df)} row(s) • columns: {', '.join(results_df.columns)}")
+    if not results_df.empty:
+        st.data_editor(results_df, hide_index=True, width="stretch", key="upsert_results_vfr_v1")
+        st.download_button(
+            "⬇︎ Download upsert results (v_fish_rich.csv)",
+            data=results_df.to_csv(index=False).encode("utf-8"),
+            file_name=f"upsert_results_v_fish_rich_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
+            type="secondary",
+            mime="text/csv",
+        )

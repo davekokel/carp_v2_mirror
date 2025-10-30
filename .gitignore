@@ -57,3 +57,8 @@ docs/DB Connection Playbook v2*
 carp_app/seed_kits/**/~.xlsx
 carp_app/seed_kits/**/~.xlsx
 carp_app/seed_kits/**/~$*.xlsx
+
+carp_app/seed_kits/**/~$*.xlsx
+carp_app/seed_kits/**/*.zip
+carp_app/seed_kits/**/20*/
+carp_app/seed_kits/**/seed_kit_*/
