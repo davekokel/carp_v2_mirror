@@ -44,7 +44,7 @@ begin
       nullif(p_notes,''),
       nullif(p_by,'')
     )
-    returning fish_uuid, fish_code into r;
+    returning public.fish.fish_uuid, public.fish.fish_code into r;
   else
     update public.fish
        set fish_name          = coalesce(nullif(p_name_human,''), fish_name),
