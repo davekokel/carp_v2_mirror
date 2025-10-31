@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
-import os
+import os, uuid
 from datetime import date
 import pandas as pd
 import streamlit as st
@@ -36,6 +36,15 @@ def _safe(cx, sql_or_text, params=None) -> pd.DataFrame:
     q = sql_or_text if isinstance(sql_or_text, TextClause) else text(sql_or_text)
     return pd.read_sql(q, cx, params=params or {})
 
+def _col_exists(cx, schema: str, table: str, col: str) -> bool:
+    q = text("""
+        select 1
+        from information_schema.columns
+        where table_schema=:s and table_name=:t and column_name=:c
+        limit 1
+    """)
+    return _safe(cx, q, {"s": schema, "t": table, "c": col}).shape[0] > 0
+
 @st.cache_data(show_spinner=False)
 def _vtp_cols() -> set[str]:
     with eng.begin() as cx:
@@ -60,16 +69,16 @@ with st.form("filters"):
     limit = int(c2.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
     st.form_submit_button("Apply", width="stretch")
 
-# ── Load candidate tank pairs from v_tank_pairs (column-adaptive) ────────────
+# ── Load tank pairs (column-adaptive) ────────────────────────────────────────
 select_parts = [
     _pick(["tank_pair_code"], "text", "tank_pair_code"),
     _pick(["fish_pair_code"], "text", "fish_pair_code"),
     _pick(["mom_fish_code"], "text", "mom_fish_code"),
     _pick(["mom_tank_code","mother_tank_code"], "text", "mom_tank_code"),
-    "''::text as mom_genotype",
+    _pick(["mom_genotype"], "text", "mom_genotype"),
     _pick(["dad_fish_code"], "text", "dad_fish_code"),
     _pick(["dad_tank_code","father_tank_code"], "text", "dad_tank_code"),
-    "''::text as dad_genotype",
+    _pick(["dad_genotype"], "text", "dad_genotype"),
     _pick(["created_at","tank_pair_created_at","pair_created_at"], "timestamptz", "created_at"),
 ]
 where_parts = [
@@ -134,37 +143,74 @@ run_date: date = c1.date_input("Run date", value=date.today())
 make_clutch = c2.checkbox("Also create clutch now", value=True)
 note = st.text_input("Run note (optional)")
 
-# ── Action ───────────────────────────────────────────────────────────────────
-if st.button("⏱ Schedule cross" + (" + clutch" if make_clutch else ""), type="primary"):
+# allocate an idempotency key once, keep it across reruns until we finish
+if "xid" not in st.session_state or not st.session_state["xid"]:
+    st.session_state["xid"] = str(uuid.uuid4())
+xid = st.session_state["xid"]
+st.caption(f"idempotency_key = {xid}")
+
+with st.form("schedule"):
+    submit = st.form_submit_button("⏱ Schedule cross" + (" + clutch" if make_clutch else ""), type="primary")
+
+if submit:
     creator = (user.get('email') or user.get('id') or 'unknown')
     try:
         with eng.begin() as cx:
-            row = _safe(cx, """
-              insert into public.cross_instances
-                (cross_id, id, tank_pair_code, cross_date, created_by, note)
-              values
-                (gen_random_uuid(), gen_random_uuid(), :tp_code, :d, :by, nullif(:note,''))
-              returning id, cross_run_code, cross_date, created_at
-            """, {"tp_code": tp_code, "d": str(run_date), "by": creator, "note": note})
+            has_xid = _col_exists(cx, "public", "cross_instances", "idempotency_key")
+
+            if has_xid:
+                ins = text("""
+                  insert into public.cross_instances
+                    (cross_id, id, tank_pair_code, cross_date, created_by, note, idempotency_key)
+                  values
+                    (gen_random_uuid(), gen_random_uuid(), :tp, :d, :by, nullif(:note,''), :xid)
+                  on conflict (idempotency_key) do update
+                    set note = coalesce(excluded.note, public.cross_instances.note)
+                  returning id, tank_pair_code, run_nn, cross_run_code, cross_date, created_at
+                """)
+                row = _safe(cx, ins, {"tp": tp_code, "d": str(run_date), "by": creator, "note": note, "xid": xid})
+            else:
+                ins = text("""
+                  with x as (
+                    insert into public.cross_instances
+                      (cross_id, id, tank_pair_code, cross_date, created_by, note)
+                    values
+                      (gen_random_uuid(), gen_random_uuid(), :tp, :d, :by, nullif(:note,''))
+                    returning id, tank_pair_code, run_nn, cross_run_code, cross_date, created_at
+                  )
+                  select * from x
+                """)
+                row = _safe(cx, ins, {"tp": tp_code, "d": str(run_date), "by": creator, "note": note})
+
             if row.empty:
                 st.error("Insert failed (no cross row returned)."); st.stop()
+
             cross_id   = str(row.iloc[0]["id"])
-            cross_code = str(row.iloc[0]["cross_run_code"])
+            cross_code = row.iloc[0]["cross_run_code"]
+            if not cross_code or (isinstance(cross_code, float) and pd.isna(cross_code)):
+                row2 = _safe(cx, """
+                    update public.cross_instances
+                       set run_nn = coalesce(run_nn, public.next_run_nn(tank_pair_code)),
+                           cross_run_code = coalesce(cross_run_code, format('%s-%s', tank_pair_code, lpad(coalesce(run_nn,1)::text, 2, '0')))
+                     where id = :id
+                 returning cross_run_code
+                """, {"id": cross_id})
+                cross_code = str(row2.iloc[0]["cross_run_code"]) if not row2.empty else None
 
             if make_clutch:
-                cl = _safe(cx, """
-                    insert into public.clutch_instances (
-                        id, cross_instance_id, tank_pair_code
-                    )
-                    values (
-                        gen_random_uuid(), :cid, :tp_code
-                    )
-                    returning id, clutch_instance_code, created_at
-                    """, {"cid": cross_id, "tp_code": tp_code})
+                # one per cross; if already exists, do nothing (and don't try to fetch rows)
+                cx.execute(text("""
+                    insert into public.clutch_instances (id, cross_instance_id, tank_pair_code)
+                    values (gen_random_uuid(), :cid, :tp)
+                    on conflict (cross_instance_id) do nothing
+                """), {"cid": cross_id, "tp": tp_code})
+
+        # clear the idempotency key AFTER success so the next click gets a new one
+        st.session_state["xid"] = None
 
         with eng.begin() as cx:
             preview = _safe(cx, """
-              select
+              select distinct on (ci.id)
                 ci.tank_pair_code,
                 ci.cross_run_code as cross_code,
                 to_char(ci.cross_date,'YYYY-MM-DD') as cross_date,
@@ -172,10 +218,11 @@ if st.button("⏱ Schedule cross" + (" + clutch" if make_clutch else ""), type="
                 to_char(coalesce(cl.created_at, ci.created_at),'YYYY-MM-DD') as created
               from public.cross_instances ci
               left join public.clutch_instances cl on cl.cross_instance_id = ci.id
-              order by ci.created_at desc nulls last
+              order by ci.id, ci.created_at desc nulls last
               limit 5
             """)
         st.subheader("Recent CX events")
         st.dataframe(preview, width="stretch", hide_index=True)
+
     except Exception as e:
         st.error(f"Schedule failed: {e}")
