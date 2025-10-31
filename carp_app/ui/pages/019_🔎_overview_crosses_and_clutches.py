@@ -1,5 +1,5 @@
 # =============================================================================
-# 🔎 Cross & Clutch Instances (uses public.v_cross_clutch_instances)
+# 🔎 Cross & Clutch Instances (direct joins; no dependency on v_cross_clutch_instances)
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
@@ -17,6 +17,7 @@ from carp_app.ui.email_otp_gate import require_email_otp
 from carp_app.lib.db import get_engine
 from carp_app.ui.lib.labels_components import download_button_for_labels
 
+# ── Auth + page ──────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 
@@ -36,53 +37,61 @@ with st.form("filters"):
     c1, c2, c3, c4 = st.columns([2,1,1,1])
     q   = c1.text_input("Search (TP/FP/mom/dad/cross/clutch/genotype)")
     d1  = c2.date_input("From", value=None)
-    d2  = c3.date_input("To", value=None)
+    d2  = c3.date_input("To",   value=None)
     lim = int(c4.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
     st.form_submit_button("Apply")
 
 where_parts: list[str] = []
-params: dict[str, t.Any] = {}
+params: dict[str, t.Any] = {"lim": lim}
 
 if q:
     params["q"] = f"%{q.strip()}%"
     where_parts.append("""(
-      tank_pair_code ilike :q or fish_pair_code ilike :q
-      or mom_fish_code ilike :q or dad_fish_code ilike :q
-      or mom_tank_code ilike :q or dad_tank_code ilike :q
-      or mom_genotype ilike :q or dad_genotype ilike :q or clutch_genotype ilike :q
-      or cross_code ilike :q or clutch_code ilike :q
+      ci.tank_pair_code ilike :q or coalesce(vtp.fish_pair_code,'') ilike :q or
+      coalesce(vtp.mom_fish_code,'') ilike :q or coalesce(vtp.dad_fish_code,'') ilike :q or
+      coalesce(vtp.mom_tank_code,'') ilike :q or coalesce(vtp.dad_tank_code,'') ilike :q or
+      coalesce(vtp.mom_genotype,'') ilike :q or coalesce(vtp.dad_genotype,'') ilike :q or
+      coalesce(cl.observed_genotype_pretty,'') ilike :q or
+      coalesce(cl.expected_genotype_pretty,'') ilike :q or
+      coalesce(cl.clutch_genotype_pretty,'')   ilike :q or
+      coalesce(ci.cross_run_code,'') ilike :q or
+      coalesce(cl.clutch_instance_code,'') ilike :q
     )""")
 
 if d1:
-    params["d1"] = str(d1)
-    where_parts.append("(cross_date >= :d1)")
+    params["d1"] = str(d1); where_parts.append("(ci.cross_date >= :d1)")
 if d2:
-    params["d2"] = str(d2)
-    where_parts.append("(cross_date <= :d2)")
+    params["d2"] = str(d2); where_parts.append("(ci.cross_date <= :d2)")
 
 WHERE_SQL = (" where " + " and ".join(where_parts)) if where_parts else ""
 
-# ── Query ────────────────────────────────────────────────────────────────────
+# ── Query (direct joins: cross_instances + clutch_instances + v_tank_pairs) ──
 sql = text(f"""
   with base as (
     select
-      cross_instance_id::uuid         as cross_instance_id,
-      cross_code::text                as cross_code,
-      tank_pair_code::text            as tank_pair_code,
-      fish_pair_code::text            as fish_pair_code,
-      mom_fish_code::text             as mom_fish_code,
-      dad_fish_code::text             as dad_fish_code,
-      mom_tank_code::text             as mom_tank_code,
-      dad_tank_code::text             as dad_tank_code,
-      mom_genotype::text              as mom_genotype,
-      dad_genotype::text              as dad_genotype,
-      clutch_genotype::text           as clutch_genotype,
-      cross_date::date                as cross_date,
-      cross_created_at::timestamptz   as cross_created_at,
-      clutch_instance_id::uuid        as clutch_instance_id,
-      clutch_code::text               as clutch_code,
-      clutch_created_at::timestamptz  as clutch_created_at
-    from public.v_cross_clutch_instances
+      ci.id                           as cross_instance_id,
+      ci.cross_run_code               as cross_code,
+      ci.tank_pair_code               as tank_pair_code,
+      vtp.fish_pair_code              as fish_pair_code,
+      vtp.mom_fish_code               as mom_fish_code,
+      vtp.dad_fish_code               as dad_fish_code,
+      vtp.mom_tank_code               as mom_tank_code,
+      vtp.dad_tank_code               as dad_tank_code,
+      coalesce(vtp.mom_genotype,'')   as mom_genotype,
+      coalesce(vtp.dad_genotype,'')   as dad_genotype,
+      coalesce(cl.observed_genotype_pretty,
+               cl.expected_genotype_pretty,
+               cl.clutch_genotype_pretty)    as clutch_genotype,
+      ci.cross_date                   as cross_date,
+      ci.created_at                   as cross_created_at,
+      cl.id                           as clutch_instance_id,
+      cl.clutch_instance_code         as clutch_code,
+      cl.created_at                   as clutch_created_at
+    from public.cross_instances   ci
+    left join public.clutch_instances cl
+      on cl.cross_instance_id = ci.id
+    left join public.v_tank_pairs vtp
+      on vtp.tank_pair_code = ci.tank_pair_code
   )
   select *
   from base
@@ -91,7 +100,6 @@ sql = text(f"""
            coalesce(clutch_created_at, cross_created_at) desc nulls last
   limit :lim
 """)
-params["lim"] = lim
 
 with eng.begin() as cx:
     df = pd.read_sql(sql, cx, params=params)
@@ -197,4 +205,4 @@ with c2:
         button_text="⬇️ Download CLUTCH labels (PDF)",
     )
 
-st.caption("Source: public.v_cross_clutch_instances • Petri DOB = cross_date + 1 day")
+st.caption("Source: cross_instances + clutch_instances + v_tank_pairs • Petri DOB = cross_date + 1 day")

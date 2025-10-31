@@ -1,5 +1,5 @@
 # =============================================================================
-# 🧪 Add treatments to clutch — deterministic (strict v_clutch_instances)
+# 🧪 Add treatments to clutch — deterministic (strict v_clutch_instances) + generic clutch_materials
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
@@ -7,11 +7,12 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
 import os
 from datetime import date, timedelta
-from typing import List, Dict, Tuple, Optional, Any
+from typing import List, Dict, Optional
 
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
+from sqlalchemy import text as _sql  # alias for view-existence helper
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
@@ -35,8 +36,9 @@ def _eng():
     return _ENGINE
 
 # ── Deterministic contracts ──────────────────────────────────────────────────
-CLUTCHES_VIEW = "public.v_clutch_instances_display"          # single source of truth
-TREATMENTS_TABLE = "public.clutch_instance_treatments"
+CLUTCHES_VIEW   = "public.v_clutch_instances_display"  # single source of truth
+MATERIALS_VIEW  = "public.v_materials"                 # unified registry (plasmids + RNAs if present)
+TREATMENTS_LINK = "public.clutch_materials"            # generic link: clutch_instance_id ↔ material
 
 REQUIRED_VIEW_COLS = [
     # identity / display
@@ -88,23 +90,6 @@ def _assert_table_exists(schema: str, name: str) -> None:
     if not ok:
         st.error(f"Required table {schema}.{name} not found."); st.stop()
 
-_assert_view_contract()
-_assert_table_exists("public", "clutch_instances")   # needed by resolver
-_assert_table_exists("public", "cross_instances")    # needed by resolver
-_assert_table_exists("public", "plasmids")           # for plasmid picker (optional fetch still handled)
-# treatments table is asserted when we try to write, but we can also assert early:
-_assert_table_exists("public", "clutch_instance_treatments")
-
-# ── Utilities ────────────────────────────────────────────────────────────────
-def _safe_date(v):
-    try:
-        return pd.to_datetime(v).date() if pd.notna(v) else None
-    except Exception:
-        return None
-
-# ── Load clutches strictly from the view ─────────────────────────────────────
-from sqlalchemy import text as _sql  # if not already imported
-
 def _view_exists(schema: str, name: str) -> bool:
     """
     Return True if a normal or materialized view exists as schema.name.
@@ -119,9 +104,26 @@ def _view_exists(schema: str, name: str) -> bool:
       WHERE schemaname = :schema AND matviewname = :name
       LIMIT 1
     """)
-    with _eng().begin() as cx:   # 👈 changed from _get_engine()
+    with _eng().begin() as cx:
         return cx.execute(q, {"schema": schema, "name": name}).first() is not None
 
+# Contract checks
+_assert_view_contract()
+_assert_table_exists("public", "clutch_instances")   # resolver
+_assert_table_exists("public", "cross_instances")    # resolver
+_assert_table_exists("public", "plasmids")           # for picker
+_assert_table_exists("public", "clutch_materials")   # generic link
+if not _view_exists("public", "v_materials"):
+    st.error("Required view public.v_materials not found (unified materials registry)."); st.stop()
+
+# ── Utilities ────────────────────────────────────────────────────────────────
+def _safe_date(v):
+    try:
+        return pd.to_datetime(v).date() if pd.notna(v) else None
+    except Exception:
+        return None
+
+# ── Load clutches strictly from the view ─────────────────────────────────────
 def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
     where, params = [], {}
     if not most_recent:
@@ -190,7 +192,7 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
 
     return df.loc[:, ~df.columns.duplicated()]
 
-# ── Resolve CI/CR → IDs (deterministic rules; no heuristics beyond what’s here) ─
+# ── Resolve CI code → IDs ────────────────────────────────────────────────────
 def _resolve_ids_from_ci_or_cr(code_in: str):
     code = (code_in or "").strip()
     if not code: return None, None
@@ -205,14 +207,23 @@ def _resolve_ids_from_ci_or_cr(code_in: str):
     if row.empty: return None, None
     return row["cross_instance_id"].iloc[0], row["clutch_instance_id"].iloc[0]
 
-# ── Treatments I/O ───────────────────────────────────────────────────────────
+# ── Treatments I/O (generic clutch_materials) ────────────────────────────────
 def _load_instance_treatments(clutch_instance_id: str) -> pd.DataFrame:
     with _eng().begin() as cx:
-        sql = text("""
-          select created_at, material_type, material_code, material_name, notes, created_by
-          from public.clutch_instance_treatments
-          where clutch_instance_id = cast(:cid as uuid)
-          order by created_at desc nulls last
+        sql = text(f"""
+          select
+            cm.created_at,
+            cm.material_type,
+            cm.material_code,
+            coalesce(cm.material_name, vm.material_name) as material_name,
+            cm.notes,
+            cm.created_by
+          from {TREATMENTS_LINK} cm
+          left join {MATERIALS_VIEW} vm
+            on lower(vm.material_type)=lower(cm.material_type)
+           and lower(vm.material_code)=lower(cm.material_code)
+          where cm.clutch_instance_id = cast(:cid as uuid)
+          order by cm.created_at desc nulls last
         """)
         return pd.read_sql(sql, cx, params={"cid": clutch_instance_id})
 
@@ -225,8 +236,8 @@ def _insert_instance_treatments(clutch_instance_id: str, created_by: str, items:
             if not code:
                 errs.append(f"<empty-code> → skipped"); continue
             try:
-                cx.execute(text("""
-                  insert into public.clutch_instance_treatments
+                cx.execute(text(f"""
+                  insert into {TREATMENTS_LINK}
                     (clutch_instance_id, material_type, material_code, material_name, notes, created_by)
                   values
                     (cast(:iid as uuid), :kind, :code, :name, :notes, :who)
@@ -238,7 +249,7 @@ def _insert_instance_treatments(clutch_instance_id: str, created_by: str, items:
                     "iid": clutch_instance_id,
                     "kind": ("plasmid" if it.get("source") == "plasmids" else
                              "rna" if it.get("source") == "v_rna_plasmids" else
-                             it.get("material_type") or "generic"),
+                             (it.get("material_type") or "generic")),
                     "code": code,
                     "name": name or code,
                     "notes": note or "",
@@ -285,12 +296,9 @@ def _load_run_overview(ci_code: str) -> pd.DataFrame:
     # Build effective fields the UI should show
     df = df.copy()
     df["genotype_effective"] = df["stored_genotype"].fillna("").replace("", None).combine_first(df["view_genotype"])
-    df["rollup_effective"]   = df["stored_rollup"].fillna("").replace("", None).combine_first(
-        df["view_rollup"]
-    )
+    df["rollup_effective"]   = df["stored_rollup"].fillna("").replace("", None).combine_first(df["view_rollup"])
     return df.loc[:, ~df.columns.duplicated()]
 
-# ── Filters + picker ─────────────────────────────────────────────────────────
 # ── Filters + picker ─────────────────────────────────────────────────────────
 with st.form("filters_form", clear_on_submit=False):
     today = date.today()
@@ -309,7 +317,7 @@ st.caption(f"{len(clutches)} clutch(es)")
 if clutches.empty:
     st.info("No clutches found with the current filters."); st.stop()
 
-# Build a grid that shows EFFECTIVE fields (stored preferred, view fallback)
+# Build a grid showing EFFECTIVE fields (stored preferred, view fallback)
 dfv = clutches[[
     "clutch_code",
     "clutch_birthday",
@@ -322,7 +330,7 @@ dfv = clutches[[
     "created_at_instance",
 ]].copy()
 
-# Final fallback for rollup: compute locally if both sides present but no stored/view rollup
+# Final fallback for rollup if needed
 dfv["rollup_effective"] = dfv.apply(
     lambda r: r["rollup_effective"]
               or _treatments_first_rollup(r.get("treatments_pretty_effective"), r.get("clutch_genotype_effective")),
@@ -331,7 +339,6 @@ dfv["rollup_effective"] = dfv.apply(
 
 # Picker selection column
 dfv.insert(0, "✓ Select", False)
-
 last_ci = st.session_state.get("last_ci")
 if last_ci:
     dfv.loc[dfv["clutch_code"] == last_ci, "✓ Select"] = True
@@ -345,7 +352,6 @@ picker = st.data_editor(
         "✓ Select":                  st.column_config.CheckboxColumn("✓", default=False),
         "clutch_birthday":           st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
         "created_at_instance":       st.column_config.DatetimeColumn("created_at_instance", disabled=True),
-        "clutch_name_effective":     st.column_config.TextColumn("clutch_name", disabled=True),
         "clutch_genotype_effective": st.column_config.TextColumn("clutch_genotype_pretty", disabled=True),
         "rollup_effective":          st.column_config.TextColumn("Treatments > genotype", disabled=True),
     },
@@ -471,20 +477,17 @@ else:
     geno_eff  = str(run_df["genotype_effective"].iloc[0] or "")
     roll_eff  = str(run_df["rollup_effective"].iloc[0] or "")
 
-    # If both are still blank, fall back to local builder once (optional)
     if not roll_eff:
         roll_eff = _treatments_first_rollup(pretty, geno_eff)
 
     st.caption(f"Effective treatments: {cnt} — {pretty or '—'}")
     st.caption(f"Treatments > genotype (stored): {roll_eff or '—'}")
 
-    # Show a compact grid with the *effective* genotype and rollup
-    # Show a compact grid: drop unused name/strain, promote Treatments > genotype to 4th col
     out = pd.DataFrame([{
         "clutch_code":                run_df["clutch_code"].iloc[0],
         "clutch_birthday":            run_df["clutch_birthday"].iloc[0],
         "cross_name_pretty":          run_df["cross_name_pretty"].iloc[0],
-        "treatments_genotype":        roll_eff,                       # 4th column
+        "treatments_genotype":        roll_eff,
         "treatments_count_effective": cnt,
         "treatments_pretty_effective": pretty,
     }])
