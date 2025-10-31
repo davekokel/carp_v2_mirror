@@ -1,36 +1,33 @@
 # =============================================================================
-# 🐟 Select fish pairs — conceptual (no tank_pairs or runs on this page)
-#      Unordered conceptual pair; links to conceptual clutches explicitly
+# 🐟 Select parents & genotype (conceptual)
+# Choose parents + expected genotype, then hand off to Tank Pairs to create runs
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
-
-from carp_app.ui.auth_gate import require_auth
-sb, session, user = require_auth()
-
-from carp_app.ui.email_otp_gate import require_email_otp
-require_email_otp()
-
-try:
-    from carp_app.ui.auth_gate import require_app_unlock
-except Exception:
-    def require_app_unlock(): ...
-require_app_unlock()
 
 import os, re, hashlib, pathlib as _pl
 from typing import List, Dict, Any, Set, Optional
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
+from carp_app.ui.auth_gate import require_auth
+from carp_app.ui.email_otp_gate import require_email_otp
+try:
+    from carp_app.ui.auth_gate import require_app_unlock
+except Exception:
+    def require_app_unlock(): ...
 from carp_app.ui.lib.app_ctx import get_engine
 
-st.set_page_config(page_title="🐟 Select fish pairs", page_icon="🐟", layout="wide")
-st.title("🐟 Select fish pairs")
+# ── Auth + page ──────────────────────────────────────────────────────────────
+sb, session, user = require_auth()
+require_email_otp()
+require_app_unlock()
 
-_srcp = _pl.Path(__file__).resolve()
-st.caption("SRC=" + str(_srcp.name) + " • SHA256=" + hashlib.sha256(_srcp.read_bytes()).hexdigest()[:12])
+st.set_page_config(page_title="🐟 Select parents & genotype", page_icon="🐟", layout="wide")
+st.title("🐟 Select parents & genotype")
 
+# ── Engine (must be defined before any DB calls) ─────────────────────────────
 @st.cache_resource(show_spinner=False)
 def _cached_engine():
     return get_engine()
@@ -43,6 +40,7 @@ def _eng():
 with _eng().begin() as cx:
     dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
 st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
+
 
 # =============================================================================
 # Helpers
@@ -57,19 +55,6 @@ def _col_exists(schema: str, table: str, col: str) -> bool:
         """)
         return cx.execute(q, {"s": schema, "t": table, "c": col}).first() is not None
 
-def _fish_pk_col() -> str:
-    for c in ("fish_uuid", "id_uuid", "uuid", "id"):
-        if _col_exists("public", "fish", c):
-            return c
-    raise RuntimeError("public.fish has no recognized PK column")
-
-def _fishpair_fk_cols() -> tuple[str, str]:
-    for momc, dadc in (("mom_fish_uuid","dad_fish_uuid"), ("mom_fish_id","dad_fish_id")):
-        if _col_exists("public", "fish_pairs", momc) and _col_exists("public", "fish_pairs", dadc):
-            return momc, dadc
-    raise RuntimeError("public.fish_pairs lacks expected mom/dad FK columns")
-
-@st.cache_data(show_spinner=False)
 def _pick_fish_view() -> str:
     with _eng().begin() as cx:
         rows = pd.read_sql(
@@ -138,7 +123,7 @@ def _default_expected_genotype(combined_df: pd.DataFrame, mom_code: str, dad_cod
         return ""
 
 # =============================================================================
-# STEP 1 — FISH SEARCH + ROW CHECKBOX SELECTION (UNORDERED PAIR)
+# Step 1 — FISH SEARCH + ROW CHECKBOX SELECTION (UNORDERED PAIR)
 # =============================================================================
 created_by_default = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
 created_by = st.text_input("Created by", value=created_by_default)
@@ -264,7 +249,7 @@ else:
     st.caption("Parents are treated as an unordered pair here. Roles (mother/father) are applied when choosing tanks.")
 
 # =============================================================================
-# STEP 2 — GENOTYPE INHERITANCE (PICK ELEMENTS)
+# Step 2 — GENOTYPE INHERITANCE (PICK ELEMENTS)
 # =============================================================================
 st.header("Step 2 — Genotype inheritance")
 
@@ -367,9 +352,9 @@ else:
         st.dataframe(combined.reset_index(drop=True), width="stretch", hide_index=True)
 
 # =============================================================================
-# STEP 3 — ONE CLICK: SAVE FISH PAIR + LINK CONCEPTUAL CLUTCH
+# Step 3 — HANDOFF TO TANK PAIRS PAGE
 # =============================================================================
-st.subheader("Save pair + clutch")
+st.subheader("Save pair + clutch (handoff)")
 
 computed_geno = _default_expected_genotype(
     locals().get("combined", pd.DataFrame(columns=["element"])),
@@ -379,102 +364,51 @@ computed_geno = _default_expected_genotype(
 combined = locals().get("combined", pd.DataFrame(columns=["element","source"]))
 can_save_both = bool(mom_code) and bool(dad_code) and isinstance(combined, pd.DataFrame) and not combined.empty
 
-if st.button("💾 Save fish pair + clutch", type="primary", width="stretch", disabled=not can_save_both):
+if st.button("➡️ Continue to Select tank pairs", type="primary", disabled=not can_save_both):
+    st.session_state["pending_pair"] = {
+        "mom_fish_code": mom_code,
+        "dad_fish_code": dad_code,
+        "genotype_elements": combined["element"].astype(str).tolist(),
+        "created_by": os.environ.get("USER") or os.environ.get("USERNAME") or "unknown",
+    }
+    st.success("Parents + genotype saved in session. Open **Select tank pairs** to assign tanks and create the cross run.")
     try:
-        pk = _fish_pk_col()
-        mom_fk, dad_fk = _fishpair_fk_cols()
-        with _eng().begin() as cx:
-            sql = text(f"""
-              with canon as (
-                select least(:mom_code, :dad_code) as a, greatest(:mom_code, :dad_code) as b
-              ),
-              ids as (
-                select
-                  (select {pk} from public.fish where fish_code = (select a from canon) limit 1) as mom_pk,
-                  (select {pk} from public.fish where fish_code = (select b from canon) limit 1) as dad_pk
-              ),
-              existing as (
-                select fp.fish_pair_code
-                from public.fish_pairs fp
-                where fp.{mom_fk} = (select mom_pk from ids)
-                  and fp.{dad_fk} = (select dad_pk from ids)
-              ),
-              up as (
-                update public.fish_pairs fp
-                   set genotype_elems = :elts,
-                       created_by     = :by,
-                       created_at     = now()
-                 where fp.fish_pair_code in (select fish_pair_code from existing)
-                returning fish_pair_code
-              ),
-              ins as (
-                insert into public.fish_pairs ({mom_fk}, {dad_fk}, genotype_elems, created_by)
-                select (select mom_pk from ids), (select dad_pk from ids), :elts, :by
-                where not exists (select 1 from existing)
-                returning fish_pair_code
-              )
-              select coalesce((select fish_pair_code from up), (select fish_pair_code from ins)) as fish_pair_code
-            """)
-            got = cx.execute(sql, {
-                "mom_code": mom_code,
-                "dad_code": dad_code,
-                "elts": combined["element"].astype(str).tolist(),
-                "by":   (os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"),
-            }).mappings().first()
-            if not got or not got.get("fish_pair_code"):
-                raise RuntimeError("Insert/update returned no fish_pair_code")
-            fish_pair_code = got["fish_pair_code"]
-        st.success(f"Saved fish pair {fish_pair_code}.")
-        st.cache_data.clear()
-    except Exception as e:
-        st.error(f"Save failed: {type(e).__name__}: {e}")
+        st.switch_page("carp_app/ui/pages/015_🐟_select_tank_pairs.py")
+    except Exception:
+        pass
 
 # =============================================================================
-# RECENT FISH PAIRS
+# Recent tank pairs (brief)
 # =============================================================================
-st.subheader("Recent fish pairs")
+st.subheader("Recent tank pairs")
 
 @st.cache_data(show_spinner=False)
-def _recent_fish_pairs(limit: int = 20) -> pd.DataFrame:
-    pk = _fish_pk_col()
-    mom_fk, dad_fk = _fishpair_fk_cols()
-    sql = text(f"""
+def _recent_pairs(limit: int = 20) -> pd.DataFrame:
+    sql = text("""
       select
-        fp.fish_pair_code,
-        mom.fish_code as mom,
-        dad.fish_code as dad,
-        fp.genotype_elems,
-        fp.created_at
-      from public.fish_pairs fp
-      left join public.fish mom on mom.{pk} = fp.{mom_fk}
-      left join public.fish dad on dad.{pk} = fp.{dad_fk}
-      order by fp.created_at desc nulls last
+        tp.tank_pair_code as "Pair",
+        count(ci.*)       as "Runs",
+        max(ci.cross_date) as "Last cross date"
+      from public.tank_pairs tp
+      left join public.cross_instances ci
+        on ci.tank_pair_code = tp.tank_pair_code
+      group by tp.tank_pair_code
+      order by coalesce(max(ci.cross_date), now()) desc
       limit :lim
     """)
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"lim": int(limit)})
-    df = df.rename(columns={
-        "fish_pair_code": "Fish pair",
-        "mom": "Parent 1",
-        "dad": "Parent 2",
-        "created_at": "Created",
-    })
-    df["Clutch"] = ""
-    df["Clutch genotype"] = df.get("genotype_elems").apply(
-        lambda a: "; ".join(a) if isinstance(a, list) else ""
-    )
-    return df[["Fish pair", "Parent 1", "Parent 2", "Clutch", "Clutch genotype", "Created"]]
+    return df
 
 if st.button("↻ Refresh recent pairs", type="secondary", width="content"):
     st.cache_data.clear()
 
 with _eng().begin() as cx:
-    _cnt = pd.read_sql(text("select count(*)::int as n from public.fish_pairs"), cx)["n"][0]
-st.caption(f"(fish_pairs rows in DB: {_cnt})")
+    _cnt = pd.read_sql(text("select count(*)::int as n from public.tank_pairs"), cx)["n"][0]
+st.caption(f"(tank_pairs rows in DB: {_cnt})")
 
-fp = _recent_fish_pairs(20)
-
-if fp.empty:
-    st.info("No **fish pairs** saved yet. Use the checkboxes above and **Save fish pair + clutch**.")
+rp = _recent_pairs(20)
+if rp.empty:
+    st.info("No **tank pairs** yet. Continue to **Select tank pairs** to assign tanks and create a cross run.")
 else:
-    st.dataframe(fp, width="stretch", hide_index=True)
+    st.dataframe(rp, width="stretch", hide_index=True)

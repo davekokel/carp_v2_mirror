@@ -1,16 +1,18 @@
 # =============================================================================
 # 🧬 Select tank pairings (physical) — choose mother/father tanks and save
-#     - Conceptual pair (unordered) is chosen first
-#     - Step 1: select Mother tank from either fish
-#     - Step 2: select Father tank from the other fish
-#     - Step 3: save ONE tank_pairs row (role_orientation=0) using tanks(tank_id)
+#     - Parents are chosen on this page
+#     - Step 1: select Mother tank from either parent
+#     - Step 2: select Father tank from the other parent
+#     - Step 3: save ONE tank_pairs row (by tank_uuid)
+#     - Step 4: create a cross_instance (trigger derives run code)
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
 import os
-from typing import List, Dict, Any, Tuple
+from datetime import date as _date
+from typing import List
 
 import pandas as pd
 import streamlit as st
@@ -49,48 +51,45 @@ st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 # =============================================================================
 # Helpers
 # =============================================================================
-def _ensure_fish_pair_code(a_code: str, b_code: str, created_by_val: str) -> str:
-    pk = _fish_pk_col()
-    mom_fk, dad_fk = _fishpair_fk_cols()
+@st.cache_data(show_spinner=False)
+def _table_cols(schema: str, table: str) -> list[str]:
     with _eng().begin() as cx:
-        got = cx.execute(text(f"""
-          with canon as (
-            select least(:a,:b) as a, greatest(:a,:b) as b
-          ),
-          ids as (
-            select
-              (select {pk} from public.fish where fish_code = (select a from canon) limit 1) as mom_pk,
-              (select {pk} from public.fish where fish_code = (select b from canon) limit 1) as dad_pk
-          ),
-          existing as (
-            select fish_pair_code
-            from public.fish_pairs
-            where {mom_fk} = (select mom_pk from ids)
-              and {dad_fk} = (select dad_pk from ids)
-            limit 1
-          ),
-          ins as (
-            insert into public.fish_pairs ({mom_fk}, {dad_fk}, created_by)
-            select (select mom_pk from ids), (select dad_pk from ids), :by
-            where not exists (select 1 from existing)
-            returning fish_pair_code
-          )
-          select coalesce((select fish_pair_code from existing),
-                          (select fish_pair_code from ins))::text as fish_pair_code;
-        """), {"a": a_code, "b": b_code, "by": created_by_val}).mappings().first()
-        if not got or not got["fish_pair_code"]:
-            raise RuntimeError("Failed to create or find fish_pair_code")
-        return str(got["fish_pair_code"])
+        df = pd.read_sql(
+            text("""select column_name
+                    from information_schema.columns
+                    where table_schema=:s and table_name=:t
+                    order by ordinal_position"""),
+            cx, params={"s": schema, "t": table}
+        )
+    return df["column_name"].tolist()
+
+def _tankpair_parent_cols() -> tuple[str, str]:
+    cols = set(_table_cols("public", "tank_pairs"))
+    for a, b in (("mother_tank_id","father_tank_id"), ("tank_id_mother","tank_id_father")):
+        if a in cols and b in cols:
+            return a, b
+    raise RuntimeError("public.tank_pairs lacks expected mother/father tank id columns")
+
+@st.cache_data(show_spinner=False)
+def _pick_fish_view() -> str:
+    with _eng().begin() as cx:
+        rows = pd.read_sql(
+            text("""select table_name
+                    from information_schema.views
+                    where table_schema='public'
+                      and table_name in ('v_fish_rich','v_fish')"""),
+            cx
+        )
+    names = set(rows["table_name"].tolist())
+    return "public.v_fish_rich" if "v_fish_rich" in names else "public.v_fish"
 
 def _fish_genotype_col(view: str) -> str | None:
     schema, tbl = view.split(".", 1)
     with _eng().begin() as cx:
         df = pd.read_sql(
-            text("""
-              select column_name
-              from information_schema.columns
-              where table_schema=:s and table_name=:t
-            """),
+            text("""select column_name
+                    from information_schema.columns
+                    where table_schema=:s and table_name=:t"""),
             cx, params={"s": schema, "t": tbl}
         )
     cols = set(df["column_name"].tolist())
@@ -98,84 +97,6 @@ def _fish_genotype_col(view: str) -> str | None:
         if c in cols:
             return c
     return None
-
-@st.cache_data(show_spinner=False)
-def _pick_fish_view() -> str:
-    with _eng().begin() as cx:
-        rows = pd.read_sql(
-            text("""
-                select table_name
-                from information_schema.views
-                where table_schema='public'
-                  and table_name in ('v_fish_rich','v_fish')
-            """),
-            cx
-        )
-    names = set(rows["table_name"].tolist())
-    return "public.v_fish_rich" if "v_fish_rich" in names else "public.v_fish"
-
-def _col_exists(schema: str, table: str, col: str) -> bool:
-    with _eng().begin() as cx:
-        q = text("""
-            select 1
-            from information_schema.columns
-            where table_schema=:s and table_name=:t and column_name=:c
-            limit 1
-        """)
-        return cx.execute(q, {"s": schema, "t": table, "c": col}).first() is not None
-
-def _fish_pk_col() -> str:
-    for c in ("fish_uuid", "id_uuid", "uuid", "id"):
-        if _col_exists("public", "fish", c):
-            return c
-    raise RuntimeError("public.fish has no recognized PK column")
-
-def _fishpair_fk_cols() -> tuple[str, str]:
-    for momc, dadc in (("mom_fish_uuid","dad_fish_uuid"), ("mom_fish_id","dad_fish_id")):
-        if _col_exists("public", "fish_pairs", momc) and _col_exists("public", "fish_pairs", dadc):
-            return momc, dadc
-    raise RuntimeError("public.fish_pairs lacks expected mom/dad FK columns")
-
-@st.cache_data(show_spinner=False)
-def _load_fish_pairs(q: str, limit: int = 200) -> pd.DataFrame:
-    pk = _fish_pk_col()
-    mom_fk, dad_fk = _fishpair_fk_cols()
-    sql = text(f"""
-      with pairs as (
-        select
-          fp.id::text                        as fish_pair_id,
-          fp.fish_pair_code                  as fish_pair_code,
-          mom.fish_code                      as parent1,
-          dad.fish_code                      as parent2,
-          fp.genotype_elems                  as genotype_elems,
-          fp.created_by                      as created_by,
-          fp.created_at                      as created_at
-        from public.fish_pairs fp
-        left join public.fish mom on mom.{pk} = fp.{mom_fk}
-        left join public.fish dad on dad.{pk} = fp.{dad_fk}
-      )
-      select
-        p.fish_pair_id,
-        p.fish_pair_code,
-        p.parent1,
-        p.parent2,
-        '' as clutch_code,
-        case when p.genotype_elems is not null
-             then array_to_string(p.genotype_elems, '; ')
-             else '' end as clutch_genotype,
-        p.created_by, p.created_at
-      from pairs p
-      where (
-        :q = '' or
-        p.fish_pair_code ilike :ql or
-        p.parent1        ilike :ql or
-        p.parent2        ilike :ql
-      )
-      order by p.created_at desc nulls last
-      limit :lim
-    """)
-    with _eng().begin() as cx:
-        return pd.read_sql(sql, cx, params={"q": (q or ""), "ql": f"%{q or ''}%", "lim": int(limit)})
 
 @st.cache_data(show_spinner=False)
 def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
@@ -196,70 +117,21 @@ def _load_live_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     with _eng().begin() as cx:
         return pd.read_sql(sql, cx, params={"codes": list({c for c in codes if c}), "live": ["active","new"]})
 
-def _ensure_fish_pair(a_code: str, b_code: str, created_by_val: str) -> str:
-    pk = _fish_pk_col()
-    mom_fk, dad_fk = _fishpair_fk_cols()
-    with _eng().begin() as cx:
-        got = cx.execute(text(f"""
-          with canon as (
-            select least(:a,:b) as a, greatest(:a,:b) as b
-          ),
-          ids as (
-            select
-              (select {pk} from public.fish where fish_code = (select a from canon) limit 1) as mom_pk,
-              (select {pk} from public.fish where fish_code = (select b from canon) limit 1) as dad_pk
-          ),
-          existing as (
-            select id from public.fish_pairs
-            where {mom_fk} = (select mom_pk from ids)
-              and {dad_fk} = (select dad_pk from ids)
-          ),
-          up as (
-            update public.fish_pairs
-               set created_by = coalesce(:by, created_by),
-                   created_at = now()
-             where id in (select id from existing)
-            returning id
-          ),
-          ins as (
-            insert into public.fish_pairs
-              (fish_pair_code, {mom_fk}, {dad_fk}, genotype_elems, created_by)
-            select
-              'FP-'||to_char(extract(year from now())::int % 100,'FM00')||
-              lpad((
-                select coalesce(max((regexp_match(coalesce(fish_pair_code,''),
-                     '^FP-\\d{{2}}(\\d{{4}})$'))[1]::int),0) + 1
-                from public.fish_pairs
-                where fish_pair_code like 'FP-'||to_char(extract(year from now())::int % 100,'FM00')||'%'
-              )::text, 4, '0') as fish_pair_code,
-              ids.mom_pk,
-              ids.dad_pk,
-              null,
-              :by
-            from ids
-            where not exists (select 1 from existing)
-            returning id
-          )
-          select coalesce((select id from up), (select id from ins))::text as id;
-        """), {"a": a_code, "b": b_code, "by": created_by_val}).mappings().first()
-        return str(got["id"])
-
 def _find_existing_tank_pair(mother_id: str, father_id: str) -> str | None:
+    mom_col, dad_col = _tankpair_parent_cols()
     with _eng().begin() as cx:
         df = pd.read_sql(
-            text("""
-              select id::text
-              from public.tank_pairs
-              where mother_tank_id = cast(:mom as uuid)
-                and father_tank_id = cast(:dad as uuid)
-                and concept_id is null
-              limit 1
-            """),
+            text(f"""select id::text
+                     from public.tank_pairs
+                     where {mom_col} = cast(:mom as uuid)
+                       and {dad_col} = cast(:dad as uuid)
+                       and concept_id is null
+                     limit 1"""),
             cx, params={"mom": mother_id, "dad": father_id}
         )
     return (df["id"].iloc[0] if not df.empty else None)
 
-def _upsert_one_pair(fish_pair_code: str, mother_tank_id: str, father_tank_id: str,
+def _upsert_one_pair(mother_tank_id: str, father_tank_id: str,
                      created_by_val: str, note: str) -> tuple[bool, str]:
     existing = _find_existing_tank_pair(mother_tank_id, father_tank_id)
     with _eng().begin() as cx:
@@ -278,76 +150,138 @@ def _upsert_one_pair(fish_pair_code: str, mother_tank_id: str, father_tank_id: s
 
         tp_code = cx.execute(text("""
           insert into public.tank_pairs
-            (fish_pair_code, mother_tank_id, father_tank_id, status, created_by, note)
+            (mother_tank_id, father_tank_id, status, created_by, note)
           values
-            (:fp_code, cast(:mom as uuid), cast(:dad as uuid), 'selected', :by, nullif(:note,''))
+            (cast(:mom as uuid), cast(:dad as uuid), 'selected', :by, nullif(:note,''))
           returning tank_pair_code
-        """), {"fp_code": fish_pair_code, "mom": mother_tank_id, "dad": father_tank_id,
+        """), {"mom": mother_tank_id, "dad": father_tank_id,
                "by": created_by_val, "note": note}).scalar() or ""
         return (True, tp_code)
 
 # =============================================================================
-# 0) Pick conceptual fish pair
+# 0) Pick a conceptual pair (unordered) — computed (no fish_pairs table)
 # =============================================================================
-st.markdown("### 0) Pick a fish pair (conceptual)")
-cc1, cc2, cc3 = st.columns([3,1,1])
-with cc1:
-    q_pairs = st.text_input("Search (pair code / fish_code / clutch code)", value="")
-with cc2:
-    lim_pairs = int(st.number_input("Limit", min_value=10, max_value=2000, value=200, step=50))
-with cc3:
-    st.write("")
-    if st.button("↻ Refresh", width="stretch"):
-        st.cache_data.clear()
+st.subheader("Pick a conceptual pair (unordered)")
 
-pairs_df = _load_fish_pairs(q_pairs, lim_pairs)
-if pairs_df.empty:
-    st.info("No conceptual fish pairs yet. Create them on **Select fish pairs**.")
-    st.stop()
+@st.cache_data(show_spinner=False)
+def _conceptual_pairs_chunk(off: int, lim: int, q: str = "") -> pd.DataFrame:
+    sql = text("""
+      with recent_tp as (
+        select tp.tank_pair_code, max(ci.cross_date) as last_cross_date
+        from public.tank_pairs tp
+        left join public.cross_instances ci on ci.tank_pair_code = tp.tank_pair_code
+        group by tp.tank_pair_code
+      ),
+      tp_fish as (
+        select tp.tank_pair_code,
+               vtm.fish_code as mom_fish,
+               vtf.fish_code as dad_fish
+        from public.tank_pairs tp
+        left join public.v_tanks vtm on vtm.tank_uuid = tp.mother_tank_id
+        left join public.v_tanks vtf on vtf.tank_uuid = tp.father_tank_id
+      ),
+      recent_pairs as (
+        select least(mom_fish, dad_fish) as a,
+               greatest(mom_fish, dad_fish) as b,
+               max(r.last_cross_date) as last_cross
+        from tp_fish tpf
+        join recent_tp r using (tank_pair_code)
+        where mom_fish is not null and dad_fish is not null
+        group by 1,2
+      ),
+      live_pairs as (
+        select least(m.fish_code, d.fish_code) as a,
+               greatest(m.fish_code, d.fish_code) as b,
+               null::date as last_cross
+        from public.v_tanks m
+        join public.v_tanks d on d.fish_code <> m.fish_code
+        where m.status::text in ('active','new') and d.status::text in ('active','new')
+      ),
+      unioned as (
+        select a,b,last_cross from recent_pairs
+        union
+        select a,b,last_cross from live_pairs
+      )
+      select a as parent_a, b as parent_b, max(last_cross) as last_cross
+      from unioned
+      where (:q = '' or a ilike :like or b ilike :like)
+      group by 1,2
+      order by coalesce(max(last_cross), date '-infinity') desc, a, b
+      limit :lim offset :off
+    """)
+    with _eng().begin() as cx:
+        df = pd.read_sql(sql, cx, params={
+            "off": int(off), "lim": int(lim),
+            "q": (q or "").strip(), "like": f"%{(q or '').strip()}%"
+        })
+    return df
 
-pairs_view = pairs_df.copy()
-if "✓ Select" not in pairs_view.columns:
-    pairs_view.insert(0, "✓ Select", False)
+st.session_state.setdefault("_pairs_ps", 50)
+st.session_state.setdefault("_pairs_off", 0)
+st.session_state.setdefault("_pairs_df", pd.DataFrame())
+st.session_state.setdefault("_pairs_q", "")
 
-cols = ["✓ Select","fish_pair_code","parent1","parent2","clutch_code","clutch_genotype","created_at","created_by"]
-for c in cols:
-    if c not in pairs_view.columns:
-        pairs_view[c] = ""
-picked = st.data_editor(
-    pairs_view[cols],
-    hide_index=True, width="stretch",
+c1, c2, c3 = st.columns([3,1,1])
+with c1:
+    new_q = st.text_input("Filter by fish_code", value=st.session_state["_pairs_q"])
+with c2:
+    new_ps = st.number_input("Rows/page", min_value=10, max_value=200, value=st.session_state["_pairs_ps"], step=10)
+with c3:
+    if st.button("↻ Refresh"):
+        st.session_state.update({"_pairs_q": new_q, "_pairs_ps": int(new_ps), "_pairs_off": 0, "_pairs_df": pd.DataFrame()})
+
+if st.session_state["_pairs_df"].empty:
+    chunk = _conceptual_pairs_chunk(st.session_state["_pairs_off"], st.session_state["_pairs_ps"], st.session_state["_pairs_q"])
+    st.session_state["_pairs_df"] = chunk.copy()
+    st.session_state["_pairs_off"] += len(chunk)
+
+pairs = st.session_state["_pairs_df"].copy()
+if not pairs.empty and "Select" not in pairs.columns:
+    pairs.insert(0, "Select", False)
+
+pairs_view = pairs.rename(columns={"parent_a":"Parent A", "parent_b":"Parent B", "last_cross":"Last cross"})
+sel = st.data_editor(
+    pairs_view,
+    width="stretch", hide_index=True,
     column_config={
-        "✓ Select":        st.column_config.CheckboxColumn("✓", default=False),
-        "fish_pair_code":  st.column_config.TextColumn("Fish pair", disabled=True),
-        "parent1":         st.column_config.TextColumn("Parent A", disabled=True),
-        "parent2":         st.column_config.TextColumn("Parent B", disabled=True),
-        "clutch_code":     st.column_config.TextColumn("Clutch", disabled=True),
-        "clutch_genotype": st.column_config.TextColumn("Clutch genotype", disabled=True),
-        "created_at":      st.column_config.DatetimeColumn("Created", disabled=True),
-        "created_by":      st.column_config.TextColumn("Created by", disabled=True),
+        "Select": st.column_config.CheckboxColumn("✓", default=False),
+        "Parent A": st.column_config.TextColumn("Parent A", disabled=True),
+        "Parent B": st.column_config.TextColumn("Parent B", disabled=True),
+        "Last cross": st.column_config.DateColumn("Last cross", disabled=True, format="YYYY-MM-DD")
     },
-    key="fish_pairs_picker",
+    key="conceptual_pairs_editor",
 )
-mask = picked.get("✓ Select", pd.Series(False, index=picked.index)).fillna(False).astype(bool)
-chosen = pairs_view.loc[mask].head(1)
-if chosen.empty:
-    st.info("Select a fish pair above to continue.")
+picked = sel[sel["Select"]]
+if not picked.empty:
+    a = str(picked.iloc[0]["Parent A"]).strip()
+    b = str(picked.iloc[0]["Parent B"]).strip()
+    st.session_state["mom_fish_code"] = a
+    st.session_state["dad_fish_code"] = b
+
+if st.button("Load more pairs"):
+    chunk = _conceptual_pairs_chunk(st.session_state["_pairs_off"], st.session_state["_pairs_ps"], st.session_state["_pairs_q"])
+    if not chunk.empty:
+        st.session_state["_pairs_df"] = pd.concat([st.session_state["_pairs_df"], chunk], ignore_index=True)
+        st.session_state["_pairs_off"] += len(chunk)
+    else:
+        st.info("No more pairs.")
+
+# =============================================================================
+# 1) Parent inputs (prefilled from handoff or table selection)
+# =============================================================================
+parent_a = st.text_input("Parent A fish_code", value=st.session_state.get("mom_fish_code") or pending.get("mom_fish_code") or "")
+parent_b = st.text_input("Parent B fish_code", value=st.session_state.get("dad_fish_code") or pending.get("dad_fish_code") or "")
+if not parent_a or not parent_b:
+    st.info("Set Parent A and Parent B to continue.")
     st.stop()
 
-row = chosen.iloc[0]
-parent_a = str(row["parent1"])
-parent_b = str(row["parent2"])
-st.success(f"Selected {row['fish_pair_code']}: {parent_a} + {parent_b} (unordered).")
-
 # =============================================================================
-# 1) Select Mother tank (from either fish)
+# 2) Select Mother tank
 # =============================================================================
-st.markdown("### 1) Select **Mother** tank")
+st.markdown("### 2) Select **Mother** tank")
 mothers = _load_live_tanks_for_fish([parent_a, parent_b]).copy()
 if mothers.empty:
-    st.warning("No live tanks found for either parent.")
-    st.stop()
-
+    st.warning("No live tanks found for either parent."); st.stop()
 mother_df = mothers.rename(columns={"fish_code":"FSH","tank_code":"tank"})
 if "✓ Mother" not in mother_df.columns:
     mother_df.insert(0,"✓ Mother", False)
@@ -374,14 +308,13 @@ mother_tank_id = str(mother_row["tank_id"])
 mother_fsh     = str(mother_row["FSH"])
 
 # =============================================================================
-# 2) Select Father tank (from the other fish’s tanks)
+# 3) Select Father tank
 # =============================================================================
-st.markdown("### 2) Select **Father** tank")
+st.markdown("### 3) Select **Father** tank")
 other_fish = parent_b if mother_fsh == parent_a else parent_a
 fathers = _load_live_tanks_for_fish([other_fish]).copy()
 if fathers.empty:
     st.warning(f"No live tanks found for the other parent ({other_fish})."); st.stop()
-
 father_df = fathers.rename(columns={"fish_code":"FSH","tank_code":"tank"})
 if "✓ Father" not in father_df.columns:
     father_df.insert(0,"✓ Father", False)
@@ -405,45 +338,34 @@ if father_sel.shape[0] > 1:
     st.warning("Multiple father tanks selected; using the first.")
 father_row = father_sel.head(1).iloc[0]
 father_tank_id = str(father_row["tank_id"])
-father_fsh     = str(father_row["FSH"])
 
 if mother_tank_id == father_tank_id:
     st.error("Mother and Father cannot be the same tank."); st.stop()
 
 # =============================================================================
-# 2b) Build clutch genotype label from selected fish pair elements
+# 4) Optional clutch genotype label
 # =============================================================================
-st.markdown("### 2b) Define clutch genotype label")
-default_geno = str(chosen.iloc[0].get("clutch_genotype", "")).strip()
-geno_for_clutch = st.text_input(
-    "Clutch genotype label (auto-filled, editable)",
-    value=default_geno,
-    key="geno_label_for_clutch"
-).strip()
+st.markdown("### 4) Define clutch genotype label")
+geno_for_clutch = st.text_input("Clutch genotype label (optional)", value="", key="geno_label_for_clutch").strip()
+
 # =============================================================================
-# 3) Save tank_pair (mother/father)
+# 5) Save tank_pair and create a cross_instance
 # =============================================================================
-st.markdown("### 3) Save tank_pair parents")
-cs1, cs2 = st.columns([1,2])
-with cs1:
+st.markdown("### 5) Save pairing and create a cross")
+left, right = st.columns([1,2])
+with left:
     created_by_val = st.text_input("Created by", value=os.environ.get("USER") or os.environ.get("USERNAME") or "unknown")
     note_val = st.text_input("Note (optional)", value="")
     can_save = bool(mother_tank_id and father_tank_id)
 
     if st.button("💾 Save mother/father pairing", type="primary", width="stretch", disabled=not can_save):
         try:
-            # 1) ensure fish_pair_code for the unordered conceptual parents
-            fp_code = _ensure_fish_pair_code(parent_a, parent_b, created_by_val)
-
-            # 2) upsert the physical tank_pair to get tp_code
-            inserted, tp_code = _upsert_one_pair(fp_code, mother_tank_id, father_tank_id, created_by_val, note_val)
+            inserted, tp_code = _upsert_one_pair(mother_tank_id, father_tank_id, created_by_val, note_val)
             if inserted:
-                st.success(f"Saved tank_pair {tp_code} (mother={mother_fsh}, father={father_fsh}).")
+                st.success(f"Saved tank_pair {tp_code}")
             else:
-                st.success(f"Updated tank_pair {tp_code} (mother={mother_fsh}, father={father_fsh}).")
+                st.success(f"Updated tank_pair {tp_code}")
 
-            # 3) create a cross_instance for this tank_pair (required for clutch code trigger)
-            from datetime import date as _date
             with _eng().begin() as cx:
                 x = cx.execute(text("""
                     insert into public.cross_instances
@@ -455,7 +377,6 @@ with cs1:
             cross_instance_id = x["id"]
             cross_code = x.get("cross_run_code")
 
-            # 4) create the clutch, linked to the cross, with genotype from step 2b
             sent_geno = (st.session_state.get("geno_label_for_clutch") or geno_for_clutch or "").strip()
             with _eng().begin() as cx:
                 cl = cx.execute(text("""
@@ -466,28 +387,22 @@ with cs1:
                         gen_random_uuid(), :cid, :tp_code, nullif(:geno,'')
                     )
                     returning clutch_instance_code
-                """), {
-                    "cid": cross_instance_id,
-                    "tp_code": tp_code,
-                    "geno": sent_geno,
-                }).mappings().first()
+                """), {"cid": cross_instance_id, "tp_code": tp_code, "geno": sent_geno}).mappings().first()
 
             if cl:
                 st.success(f"→ Cross {cross_code or '(new)'}; clutch {cl['clutch_instance_code']} (genotype={sent_geno or '—'})")
-
             st.cache_data.clear()
 
         except Exception as e:
             st.exception(e)
 
-with cs2:
+with right:
     st.markdown("**Recent tank_pairs for these tanks**")
-
     vf = _pick_fish_view()
     geno_col = _fish_genotype_col(vf)
-
     mom_geno_expr = "''" if not geno_col else f"coalesce(vfm.{geno_col}, '')"
     dad_geno_expr = "''" if not geno_col else f"coalesce(vfd.{geno_col}, '')"
+    mom_col, dad_col = _tankpair_parent_cols()
 
     sql_recent = text(f"""
       select
@@ -503,16 +418,15 @@ with cs2:
         tp.created_by,
         tp.created_at
       from public.tank_pairs tp
-      left join public.v_tanks vtm on vtm.tank_uuid = tp.mother_tank_id
-      left join public.v_tanks vtf on vtf.tank_uuid = tp.father_tank_id
+      left join public.v_tanks vtm on vtm.tank_uuid = tp.{mom_col}
+      left join public.v_tanks vtf on vtf.tank_uuid = tp.{dad_col}
       left join {vf} vfm on vfm.fish_code = vtm.fish_code
       left join {vf} vfd on vfd.fish_code = vtf.fish_code
-      where tp.mother_tank_id = cast(:mom as uuid)
-         or tp.father_tank_id = cast(:dad as uuid)
+      where tp.{mom_col} = cast(:mom as uuid)
+         or tp.{dad_col} = cast(:dad as uuid)
       order by tp.created_at desc nulls last
       limit 50
     """)
-
     with _eng().begin() as cx:
         recent = pd.read_sql(sql_recent, cx, params={"mom": mother_tank_id, "dad": father_tank_id})
 
