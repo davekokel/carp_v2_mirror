@@ -352,7 +352,11 @@ def main():
     # Tanks for selected fish
     st.subheader("Tanks for selected fish")
 
-    selected_codes = edited.loc[edited["✓ Select"], "code"].dropna().astype(str).tolist() if isinstance(edited, pd.DataFrame) else []
+    selected_codes = (
+        fish_table.loc[fish_table["✓ Select"], "fish_code"].dropna().astype(str).tolist()
+        if isinstance(fish_table, pd.DataFrame) and "✓ Select" in fish_table.columns and "fish_code" in fish_table.columns
+        else []
+    )
     if not selected_codes:
         st.info("Select one or more fish to show their tanks.")
         st.stop()

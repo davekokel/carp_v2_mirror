@@ -31,7 +31,8 @@ _ENGINE: Optional[Engine] = None
 def _eng() -> Engine:
     global _ENGINE
     if _ENGINE is None:
-        if not os.getenv("DB_URL"): st.error("DB_URL not set"); st.stop()
+        if not os.getenv("DB_URL"):
+            st.error("DB_URL not set"); st.stop()
         _ENGINE = get_engine()
     return _ENGINE
 
@@ -51,7 +52,7 @@ def load_fusion_catalog() -> pd.DataFrame:
     ),
     counts as (
       select fusion_code, count(*)::int as n_plasmids
-      from public.plasmid_fusions
+      from public.join_plasmid_fusions
       group by fusion_code
     )
     select
@@ -70,7 +71,10 @@ def load_fusion_catalog() -> pd.DataFrame:
 @st.cache_data(ttl=60)
 def load_plasmids_for_fusions(fusion_codes: List[str]) -> pd.DataFrame:
     if not fusion_codes:
-        return pd.DataFrame(columns=["plasmid_code","plasmid_name","nickname","resistance","supports_invitro_rna","fluor_names","tag_names","fusion_names","notes"])
+        return pd.DataFrame(columns=[
+            "plasmid_code","plasmid_name","nickname","resistance",
+            "supports_invitro_rna","fluor_names","tag_names","fusion_names","notes"
+        ])
     sql = """
     select
       r.plasmid_code,
@@ -85,7 +89,7 @@ def load_plasmids_for_fusions(fusion_codes: List[str]) -> pd.DataFrame:
     from public.v_plasmids_rich r
     where exists (
       select 1
-      from public.plasmid_fusions pf
+      from public.join_plasmid_fusions pf
       where pf.plasmid_code = r.plasmid_code
         and pf.fusion_code = any(:codes)
     )
@@ -124,20 +128,28 @@ def _match_row(row: pd.Series) -> bool:
         core = tok[1:] if neg else tok
         if ":" in core:
             k, v = core.split(":", 1)
-            k = k.strip().lower(); v = v.strip().lower()
+            k = (k or "").strip().lower()
+            v = (v or "").strip().lower().strip('"')
             field_val = {
-                "fusion": str(row.get("fusion_name","")),
-                "fluor": str(row.get("fluor_name","")),
-                "tag":   str(row.get("tag_name","")),
-            }.get(k, f"{row.get('fusion_name','')} {row.get('fluor_name','')} {row.get('tag_name','')}")
-            hit = (v in field_val.lower())
+                "fusion": str(row.get("fusion_name", "")),
+                "fluor":  str(row.get("fluor_name", "")),
+                "tag":    str(row.get("tag_name", "")),
+            }.get(
+                k,
+                f"{row.get('fusion_name','')} {row.get('fluor_name','')} {row.get('tag_name','')}",
+            )
+            hit = v in field_val.lower()
         else:
             blob = f"{row.get('fusion_name','')} {row.get('fluor_name','')} {row.get('tag_name','')}"
-            hit = (core.lower() in blob.lower())
-        if neg and hit: return False
-        if not neg and not hit: return False
-    if fl_sel and (row.get("fluor_name") not in fl_sel): return False
-    if tag_sel and (row.get("tag_name") not in tag_sel): return False
+            hit = core.lower() in blob.lower()
+        if neg and hit:
+            return False
+        if not neg and not hit:
+            return False
+    if fl_sel and (row.get("fluor_name") not in fl_sel):
+        return False
+    if tag_sel and (row.get("tag_name") not in tag_sel):
+        return False
     return True
 
 if q or fl_sel or tag_sel:
@@ -165,18 +177,19 @@ edited = st.data_editor(
     hide_index=True,
     column_order=view_cols,
     column_config={
-        "✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False),
-        "fusion_name": st.column_config.TextColumn("fusion", disabled=True),
-        "fluor_name":  st.column_config.TextColumn("fluor",  disabled=True),
-        "tag_name":    st.column_config.TextColumn("tag",    disabled=True),
-        "n_plasmids":  st.column_config.NumberColumn("# plasmids", disabled=True),
+        "✓ Select":   st.column_config.CheckboxColumn("✓ Select", default=False),
+        "fusion_name":st.column_config.TextColumn("fusion", disabled=True),
+        "fluor_name": st.column_config.TextColumn("fluor",  disabled=True),
+        "tag_name":   st.column_config.TextColumn("tag",    disabled=True),
+        "n_plasmids": st.column_config.NumberColumn("# plasmids", disabled=True),
     },
     key="fusions_editor",
 )
 st.session_state["_fusions_table"] = edited.copy()
 
-sel_codes = edited.loc[edited["✓ Select"], "fusion_name"].tolist()
-sel_codes_actual = fusions_view.loc[edited.index[edited["✓ Select"]], "fusion_code"].tolist() if len(edited) else []
+sel_codes_actual: List[str] = []
+if isinstance(edited, pd.DataFrame) and "✓ Select" in edited.columns:
+    sel_codes_actual = fusions_view.loc[edited.index[edited["✓ Select"]], "fusion_code"].astype(str).tolist()
 
 cA, cB, cC = st.columns([1,2,2])
 with cA:
@@ -186,10 +199,6 @@ with cA:
 if sel_codes_actual:
     st.subheader("Plasmids containing selected fusion(s)")
     plasmids = load_plasmids_for_fusions(sel_codes_actual).copy()
-    # pretty print arrays
-    for col in ["fusion_names","fluor_names","tag_names"]:
-        if col in plasmids.columns:
-            plasmids[col] = plasmids[col].apply(lambda a: ", ".join(a) if isinstance(a, list) else a)
     st.dataframe(
         plasmids[[
             "plasmid_code","plasmid_name","nickname","resistance","supports_invitro_rna",

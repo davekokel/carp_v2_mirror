@@ -60,24 +60,34 @@ def _since_days(ts) -> Optional[float]:
 def _load_tanks_overview(q: Optional[str], limit: int) -> pd.DataFrame:
     """
     Minimal, tank-centric overview pulled from public.v_tanks.
-    Columns returned: id, tank_code, fish_code, status, created_at
+    v_tanks does not include fish_code/status in this schema, so:
+      - fish_code is parsed from tank_code: TANK(<fish_code>)#N
+      - status is synthesized as blank text for display
     """
-    sql = text("""
-      select
-        v.tank_uuid::text                  as id,
-        v.tank_code::text                  as tank_code,
-        coalesce(v.fish_code,'')::text     as fish_code,
-        coalesce(v.status::text,'')        as status,
-        v.created_at                       as created_at
-      from public.v_tanks v
-      where (
-        :q = '' or
-        coalesce(v.tank_code,'')    ilike :ql or
-        coalesce(v.fish_code,'')    ilike :ql or
-        coalesce(v.status::text,'') ilike :ql
+    sql = text(r"""
+      WITH vt AS (
+        SELECT
+          v.tank_uuid::text                  AS id,
+          v.tank_code::text                  AS tank_code,
+          regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1')::text AS fish_code,  -- derive
+          v.created_at                       AS created_at
+        FROM public.v_tanks v
       )
-      order by v.created_at desc nulls last, v.tank_code
-      limit :lim
+      SELECT
+        id,
+        tank_code,
+        fish_code,
+        ''::text                             AS status,     -- synthesize
+        created_at
+      FROM vt
+      WHERE (
+        :q = '' OR
+        COALESCE(tank_code,'') ILIKE :ql OR
+        COALESCE(fish_code,'') ILIKE :ql OR
+        '' ILIKE :ql
+      )
+      ORDER BY created_at DESC NULLS LAST, tank_code
+      LIMIT :lim
     """)
     params = {"q": (q or ""), "ql": f"%{q or ''}%", "lim": int(limit)}
     with _get_engine().begin() as cx:
