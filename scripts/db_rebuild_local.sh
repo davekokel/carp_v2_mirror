@@ -10,6 +10,7 @@ echo "────────────────────────�
 psql "$DB_URL" -v ON_ERROR_STOP=1 -c "drop schema if exists public cascade;"
 
 # 2) Baseline first (creates schema/tables/views/functions/triggers)
+psql "$DB_URL" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS public;"
 psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/00000000_baseline.sql
 
 # 3) Idempotent extensions / grants (OK if baseline already did them)
