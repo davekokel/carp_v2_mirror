@@ -18,30 +18,21 @@ base AS (
   SELECT
     ci.clutch_instance_code                  AS clutch_code,
     (cr.cross_date + INTERVAL '1 day')::date AS clutch_birthday,
-
-    -- ✂️ remove "CR(… ) • " prefix → just mom × dad
-    (COALESCE(vtp.mom_fish_code,'?') || ' × ' || COALESCE(vtp.dad_fish_code,'?'))
-                                              AS cross_name_pretty,
-
-    -- fill previously-blank fields from clutch_instances
-    COALESCE(ci.clutch_name,'')               AS clutch_name,
-    COALESCE(ci.clutch_genotype_pretty,'')    AS clutch_genotype_pretty,
-    ''::text                                   AS clutch_strain_pretty,
-
-    COALESCE(tr.treatments_count_effective,0) AS treatments_count_effective,
-    COALESCE(tr.treatments_pretty_effective,'') AS treatments_pretty_effective,
-
+    COALESCE(vtp.mom_fish_code,'?') || ' × ' || COALESCE(vtp.dad_fish_code,'?') AS cross_name_pretty,
+    ''::text                                                                       AS clutch_name,
+    COALESCE(ci.clutch_genotype_pretty,'')                                         AS clutch_genotype_pretty,
+    ''::text                                                                       AS clutch_strain_pretty,
+    COALESCE(tr.treatments_count_effective,0)                                      AS treatments_count_effective,
+    COALESCE(tr.treatments_pretty_effective,'')                                    AS treatments_pretty_effective,
     CASE
       WHEN COALESCE(tr.treatments_pretty_effective,'') <> '' AND COALESCE(ci.clutch_genotype_pretty,'') <> ''
         THEN tr.treatments_pretty_effective || ' > ' || ci.clutch_genotype_pretty
       WHEN COALESCE(tr.treatments_pretty_effective,'') <> ''
         THEN tr.treatments_pretty_effective
       ELSE COALESCE(ci.clutch_genotype_pretty,'')
-    END                                        AS genotype_treatment_rollup_effective,
-
-    COALESCE(cr.created_by,'')                 AS created_by_instance,
-    COALESCE(cr.created_at, now())             AS created_at_instance
-
+    END                                                                              AS genotype_treatment_rollup_effective,
+    COALESCE(cr.created_by,'')                                                       AS created_by_instance,
+    COALESCE(cr.created_at, now())                                                   AS created_at_instance
   FROM public.clutch_instances ci
   LEFT JOIN public.crosses       cr  ON cr.id = ci.cross_instance_id
   LEFT JOIN public.v_tank_pairs  vtp ON vtp.tank_pair_code = cr.tank_pair_code

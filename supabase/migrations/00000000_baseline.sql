@@ -96,18 +96,6 @@ CREATE TABLE public.plasmid_fusions (
 );
 
 -- link: clutch_instance ↔ material (generic; resolves via view later)
-CREATE TABLE public.clutch_materials (
-  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  clutch_instance_id uuid NOT NULL REFERENCES public.clutch_instances(id) ON DELETE CASCADE,
-  material_type      text NOT NULL,         -- 'plasmid' for now
-  material_code      text NOT NULL,         -- e.g., plasmid code
-  material_name      text,
-  notes              text,
-  created_by         text,
-  created_at         timestamptz NOT NULL DEFAULT now()
-);
-CREATE UNIQUE INDEX uq_clutch_materials_expr
-  ON public.clutch_materials (clutch_instance_id, lower(coalesce(material_type,'')), lower(coalesce(material_code,'')));
 
 -- genotype / allele bits (minimal stubs)
 CREATE TABLE public.transgenes (
