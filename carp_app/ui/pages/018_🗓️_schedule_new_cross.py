@@ -1,5 +1,5 @@
 # =============================================================================
-# 🗓 Schedule new cross (+ clutches) — resolve plasmid base names by code (SQL CTE per label, proper CAST)
+# 🗓 Schedule new cross (+ clutches) — resolve plasmid base names by code
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib, re, itertools, uuid, os
@@ -31,21 +31,32 @@ def _safe(cx, q: str | TextClause, p=None) -> pd.DataFrame:
     q = q if isinstance(q, TextClause) else text(q)
     return pd.read_sql(q, cx, params=p or {})
 
-def _col_exists(cx, s: str, t: str, c: str) -> bool:
-    return not _safe(cx, """
-        select 1 from information_schema.columns
-        where table_schema=:s and table_name=:t and column_name=:c
-        limit 1
-    """, {"s": s, "t": t, "c": c}).empty
+def _load_crosses_and_clutches_for_pair(tp_code: str) -> pd.DataFrame:
+    if not tp_code:
+        return pd.DataFrame(columns=["cross_code","cross_date","clutch_code","clutch_genotype","created"])
+    with eng.begin() as cx:
+        return _safe(cx, text("""
+          select
+            cr.cross_run_code                                     as cross_code,
+            cr.cross_date                                         as cross_date,
+            coalesce(cl.clutch_instance_code,'')                  as clutch_code,
+            coalesce(cl.clutch_genotype_pretty,'')                as clutch_genotype,
+            coalesce(cl.created_at, cr.created_at)::timestamptz   as created
+          from public.crosses cr
+          left join public.clutch_instances cl
+                 on cl.cross_instance_id = cr.id
+          where cr.tank_pair_code = :tp
+          order by cr.cross_date desc nulls last,
+                   coalesce(cl.created_at, cr.created_at) desc nulls last
+          limit 200
+        """), {"tp": tp_code})
 
-# ── SQL resolver: single label → plasmid base name (uses psql harness logic) ─
+# ── SQL resolver: single label → plasmid base name (via plasmids table) ─────
 def resolve_plasmid_base_sql(label: str) -> str:
     if not label: return ""
     with eng.begin() as cx:
         df = _safe(cx, text(r"""
-            with labels(lab, ord) as (
-              select CAST(:lab AS text) as lab, 1::int as ord
-            ),
+            with labels(lab, ord) as (select CAST(:lab AS text) as lab, 1::int as ord),
             parts as (
               select lab, ord, unnest(regexp_split_to_array(lab, '\s*[×x]\s*')) as part
               from labels
@@ -65,8 +76,7 @@ def resolve_plasmid_base_sql(label: str) -> str:
             plasmid_names as (
               select c.lab, c.ord, c.part, p.name::text as plasmid_name
               from codes c
-              join public.plasmids p
-                on lower(p.code::text) = c.code
+              join public.plasmids p on lower(p.code::text) = c.code
             ),
             names_per_part as (
               select lab, ord, part,
@@ -87,25 +97,77 @@ def resolve_plasmid_base_sql(label: str) -> str:
     if df.empty: return ""
     return str(df.iloc[0]["resolved"] or "")
 
-# ── Tank pair query (simplified) ─────────────────────────────────────────────
+# ── Tank pair query (adaptive to v_tank_pairs columns) ───────────────────────
 @st.cache_data(show_spinner=False)
-def _tank_pairs(q: str, limit: int) -> pd.DataFrame:
+def _vtp_cols() -> set[str]:
     with eng.begin() as cx:
         df = _safe(cx, """
-            select tank_pair_code, fish_pair_code,
-                   mom_fish_code, dad_fish_code,
-                   mom_tank_code, dad_tank_code,
-                   mom_genotype, dad_genotype,
-                   created_at
-            from public.v_tank_pairs
-            where (:q = '' or
-                  tank_pair_code ilike :like or
-                  mom_fish_code ilike :like or
-                  dad_fish_code ilike :like)
-            order by created_at desc nulls last
-            limit :lim
-        """, {"q": q, "like": f"%{q}%", "lim": limit})
-    return df
+            select column_name
+            from information_schema.columns
+            where table_schema='public' and table_name='v_tank_pairs'
+        """)
+    return set(df["column_name"].tolist())
+
+@st.cache_data(show_spinner=False)
+def _tank_pairs(q: str, limit: int) -> pd.DataFrame:
+    C = _vtp_cols()
+    have = lambda c: c in C
+
+    sel = []
+    def add(col, alias=None, default_sql="null"):
+        if have(col): sel.append(f"{col}" + (f" as {alias}" if alias else ""))
+        else:         sel.append(f"{default_sql}" + (f" as {alias or col}"))
+
+    add("tank_pair_code")
+    add("fish_pair_code", default_sql="null")
+    add("mom_fish_code")
+    add("dad_fish_code")
+    add("mom_tank_code")
+    add("dad_tank_code")
+    add("mom_genotype")
+    add("dad_genotype")
+    add("created_at")
+
+    where, params = [], {"q": q or "", "like": f"%{q or ''}%", "lim": int(limit)}
+    bag = []
+    if have("tank_pair_code"): bag.append("tank_pair_code ilike :like")
+    if have("fish_pair_code"): bag.append("fish_pair_code ilike :like")
+    if have("mom_fish_code"):  bag.append("mom_fish_code ilike :like")
+    if have("dad_fish_code"):  bag.append("dad_fish_code ilike :like")
+    if q and bag: where.append("(" + " OR ".join(bag) + ")")
+    where_sql = (" where " + " AND ".join(where)) if where else ""
+
+    order_sql = "created_at desc nulls last, tank_pair_code" if have("created_at") and have("tank_pair_code") \
+        else "created_at desc nulls last" if have("created_at") else "tank_pair_code"
+
+    sql = text(f"""
+        select {", ".join(sel)}
+        from public.v_tank_pairs
+        {where_sql}
+        order by {order_sql}
+        limit :lim
+    """)
+    with eng.begin() as cx:
+        return _safe(cx, sql, params)
+
+# Derive mom/dad fish_code from tanks if missing in v_tank_pairs
+def _resolve_pair_fish_codes(tp_code: str, mom_code: str|None, dad_code: str|None) -> tuple[str|None,str|None]:
+    if mom_code and dad_code:
+        return mom_code, dad_code
+    with eng.begin() as cx:
+        df = _safe(cx, text(r"""
+            select
+              regexp_replace(vtm.tank_code, '^.*\(([^)]+)\).*$', '\1')::text as mom_fish_code,
+              regexp_replace(vtf.tank_code, '^.*\(([^)]+)\).*$', '\1')::text as dad_fish_code
+            from public.tank_pairs tp
+            left join public.v_tanks vtm on vtm.tank_uuid = tp.mother_tank_id
+            left join public.v_tanks vtf on vtf.tank_uuid = tp.father_tank_id
+            where tp.tank_pair_code = :tp
+            limit 1
+        """), {"tp": tp_code})
+    if df.empty:
+        return mom_code, dad_code
+    return (df.iloc[0]["mom_fish_code"] or mom_code), (df.iloc[0]["dad_fish_code"] or dad_code)
 
 # ── Search & select tank pair ────────────────────────────────────────────────
 with st.form("search"):
@@ -131,23 +193,22 @@ if chosen.empty:
 tp_code = chosen.iloc[0]["tank_pair_code"]
 mom_code = chosen.iloc[0]["mom_fish_code"]
 dad_code = chosen.iloc[0]["dad_fish_code"]
-st.success(f"Selected {tp_code} — {mom_code} × {dad_code}")
+mom_code, dad_code = _resolve_pair_fish_codes(tp_code, mom_code, dad_code)
+st.success(f"Selected {tp_code} — {mom_code or 'None'} × {dad_code or 'None'}")
 
 # ── Recent clutches table (one row per clutch) ───────────────────────────────
 st.subheader("Recent clutches for this tank pair")
 with eng.begin() as cx:
     recent = _safe(cx, """
-      select ci.cross_run_code as cross_code,
-             to_char(ci.cross_date,'YYYY-MM-DD') as cross_date,
-             coalesce(cl.observed_genotype_pretty,
-                      cl.expected_genotype_pretty,
-                      cl.clutch_genotype_pretty) as clutch_genotype,
+      select cr.cross_run_code as cross_code,
+             to_char(cr.cross_date,'YYYY-MM-DD') as cross_date,
+             coalesce(cl.clutch_genotype_pretty,'') as clutch_genotype,
              cl.clutch_instance_code as clutch_code,
-             to_char(coalesce(cl.created_at, ci.created_at),'YYYY-MM-DD') as created
-      from public.cross_instances ci
-      left join public.clutch_instances cl on cl.cross_instance_id = ci.id
-      where ci.tank_pair_code = :tp
-      order by coalesce(cl.created_at, ci.created_at) desc nulls last
+             to_char(coalesce(cl.created_at, cr.created_at),'YYYY-MM-DD') as created
+      from public.crosses cr
+      left join public.clutch_instances cl on cl.cross_instance_id = cr.id
+      where cr.tank_pair_code = :tp
+      order by coalesce(cl.created_at, cr.created_at) desc nulls last
       limit 20
     """, {"tp": tp_code})
 if recent.empty:
@@ -161,36 +222,41 @@ run_date: date = st.date_input("Run date", value=date.today())
 note = st.text_input("Run note (optional)")
 
 @st.cache_data(show_spinner=False)
-def _expected_rows(m: str, d: str) -> pd.DataFrame:
+def _expected_rows(m: str|None, d: str|None) -> pd.DataFrame:
+    codes = [c for c in [m, d] if c]
+    if not codes:
+        return pd.DataFrame(columns=["label","source","plasmid_base"])
     with eng.begin() as cx:
         df = _safe(cx, """
             select fish_code, genotype_rollup as g
             from public.v_fish_rich
             where fish_code = any(:codes)
-        """, {"codes": [m, d]})
+        """, {"codes": codes})
     def toks(s: str) -> list[str]:
         return [p.strip() for p in re.split(r"[;,|]+", s or "") if p.strip()]
-    mom_t = toks(" ".join(df.loc[df["fish_code"] == m, "g"].astype(str)))
-    dad_t = toks(" ".join(df.loc[df["fish_code"] == d, "g"].astype(str)))
-    singles = [{"label": t, "source": "mom"} for t in mom_t] + [
-        {"label": t, "source": "dad"} for t in dad_t if t not in mom_t
-    ]
+    mom_t = toks(" ".join(df.loc[df["fish_code"].eq(m), "g"].astype(str))) if m else []
+    dad_t = toks(" ".join(df.loc[df["fish_code"].eq(d), "g"].astype(str))) if d else []
+    mom_sorted = sorted(set(mom_t))
+    dad_sorted = sorted(set(dad_t))
+    singles = [{"label": t, "source": "mom"} for t in mom_sorted] + \
+              [{"label": t, "source": "dad"} for t in dad_sorted if t not in set(mom_sorted)]
     all_single = [r["label"] for r in singles]
     doubles = [{"label": " × ".join(sorted(x)), "source": "double"}
                for x in itertools.combinations(all_single, 2)]
     rows = pd.DataFrame(singles + doubles, columns=["label","source"])
-    # resolve plasmid base names per label via SQL (no pandas dtype issues)
-    if not rows.empty:
-        rows["plasmid_base"] = rows["label"].map(resolve_plasmid_base_sql).fillna("")
-    else:
+    if rows.empty:
         rows["plasmid_base"] = pd.Series(dtype="string")
+        return rows
+    rows["plasmid_base"] = rows["label"].map(resolve_plasmid_base_sql).fillna("")
     return rows
 
 rows = _expected_rows(mom_code, dad_code)
 if rows.empty:
     st.caption("No genotype suggestions found.")
+    chosen_labels: list[str] = []
 else:
-    rows.insert(0, "✓", False)
+    if "✓" not in rows.columns:
+        rows.insert(0, "✓", rows["source"].eq("single"))  # preselect singles
     edited = st.data_editor(
         rows,
         hide_index=True,
@@ -206,43 +272,71 @@ else:
     chosen_labels = edited.loc[edited["✓"]].get("label", pd.Series([], dtype=str)).astype(str).tolist()
     st.caption(f"{len(chosen_labels)} selected")
 
-# ── Idempotency + insert logic ───────────────────────────────────────────────
-if "xid" not in st.session_state:
-    st.session_state["xid"] = str(uuid.uuid4())
-xid = st.session_state["xid"]
-st.caption(f"idempotency_key = {xid}")
-
+# ── Idempotent cross + clutch insert ─────────────────────────────────────────
+# ── Idempotent cross + clutch insert ─────────────────────────────────────────
+st.subheader("3) Schedule cross & clutches")
 if st.button("⏱ Schedule cross + clutch(es)", type="primary"):
     creator = user.get("email") or user.get("id") or "unknown"
     try:
-        with eng.begin() as cx:
-            ins = text("""
-              insert into public.cross_instances
-                (cross_id, id, tank_pair_code, cross_date, created_by, note, idempotency_key)
-              values
-                (gen_random_uuid(), gen_random_uuid(), :tp, :d, :by, nullif(:note,''), :xid)
-              on conflict (idempotency_key) do update
-                set note = coalesce(excluded.note, public.cross_instances.note)
-              returning id, cross_run_code
-            """)
-            row = _safe(cx, ins, {"tp": tp_code, "d": str(run_date), "by": creator, "note": note, "xid": xid})
-            cross_id = row.iloc[0]["id"]
+        # gather labels, enforce at least one
+        labels = [s for s in (chosen_labels or []) if isinstance(s, str) and s.strip()]
+        if not labels:
+            st.error("Pick at least one clutch genotype label before scheduling.")
+            st.stop()
 
-            if not chosen_labels:
-                cx.execute(text("""
-                    insert into public.clutch_instances (id, cross_instance_id, tank_pair_code)
-                    values (gen_random_uuid(), :cid, :tp)
-                """), {"cid": cross_id, "tp": tp_code})
-            else:
-                for lbl in chosen_labels:
-                    cx.execute(text("""
+        # 1) Insert/Upsert the cross: unique (tank_pair_code, cross_date) handles idempotency
+        with eng.begin() as cx:
+            row = cx.execute(
+                text("""
+                    insert into public.crosses
+                      (id, tank_pair_code, cross_date, created_by, note)
+                    values
+                      (gen_random_uuid(), :tp, :d, :by, nullif(:note,''))
+                    on conflict (tank_pair_code, cross_date) do update
+                      set note = coalesce(excluded.note, public.crosses.note)
+                    returning id, cross_run_code
+                """),
+                {"tp": tp_code, "d": str(run_date), "by": creator, "note": note}
+            ).mappings().first()
+            cross_id   = row["id"]
+            cross_code = row.get("cross_run_code")
+
+            # 2) Insert one clutch per selected label (no NULL fallback)
+            #    normalized_genotype unique constraint guards duplicates per cross.
+            for lbl in labels:
+                cx.execute(
+                    text("""
                         insert into public.clutch_instances
-                          (id, cross_instance_id, tank_pair_code, expected_genotype_pretty)
+                          (id, cross_instance_id, tank_pair_code, clutch_genotype_pretty)
                         values
                           (gen_random_uuid(), :cid, :tp, :lbl)
-                    """), {"cid": cross_id, "tp": tp_code, "lbl": lbl})
+                        on conflict (cross_instance_id, normalized_genotype)
+                        do nothing
+                    """),
+                    {"cid": cross_id, "tp": tp_code, "lbl": lbl.strip()}
+                )
 
-        st.session_state["xid"] = None
-        st.success("Cross scheduled successfully.")
+        st.success(f"Cross {cross_code} scheduled with {len(labels)} clutch(es).")
     except Exception as e:
         st.error(f"Schedule failed: {e}")
+
+st.subheader("Scheduled for this tank pair")
+sched_df = _load_crosses_and_clutches_for_pair(tp_code)
+
+if sched_df.empty:
+    st.caption("No scheduled crosses/clutches yet for this tank pair.")
+else:
+    # Nice, readable table
+    show_cols = ["cross_code","cross_date","clutch_code","clutch_genotype","created"]
+    st.dataframe(
+        sched_df[show_cols],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "cross_code":      st.column_config.TextColumn("Cross code", disabled=True),
+            "cross_date":      st.column_config.DateColumn("Cross date", disabled=True, format="YYYY-MM-DD"),
+            "clutch_code":     st.column_config.TextColumn("Clutch code", disabled=True),
+            "clutch_genotype": st.column_config.TextColumn("Clutch genotype", disabled=True),
+            "created":         st.column_config.DatetimeColumn("Created", disabled=True),
+        },
+    )

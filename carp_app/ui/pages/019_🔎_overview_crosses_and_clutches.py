@@ -1,5 +1,5 @@
 # =============================================================================
-# 🔎 Cross & Clutch Instances (direct joins; no dependency on v_cross_clutch_instances)
+# 🔎 Cross & Clutch Instances (direct joins; crosses + clutch_instances + v_tank_pairs)
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
@@ -47,57 +47,56 @@ params: dict[str, t.Any] = {"lim": lim}
 if q:
     params["q"] = f"%{q.strip()}%"
     where_parts.append("""(
-      ci.tank_pair_code ilike :q or coalesce(vtp.fish_pair_code,'') ilike :q or
+      cr.tank_pair_code ilike :q or coalesce(vtp.fish_pair_code,'') ilike :q or
       coalesce(vtp.mom_fish_code,'') ilike :q or coalesce(vtp.dad_fish_code,'') ilike :q or
       coalesce(vtp.mom_tank_code,'') ilike :q or coalesce(vtp.dad_tank_code,'') ilike :q or
       coalesce(vtp.mom_genotype,'') ilike :q or coalesce(vtp.dad_genotype,'') ilike :q or
-      coalesce(cl.observed_genotype_pretty,'') ilike :q or
-      coalesce(cl.expected_genotype_pretty,'') ilike :q or
-      coalesce(cl.clutch_genotype_pretty,'')   ilike :q or
-      coalesce(ci.cross_run_code,'') ilike :q or
+      coalesce(cl.clutch_genotype_pretty,'') ilike :q or
+      coalesce(cr.cross_run_code,'') ilike :q or
       coalesce(cl.clutch_instance_code,'') ilike :q
     )""")
 
 if d1:
-    params["d1"] = str(d1); where_parts.append("(ci.cross_date >= :d1)")
+    params["d1"] = str(d1)
+    where_parts.append("(cr.cross_date >= :d1)")
 if d2:
-    params["d2"] = str(d2); where_parts.append("(ci.cross_date <= :d2)")
+    params["d2"] = str(d2)
+    where_parts.append("(cr.cross_date <= :d2)")
 
 WHERE_SQL = (" where " + " and ".join(where_parts)) if where_parts else ""
 
-# ── Query (direct joins: cross_instances + clutch_instances + v_tank_pairs) ──
+# ── Query (direct joins: crosses + clutch_instances + v_tank_pairs) ──────────
 sql = text(f"""
   with base as (
     select
-      ci.id                           as cross_instance_id,
-      ci.cross_run_code               as cross_code,
-      ci.tank_pair_code               as tank_pair_code,
-      vtp.fish_pair_code              as fish_pair_code,
-      vtp.mom_fish_code               as mom_fish_code,
-      vtp.dad_fish_code               as dad_fish_code,
-      vtp.mom_tank_code               as mom_tank_code,
-      vtp.dad_tank_code               as dad_tank_code,
-      coalesce(vtp.mom_genotype,'')   as mom_genotype,
-      coalesce(vtp.dad_genotype,'')   as dad_genotype,
-      coalesce(cl.observed_genotype_pretty,
-               cl.expected_genotype_pretty,
-               cl.clutch_genotype_pretty)    as clutch_genotype,
-      ci.cross_date                   as cross_date,
-      ci.created_at                   as cross_created_at,
-      cl.id                           as clutch_instance_id,
-      cl.clutch_instance_code         as clutch_code,
-      cl.created_at                   as clutch_created_at
-    from public.cross_instances   ci
+      cr.id                         as cross_id,
+      cr.cross_run_code             as cross_code,
+      cr.tank_pair_code             as tank_pair_code,
+      vtp.fish_pair_code            as fish_pair_code,
+      vtp.mom_fish_code             as mom_fish_code,
+      vtp.dad_fish_code             as dad_fish_code,
+      vtp.mom_tank_code             as mom_tank_code,
+      vtp.dad_tank_code             as dad_tank_code,
+      coalesce(vtp.mom_genotype,'') as mom_genotype,
+      coalesce(vtp.dad_genotype,'') as dad_genotype,
+      cl.clutch_genotype_pretty     as clutch_genotype,
+      cr.cross_date                 as cross_date,
+      cr.created_at                 as cross_created_at,
+      cl.id                         as clutch_instance_id,
+      cl.clutch_instance_code       as clutch_code,
+      cl.created_at                 as clutch_created_at
+    from public.crosses cr
     left join public.clutch_instances cl
-      on cl.cross_instance_id = ci.id
+      on cl.cross_instance_id = cr.id
     left join public.v_tank_pairs vtp
-      on vtp.tank_pair_code = ci.tank_pair_code
+      on vtp.tank_pair_code = cr.tank_pair_code
   )
   select *
   from base
   {WHERE_SQL}
-  order by cross_date desc nulls last,
-           coalesce(clutch_created_at, cross_created_at) desc nulls last
+  order by
+    cross_date desc nulls last,
+    coalesce(clutch_created_at, cross_created_at) desc nulls last
   limit :lim
 """)
 
@@ -177,7 +176,7 @@ def _rows_for_petri_labels(df_sel: pd.DataFrame) -> list[dict]:
             "clutch_name": "",
             "mom_code": r.get("mom_fish_code"),
             "dad_code": r.get("dad_fish_code"),
-            "clutch_genotype": r.get("clutch_genotype"),
+            "clutch_genotype": r.get("clutch_genotype") or "",
             "date_birth": dob,
         })
     return rows
@@ -205,4 +204,4 @@ with c2:
         button_text="⬇️ Download CLUTCH labels (PDF)",
     )
 
-st.caption("Source: cross_instances + clutch_instances + v_tank_pairs • Petri DOB = cross_date + 1 day")
+st.caption("Source: crosses + clutch_instances + v_tank_pairs • Petri DOB = cross_date + 1 day")

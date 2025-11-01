@@ -1,5 +1,5 @@
 # =============================================================================
-# 🧬 Select tank pairings — pick parents (from v_fish_rich), choose tanks, save cross/clutch
+# 🧬 Select tank pairings — pick parents (from v_fish_rich), choose tanks
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
@@ -313,165 +313,64 @@ father_tank_id = str(father["tank_id"])
 if mother_tank_id == father_tank_id:
     st.error("Mother and Father cannot be the same tank."); st.stop()
 
-# ── UI Step 3: select clutch genotype(s) (derived from parents) ─────────────
-st.header("Step 3 — Select clutch genotype(s)")
+# ── UI Step 3: save pairing only (no cross/clutch here) ─────────────────────
+st.header("Step 3 — Save tank pairing")
 
-def _split_rollup(s: str) -> list[str]:
-    if not s:
-        return []
-    # Semicolon-delimited entries; trim each; drop empties
-    xs = [p.strip() for p in s.split(";")]
-    return [x for x in xs if x]
+created_by_val = st.text_input("Created by", value=os.environ.get("USER") or os.environ.get("USERNAME") or "unknown")
+note_val = st.text_input("Note (optional)", value="")
 
-def _build_genotype_candidates(m_geno: str, f_geno: str) -> pd.DataFrame:
-    m_list = sorted(_split_rollup(m_geno))
-    f_list = sorted(_split_rollup(f_geno))
+if st.button("💾 Save tank pairing", type="primary", use_container_width=True):
+    try:
+        inserted_pair, tp_code_local = _upsert_tank_pair(mother_tank_id, father_tank_id, created_by_val, note_val)
+        st.success(f"Saved tank_pair {tp_code_local}")
+        # clear selection widgets so the user can start a new pick if desired
+        for k in ("parent_pick_table","mother_table","father_table","clutch_genotypes_table"):
+            st.session_state.pop(k, None)
 
-    singles = [{"type": "single", "genotype_candidate": g} for g in (m_list + f_list)]
+        st.info("Next: open **Schedule new cross** to add the cross date and clutch genotype(s).")
 
-    doubles = []
-    for mg in m_list:
-        for fg in f_list:
-            doubles.append({"type": "double", "genotype_candidate": f"{mg} × {fg}"})
+    except Exception as e:
+        st.error(f"Save failed: {e}")
 
-    # Deduplicate while preserving order
-    seen = set()
-    rows = []
-    for row in singles + doubles:
-        key = (row["type"], row["genotype_candidate"])
-        if key not in seen:
-            seen.add(key)
-            rows.append(row)
+# ── Recent activity for these tanks (after saving pairing) ───────────────────
+st.header("Recent activity for these tanks")
 
-    return pd.DataFrame(rows, columns=["type", "genotype_candidate"])
+mom_col, dad_col = _tankpair_parent_cols()
+vf = _pick_fish_view()
+gcol = _fish_pretty_col(vf)
+mg = "''" if not gcol else f"coalesce(vfm.{gcol},'')"
+fg = "''" if not gcol else f"coalesce(vff.{gcol},'')"
 
-mother_geno = mother.get("genotype", "") if isinstance(mother, pd.Series) else ""
-father_geno = father.get("genotype", "") if isinstance(father, pd.Series) else ""
-cand_df = _build_genotype_candidates(mother_geno, father_geno)
-
-# Render selection table
-if cand_df.empty:
-    st.caption("No genotype candidates derived from selected parents.")
-    selected_clutch_genos = []
+recent_sql = text(f"""
+    select
+      tp.tank_pair_code,
+      vtm.fish_code as mother_fish,
+      vtm.tank_code as mother_tank,
+      {mg} as mother_genotype,
+      vtf.fish_code as father_fish,
+      vtf.tank_code as father_tank,
+      {fg} as father_genotype,
+      tp.status, tp.created_by, tp.created_at
+    from public.tank_pairs tp
+    left join public.v_tanks vtm on vtm.tank_uuid = tp.{mom_col}
+    left join public.v_tanks vtf on vtf.tank_uuid = tp.{dad_col}
+    left join {vf} vfm on vfm.fish_code = vtm.fish_code
+    left join {vf} vff on vff.fish_code = vtf.fish_code
+    where tp.{mom_col} = cast(:m as uuid) or tp.{dad_col} = cast(:d as uuid)
+    order by tp.created_at desc nulls last
+    limit 50
+""")
+with _eng().begin() as cx:
+    recent = pd.read_sql(recent_sql, cx, params={"m": mother_tank_id, "d": father_tank_id})
+if recent.empty:
+    st.info("No recent pairings for these tanks yet.")
 else:
-    if "✓ Use" not in cand_df.columns:
-        cand_df.insert(0, "✓ Use", False)
-
-    sel_table = st.data_editor(
-        cand_df,
-        key="clutch_genotypes_table",
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "✓ Use": st.column_config.CheckboxColumn("✓", default=False),
-            "type":  st.column_config.TextColumn("type", disabled=True),
-            "genotype_candidate": st.column_config.TextColumn("genotype candidate", disabled=True),
-        },
+    st.dataframe(
+        recent[[
+            "tank_pair_code","mother_fish","mother_tank","mother_genotype",
+            "father_fish","father_tank","father_genotype","status","created_by","created_at"
+        ]],
+        use_container_width=True, hide_index=True
     )
 
-    selected_clutch_genos: list[str] = []
-    if isinstance(sel_table, pd.DataFrame) and "✓ Use" in sel_table.columns:
-        selected_clutch_genos = (
-            sel_table.loc[sel_table["✓ Use"] == True, "genotype_candidate"]
-            .dropna()
-            .astype(str)
-            .tolist()
-        )
-# ── UI Step 4: save & create cross/clutch ────────────────────────────────────
-st.header("Step 4 — Save pairing and create cross (and optional clutch)")
-
-left, right = st.columns([1,2])
-with left:
-    created_by_val = st.text_input("Created by", value=os.environ.get("USER") or os.environ.get("USERNAME") or "unknown")
-    note_val = st.text_input("Note (optional)", value="")
-    if st.button("💾 Save pairing and create cross", type="primary", use_container_width=True):
-        try:
-            # 1) Create (or upsert) the tank_pair and get its code
-            inserted_pair, tp_code_local = _upsert_tank_pair(mother_tank_id, father_tank_id, created_by_val, note_val)
-            if not tp_code_local:
-                raise RuntimeError("Failed to resolve tank_pair_code")
-
-            # 2) Insert CROSS in public.crosses and fetch id + run code
-            with _eng().begin() as cx:
-                row = cx.execute(
-                    text("""
-                        insert into public.crosses
-                        (id, tank_pair_code, cross_date, created_by, note)
-                        values (gen_random_uuid(), :tp, :d, :by, nullif(:note,''))
-                        returning id, cross_run_code
-                    """),
-                    {"tp": tp_code_local, "d": str(_date.today()), "by": created_by_val, "note": note_val}
-                ).mappings().first()
-            cross_id   = row["id"]
-            cross_code = row.get("cross_run_code")
-
-            # 3) Insert CLUTCH(ES) for selected genotypes (or one NULL if nothing selected)
-            clutch_list = [g for g in selected_clutch_genos if isinstance(g, str) and g.strip()]
-            if not clutch_list:
-                clutch_list = [None]
-
-            inserted_codes = []
-            with _eng().begin() as cx:
-                for g in clutch_list:
-                    c = cx.execute(
-                        text("""
-                            insert into public.clutch_instances
-                            (id, cross_instance_id, tank_pair_code, clutch_genotype_pretty)
-                            values (gen_random_uuid(), :cid, :tp, :geno)
-                            on conflict (cross_instance_id, normalized_genotype)
-                            do nothing
-                            returning clutch_instance_code
-                        """),
-                        {"cid": cross_id, "tp": tp_code_local, "geno": (g.strip() if isinstance(g, str) else None)}
-                    ).scalar()
-                    if c:
-                        inserted_codes.append(c)
-
-            msg_codes = (", ".join(inserted_codes)) if inserted_codes else "(created)"
-            st.success(f"Saved tank_pair {tp_code_local}; cross {cross_code or '(new)'}; clutches {msg_codes}")
-
-            # clear the selection widgets
-            for k in ("parent_pick_table","mother_table","father_table","clutch_genotypes_table"):
-                st.session_state.pop(k, None)
-
-        except Exception as e:
-            st.error(f"Save failed: {e}")
-
-with right:
-    st.subheader("Recent activity for these tanks")
-    mom_col, dad_col = _tankpair_parent_cols()
-    vf = _pick_fish_view()
-    gcol = _fish_pretty_col(vf)
-    mg = "''" if not gcol else f"coalesce(vfm.{gcol},'')"
-    fg = "''" if not gcol else f"coalesce(vff.{gcol},'')"
-    recent_sql = text(f"""
-        select
-          tp.tank_pair_code,
-          vtm.fish_code as mother_fish,
-          vtm.tank_code as mother_tank,
-          {mg} as mother_genotype,
-          vtf.fish_code as father_fish,
-          vtf.tank_code as father_tank,
-          {fg} as father_genotype,
-          tp.status, tp.created_by, tp.created_at
-        from public.tank_pairs tp
-        left join public.v_tanks vtm on vtm.tank_uuid = tp.{mom_col}
-        left join public.v_tanks vtf on vtf.tank_uuid = tp.{dad_col}
-        left join {vf} vfm on vfm.fish_code = vtm.fish_code
-        left join {vf} vff on vff.fish_code = vtf.fish_code
-        where tp.{mom_col} = cast(:m as uuid) or tp.{dad_col} = cast(:d as uuid)
-        order by tp.created_at desc nulls last
-        limit 50
-    """)
-    with _eng().begin() as cx:
-        recent = pd.read_sql(recent_sql, cx, params={"m": mother_tank_id, "d": father_tank_id})
-    if recent.empty:
-        st.info("No recent pairings for these tanks yet.")
-    else:
-        st.dataframe(
-            recent[[
-                "tank_pair_code","mother_fish","mother_tank","mother_genotype",
-                "father_fish","father_tank","father_genotype","status","created_by","created_at"
-            ]],
-            use_container_width=True, hide_index=True
-        )
+st.info("Next: open **🗓 Schedule new cross** to add the cross date and clutch genotype(s).")

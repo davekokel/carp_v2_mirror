@@ -1,5 +1,6 @@
 # =============================================================================
-# 🧪 Add treatments to clutch — deterministic (strict v_clutch_instances) + generic clutch_materials
+# 🧪 Add treatments to clutch — current design (v_clutch_instances + join_clutch_treatments)
+#        • Plasmids + RNAs (RNAs from v_rna_plasmids if present, else plasmids.supports_invitro_rna)
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
@@ -7,12 +8,12 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
 import os
 from datetime import date, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
-from sqlalchemy import text as _sql  # alias for view-existence helper
+from sqlalchemy import text as _sql
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
@@ -35,95 +36,62 @@ def _eng():
     _ENGINE = get_engine()
     return _ENGINE
 
-# ── Deterministic contracts ──────────────────────────────────────────────────
-CLUTCHES_VIEW   = "public.v_clutch_instances_display"  # single source of truth
-MATERIALS_VIEW  = "public.v_materials"                 # unified registry (plasmids + RNAs if present)
-TREATMENTS_LINK = "public.clutch_materials"            # generic link: clutch_instance_id ↔ material
+# ── Config (current design) ──────────────────────────────────────────────────
+CLUTCHES_VIEW   = "public.v_clutch_instances"          # enriched, contract view
+TREATMENTS_LINK = "public.join_clutch_treatments"      # canonical link table
 
-REQUIRED_VIEW_COLS = [
-    # identity / display
-    "clutch_code",
-    "clutch_birthday",
-    "cross_name_pretty",
-    "clutch_name",
-    "clutch_genotype_pretty",
-    "clutch_strain_pretty",
-    # rollups
-    "treatments_count_effective",
-    "treatments_pretty_effective",
-    "genotype_treatment_rollup_effective",
-    # audit / filter
-    "created_by_instance",
-    "created_at_instance",
+REQUIRED_COLS = [
+    "clutch_code", "clutch_birthday", "cross_name_pretty",
+    "clutch_name", "clutch_genotype_pretty", "clutch_strain_pretty",
+    "treatments_count_effective", "treatments_pretty_effective",
+    "genotype_treatment_rollup_effective", "created_by_instance", "created_at_instance",
 ]
 
-def _treatments_first_rollup(treatments: str | None, genotype: str | None) -> str:
-    t = (treatments or '').strip()
-    g = (genotype or '').strip()
-    if t and g:
-        return f"{t} > {g}"
-    return t or g
-
+# ── Helpers / guards ─────────────────────────────────────────────────────────
 def _assert_view_contract() -> None:
+    sch, name = CLUTCHES_VIEW.split(".", 1)
     with _eng().begin() as cx:
         got = pd.read_sql(text("""
             select column_name
             from information_schema.columns
-            where table_schema='public' and table_name='v_clutch_instances_display'
-            order by ordinal_position
-        """), cx)["column_name"].tolist()
-    missing = [c for c in REQUIRED_VIEW_COLS if c not in got]
+            where table_schema=:s and table_name=:n
+        """), cx, params={"s": sch, "n": name})["column_name"].tolist()
+    missing = [c for c in REQUIRED_COLS if c not in got]
     if missing:
-        st.error(
-            "Schema contract mismatch for public.v_clutch_instances_display.\n"
-            "Missing columns: " + ", ".join(missing)
-        ); st.stop()
+        st.error(f"{CLUTCHES_VIEW} missing columns: " + ", ".join(missing)); st.stop()
 
-def _assert_table_exists(schema: str, name: str) -> None:
+def _assert_table(schema: str, name: str) -> None:
     with _eng().begin() as cx:
         ok = pd.read_sql(text("""
-            select 1
-            from information_schema.tables
-            where table_schema=:s and table_name=:t
-            limit 1
-        """), cx, params={"s": schema, "t": name}).shape[0] > 0
+            select 1 from information_schema.tables
+            where table_schema=:s and table_name=:n limit 1
+        """), cx, params={"s": schema, "n": name}).shape[0] > 0
     if not ok:
         st.error(f"Required table {schema}.{name} not found."); st.stop()
 
 def _view_exists(schema: str, name: str) -> bool:
-    """
-    Return True if a normal or materialized view exists as schema.name.
-    """
     q = _sql("""
-      SELECT 1
-      FROM information_schema.views
-      WHERE table_schema = :schema AND table_name = :name
+      SELECT 1 FROM information_schema.views WHERE table_schema=:s AND table_name=:n
       UNION ALL
-      SELECT 1
-      FROM pg_catalog.pg_matviews
-      WHERE schemaname = :schema AND matviewname = :name
+      SELECT 1 FROM pg_catalog.pg_matviews WHERE schemaname=:s AND matviewname=:n
       LIMIT 1
     """)
     with _eng().begin() as cx:
-        return cx.execute(q, {"schema": schema, "name": name}).first() is not None
+        return cx.execute(q, {"s": schema, "n": name}).first() is not None
 
-# Contract checks
 _assert_view_contract()
-_assert_table_exists("public", "clutch_instances")   # resolver
-_assert_table_exists("public", "cross_instances")    # resolver
-_assert_table_exists("public", "plasmids")           # for picker
-_assert_table_exists("public", "clutch_materials")   # generic link
-if not _view_exists("public", "v_materials"):
-    st.error("Required view public.v_materials not found (unified materials registry)."); st.stop()
+_assert_table("public","clutch_instances")
+_assert_table("public","crosses")
+_assert_table("public","join_clutch_treatments")
 
-# ── Utilities ────────────────────────────────────────────────────────────────
-def _safe_date(v):
-    try:
-        return pd.to_datetime(v).date() if pd.notna(v) else None
-    except Exception:
-        return None
+# ── Small utilities ──────────────────────────────────────────────────────────
+def _treatments_first_rollup(treatments: str | None, genotype: str | None) -> str:
+    t = (treatments or '').strip()
+    g = (genotype or '').strip()
+    if t and g: return f"{t} > {g}"
+    return t or g
 
-# ── Load clutches strictly from the view ─────────────────────────────────────
+# ── Load clutches strictly from v_clutch_instances ───────────────────────────
 def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> pd.DataFrame:
     where, params = [], {}
     if not most_recent:
@@ -158,42 +126,21 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
         v.treatments_pretty_effective,
         v.genotype_treatment_rollup_effective    as view_rollup,
         v.created_by_instance,
-        v.created_at_instance,
-        ci.clutch_genotype_pretty                as stored_genotype,
-        ci.treatments_genotype_rollup            as stored_rollup
+        v.created_at_instance
       from {CLUTCHES_VIEW} v
-      left join public.clutch_instances ci
-        on ci.clutch_instance_code = v.clutch_code
       {where_sql}
       order by v.created_at_instance desc nulls last, v.clutch_code
       limit 1000
     """)
-
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    # Effective (what the UI should use)
-    df = df.copy()
-    df["treatments_count_effective"] = pd.to_numeric(
-        df["treatments_count_effective"], errors="coerce"
-    ).fillna(0).astype(int)
-
-    df["clutch_genotype_effective"] = (
-        df["stored_genotype"].fillna("").replace("", None)
-         .combine_first(df["view_genotype"])
-    )
-    df["clutch_name_effective"] = (
-        df["view_clutch_name"].fillna("").replace("", None)
-    )
-    df["rollup_effective"] = (
-        df["stored_rollup"].fillna("").replace("", None)
-         .combine_first(df["view_rollup"])
-    )
-
+    df["treatments_count_effective"] = pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
+    df["rollup_effective"] = df["view_rollup"]
     return df.loc[:, ~df.columns.duplicated()]
 
-# ── Resolve CI code → IDs ────────────────────────────────────────────────────
-def _resolve_ids_from_ci_or_cr(code_in: str):
+# ── Resolve clutch code → IDs ────────────────────────────────────────────────
+def _resolve_ids_from_ci(code_in: str):
     code = (code_in or "").strip()
     if not code: return None, None
     with _eng().begin() as cx:
@@ -207,23 +154,20 @@ def _resolve_ids_from_ci_or_cr(code_in: str):
     if row.empty: return None, None
     return row["cross_instance_id"].iloc[0], row["clutch_instance_id"].iloc[0]
 
-# ── Treatments I/O (generic clutch_materials) ────────────────────────────────
+# ── Treatments I/O (join_clutch_treatments only) ─────────────────────────────
 def _load_instance_treatments(clutch_instance_id: str) -> pd.DataFrame:
     with _eng().begin() as cx:
         sql = text(f"""
           select
-            cm.created_at,
-            cm.material_type,
-            cm.material_code,
-            coalesce(cm.material_name, vm.material_name) as material_name,
-            cm.notes,
-            cm.created_by
-          from {TREATMENTS_LINK} cm
-          left join {MATERIALS_VIEW} vm
-            on lower(vm.material_type)=lower(cm.material_type)
-           and lower(vm.material_code)=lower(cm.material_code)
-          where cm.clutch_instance_id = cast(:cid as uuid)
-          order by cm.created_at desc nulls last
+            jct.created_at,
+            jct.treatment_type  as material_type,
+            jct.treatment_code  as material_code,
+            coalesce(jct.treatment_name, jct.treatment_code) as material_name,
+            jct.notes,
+            jct.created_by
+          from {TREATMENTS_LINK} jct
+          where jct.clutch_instance_id = cast(:cid as uuid)
+          order by jct.created_at desc nulls last
         """)
         return pd.read_sql(sql, cx, params={"cid": clutch_instance_id})
 
@@ -234,70 +178,36 @@ def _insert_instance_treatments(clutch_instance_id: str, created_by: str, items:
             code = str(it.get("code") or it.get("id") or "").strip()
             name = str(it.get("name") or "").strip()
             if not code:
-                errs.append(f"<empty-code> → skipped"); continue
+                errs.append(f"<empty-code> → skipped")
+                continue
             try:
-                cx.execute(text(f"""
-                  insert into {TREATMENTS_LINK}
-                    (clutch_instance_id, material_type, material_code, material_name, notes, created_by)
-                  values
-                    (cast(:iid as uuid), :kind, :code, :name, :notes, :who)
-                  on conflict (clutch_instance_id,
-                               lower(coalesce(material_type,'')),
-                               lower(coalesce(material_code,'')))
-                  do nothing
-                """), {
-                    "iid": clutch_instance_id,
-                    "kind": ("plasmid" if it.get("source") == "plasmids" else
-                             "rna" if it.get("source") == "v_rna_plasmids" else
-                             (it.get("material_type") or "generic")),
-                    "code": code,
-                    "name": name or code,
-                    "notes": note or "",
-                    "who": created_by or "",
-                })
+                kind = (
+                    "plasmid" if it.get("source") == "plasmids"
+                    else "rna" if it.get("source") == "v_rna_plasmids"
+                    else (it.get("treatment_type") or "generic")
+                )
+                cx.execute(
+                    text(f"""
+                        insert into {TREATMENTS_LINK}
+                          (clutch_instance_id, treatment_type, treatment_code, treatment_name, notes, created_by)
+                        values
+                          (cast(:iid as uuid), :kind, :code, :name, :notes, :who)
+                        on conflict (clutch_instance_id, treatment_type_norm, treatment_code_norm)
+                        do nothing
+                    """),
+                    {
+                        "iid": clutch_instance_id,
+                        "kind": kind,
+                        "code": code,
+                        "name": name or code,
+                        "notes": note or "",
+                        "who": created_by or "",
+                    }
+                )
                 inserted += 1
             except Exception as e:
                 errs.append(f"{code} → {e}")
     return inserted, errs
-
-# ── Run overview (strictly from the clutch view) ─────────────────────────────
-def _load_run_overview(ci_code: str) -> pd.DataFrame:
-    with _eng().begin() as cx:
-        df = pd.read_sql(text(f"""
-            select
-              v.clutch_code,
-              v.clutch_birthday,
-              v.cross_name_pretty,
-              v.clutch_name,
-              v.clutch_genotype_pretty           as view_genotype,
-              v.clutch_strain_pretty,
-              v.treatments_count_effective,
-              v.treatments_pretty_effective,
-              v.genotype_treatment_rollup_effective as view_rollup,
-              v.created_by_instance,
-              v.created_at_instance,
-              ci.clutch_genotype_pretty          as stored_genotype,
-              ci.treatments_genotype_rollup      as stored_rollup
-            from {CLUTCHES_VIEW} v
-            left join public.clutch_instances ci
-              on ci.clutch_instance_code = v.clutch_code
-            where v.clutch_code = :cc
-            order by v.created_at_instance desc nulls last
-            limit 1
-        """), cx, params={"cc": ci_code})
-
-    if df.empty:
-        return df
-
-    df["treatments_count_effective"] = pd.to_numeric(
-        df["treatments_count_effective"], errors="coerce"
-    ).fillna(0).astype(int)
-
-    # Build effective fields the UI should show
-    df = df.copy()
-    df["genotype_effective"] = df["stored_genotype"].fillna("").replace("", None).combine_first(df["view_genotype"])
-    df["rollup_effective"]   = df["stored_rollup"].fillna("").replace("", None).combine_first(df["view_rollup"])
-    return df.loc[:, ~df.columns.duplicated()]
 
 # ── Filters + picker ─────────────────────────────────────────────────────────
 with st.form("filters_form", clear_on_submit=False):
@@ -317,12 +227,13 @@ st.caption(f"{len(clutches)} clutch(es)")
 if clutches.empty:
     st.info("No clutches found with the current filters."); st.stop()
 
-# Build a grid showing EFFECTIVE fields (stored preferred, view fallback)
 dfv = clutches[[
     "clutch_code",
     "clutch_birthday",
     "cross_name_pretty",
-    "clutch_genotype_effective",
+    "view_clutch_name",
+    "view_genotype",
+    "clutch_strain_pretty",
     "treatments_count_effective",
     "treatments_pretty_effective",
     "rollup_effective",
@@ -330,14 +241,6 @@ dfv = clutches[[
     "created_at_instance",
 ]].copy()
 
-# Final fallback for rollup if needed
-dfv["rollup_effective"] = dfv.apply(
-    lambda r: r["rollup_effective"]
-              or _treatments_first_rollup(r.get("treatments_pretty_effective"), r.get("clutch_genotype_effective")),
-    axis=1,
-)
-
-# Picker selection column
 dfv.insert(0, "✓ Select", False)
 last_ci = st.session_state.get("last_ci")
 if last_ci:
@@ -352,7 +255,7 @@ picker = st.data_editor(
         "✓ Select":                  st.column_config.CheckboxColumn("✓", default=False),
         "clutch_birthday":           st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
         "created_at_instance":       st.column_config.DatetimeColumn("created_at_instance", disabled=True),
-        "clutch_genotype_effective": st.column_config.TextColumn("clutch_genotype_pretty", disabled=True),
+        "view_genotype":             st.column_config.TextColumn("clutch_genotype_pretty", disabled=True),
         "rollup_effective":          st.column_config.TextColumn("Treatments > genotype", disabled=True),
     },
     key="ci_only_picker_v1",
@@ -369,13 +272,13 @@ row = picked.iloc[0]
 ci_code = str(row.get("clutch_code","")).strip()
 st.session_state["last_ci"] = ci_code
 
-cross_instance_id, clutch_instance_id = _resolve_ids_from_ci_or_cr(ci_code)
+cross_instance_id, clutch_instance_id = _resolve_ids_from_ci(ci_code)
 if not cross_instance_id:
-    st.error("Could not resolve the run from this CI/CR code."); st.stop()
+    st.error("Could not resolve the run from this CI code."); st.stop()
 if not clutch_instance_id:
     st.error("Could not create/find the clutch_instance for this run."); st.stop()
 
-# ── Pickers for materials ────────────────────────────────────────────────────
+# ── Catalog loaders ─────────────────────────────────────────────────────────
 def _load_plasmids(search: str) -> pd.DataFrame:
     with _eng().begin() as cx:
         return pd.read_sql(text("""
@@ -386,23 +289,32 @@ def _load_plasmids(search: str) -> pd.DataFrame:
           limit 1000
         """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
 
+_HAS_V_RNA = _view_exists("public", "v_rna_plasmids")
 def _load_rnas(search: str) -> pd.DataFrame:
-    view = "v_rna_plasmids"
-    if not _view_exists("public", view):
-        st.info("RNA library view not installed (public.v_rna_plasmids). Showing nothing.")
-        return pd.DataFrame(columns=["code","name","nickname","created_at","created_by"])
     with _eng().begin() as cx:
-        return pd.read_sql(text(f"""
+        if _HAS_V_RNA:
+            return pd.read_sql(text("""
+              select code, name, coalesce(nickname,'') as nickname, created_at, created_by
+              from public.v_rna_plasmids
+              where (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
+              order by coalesce(created_at, now()) desc
+              limit 1000
+            """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
+        # fallback: plasmids that explicitly support in-vitro RNA
+        return pd.read_sql(text("""
           select code, name, coalesce(nickname,'') as nickname, created_at, created_by
-          from public.{view}
-          where (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
+          from public.plasmids
+          where (supports_invitro_rna is true)
+            and (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
           order by coalesce(created_at, now()) desc
           limit 1000
         """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
 
+# ── Add treatments UI ────────────────────────────────────────────────────────
 st.subheader("Add treatments to this clutch instance")
-tabs = st.tabs(["Plasmids","RNAs"])
+tabs = st.tabs(["Plasmids", "RNAs"])
 
+# Plasmids
 with tabs[0]:
     c1, c2 = st.columns([2,1])
     with c1: q_pl = st.text_input("Search plasmids (code / name / nickname / fluors / resistance)", value="")
@@ -419,14 +331,21 @@ with tabs[0]:
             key="plasmids_editor_ci_v1",
         )
         picked_pl = eg_pl[eg_pl["✓ Select"]].reset_index(drop=True)
-        if not picked_pl.empty: picked_pl["source"] = "plasmids"
+        if not picked_pl.empty:
+            picked_pl = picked_pl.assign(
+                treatment_type="plasmid",
+                code=picked_pl["code"].astype(str),
+                name=picked_pl["name"].astype(str),
+            )
 
+# RNAs
 with tabs[1]:
     c1, c2 = st.columns([2,1])
     with c1: q_rna = st.text_input("Search RNAs (code / name / nickname)", value="")
     with c2: note_rna = st.text_input("Note for selected RNAs", value="")
     df_rna = _load_rnas(q_rna)
-    st.caption(f"{len(df_rna)} RNA(s)")
+    src = "v_rna_plasmids" if _HAS_V_RNA else "plasmids.supports_invitro_rna"
+    st.caption(f"{len(df_rna)} RNA(s) • source: {src}")
     if df_rna.empty:
         picked_rna = pd.DataFrame()
     else:
@@ -437,22 +356,38 @@ with tabs[1]:
             key="rnas_editor_ci_v1",
         )
         picked_rna = eg_rna[eg_rna["✓ Select"]].reset_index(drop=True)
-        if not picked_rna.empty: picked_rna["source"] = "v_rna_plasmids"
+        if not picked_rna.empty:
+            picked_rna = picked_rna.assign(
+                treatment_type="rna",
+                code=picked_rna["code"].astype(str),
+                name=picked_rna["name"].astype(str),
+            )
 
 # ── Save actions ─────────────────────────────────────────────────────────────
 st.subheader("Save")
 creator = os.environ.get("USER") or os.environ.get("USERNAME") or (getattr(user, "email", "") or "system")
 
+def _collect_items(df_sel: pd.DataFrame, ttype: str) -> List[Dict]:
+    items: List[Dict] = []
+    if df_sel is not None and not df_sel.empty:
+        for _, r in df_sel.iterrows():
+            items.append({
+                "treatment_type": ttype,
+                "code": str(r.get("code") or ""),
+                "name": str(r.get("name") or ""),
+            })
+    return items
+
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("➕ Attach selected plasmids", width="stretch", key="attach_plasmids_ci_v1"):
-        items = picked_pl.to_dict("records") if 'picked_pl' in locals() and not picked_pl.empty else []
-        n, errs = _insert_instance_treatments(clutch_instance_id, creator, items, note_pl)
+        items = _collect_items(locals().get("picked_pl", pd.DataFrame()), "plasmid")
+        n, errs = _insert_instance_treatments(clutch_instance_id, creator, items, locals().get("note_pl",""))
         st.session_state["treatments_result"] = {"instance": n, "errs": errs}
 with col2:
     if st.button("➕ Attach selected RNAs", width="stretch", key="attach_rnas_ci_v1"):
-        items = picked_rna.to_dict("records") if 'picked_rna' in locals() and not picked_rna.empty else []
-        n, errs = _insert_instance_treatments(clutch_instance_id, creator, items, note_rna)
+        items = _collect_items(locals().get("picked_rna", pd.DataFrame()), "rna")
+        n, errs = _insert_instance_treatments(clutch_instance_id, creator, items, locals().get("note_rna",""))
         st.session_state["treatments_result"] = {"instance": n, "errs": errs}
 with col3:
     if st.button("↻ Refresh", width="stretch", key="refresh_ci_v1"):
@@ -466,28 +401,37 @@ if _tmsg:
     if _tmsg.get("errs"):
         st.warning("Some items were skipped:\n- " + "\n- ".join(_tmsg["errs"]))
 
-# ── Updated run summary (from the same deterministic view) ───────────────────
+# ── Updated run summary ──────────────────────────────────────────────────────
 st.subheader("Updated run summary")
-run_df = _load_run_overview(ci_code)
+with _eng().begin() as cx:
+    run_df = pd.read_sql(text(f"""
+        select
+          v.clutch_code,
+          v.clutch_birthday,
+          v.cross_name_pretty,
+          v.treatments_count_effective,
+          v.treatments_pretty_effective,
+          v.genotype_treatment_rollup_effective
+        from {CLUTCHES_VIEW} v
+        where v.clutch_code = :cc
+        limit 1
+    """), cx, params={"cc": ci_code})
+
 if run_df.empty:
     st.info("No overview row found for this run.")
 else:
-    cnt       = int(run_df["treatments_count_effective"].iloc[0])
-    pretty    = str(run_df["treatments_pretty_effective"].iloc[0] or "")
-    geno_eff  = str(run_df["genotype_effective"].iloc[0] or "")
-    roll_eff  = str(run_df["rollup_effective"].iloc[0] or "")
-
-    if not roll_eff:
-        roll_eff = _treatments_first_rollup(pretty, geno_eff)
+    cnt    = int(run_df["treatments_count_effective"].iloc[0] or 0)
+    pretty = str(run_df["treatments_pretty_effective"].iloc[0] or "")
+    roll   = str(run_df["genotype_treatment_rollup_effective"].iloc[0] or "") or _treatments_first_rollup(pretty, "")
 
     st.caption(f"Effective treatments: {cnt} — {pretty or '—'}")
-    st.caption(f"Treatments > genotype (stored): {roll_eff or '—'}")
+    st.caption(f"Treatments > genotype (view): {roll or '—'}")
 
     out = pd.DataFrame([{
         "clutch_code":                run_df["clutch_code"].iloc[0],
         "clutch_birthday":            run_df["clutch_birthday"].iloc[0],
         "cross_name_pretty":          run_df["cross_name_pretty"].iloc[0],
-        "treatments_genotype":        roll_eff,
+        "treatments_genotype":        roll,
         "treatments_count_effective": cnt,
         "treatments_pretty_effective": pretty,
     }])
