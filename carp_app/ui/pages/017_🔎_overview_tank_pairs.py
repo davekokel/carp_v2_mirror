@@ -1,7 +1,7 @@
 # =============================================================================
 # 🔎 Overview tank pairs — snapshot + latest CX codes & dates
 #   - Source: public.v_tank_pairs (columns may vary)
-#   - Latest cross/clutch via cross_instances.tank_pair_code (if present)
+#   - Latest cross/clutch via crosses.tank_pair_code (enriched crosses table)
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
@@ -112,7 +112,7 @@ pair_fish_expr  = "coalesce(tp.mom_fish_code,'') || ' × ' || coalesce(tp.dad_fi
 pair_tanks_expr = "coalesce(tp.mom_tank_code,'') || ' × ' || coalesce(tp.dad_tank_code,'')"   if have("mom_tank_code") and have("dad_tank_code") else "null"
 
 have_tp_code = have("tank_pair_code")
-cx_join = "ci.tank_pair_code = tp.tank_pair_code" if have_tp_code else "1=0"
+cx_join = "cr.tank_pair_code = tp.tank_pair_code" if have_tp_code else "1=0"
 
 order_clause = "tp.created_at desc nulls last, tp.tank_pair_code" if have("created_at") and have("tank_pair_code") else \
                "tp.created_at desc nulls last" if have("created_at") else \
@@ -134,17 +134,17 @@ sql = text(f"""
     cl.clutch_created_at as latest_clutch_created_at
   from tp
   left join lateral (
-    select ci.cross_run_code as cross_code, ci.cross_date
-    from public.cross_instances ci
+    select cr.cross_run_code as cross_code, cr.cross_date
+    from public.crosses cr
     where {cx_join}
-    order by ci.created_at desc nulls last, ci.cross_date desc nulls last
+    order by cr.created_at desc nulls last, cr.cross_date desc nulls last
     limit 1
   ) cx on true
   left join lateral (
     select cl.clutch_instance_code as clutch_code,
            cl.created_at as clutch_created_at
     from public.clutch_instances cl
-    join public.cross_instances ci on ci.id = cl.cross_instance_id
+    join public.crosses cr on cr.id = cl.cross_instance_id
     where {cx_join}
     order by cl.created_at desc nulls last
     limit 1
