@@ -17,7 +17,7 @@ require_email_otp()
 require_app_unlock()
 
 # ── std/3p ───────────────────────────────────────────────────────────────────
-import os
+import os, shlex
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
@@ -26,7 +26,6 @@ from sqlalchemy.engine import Engine
 # ── app libs ─────────────────────────────────────────────────────────────────
 from carp_app.ui.lib.app_ctx import get_engine as _create_engine
 from carp_app.ui.lib.labels_components import build_tank_labels_pdf  # 2.4"×1.5" + QR
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Engine (cached)
@@ -41,12 +40,10 @@ def _cached_engine() -> Engine:
 def _get_engine() -> Engine:
     return _cached_engine()
 
-
 st.set_page_config(page_title="CARP — Search Fish → Tanks", page_icon="🔎", layout="wide")
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers (no caching on DB reads so you always see fresh rows)
+# Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 def _normalize_q(q_raw: str) -> str | None:
     q = (q_raw or "").strip()
@@ -55,64 +52,99 @@ def _normalize_q(q_raw: str) -> str | None:
 def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
-    obj_cols = df.select_dtypes(include=["object", "string"]).columns
-    for c in obj_cols:
+    for c in df.select_dtypes(include=["object", "string"]).columns:
         df[c] = df[c].astype("string").fillna("")
     return df
 
-
 def _load_fish_overview(q: str | None, limit: int) -> pd.DataFrame:
     """
-    Pulls display-ready fields from v_fish_rich and computes current tank count
-    inline from v_tanks (status='active') to avoid any view drift.
+    Display-ready rows from v_fish_rich plus:
+      • allele_nicknames (agg from join_fish_transgene_alleles ⟂ transgene_alleles)
+      • fusion_rollup / fluor_rollup / tag_rollup (computed on the fly via fusions)
+    v_fish_rich.allele_number is a COUNT of linked alleles → exposed here as allele_count.
     """
     sql = text("""
-      WITH base AS (
+      WITH nn AS (
         SELECT
-          v.fish_uuid,
-          v.fish_code,
-          v.fish_name,
-          v.fish_nickname,
-          v.genetic_background,
-          v.line_building_stage,
-          v.date_birth,
-          /* inline count from v_tanks instead of relying on a separate view */
-          COALESCE((
-            SELECT COUNT(*) FROM public.v_tanks t
-            WHERE t.status = 'active'
-              AND t.fish_code = v.fish_code
-          ),0) AS n_active_tanks,
-          v.allele_number,
-          v.allele_code,
-          v.transgene_pretty,
-          v.genotype_rollup,
-          f.created_at
-        FROM public.v_fish_rich v
-        JOIN public.fish f ON f.fish_uuid = v.fish_uuid
-      )
-      SELECT *
-      FROM base
+          j.fish_id AS fish_uuid,
+          string_agg(
+            DISTINCT COALESCE(NULLIF(btrim(ta.allele_nickname), ''), ta.allele_name),
+            ', ' ORDER BY COALESCE(NULLIF(btrim(ta.allele_nickname), ''), ta.allele_name)
+          ) AS allele_nicknames
+        FROM public.join_fish_transgene_alleles j
+        JOIN public.transgene_alleles ta
+          ON ta.transgene_base_code = j.transgene_base_code
+         AND ta.allele_number       = j.allele_number
+        GROUP BY j.fish_id
+      ),
+      gx AS (  -- genetic fusions/tags/fluors via plasmid wiring
+        SELECT
+          j.fish_id AS fish_uuid,
+          fu.fusion_name,
+          fl.fluor_name,
+          tg.tag_name
+        FROM public.join_fish_transgene_alleles j
+        JOIN public.join_plasmid_fusions pf ON pf.plasmid_code = j.transgene_base_code
+        JOIN public.fusions            fu   ON fu.fusion_code  = pf.fusion_code
+        LEFT JOIN public.fluors        fl   ON fl.fluor_code   = fu.fluor_code
+        LEFT JOIN public.tags          tg   ON tg.tag_code     = fu.tag_code
+      ),
+      gr AS (
+        SELECT
+            fish_uuid,
+            string_agg(DISTINCT fusion_name, ', ' ORDER BY fusion_name)                       AS fusion_rollup,
+            string_agg(DISTINCT fluor_name,  ', ' ORDER BY fluor_name)  FILTER (WHERE fluor_name IS NOT NULL) AS fluor_rollup,
+            string_agg(DISTINCT tag_name,    ', ' ORDER BY tag_name)    FILTER (WHERE tag_name   IS NOT NULL) AS tag_rollup
+        FROM gx
+        GROUP BY fish_uuid
+        )
+      SELECT
+        v.fish_uuid,
+        v.fish_code,
+        v.fish_name,
+        v.fish_nickname,
+        v.genetic_background,
+        v.line_building_stage,
+        v.dob,
+        v.allele_number                     AS allele_count,
+        v.allele_code,
+        v.transgene,
+        v.genotype_rollup,
+        v.n_active_tanks,
+        v.created_at,
+        COALESCE(gr.fusion_rollup, '')      AS fusion_rollup,
+        COALESCE(gr.fluor_rollup,  '')      AS fluor_rollup,
+        COALESCE(gr.tag_rollup,    '')      AS tag_rollup,
+        COALESCE(nn.allele_nicknames, '')   AS allele_nicknames
+      FROM public.v_fish_rich v
+      LEFT JOIN nn ON nn.fish_uuid = v.fish_uuid
+      LEFT JOIN gr ON gr.fish_uuid = v.fish_uuid
       WHERE (:q IS NULL)
-         OR (fish_code ILIKE :q
-          OR COALESCE(fish_name,'') ILIKE :q
-          OR COALESCE(fish_nickname,'') ILIKE :q
-          OR COALESCE(genetic_background,'') ILIKE :q
-          OR COALESCE(line_building_stage,'') ILIKE :q
-          OR COALESCE(transgene_pretty,'') ILIKE :q
-          OR COALESCE(genotype_rollup,'') ILIKE :q)
-      ORDER BY created_at DESC NULLS LAST, fish_code
+         OR (v.fish_code ILIKE :q
+          OR COALESCE(v.fish_name,'')          ILIKE :q
+          OR COALESCE(v.fish_nickname,'')      ILIKE :q
+          OR COALESCE(v.genetic_background,'') ILIKE :q
+          OR COALESCE(v.line_building_stage,'') ILIKE :q
+          OR COALESCE(v.transgene,'')          ILIKE :q
+          OR COALESCE(v.genotype_rollup,'')    ILIKE :q
+          OR COALESCE(gr.fusion_rollup,'')     ILIKE :q
+          OR COALESCE(gr.fluor_rollup,'')      ILIKE :q
+          OR COALESCE(gr.tag_rollup,'')        ILIKE :q
+          OR COALESCE(nn.allele_nicknames,'')  ILIKE :q)
+      ORDER BY v.created_at DESC NULLS LAST, v.fish_code
       LIMIT :lim
     """)
     params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
+
+    if "allele_count" in df.columns:
+        df["allele_count"] = pd.to_numeric(df["allele_count"], errors="coerce").astype("Int64")
+    if "n_active_tanks" in df.columns:
+        df["n_active_tanks"] = pd.to_numeric(df["n_active_tanks"], errors="coerce").astype("Int64")
     return _coerce_strings(df)
 
-
 def _load_fish_rich_all(q: str | None, limit: int) -> pd.DataFrame:
-    """
-    Advanced pane: dump all columns from v_fish_rich, searchable by multiple fields.
-    """
     sql = text("""
       SELECT * FROM public.v_fish_rich v
       WHERE (:q IS NULL)
@@ -121,7 +153,7 @@ def _load_fish_rich_all(q: str | None, limit: int) -> pd.DataFrame:
           OR COALESCE(v.fish_nickname,'') ILIKE :q
           OR COALESCE(v.genetic_background,'') ILIKE :q
           OR COALESCE(v.line_building_stage,'') ILIKE :q
-          OR COALESCE(v.transgene_pretty,'') ILIKE :q
+          OR COALESCE(v.transgene,'') ILIKE :q
           OR COALESCE(v.genotype_rollup,'') ILIKE :q
           OR COALESCE(v.n_active_tanks::text,'') ILIKE :q)
       ORDER BY v.fish_code
@@ -132,49 +164,51 @@ def _load_fish_rich_all(q: str | None, limit: int) -> pd.DataFrame:
         df = pd.read_sql(sql, cx, params=params)
     return _coerce_strings(df)
 
-
 def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
+    """
+    v_tanks in this schema does not expose fish_code → parse it from tank_code "TANK(<code>)#N".
+    """
     if not codes:
         return pd.DataFrame(columns=["fish_code","tank_code","status","created_at","container_id"])
-    sql = text("""
+    sql = text(r"""
       SELECT
         v.tank_uuid::text         AS container_id,
         v.tank_code::text         AS tank_code,
-        v.status::text            AS status,
-        v.fish_code::text         AS fish_code,
+        ''::text                  AS status,  -- v_tanks has no status; display blank (or 'active')
+        regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1')::text AS fish_code,
         v.created_at::timestamptz AS created_at
       FROM public.v_tanks v
-      WHERE v.fish_code = ANY(:codes)
+      WHERE regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1') = ANY(:codes)
       ORDER BY v.created_at ASC, v.tank_code ASC
     """)
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": codes})
     return _coerce_strings(df)
 
-
 def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
+    """
+    Enrich printed label rows with fish/tank details (uses v_fish_rich for pretty strings).
+    """
     want_cols = [
         "container_id","label","status","fish_code",
         "nickname","name","alias","tank_display",
         "genotype","transgene_pretty",
         "genetic_background","stage","dob","tank_code"
     ]
-    if not container_ids:
-        return pd.DataFrame(columns=want_cols)
-    ids = [x for x in container_ids if x]
+    ids = [x for x in (container_ids or []) if x]
     if not ids:
         return pd.DataFrame(columns=want_cols)
 
-    sql = text("""
+    sql = text(r"""
       WITH picked AS (
         SELECT unnest(cast(:ids AS uuid[])) AS container_id
       ),
       vt AS (
         SELECT
             v.tank_uuid::uuid         AS tank_id,
-            v.fish_code::text         AS fish_code,
+            regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1')::text AS fish_code,
             v.tank_code::text         AS tank_code,
-            v.status::text            AS status,
+            ''::text                  AS status,  -- v_tanks has no status; display blank (or 'active')
             v.created_at::timestamptz AS created_at,
             split_part(v.tank_code, '#', 2)   AS tank_num
         FROM public.v_tanks v
@@ -184,11 +218,11 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             f.fish_code::text               AS fish_code,
             COALESCE(f.fish_name,'')        AS name,
             COALESCE(f.fish_nickname,'')    AS nickname,
-            COALESCE(f.allele_code,'')      AS alias,              -- short code
+            COALESCE(f.allele_code,'')      AS alias,
             f.genetic_background::text      AS genetic_background,
-            f.line_building_stage::text     AS stage,
-            f.date_birth::date              AS dob,
-            COALESCE(f.transgene_pretty,'') AS transgene_pretty,
+            f.line_building_stage           AS stage,
+            f.dob::date                     AS dob,
+            COALESCE(f.genotype_rollup,'')  AS transgene_pretty,
             COALESCE(f.genotype_rollup,'')  AS genotype
         FROM public.v_fish_rich f
       )
@@ -197,8 +231,9 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
         vt.tank_code                        AS tank_code,
         vt.status                           AS status,
         vt.fish_code                        AS fish_code,
-        vf.nickname                         AS nickname,
+        vf.nickname                         AS name_short,
         vf.name                             AS name,
+        vf.nickname                         AS nickname,
         vf.alias                            AS alias,
         CASE
           WHEN vt.tank_num IS NOT NULL AND vt.tank_num <> ''
@@ -216,15 +251,14 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
       ORDER BY vt.created_at ASC, vt.tank_code ASC
     """)
     with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"ids": ids})
+        df = pd.read_sql(sql, cx, params={"ids": container_ids})
 
     if df.empty:
         return df
 
-    # Basic cleanup
     for c in ["label","fish_code","genotype","transgene_pretty","genetic_background","stage","status","alias","tank_display","tank_code","nickname","name"]:
         if c in df.columns:
-            df[c] = df[c].fillna("").astype(str)
+            df[c] = df[c].fillna("")
 
     if "dob" in df.columns:
         try:
@@ -233,7 +267,6 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
             df["dob"] = None
 
     return df[[c for c in want_cols if c in df.columns]]
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Page
@@ -245,12 +278,12 @@ def main():
     with st.form("filters", clear_on_submit=False):
         c1, c2 = st.columns([3,1])
         with c1:
-            q_raw = st.text_input("Search fish (code/name/nickname/background/allele)", "")
+            q_raw = st.text_input("Search (code/name/nickname/background/transgene/genotype/alleles/fluors/fusions/tags)", "")
         with c2:
             limit = int(st.number_input("Limit", min_value=1, max_value=5000, value=500, step=100))
-        submitted = st.form_submit_button("Search")
+        _ = st.form_submit_button("Search")
 
-    q = _normalize_q(q_raw)
+    q = (q_raw or "").strip() or None
 
     df = _load_fish_overview(q, limit)
     if df.empty:
@@ -259,7 +292,7 @@ def main():
             raw = _load_fish_rich_all(q, limit)
             st.caption(f"{len(raw)} row(s) • columns: {', '.join(raw.columns)}")
             if not raw.empty:
-                st.dataframe(raw, width="stretch", hide_index=True)
+                st.dataframe(raw, use_container_width=True, hide_index=True)
                 st.download_button(
                     "⬇︎ Download v_fish_rich.csv",
                     data=raw.to_csv(index=False).encode("utf-8"),
@@ -269,20 +302,23 @@ def main():
                 )
         return
 
-    # Rename to display headers
-    # Rename to display headers (you already have this)
+    # Rename display headers
     df = df.rename(columns={
         "fish_code": "fish_code",
         "fish_name": "Fish name",
         "fish_nickname": "Fish nickname",
         "genetic_background": "Genetic background",
         "line_building_stage": "Line-building stage",
-        "allele_number": "Allele number",
+        "allele_count": "Allele count",
         "allele_code": "Allele code",
-        "transgene_pretty": "Transgene (pretty)",
+        "allele_nicknames": "Allele nickname(s)",
+        "fusion_rollup": "Fusion rollup",
+        "fluor_rollup": "Fluor rollup",
+        "tag_rollup": "Tag rollup",
+        "transgene": "Transgene",
         "genotype_rollup": "Genotype rollup",
         "n_active_tanks": "Current tanks",
-        "date_birth": "Birth date",
+        "dob": "Birth date",
         "created_at": "Created time",
     })
 
@@ -290,10 +326,11 @@ def main():
         "fish_code",
         "Fish name", "Fish nickname",
         "Genetic background", "Line-building stage",
-        "Allele number", "Allele code",
-        "Transgene (pretty)", "Genotype rollup",
+        "Allele count", "Allele code", "Allele nickname(s)",
+        "Transgene", "Genotype rollup",
+        "Fusion rollup", "Fluor rollup", "Tag rollup",
         "Current tanks",
-        "Birth date", "Created time",
+        "Birth date", "Created time"
     ]
     show_cols = [c for c in show_cols if c in df.columns]
 
@@ -302,24 +339,20 @@ def main():
     table = df[show_cols].copy()
     table.insert(0, "✓ Select", False)
 
-    # force the column order and avoid stale layout by using a versioned key
     editor_cols = ["✓ Select"] + show_cols
     fish_table = st.data_editor(
         table,
         hide_index=True,
-        width="stretch",
-        column_order=editor_cols,            # <-- this ensures names show
-        key=f"fish_table_v2",                # <-- bump key to avoid cached layout
+        use_container_width=True,
+        column_config=None,
+        column_order=editor_cols,
+        key="fish_table_v4",
     )
 
     # Tanks for selected fish
-    # Tanks for selected fish
     st.subheader("Tanks for selected fish")
 
-    selected_codes: list[str] = []
-    if isinstance(fish_table, pd.DataFrame) and "✓ Select" in fish_table.columns:
-        selected_codes = fish_table.loc[fish_table["✓ Select"] == True, "fish_code"].dropna().astype(str).tolist()
-
+    selected_codes = edited.loc[edited["✓ Select"], "code"].dropna().astype(str).tolist() if isinstance(edited, pd.DataFrame) else []
     if not selected_codes:
         st.info("Select one or more fish to show their tanks.")
         st.stop()
@@ -330,49 +363,41 @@ def main():
         st.stop()
 
     tcols = [c for c in ["fish_code","tank_code","status","created_at","container_id"] if c in tdf.columns]
+    tview = tdf[tcols].copy()
+    tview.insert(0, "✓ Print", False)  # make the Print selector the first column
+
     tanks_table = st.data_editor(
-        tdf[tcols].copy().assign(**{"✓ Print": False}),
-        width="stretch",
+        tview,
+        use_container_width=True,
         hide_index=True,
+        column_order=["✓ Print"] + tcols,  # ensure first column
         key="tank_table",
     )
 
-    chosen_rows = (
+    chosen = (
         tanks_table.loc[tanks_table["✓ Print"] == True]
         if isinstance(tanks_table, pd.DataFrame) and "✓ Print" in tanks_table.columns
-        else pd.DataFrame()
+        else pd.DataWriter()
     )
 
-    st.caption(f"{len(chosen_rows)} tank(s) selected for labels")
+    st.caption(f"{len(chosen)} tank(s) selected for labels)")
 
-    if chosen_rows.empty:
+    if chosen.empty:
         st.stop()
 
-    ids = chosen_rows["container_id"].astype(str).tolist()
+    ids = chosen["container_id"].astype(str).tolist()
     edf = _fetch_enriched_for_containers(ids)
 
     if edf is None or edf.empty:
         st.info("No enriched tank data to print.")
         st.stop()
 
-    rows: list[dict] = []
+    rows = []
     for _, r in edf.iterrows():
         name = (r.get("name") or "").strip()
         nick = (r.get("nickname") or "").strip()
         if name and nick and name.lower() == nick.lower():
             nick = ""
-
-        dob = r.get("dob")
-        if pd.notna(dob):
-            try:
-                if hasattr(dob, "to_pydatetime"):
-                    dob = dob.to_pydatetime().date()
-                elif isinstance(dob, str):
-                    dob_parsed = pd.to_datetime(dob, errors="coerce")
-                    dob = None if pd.isna(dob_parsed) else dob_parsed.date()
-            except Exception:
-                dob = None
-
         rows.append({
             "label":              (name or r.get("fish_code") or r.get("tank_code")),
             "nickname":           nick,
@@ -380,10 +405,10 @@ def main():
             "alias":              r.get("alias") or "",
             "tank_display":       r.get("tank_display") or "",
             "tank_code":          r.get("tank_code") or "",
-            "genotype":           r.get("transgene_pretty", ""),
+            "genotype":           r.get("genotype", ""),
             "genetic_background": r.get("genetic_background") or "",
             "stage":              r.get("stage") or "",
-            "dob":                dob,
+            "dob":                r.get("dob"),
             "fish_code":          r.get("fish_code") or "",
         })
 
@@ -394,10 +419,9 @@ def main():
         file_name=f"tank_labels_2_4x1_5_{utc_now().strftime('%Y%m%d_%H%M%S')}.pdf",
         mime="application/pdf",
         type="primary",
-        width="stretch",
+        use_container_width=True,
         disabled=(pdf_bytes == b""),
     )
-    
 
 if __name__ == "__main__":
     main()
