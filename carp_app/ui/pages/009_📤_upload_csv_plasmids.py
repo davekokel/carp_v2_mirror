@@ -308,13 +308,19 @@ upd_fusions as (
          or f.tag_code   is distinct from t.tag_code)
   returning 1
 )
-insert into public.plasmid_fusions (plasmid_code, fusion_code, position_in_plasmid)
-select distinct
-  c.plasmid_code, t.fusion_code, null::int
-from clean_with_fluor c
-join tmp_fusions t
-  on t.fusion_name_norm = coalesce(c.fusion_name, concat_ws(' + ', c.fluor_name, c.tag_name))
-on conflict (plasmid_code, fusion_code) do nothing;
+INSERT INTO public.join_plasmid_fusions (plasmid_code, fusion_code)
+SELECT DISTINCT
+  c.plasmid_code,
+  t.fusion_code
+FROM clean_with_fluor c
+JOIN tmp_fusions t
+  ON t.fusion_name_norm = COALESCE(c.fusion_name, CONCAT_WS(' + ', c.fluor_name, c.tag_name))
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.join_plasmid_fusions j
+  WHERE j.plasmid_code = c.plasmid_code
+    AND j.fusion_code  = t.fusion_code
+);
 """
     try:
         with _eng().begin() as cx:
