@@ -48,22 +48,23 @@ def _fn_exists(schema: str, name: str) -> bool:
         """), {"s": schema, "n": name}).scalar())
 
 def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str, Any]]:
+    # r.* rollups are plain TEXT in v_plasmids_rich; do not array_to_string them again
     haystack = (
         "concat_ws(' ', "
-        "coalesce(r.plasmid_code,''), coalesce(r.plasmid_name,''), coalesce(v.v_nickname,''), "
-        "array_to_string(coalesce(r.fluor_names,'{}'),','), "
-        "array_to_string(coalesce(r.tag_names,'{}'),','), "
-        "array_to_string(coalesce(r.fusion_names,'{}'),','), "
-        "coalesce(v.v_resistance,''), coalesce(v.v_notes,''))"
+        "coalesce(r.plasmid_code,''), coalesce(r.plasmid_name,''), coalesce(p.nickname,''), "
+        "coalesce(r.fluor_names,''), "
+        "coalesce(r.tag_names,''), "
+        "coalesce(r.fusion_names,''), "
+        "coalesce(p.resistance,''), coalesce(p.notes,''))"
     )
     field_map = {
         "code":       "r.plasmid_code",
         "name":       "r.plasmid_name",
-        "nickname":   "v.v_nickname",
-        "fluors":     "array_to_string(coalesce(r.fluor_names,'{}'),',')",
-        "tags":       "array_to_string(coalesce(r.tag_names,'{}'),',')",
-        "fusions":    "array_to_string(coalesce(r.fusion_names,'{}'),',')",
-        "resistance": "v.v_resistance",
+        "nickname":   "p.nickname",
+        "fluors":     "coalesce(r.fluor_names,'')",
+        "tags":       "coalesce(r.tag_names,'')",
+        "fusions":    "coalesce(r.fusion_names,'')",
+        "resistance": "p.resistance",
     }
 
     tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
@@ -75,7 +76,7 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str
         core = tok[1:] if neg else tok
         if ":" in core:
             k, vval = core.split(":", 1)
-            k = (k or "").strip().lower()
+            k = (k or "").lower()
             vval = (vval or "").strip().strip('"')
             if k in field_map:
                 key = f"t{i}"; params[key] = f"%{vval}%"
@@ -85,7 +86,7 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str
         where.append(("NOT " if neg else "") + f"({haystack} ILIKE :{key})")
 
     if supports_only:
-        where.append("(v.v_supports_invitro_rna = true)")
+        where.append("(p.supports_invitro_rna = true)")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     sql = f"""
@@ -93,33 +94,33 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str
         select
           r.plasmid_code,
           r.plasmid_name,
-          r.nickname as r_nickname,
-          r.resistance as r_resistance,
-          r.supports_invitro_rna as r_supports_invitro_rna,
-          r.notes as r_notes,
+          r.nickname               as r_nickname,
+          r.resistance             as r_resistance,
+          r.supports_invitro_rna   as r_supports_invitro_rna,
+          r.notes                  as r_notes,
           r.fusion_names,
           r.fluor_names,
           r.tag_names
         from public.v_plasmids_rich r
       )
       select
-        r.plasmid_code            as code,
-        r.plasmid_name            as name,
-        coalesce(v.v_nickname, r.r_nickname)         as nickname,
-        coalesce(array_to_string(r.fluor_names, ', '), '')  as fluor_names,
-        coalesce(array_to_string(r.tag_names, ', '), '')    as tag_names,
-        coalesce(array_to_string(r.fusion_names, ', '), '') as fusion_names,
-        coalesce(v.v_resistance, r.r_resistance)     as resistance,
-        coalesce(v.v_supports_invitro_rna, r.r_supports_invitro_rna) as supports_invitro_rna,
-        v.v_created_by            as created_by,
-        v.v_created_at            as created_at,
-        v.v_rna_id                as rna_id,
-        v.v_rna_code              as rna_code,
-        v.v_rna_name              as rna_name,
-        coalesce(v.v_notes, r.r_notes) as notes
+        r.plasmid_code                           as code,
+        r.plasmid_name                           as name,
+        coalesce(p.nickname, r.r_nickname)       as nickname,
+        coalesce(r.fluor_names,  '')             as fluor_names,
+        coalesce(r.tag_names,    '')             as tag_names,
+        coalesce(r.fusion_names, '')             as fusion_names,
+        coalesce(p.resistance, r.r_resistance)   as resistance,
+        coalesce(p.supports_invitro_rna, r.r_supports_invitro_rna) as supports_invitro_rna,
+        p.created_by                              as created_by,
+        p.created_at                              as created_at,
+        NULL::uuid                                as rna_id,
+        NULL::text                                as rna_code,
+        NULL::text                                as rna_name,
+        coalesce(p.notes, r.r_notes)              as notes
       from rich r
-      left join public.v_plasmids v
-        on v.v_code = r.plasmid_code
+      left join public.plasmids p
+        on p.code = r.plasmid_code
       {where_sql}
       order by r.plasmid_code
       limit :lim
@@ -134,7 +135,7 @@ def _load_plasmids(q: str, supports_only: bool, limit: int) -> pd.DataFrame:
 with st.form("filters"):
     c1, c2, c3 = st.columns([2,2,1])
     with c1:
-        q = st.text_input("Search (supports field filters code:, name:, nickname:, fluors:, tags:, fusions:, resistance:)", "")
+        q = st.text_input("Search (supports code:, name:, nickname:, fluors:, tags:, fusions:, resistance:)", "")
     with c2:
         supports_only = st.checkbox("Supports in-vitro RNA only", value=False)
     with c3:
@@ -212,12 +213,12 @@ with cB:
     ensure_selected = st.button(
         "Ensure RNA for selected",
         disabled=(len(sel_codes) == 0 or not has_ensure),
-        width="stretch",
+        use_container_width=True,
     )
 with cC:
     ensure_missing_for_supported = st.button(
         "Ensure RNA for all supported (missing only)",
-        width="stretch",
+        use_container_width=True,
         help="Create RNAs for all rows where supports_invitro_rna is TRUE but rna_code is empty.",
         disabled=(not has_ensure),
     )

@@ -1,23 +1,19 @@
 from __future__ import annotations
 
-# --- sys.path prime for app imports ---
-import sys, pathlib
+import os, re, time, hashlib, pathlib, importlib.metadata as md
+import sys
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
-import streamlit as st
-# --- std/3p imports ---
-import os, re, time, hashlib, importlib.metadata as md
+
 import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine.url import make_url
 
-# --- app imports ---
 from carp_app.lib.db import get_engine
 from carp_app.ui.lib.env_badge import show_env_badge, _env_from_db_url
 from carp_app.lib.secret import env_info
-from carp_app.lib.config import DB_URL  # used for DSN checks
+from carp_app.lib.config import DB_URL
 
-# --- auth (optional) ---
 AUTH_MODE = os.getenv("AUTH_MODE", "off").lower()
 if AUTH_MODE == "on":
     from carp_app.ui.auth_gate import require_auth
@@ -25,29 +21,13 @@ if AUTH_MODE == "on":
 else:
     sb = session = user = None
 
-# --- page chrome ---
 st.set_page_config(page_title="CARP — Welcome", page_icon="👋", layout="wide")
 
-# Fingerprint (after importing Streamlit)
 _src = pathlib.Path(__file__).resolve()
 try:
-    st.caption(
-        "SRC=" + str(_src) +
-        " • SHA256=" + hashlib.sha256(_src.read_bytes()).hexdigest()[:12] +
-        " • DSNCHK=v2"
-    )
+    st.caption("SRC=" + str(_src) + " • SHA256=" + hashlib.sha256(_src.read_bytes()).hexdigest()[:12] + " • DSNCHK=v3")
 except Exception:
-    pass
-
-# --- helpers ---
-def _env_from_url(url: str) -> str:
-    if "pooler.supabase.com" in url:
-        if "aws-1-us-west-1.pooler.supabase.com" in url: return "STAGING"
-        if "aws-1-us-east-2.pooler.supabase.com" in url: return "PROD"
-        if "aws-0-us-east-2.pooler.supabase.com" in url: return "PROD"
-        if "aws-0-us-east-1.pooler.supabase.com" in url: return "PROD"
-        return "REMOTE"
-    return "LOCAL"
+    ...
 
 def _connect_with_retry(eng, tries: int = 5, base_delay: float = 0.5, max_delay: float = 4.0):
     last = None
@@ -69,8 +49,9 @@ def _view_exists(conn, schema: str, name: str) -> bool:
     """)
     return bool(conn.execute(q, {"s": schema, "n": name}).scalar())
 
-# --- main health checks ---
 issues: list[str] = []
+meta = ""
+
 try:
     eng = get_engine()
     with _connect_with_retry(eng) as conn:
@@ -80,14 +61,13 @@ try:
               current_database() as db,
               current_user as usr,
               current_setting('TimeZone') as tz,
-              current_setting('search_path') as sp,
-              version()
+              current_setting('search_path') as sp
         """)).mappings().one()
 
         exts = set(conn.execute(text("""
             select extname
             from pg_extension
-            where extname in ('pgcrypto','uuid-ossp','pg_stat_statements','pg_graphql','supabase_vault')
+            where extname in ('pgcrypto','uuid-ossp')
         """)).scalars().all())
 
     if not DB_URL:
@@ -98,7 +78,6 @@ try:
     user_in_dsn = (u.username or "")
     is_pooler_host = "pooler.supabase.com" in host
 
-    # DSN-based pooler check (don't use current_user)
     if is_pooler_host:
         if not user_in_dsn.startswith("postgres.") or len(user_in_dsn.split(".", 1)) != 2:
             issues.append(f"Pooler DSN user should be 'postgres.<project-ref>', got '{user_in_dsn or '<empty>'}'")
@@ -111,9 +90,9 @@ try:
     required_exts = {"pgcrypto", "uuid-ossp"}
     missing = sorted(required_exts - exts)
     if missing:
-        issues.append(f"Missing extensions: {', '.join(missing)}")
+        issues.append("Missing extensions: " + ", ".join(missing))
 
-    env_label = _env_from_url(DB_URL or "")
+    env_label = "LOCAL" if "pooler.supabase.com" not in (host or "") else "REMOTE"
     meta = f"{env_label} • db={row['db']} • user={row['usr']} • tz={row['tz']}"
 
     if issues:
@@ -125,29 +104,20 @@ try:
 except Exception as e:
     st.error(f"Health check error: {type(e).__name__}: {e}")
 
-# --- required views presence (canonical only) ---
 REQUIRED_VIEWS = [
     ("public", "v_fish"),
     ("public", "v_tanks"),
     ("public", "v_crosses"),
-    ("public","v_clutch_instances"),
-]
-OPTIONAL_VIEWS = [
-    ("public", "v_crosses_status"),
-    # ("public", "v_clutch_instances_overview"),  # legacy; optional if present
+    ("public", "v_clutch_instances"),
+    ("public", "v_clutch_treatments"),
 ]
 
 missing_required: list[str] = []
-missing_optional: list[str] = []
-
 try:
     with _connect_with_retry(get_engine()) as conn:
         for sch, name in REQUIRED_VIEWS:
             if not _view_exists(conn, sch, name):
                 missing_required.append(f"{sch}.{name}")
-        for sch, name in OPTIONAL_VIEWS:
-            if not _view_exists(conn, sch, name):
-                missing_optional.append(f"{sch}.{name}")
 except Exception as e:
     st.error(f"View check error: {type(e).__name__}: {e}")
 
@@ -156,17 +126,12 @@ if missing_required:
 else:
     st.success("All required views are present")
 
-if missing_optional:
-    st.info("Optional views not present:\n- " + "\n- ".join(missing_optional))
-
-# --- header / badges ---
 st.title("👋 Welcome to CARP")
 show_env_badge()
 _env, _proj, _host, _mode = env_info()
 
 st.write("Browse live data, upload CSVs, and print labels. Use the left sidebar to navigate.")
 
-# --- metrics ---
 m = re.match(r".*://([^:@]+)@([^/?]+)", DB_URL or "")
 _pguser = m.group(1) if m else os.getenv("PGUSER", "")
 _env2, _proj2, _host2 = _env_from_db_url(DB_URL or "")
@@ -190,7 +155,6 @@ build = os.getenv("APP_COMMIT", "unknown")
 deps = f"SQLAlchemy {md.version('SQLAlchemy')} • Streamlit {md.version('streamlit')}"
 st.caption(f"Build: {build} • Deps: {deps}")
 
-# --- debug expander ---
 with st.expander("⚙️ DB Trigger & Constraint Status (debug)"):
     try:
         with get_engine().connect() as conn:
@@ -204,13 +168,12 @@ with st.expander("⚙️ DB Trigger & Constraint Status (debug)"):
                       and t.tgname like '%fish_autotank%') as autotank_triggers,
                   (select pg_get_constraintdef(oid)
                      from pg_constraint
-                    where conrelid='public.containers'::regclass
-                      and conname is not null
+                    where to_regclass('public.containers') is not null
                     order by 1 asc
                     limit 1) as containers_any_constraint
             """)).mappings().one()
-            st.write("**Auto-tank triggers enabled:**", result["autotank_triggers"])
-            st.write("**Sample containers constraint:**")
+            st.write("Auto-tank triggers enabled:", result["autotank_triggers"])
+            st.write("Sample containers constraint:")
             st.code(result["containers_any_constraint"] or "(none)")
     except Exception as e:
         st.error(f"Health query failed: {type(e).__name__}: {e}")
