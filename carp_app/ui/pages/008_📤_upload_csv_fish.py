@@ -12,14 +12,15 @@ sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-import io, os, re, math, hashlib
+import io, os, re, math
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import date, timedelta
 
 import pandas as pd
 import streamlit as st
-from sqlalchemy import text, bindparam
+from streamlit import column_config as cc
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from carp_app.ui.lib.app_ctx import get_engine
@@ -31,10 +32,35 @@ st.title(PAGE_TITLE)
 st.caption("Upserts by explicit identity key; fish codes assigned automatically. CSV must include the 'birthday' column.")
 
 _ENGINE: Optional[Engine] = None
-def _get_engine() -> Engine:
+def _eng() -> Engine:
+    global _ENGINE
     if _ENGINE is None:
-        globals()["_ENGINE"] = get_engine()
+        _ENGINE = get_engine()
     return _ENGINE
+
+def _col_exists(conn, schema: str, table: str, column: str) -> bool:
+    q = text("""
+        select exists (
+          select 1
+          from information_schema.columns
+          where table_schema=:s and table_name=:t and column_name=:c
+        )
+    """)
+    return bool(conn.execute(q, {"s": schema, "t": table, "c": column}).scalar())
+
+def _view_exists(conn, schema: str, name: str) -> bool:
+    q = text("""
+      select exists (
+        select 1
+        from information_schema.views
+        where table_schema=:s and table_name=:n
+      )
+    """)
+    return bool(conn.execute(q, {"s": schema, "n": name}).scalar())
+
+def _proc_exists(conn, signature: str) -> bool:
+    q = text("select to_regprocedure(:sig) is not null")
+    return bool(conn.execute(q, {"sig": signature}).scalar())
 
 def _norm_str(v):
     if v is None: return ""
@@ -50,8 +76,7 @@ def _identity_key(r: pd.Series) -> str:
         _norm_str(r.get("transgene_base_code")),
         _norm_str(r.get("allele_nickname")),
     ]
-    base = " | ".join(parts)
-    return base
+    return " | ".join(parts)
 
 def _example_fish_csv_bytes() -> bytes:
     example = pd.DataFrame([{
@@ -73,7 +98,7 @@ st.download_button(
     file_name="fish_example.csv",
     mime="text/csv",
     type="secondary",
-    width="stretch",
+    use_container_width=True,
 )
 
 LEGACY_DATE_ALIASES = {"date_birth", "dob"}
@@ -81,18 +106,15 @@ _NUM_NICK_RE = re.compile(r"^[0-9]+(\.0+)?$")
 
 def _canon_nickname(s: str) -> str:
     s = (s or "").strip()
-    if not s:
-        return ""
+    if not s: return ""
     if _NUM_NICK_RE.match(s):
         return re.sub(r"\.0+$", "", s)
     return s
 
 def _parse_birthday(x) -> Optional[date]:
-    if x is None:
-        return None
+    if x is None: return None
     s = str(x).strip()
-    if not s:
-        return None
+    if not s: return None
     if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
         y, m, d = map(int, s.split("-"))
         return date(y, m, d)
@@ -125,12 +147,10 @@ try:
     fname = (uploaded.name or "").lower()
     raw_bytes = uploaded.getvalue()
     if fname.endswith(".xlsx"):
-        # Excel: let the user choose a sheet
-        xls = pd.ExcelFile(io.BytesIO(raw_bytes))  # requires openpyxl
+        xls = pd.ExcelFile(io.BytesIO(raw_bytes))
         sheet = st.selectbox("Choose worksheet", xls.sheet_names, index=0)
         df = xls.parse(sheet, dtype=object)
     else:
-        # CSV: robust to BOM, keeps strings as-is
         df = pd.read_csv(io.BytesIO(raw_bytes), dtype=object)
 except Exception as e:
     st.error(f"Failed to read file: {e}")
@@ -147,26 +167,21 @@ if "birthday" not in df.columns:
 df["birthday"] = df["birthday"].apply(_parse_birthday)
 if "fish_code" in df.columns:
     df = df.drop(columns=["fish_code"])
-for col in (
-    "name", "nickname", "genetic_background", "line_building_stage",
-    "description", "transgene_base_code", "allele_nickname", "zygosity", "notes"
-):
+for col in ("name","nickname","genetic_background","line_building_stage","description","transgene_base_code","allele_nickname","zygosity","notes"):
     if col in df.columns:
         df[col] = df[col].fillna("").astype(str)
 
 st.subheader("Preview (first 50 rows)")
-st.dataframe(df.head(50), width="stretch", hide_index=True)
+st.dataframe(df.head(50), use_container_width=True, hide_index=True)
 
 ALIASES = {
     "transgene_base_code": ["transgene_base_code","base_code","tg_base_code","transgene_base","tg_base"],
     "allele_nickname":     ["allele_nickname","allele_nick","allele_name","allele"],
     "zygosity":            ["zygosity","zyg","allele_zygosity"],
 }
-
 def _resolve_col(pdf: pd.DataFrame, keys: List[str]) -> Optional[str]:
     for k in keys:
-        if k in pdf.columns:
-            return k
+        if k in pdf.columns: return k
     return None
 
 col_tg   = _resolve_col(df, ALIASES["transgene_base_code"])
@@ -174,41 +189,29 @@ col_nick = _resolve_col(df, ALIASES["allele_nickname"])
 col_zyg  = _resolve_col(df, ALIASES["zygosity"])
 
 with st.expander("Detected allele-link columns"):
-    st.write({
-        "transgene_base_code": col_tg or "—",
-        "allele_nickname": col_nick or "—",
-        "zygosity": col_zyg or "—",
-    })
+    st.write({"transgene_base_code": col_tg or "—", "allele_nickname": col_nick or "—", "zygosity": col_zyg or "—"})
 
-def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
-    if df is None or df.empty:
-        return pd.DataFrame()
-    for c in df.select_dtypes(include=["object", "string"]).columns:
-        df[c] = df[c].astype("string").fillna("")
-    return df
-
-def _build_upsert_results_for_batch(seed_batch_id: str) -> pd.DataFrame:
-    sql = text("""
-        select v.*
-        from public.v_fish_rich v
-        join public.fish f on f.fish_code = v.fish_code
-        where f.seed_batch_id = :bid
-        order by v.fish_code
+def _fetch_vfish_rich_for_codes(conn, fish_codes: List[str]) -> pd.DataFrame:
+    codes = [c for c in (fish_codes or []) if c]
+    cols = [
+        "fish_code","fish_name","fish_nickname","genetic_background","line_building_stage",
+        "allele_number","allele_code","transgene","genotype_rollup","n_active_tanks"
+    ]
+    if not codes:
+        return pd.DataFrame(columns=cols)
+    q = text(f"""
+        select {", ".join(cols)}
+        from public.v_fish_rich
+        where fish_code = any(:codes)
+        order by fish_code
     """)
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"bid": seed_batch_id})
-    return _coerce_strings(df)
+    return pd.read_sql(q, conn, params={"codes": codes})
 
-sql_tank_exists = text("""
-  select 1 from public.tanks
-  where status='active' and tank_code like ('TANK(' || :fc || ')#%')
-  limit 1
-""")
-sql_ensure_tank = text("select public.ensure_active_tank_for_fish(:fish_code)")
-upsert_allele = text("select * from public.upsert_fish_allele_from_csv(:fish_id, :base_code, :allele_nickname)")
+upsert_allele_sig = "public.upsert_fish_allele_from_csv(uuid,text,text)"
+ensure_tank_sig   = "public.ensure_active_tank_for_fish(text)"
 
 inserted: List[Dict[str, Any]] = []
-if st.button("Upsert fish batch", type="primary", width="stretch"):
+if st.button("Upsert fish batch", type="primary", use_container_width=True):
     linked, skipped_links = 0, 0
 
     fn_upsert = text("""
@@ -226,7 +229,29 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
       )
     """)
 
-    with _get_engine().begin() as cx:
+    with _eng().begin() as cx:
+        use_v_tanks = _view_exists(cx, "public", "v_tanks")
+        has_upsert_allele = _proc_exists(cx, upsert_allele_sig)
+        has_ensure_tank   = _proc_exists(cx, ensure_tank_sig)
+
+        if use_v_tanks:
+            sql_tank_exists = text("""
+              select 1 from public.v_tanks
+              where tank_code like ('TANK(' || :fc || ')#%')
+              limit 1
+            """)
+        else:
+            sql_tank_exists = text("""
+              select 1 from public.tanks
+              where tank_code like ('TANK(' || :fc || ')#%')
+              limit 1
+            """)
+
+        sql_ensure_tank = text("select public.ensure_active_tank_for_fish(:fish_code)")
+        upsert_allele = text("select * from public.upsert_fish_allele_from_csv(:fish_id, :base_code, :allele_nickname)")
+
+        jfta_has_zyg = _col_exists(cx, "public", "join_fish_transgene_alleles", "zygosity")
+
         for _, r in df.iterrows():
             ident = _identity_key(r)
             human_name = (r.get("name") or None)
@@ -240,46 +265,104 @@ if st.button("Upsert fish batch", type="primary", width="stretch"):
                 "p_stage": (r.get("line_building_stage") or None),
                 "p_desc": (r.get("description") or None),
                 "p_notes": (r.get("notes") or None),
-                "p_by": (created_by_uuid or getattr(user, "email", None) or os.environ.get("USER") or "system"),
+                "p_by": (str(getattr(user, "id", "")) or getattr(user, "email", None) or os.environ.get("USER") or "system"),
             }
             got = cx.execute(fn_upsert, params).mappings().first() or {}
-            if not got:
-                continue
+            if not got: continue
             fish_id, fish_code = got.get("fish_uuid"), got.get("fish_code")
             inserted.append(dict(got))
-
             if not fish_id:
                 raise RuntimeError(f"Upsert failed for {fish_code or '(unknown)'} — no fish_uuid returned")
 
-            if not cx.execute(sql_tank_exists, {"fc": fish_code}).fetchone():
-                cx.execute(sql_ensure_tank, {"fish_code": fish_code})
+            if has_ensure_tank:
+                if not cx.execute(sql_tank_exists, {"fc": fish_code}).fetchone():
+                    cx.execute(sql_ensure_tank, {"fish_code": fish_code})
 
-            if col_tg:
+            if col_tg and has_upsert_allele:
                 tg = (str(r.get(col_tg)).strip() if pd.notna(r.get(col_tg)) else "")
                 raw_nn = str(r.get(col_nick)).strip() if (col_nick and pd.notna(r.get(col_nick))) else ""
                 nn = _canon_nickname(raw_nn)
                 zy = (str(r.get(col_zyg)).strip() if (col_zyg and pd.notna(r.get(col_zyg))) else "")
                 if tg:
                     cx.execute(upsert_allele, {"fish_id": fish_id, "base_code": tg, "allele_nickname": nn})
-                    if zy:
-                        cx.execute(
-                            text("update public.fish_transgene_alleles set zygosity=:zyg where fish_uuid=:fid and transgene_base_code=:base"),
-                            {"zyg": zy, "fid": fish_id, "base": tg},
-                        )
+                    if zy and jfta_has_zyg:
+                        has_fish_uuid = _col_exists(cx, "public", "join_fish_transgene_alleles", "fish_uuid")
+                        has_fish_id   = _col_exists(cx, "public", "join_fish_transgene_alleles", "fish_id")
+                        if has_fish_uuid:
+                            cx.execute(
+                                text("""
+                                  update public.join_fish_transgene_alleles
+                                     set zygosity=:zyg
+                                   where fish_uuid=:fid
+                                     and transgene_base_code=:base
+                                """),
+                                {"zyg": zy, "fid": fish_id, "base": tg},
+                            )
+                        elif has_fish_id:
+                            cx.execute(
+                                text("""
+                                  update public.join_fish_transgene_alleles
+                                     set zygosity=:zyg
+                                   where fish_id=:fid
+                                     and transgene_base_code=:base
+                                """),
+                                {"zyg": zy, "fid": fish_id, "base": tg},
+                            )
                     linked += 1
                 else:
                     skipped_links += 1
 
     st.success(f"Upserted {len(inserted)} fish. Linked {linked} allele rows (skipped {skipped_links}).")
 
-    results_df = _build_upsert_results_for_batch(seed_batch_id)
-    st.caption(f"{len(results_df)} row(s) • columns: {', '.join(results_df.columns)}")
+    fish_codes = [row.get("fish_code") for row in inserted if row.get("fish_code")]
+    with _eng().begin() as cx:
+        results_df = _fetch_vfish_rich_for_codes(cx, fish_codes)
+
+    cols = [
+        "fish_code",
+        "fish_name",
+        "fish_nickname",
+        "genetic_background",
+        "line_building_stage",
+        "allele_number",
+        "allele_code",
+        "transgene",
+        "genotype_rollup",
+        "n_active_tanks",
+    ]
+    results_df = results_df.reindex(columns=cols, fill_value="")
+
+    # enforce correct dtypes for numeric columns to avoid Streamlit type mismatch
+    if "allele_number" in results_df.columns:
+        results_df["allele_number"] = pd.to_numeric(results_df["allele_number"], errors="coerce").astype("Int64")
+    if "n_active_tanks" in results_df.columns:
+        results_df["n_active_tanks"] = pd.to_numeric(results_df["n_active_tanks"], errors="coerce").astype("Int64")
+
+    st.caption(f"{len(results_df)} row(s)")
     if not results_df.empty:
-        st.data_editor(results_df, hide_index=True, width="stretch", key="upsert_results_vfr_v1")
+        st.data_editor(
+            results_df,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "fish_code":         cc.TextColumn("Fish code"),
+                "fish_name":         cc.TextColumn("Fish name"),
+                "fish_nickname":     cc.TextColumn("Fish nickname"),
+                "genetic_background":cc.TextColumn("Genetic background"),
+                "line_building_stage": cc.TextColumn("Line building stage"),
+                "allele_number":     cc.NumberColumn("Allele number", step=1, format="%d"),
+                "allele_code":       cc.TextColumn("Allele code"),
+                "transgene":         cc.TextColumn("Transgene"),
+                "genotype_rollup":   cc.TextColumn("Genotype rollup"),
+                "n_active_tanks":    cc.NumberColumn("Active tanks", step=1, format="%d"),
+            },
+            key="upsert_results_vfish_rich_v2",
+        )
         st.download_button(
             "⬇︎ Download upsert results (v_fish_rich.csv)",
             data=results_df.to_csv(index=False).encode("utf-8"),
             file_name=f"upsert_results_v_fish_rich_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
             type="secondary",
+            use_container_width=True,
             mime="text/csv",
         )
