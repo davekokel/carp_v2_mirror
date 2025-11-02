@@ -103,14 +103,24 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
     if q.strip():
         params["q"] = f"%{q.strip()}%"
         where.append("""
-          (
-            v.clutch_code                   ilike :q OR
-            v.cross_name_pretty             ilike :q OR
-            v.clutch_name                   ilike :q OR
-            v.clutch_genotype_pretty        ilike :q OR
-            v.clutch_strain_pretty          ilike :q OR
-            v.treatments_pretty_effective   ilike :q
-          )
+        (
+            v.clutch_code                ILIKE :q OR
+            v.cross_name_pretty          ILIKE :q OR
+            v.clutch_name                ILIKE :q OR
+            v.clutch_genotype_pretty     ILIKE :q OR
+            v.clutch_strain_pretty       ILIKE :q OR
+            -- legacy rollup fields (keep for back-compat)
+            v.treatments_pretty_effective ILIKE :q OR
+            v.genotype_treatment_rollup_effective ILIKE :q OR
+            -- new systematic fields
+            COALESCE(v.clutch_treatments_codes,'')   ILIKE :q OR
+            COALESCE(v.clutch_treatments_names,'')   ILIKE :q OR
+            COALESCE(v.clutch_treatments_fusions,'') ILIKE :q OR
+            COALESCE(v.clutch_genotype_fusions,'')   ILIKE :q OR
+            COALESCE(v.clutch_lineage_pretty,'')     ILIKE :q OR
+            COALESCE(v.clutch_lineage_fusions_pretty,'') ILIKE :q OR
+            COALESCE(v.clutch_lineage_full_fusions_pretty,'') ILIKE :q
+        )
         """)
     where_sql = ("where " + " AND ".join(where)) if where else ""
 
@@ -125,6 +135,8 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
         v.treatments_count_effective,
         v.treatments_pretty_effective,
         v.genotype_treatment_rollup_effective    as view_rollup,
+        -- new lineage preview (codes)
+        v.clutch_lineage_pretty                  as lineage_pretty,
         v.created_by_instance,
         v.created_at_instance
       from {CLUTCHES_VIEW} v
@@ -237,6 +249,7 @@ dfv = clutches[[
     "treatments_count_effective",
     "treatments_pretty_effective",
     "rollup_effective",
+    "lineage_pretty",
     "created_by_instance",
     "created_at_instance",
 ]].copy()
@@ -256,7 +269,8 @@ picker = st.data_editor(
         "clutch_birthday":           st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
         "created_at_instance":       st.column_config.DatetimeColumn("created_at_instance", disabled=True),
         "view_genotype":             st.column_config.TextColumn("clutch_genotype_pretty", disabled=True),
-        "rollup_effective":          st.column_config.TextColumn("Treatments > genotype", disabled=True),
+        "rollup_effective":          st.column_config.TextColumn("Treatments > genotype (legacy)", disabled=True),
+        "lineage_pretty":            st.column_config.TextColumn("lineage (codes)", disabled=True),
     },
     key="ci_only_picker_v1",
 )
@@ -271,6 +285,7 @@ if picked.empty:
 row = picked.iloc[0]
 ci_code = str(row.get("clutch_code","")).strip()
 st.session_state["last_ci"] = ci_code
+selected_clutch_code = ci_code  # used in summary query below
 
 cross_instance_id, clutch_instance_id = _resolve_ids_from_ci(ci_code)
 if not cross_instance_id:
@@ -403,58 +418,65 @@ if _tmsg:
 
 # ── Updated run summary ──────────────────────────────────────────────────────
 st.subheader("Updated run summary")
-with _eng().begin() as cx:
-    run_df = pd.read_sql(text(f"""
-        select
-          v.clutch_code,
-          v.clutch_birthday,
-          v.cross_name_pretty,
-          v.treatments_count_effective,
-          v.treatments_pretty_effective,
-          v.genotype_treatment_rollup_effective
-        from {CLUTCHES_VIEW} v
-        where v.clutch_code = :cc
-        limit 1
-    """), cx, params={"cc": ci_code})
-
-if run_df.empty:
-    st.info("No overview row found for this run.")
-else:
-    cnt    = int(run_df["treatments_count_effective"].iloc[0] or 0)
-    pretty = str(run_df["treatments_pretty_effective"].iloc[0] or "")
-    roll   = str(run_df["genotype_treatment_rollup_effective"].iloc[0] or "") or _treatments_first_rollup(pretty, "")
-
-    st.caption(f"Effective treatments: {cnt} — {pretty or '—'}")
-    st.caption(f"Treatments > genotype (view): {roll or '—'}")
-
-    out = pd.DataFrame([{
-        "clutch_code":                run_df["clutch_code"].iloc[0],
-        "clutch_birthday":            run_df["clutch_birthday"].iloc[0],
-        "cross_name_pretty":          run_df["cross_name_pretty"].iloc[0],
-        "treatments_genotype":        roll,
-        "treatments_count_effective": cnt,
-        "treatments_pretty_effective": pretty,
-    }])
-
-    st.dataframe(
-        out[[
-            "clutch_code",
-            "clutch_birthday",
-            "cross_name_pretty",
-            "treatments_genotype",
-            "treatments_count_effective",
-            "treatments_pretty_effective",
-        ]],
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "clutch_birthday":             st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
-            "cross_name_pretty":           st.column_config.TextColumn("cross_name_pretty", disabled=True),
-            "treatments_genotype":         st.column_config.TextColumn("Treatments > genotype", disabled=True),
-            "treatments_count_effective":  st.column_config.NumberColumn("treatments_count_effective", disabled=True),
-            "treatments_pretty_effective": st.column_config.TextColumn("treatments_pretty_effective", disabled=True),
-        },
+# --- Updated run summary (uses new pretty fields from v_clutch_instances) ---
+if hasattr(st, "segmented_control"):
+    SHOW_TREATMENTS_AS = st.segmented_control(
+        "Treatments label", options=["codes","names","fusions"], default="codes", key="tx_label_mode"
     )
+else:
+    SHOW_TREATMENTS_AS = st.selectbox(
+        "Treatments label", options=["codes","names","fusions"], index=0, key="tx_label_mode"
+    )
+
+summary_sql = text("""
+    SELECT
+      v.clutch_code,
+      v.clutch_birthday,
+      v.cross_name_pretty,
+      v.clutch_genotype_pretty,
+      v.clutch_genotype_fusions,
+      v.clutch_treatments_codes,
+      v.clutch_treatments_names,
+      v.clutch_treatments_fusions,
+      v.clutch_lineage_pretty,
+      v.clutch_lineage_fusions_pretty,
+      v.clutch_lineage_full_fusions_pretty,
+      v.treatments_count_effective
+    FROM public.v_clutch_instances v
+    WHERE v.clutch_code = :c
+    LIMIT 1
+""")
+
+with _eng().begin() as cx:
+    srow = pd.read_sql(summary_sql, cx, params={"c": selected_clutch_code})
+
+if srow.empty:
+    st.info("No summary found for this clutch.")
+else:
+    row = srow.iloc[0]
+
+    if SHOW_TREATMENTS_AS == "codes":
+        lineage = row.get("clutch_lineage_pretty")
+        tx_label = row.get("clutch_treatments_codes")
+    elif SHOW_TREATMENTS_AS == "names":
+        tx_names = (row.get("clutch_treatments_names") or "").strip()
+        lineage = (tx_names + " > " if tx_names else "") + (row.get("clutch_genotype_pretty") or "")
+        tx_label = tx_names
+    else:
+        lineage = row.get("clutch_lineage_full_fusions_pretty")
+        tx_label = row.get("clutch_treatments_fusions")
+
+    show = pd.DataFrame([{
+        "clutch_code": row.get("clutch_code"),
+        "clutch_birthday": row.get("clutch_birthday"),
+        "cross_name_pretty": row.get("cross_name_pretty"),
+        "genotype (codes)": row.get("clutch_genotype_pretty"),
+        "genotype (fusions)": row.get("clutch_genotype_fusions"),
+        "treatments": tx_label,
+        "lineage": lineage,
+        "treatments_count_effective": int(row.get("treatments_count_effective") or 0),
+    }])
+    st.dataframe(show, hide_index=True, use_container_width=True)
 
 # ── Treatments on this run ───────────────────────────────────────────────────
 st.subheader("Treatments on this run")
