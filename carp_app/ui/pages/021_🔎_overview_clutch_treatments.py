@@ -1,7 +1,5 @@
 # =============================================================================
-# 🔎 Overview — Clutch instances (canonical resolved view)
-#   - Source: public.v_clutch_instances_resolved (joins v_clutch_treatments)
-#   - Simple filters, selectable grid, and details (treatments + annotations)
+# 🔎 Overview — Clutch treatments (current contract: v_clutch_instances + join_clutch_treatments)
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
@@ -30,8 +28,8 @@ from carp_app.ui.lib.app_ctx import get_engine as _create_engine
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
-st.set_page_config(page_title="🔎 Overview — Clutch instances", page_icon="🐣", layout="wide")
-st.title("🔎 Overview — Clutch instances")
+st.set_page_config(page_title="🔎 Overview — Clutch treatments", page_icon="🐣", layout="wide")
+st.title("🔎 Overview — Clutch treatments")
 
 # ── Engine (cached) ──────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
@@ -43,15 +41,10 @@ def _cached_engine() -> Engine:
 def _eng() -> Engine:
     return _cached_engine()
 
-# ── Config ───────────────────────────────────────────────────────────────────
-# Canonical resolved view (wraps effective + v_clutch_treatments)
-CLUTCHES_VIEW = "public.v_clutch_instances_resolved"
-# Generic link + registry views (for details)
-CLUTCH_LINK    = "public.clutch_materials"
-MATERIALS_VIEW = "public.v_materials"
-# Optional legacy table (details fallback)
-LEGACY_TREAT   = "public.clutch_instance_treatments"
-ANNOT_TABLE    = "public.clutch_instance_annotations"
+# ── Config (current design) ──────────────────────────────────────────────────
+CLUTCHES_VIEW = "public.v_clutch_instances"            # contract columns exist here
+CLUTCH_LINK   = "public.join_clutch_treatments"        # canonical join (no v_materials)
+ANNOT_TABLE   = "public.clutch_instance_annotations"    # optional
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 def _table_exists(schema: str, name: str) -> bool:
@@ -78,6 +71,13 @@ def _view_exists(schema: str, name: str) -> bool:
 def _safe(s) -> str:
     return ("" if s is None else str(s)).strip()
 
+def _rollup_fallback(treat_pretty: str|None, clutch_geno: str|None) -> str:
+    t = (treat_pretty or "").strip()
+    g = (clutch_geno or "").strip()
+    if t and g:
+        return f"{t} > {g}"
+    return t or g
+
 # ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters", clear_on_submit=False):
     today = date.today()
@@ -89,10 +89,13 @@ with st.form("filters", clear_on_submit=False):
     c5, c6 = st.columns([1,1])
     with c5: most_recent = st.checkbox("Most recent only (ignore dates)", value=False)
     with c6: lim = int(st.number_input("Limit", min_value=1, max_value=5000, value=500, step=100))
-    submitted = st.form_submit_button("Apply", width="stretch")
+    _ = st.form_submit_button("Apply", width="stretch")
 
-# ── Data loader (resolved view + optional annotations) ───────────────────────
+# ── Data loader (uses current v_clutch_instances contract) ───────────────────
 def _load_clutches_summary() -> pd.DataFrame:
+    if not _view_exists("public", CLUTCHES_VIEW.split(".")[1]):
+        st.error(f"Required view {CLUTCHES_VIEW} not found."); st.stop()
+
     where, params = [], {}
     if not most_recent:
         where.append("v.created_at_instance::date BETWEEN :d1 AND :d2")
@@ -105,97 +108,92 @@ def _load_clutches_summary() -> pd.DataFrame:
         where.append("""(
             v.clutch_code ILIKE :q OR
             v.cross_name_pretty ILIKE :q OR
-            COALESCE(v.treatments_genotype_effective_resolved, v.treatments_genotype_effective, '') ILIKE :q OR
-            COALESCE(v.treatments_pretty_effective_resolved,  v.treatments_pretty_effective,  '') ILIKE :q OR
-            COALESCE(v.clutch_genotype_effective,'') ILIKE :q
+            COALESCE(v.genotype_treatment_rollup_effective,'') ILIKE :q OR
+            COALESCE(v.treatments_pretty_effective,'') ILIKE :q OR
+            COALESCE(v.clutch_genotype_pretty,'') ILIKE :q
         )""")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
-    has_ann = _table_exists("public", ANNOT_TABLE)
-
-    ann_join = """
-      LEFT JOIN LATERAL (
-        SELECT
-          COUNT(*)::int AS annotations_count,
-          string_agg(a.note, ' | ' ORDER BY a.created_at DESC NULLS LAST) AS annotations_notes
-        FROM public.clutch_instance_annotations a
-        WHERE a.clutch_instance_id = ci.id
-      ) an ON TRUE
-    """ if has_ann else "LEFT JOIN LATERAL (SELECT NULL::int AS annotations_count, ''::text AS annotations_notes) an ON TRUE"
-
-    ann_sel  = "an.annotations_count, an.annotations_notes"
-
+    # We’ll resolve clutch_instance_id later; here we pull only from the view.
     sql = text(f"""
-      WITH base AS (
-        SELECT
-          ci.id::text                      AS clutch_instance_id,
-          v.clutch_code                    AS clutch_code,
-          v.clutch_birthday                AS clutch_birthday,
-          v.cross_name_pretty              AS cross_name_pretty,
-          v.clutch_genotype_effective      AS clutch_genotype_effective,
-          COALESCE(v.treatments_count_effective_resolved, 0)::int       AS treatments_count_effective,
-          COALESCE(v.treatments_pretty_effective_resolved, ''::text)     AS treatments_pretty_effective,
-          COALESCE(v.treatments_genotype_effective_resolved, ''::text)   AS treatments_genotype_effective,
-          v.created_by_instance            AS created_by_instance,
-          v.created_at_instance            AS created_at_instance,
-          v.last_treatment_at              AS last_treatment_at
-        FROM {CLUTCHES_VIEW} v
-        JOIN public.clutch_instances ci ON ci.clutch_instance_code = v.clutch_code
-        {where_sql}
-        ORDER BY v.created_at_instance DESC NULLS LAST, v.clutch_code
-        LIMIT :lim
-      )
       SELECT
-        b.*,
-        {ann_sel}
-      FROM base b
-      JOIN public.clutch_instances ci ON ci.clutch_instance_code = b.clutch_code
-      {ann_join}
+        v.clutch_code,
+        v.clutch_birthday,
+        v.cross_name_pretty,
+        v.clutch_name,
+        v.clutch_genotype_pretty,
+        v.clutch_strain_pretty,
+        COALESCE(v.treatments_count_effective, 0)::int      AS treatments_count_effective,
+        COALESCE(v.treatments_pretty_effective, ''::text)   AS treatments_pretty_effective,
+        COALESCE(v.genotype_treatment_rollup_effective,''::text) AS genotype_treatment_rollup_effective,
+        v.created_by_instance,
+        v.created_at_instance
+      FROM {CLUTCHES_VIEW} v
+      {where_sql}
+      ORDER BY v.created_at_instance DESC NULLS LAST, v.clutch_code
+      LIMIT :lim
     """)
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={**params, "lim": lim})
 
+    # UI-friendly strings
     for c in df.select_dtypes(include=["object"]).columns:
         df[c] = df[c].astype("string").fillna("")
+
+    # Build the display rollup (prefer effective; else treatments > genotype)
+    disp = []
+    for _, r in df.iterrows():
+        eff = (r.get("genotype_treatment_rollup_effective") or "").strip()
+        if eff:
+            disp.append(eff)
+        else:
+            disp.append(_rollup_fallback(r.get("treatments_pretty_effective"), r.get("clutch_genotype_pretty")))
+    df["treatments_genotype_display"] = pd.Series(disp, dtype="string")
+
     return df
 
-def _load_detail_rows(clutch_instance_id: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    tdf = pd.DataFrame(columns=["created_at","material_type","material_code","material_name","notes","created_by"])
-    adf = pd.DataFrame(columns=["created_at","note","created_by"])
+def _resolve_clutch_instance_id(clutch_code: str) -> str | None:
+    sql = text("""
+      SELECT id::text
+      FROM public.clutch_instances
+      WHERE clutch_instance_code = :code
+      LIMIT 1
+    """)
     with _eng().begin() as cx:
-        if _table_exists("public", CLUTCH_LINK) and _view_exists("public", "v_materials"):
+        row = cx.execute(sql, {"code": clutch_code}).scalar()
+    return row or None
+
+def _load_detail_rows(clutch_code: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    cid = _resolve_clutch_instance_id(clutch_code)
+    if not cid:
+        return pd.DataFrame(), pd.DataFrame()
+
+    tdf = pd.DataFrame(columns=["created_at","treatment_type","treatment_code","treatment_name","notes","created_by"])
+    adf = pd.DataFrame(columns=["created_at","note","created_by"])
+
+    with _eng().begin() as cx:
+        if _table_exists("public", CLUTCH_LINK.split(".")[1]):
             tdf = pd.read_sql(text(f"""
-              SELECT
-                cm.created_at,
-                cm.material_type,
-                cm.material_code,
-                COALESCE(cm.material_name, vm.material_name) AS material_name,
-                cm.notes,
-                cm.created_by
-              FROM {CLUTCH_LINK} cm
-              LEFT JOIN {MATERIALS_VIEW} vm
-                ON lower(vm.material_type)=lower(cm.material_type)
-               AND lower(vm.material_code)=lower(cm.material_code)
-              WHERE cm.clutch_instance_id = CAST(:cid AS uuid)
-              ORDER BY cm.created_at DESC NULLS LAST
-            """), cx, params={"cid": clutch_instance_id})
-        elif _table_exists("public", LEGACY_TREAT):
-            tdf = pd.read_sql(text(f"""
-              SELECT created_at, material_type, material_code, material_name, notes, created_by
-              FROM {LEGACY_TREAT}
+              SELECT created_at, treatment_type, treatment_code, treatment_name, notes, created_by
+              FROM {CLUTCH_LINK}
               WHERE clutch_instance_id = CAST(:cid AS uuid)
               ORDER BY created_at DESC NULLS LAST
-            """), cx, params={"cid": clutch_instance_id})
-        if _table_exists("public", ANNOT_TABLE):
+            """), cx, params={"cid": cid})
+
+        if _table_exists("public", ANNOT_TABLE.split(".")[1]):
             adf = pd.read_sql(text(f"""
               SELECT created_at, note, created_by
               FROM {ANNOT_TABLE}
               WHERE clutch_instance_id = CAST(:cid AS uuid)
               ORDER BY created_at DESC NULLS LAST
-            """), cx, params={"cid": clutch_instance_id})
+            """), cx, params={"cid": cid})
+
+    for df in (tdf, adf):
+        for c in df.select_dtypes(include=["object"]).columns:
+            df[c] = df[c].astype("string").fillna("")
     return tdf, adf
 
-# ── Main table (resolved fields; rollup is 4th column) ───────────────────────
+# ── Main table ────────────────────────────────────────────────────────────────
 df = _load_clutches_summary()
 st.caption(f"{len(df)} clutch instance(s)")
 
@@ -204,39 +202,38 @@ if df.empty:
 
 tbl = df.copy()
 cols = [
-    "clutch_code",                                # 1
-    "clutch_birthday",                            # 2
-    "cross_name_pretty",                          # 3
-    "treatments_genotype_effective",              # 4 ← Treatments > genotype (resolved already)
-    "treatments_count_effective",                 # 5
-    "treatments_pretty_effective",                # 6
+    "clutch_code",
+    "clutch_birthday",
+    "cross_name_pretty",
+    "treatments_genotype_display",      # 4: Treatments > genotype (display)
+    "treatments_count_effective",
+    "treatments_pretty_effective",
 ]
 for c in cols:
     if c not in tbl.columns:
         tbl[c] = ""
 
-table = tbl[cols].copy()
-table.insert(0, "✓ Select", False)
+grid_src = tbl[cols].copy()
+grid_src.insert(0, "✓ Select", False)
 
 st.subheader("Clutch instances")
 grid = st.data_editor(
-    table,
+    grid_src,
     hide_index=True,
     width="stretch",
     num_rows="fixed",
     column_config={
         "✓ Select":                      st.column_config.CheckboxColumn("✓", default=False),
         "clutch_birthday":               st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
-        "treatments_genotype_effective": st.column_config.TextColumn("Treatments > genotype", disabled=True),
+        "treatments_genotype_display":   st.column_config.TextColumn("Treatments > genotype", disabled=True),
         "treatments_count_effective":    st.column_config.NumberColumn("n treatments", disabled=True),
         "treatments_pretty_effective":   st.column_config.TextColumn("treatments_pretty", disabled=True),
     },
-    key="overview_ci_v1",
+    key="overview_ci_v2",
 )
 
-# Map selection back to the full df using clutch_code
 sel_mask = grid.get("✓ Select", pd.Series(False, index=grid.index)).fillna(False).astype(bool)
-picked_codes = table.loc[sel_mask, "clutch_code"].tolist()
+picked_codes = grid_src.loc[sel_mask, "clutch_code"].tolist()
 picked = df[df["clutch_code"].isin(picked_codes)].reset_index(drop=True)
 
 # ── Details pane ─────────────────────────────────────────────────────────────
@@ -245,9 +242,10 @@ if picked.empty:
     st.info("Select a row above to view linked treatments and annotations.")
 else:
     row = picked.iloc[0]
-    cid = row.get("clutch_instance_id") or ""
-    st.caption(f"Clutch instance: {row.get('clutch_code','')} • Created: {row.get('created_at_instance','')}")
-    tdf, adf = _load_detail_rows(cid)
+    code = row.get("clutch_code", "")
+    st.caption(f"Clutch: {code} • Created: {row.get('created_at_instance','')}")
+
+    tdf, adf = _load_detail_rows(code)
 
     c1, c2 = st.columns(2)
     with c1:
@@ -259,7 +257,7 @@ else:
 
     with c2:
         st.markdown("**Annotations**")
-        if not _table_exists("public", ANNOT_TABLE):
+        if not _table_exists("public", ANNOT_TABLE.split(".")[1]):
             st.caption("Annotations table not installed.")
         elif adf.empty:
             st.info("No annotations linked.")

@@ -104,12 +104,10 @@ try:
 except Exception as e:
     st.error(f"Health check error: {type(e).__name__}: {e}")
 
+# ✅ FIX: define as (schema, name) tuples
 REQUIRED_VIEWS = [
-    ("public", "v_fish"),
-    ("public", "v_tanks"),
-    ("public", "v_crosses"),
     ("public", "v_clutch_instances"),
-    ("public", "v_clutch_treatments"),
+    ("public", "v_tank_pairs"),
 ]
 
 missing_required: list[str] = []
