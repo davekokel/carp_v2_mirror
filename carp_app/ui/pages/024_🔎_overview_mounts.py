@@ -213,15 +213,37 @@ if summary.empty:
     st.info("No mounts for the selected day (or filter).")
     st.stop()
 
-cols_show = [
-    "mount_code","clutch_code","mounted_at",
-    "orientation_mode","red_avg","red_min","red_max","green_avg","green_min","green_max",
-    "mounting_orientation","n_top","n_bottom","notes",
-]
-cols_show = [c for c in cols_show if c in summary.columns]
-grid = summary[cols_show].copy()
-grid.insert(0, "✓ Select", False)
+# Backfill: if mounting_orientation is missing, display orientation_mode instead
+if "mounting_orientation" in summary.columns and "orientation_mode" in summary.columns:
+    summary["mounting_orientation"] = summary["mounting_orientation"].fillna(summary["orientation_mode"])
 
+# Preferred order; we'll prune columns that are all-null
+preferred = [
+    "mount_code","clutch_code","mounted_at",
+    "orientation_mode","mounting_orientation",
+    "red_avg","red_min","red_max","green_avg","green_min","green_max",
+    "n_top","n_bottom","notes",
+]
+
+# Keep only columns that exist AND have at least one non-null value
+cols_show = [c for c in preferred if c in summary.columns and summary[c].notna().any()]
+# Always keep keys at the front if present
+for key in ["mount_code","clutch_code","mounted_at"]:
+    if key in cols_show:
+        cols_show.insert(0, cols_show.pop(cols_show.index(key)))
+
+grid = summary[cols_show].copy()
+
+# Nice formatting for numeric summaries
+for c in ["red_avg","green_avg"]:
+    if c in grid.columns:
+        grid[c] = pd.to_numeric(grid[c], errors="coerce").round(3)
+for c in ["red_min","red_max","green_min","green_max"]:
+    if c in grid.columns:
+        grid[c] = pd.to_numeric(grid[c], errors="coerce")
+
+# Build the interactive grid
+grid.insert(0, "✓ Select", False)
 picker = st.data_editor(
     grid,
     hide_index=True,
@@ -230,14 +252,20 @@ picker = st.data_editor(
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
         "mounted_at": st.column_config.DatetimeColumn("mounted_at", format="YYYY-MM-DD HH:mm"),
-        "red_avg": st.column_config.NumberColumn("red_avg", format="%.3f"),
+        "red_avg":   st.column_config.NumberColumn("red_avg",   format="%.3f"),
         "green_avg": st.column_config.NumberColumn("green_avg", format="%.3f"),
     },
     key="overview_mounts_drill_v1",
 )
 
-mask = picker.get("✓ Select", pd.Series(False, index=picker.index)).fillna(False)
-selected = grid[mask].reset_index(drop=True)
+# Resolve selection from the top grid (single-select UX)
+sel_series = picker.get("✓ Select", pd.Series(False, index=picker.index)).fillna(False)
+
+# Optional: if exactly one row in the grid, auto-select it
+if sel_series.sum() == 0 and len(grid.index) == 1:
+    sel_series.iloc[0] = True
+
+selected = grid[sel_series].reset_index(drop=True)
 
 # ── bottom grid (per-slot) ───────────────────────────────────────────────────
 st.divider()
