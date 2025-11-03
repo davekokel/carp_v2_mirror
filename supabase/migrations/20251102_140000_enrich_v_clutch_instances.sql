@@ -1,4 +1,6 @@
 BEGIN;
-/* Rebuild-safe: legacy clutch/JCT lineage migration skipped (superseded by normalized views) */
-DO $$ BEGIN RAISE NOTICE legacy clutch/JCT lineage migration skipped; END $$;
+/* Rebuild-safe: legacy v_clutch_instances enrich skipped (superseded by v_clutch_instances_base + resolver) */
+DO $$ BEGIN
+  RAISE NOTICE 'legacy v_clutch_instances enrich skipped';
+END $$;
 COMMIT;
