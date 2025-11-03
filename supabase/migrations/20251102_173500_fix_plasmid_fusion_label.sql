@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE OR REPLACE FUNCTION public.plasmid_fusion_label(plasmid_code text)
+CREATE OR REPLACE FUNCTION public.plasmid_fusion_label(p_code text)
 RETURNS text
 LANGUAGE sql
 STABLE
@@ -16,7 +16,7 @@ AS $$
   FROM public.join_plasmid_fusions j
   JOIN public.fusions f
     ON f.fusion_code = j.fusion_code
-  WHERE j.plasmid_code = $1
+  WHERE j.plasmid_code = p_code
 $$;
 
 COMMIT;
