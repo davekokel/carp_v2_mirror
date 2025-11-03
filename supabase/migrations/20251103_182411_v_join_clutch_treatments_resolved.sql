@@ -1,8 +1,6 @@
 BEGIN;
 
-DROP VIEW IF EXISTS public.v_join_clutch_treatments_resolved;
-
-CREATE VIEW public.v_join_clutch_treatments_resolved AS
+CREATE OR REPLACE VIEW public.v_join_clutch_treatments_resolved AS
 SELECT
   j.id,
   j.clutch_instance_id,
