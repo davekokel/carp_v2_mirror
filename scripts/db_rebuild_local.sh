@@ -6,24 +6,37 @@ echo "────────────────────────�
 echo "🧱 Rebuilding database from migrations: postgres"
 echo "────────────────────────────────────────────"
 
-# 1) Drop public, then let the BASELINE create it (it contains CREATE SCHEMA public)
-psql "$DB_URL" -v ON_ERROR_STOP=1 -c "drop schema if exists public cascade;"
+HAS_BASE=$(psql "$DB_URL" -Atc "select case when to_regclass('public.fish') is not null then 1 else 0 end;")
 
-# 2) Baseline first (creates schema/tables/views/functions/triggers)
-psql "$DB_URL" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS public;"
-psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/00000000_baseline.sql
+if [ "${SKIP_BASELINE:-0}" = "1" ]; then
+  echo "baseline skipped by SKIP_BASELINE"
+elif [ "$HAS_BASE" = "0" ]; then
+  psql "$DB_URL" -v ON_ERROR_STOP=1 -c "drop schema if exists public cascade;"
+  psql "$DB_URL" -v ON_ERROR_STOP=1 -c "create schema if not exists public;"
+  psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/00000000_baseline.sql
+else
+  echo "public schema detected — skipping baseline"
+fi
 
-# 3) Idempotent extensions / grants (OK if baseline already did them)
 psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'create extension if not exists "uuid-ossp";'
 psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'create extension if not exists pgcrypto;'
 psql "$DB_URL" -v ON_ERROR_STOP=1 -c "grant usage on schema public to anon, authenticated, service_role;"
 
-# 4) Everything else in timestamp order (excluding the baseline)
-find supabase/migrations -maxdepth 1 -type f -name '*.sql' ! -name '00000000_baseline.sql' \
-  | sort | while read f; do
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"
-  done
+if [ -n "${START_FROM:-}" ]; then
+  files=$(printf "%s\n" supabase/migrations/*.sql | LC_ALL=C sort | awk -v s="$START_FROM" 'f||$0~s{f=1; if ($0!~"00000000_baseline.sql") print}')
+else
+  files=$(printf "%s\n" supabase/migrations/*.sql | LC_ALL=C sort | awk '$0!~"00000000_baseline.sql"{print}')
+fi
 
-# 5) Summary
+last=""
+set +e
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  echo "$f"
+  last="$f"
+  psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f" || { echo "FAILED: $last"; exit 1; }
+done <<< "$files"
+set -e
+
 psql "$DB_URL" -Atc "select 'tables', count(*) from information_schema.tables where table_schema='public'"
 psql "$DB_URL" -Atc "select 'views', count(*) from information_schema.views where table_schema='public'"

@@ -1,0 +1,525 @@
+erDiagram
+
+  annotations {
+    UUID id PK NOT_NULL
+    TEXT kind_code NOT_NULL
+    TEXT label NOT_NULL
+    TEXT value_type NOT_NULL
+    TIMESTAMPTZ created_at NOT_NULL
+  }
+
+  clutches {
+    UUID id PK NOT_NULL
+    TEXT clutch_instance_code
+    UUID cross_instance_id
+    TEXT tank_pair_code
+    TEXT clutch_genotype_pretty
+    TIMESTAMPTZ created_at NOT_NULL
+    TEXT normalized_genotype
+  }
+
+  cross_clutch_counters {
+    UUID cross_id PK NOT_NULL
+    INT4 next_num NOT_NULL
+  }
+
+  cross_label_history {
+    UUID id
+    UUID cross_id
+    TEXT label
+    TIMESTAMPTZ created_at
+    TEXT created_by
+  }
+
+  crosses {
+    UUID id PK NOT_NULL
+    TEXT tank_pair_code NOT_NULL
+    TEXT cross_run_code
+    DATE cross_date NOT_NULL
+    INT4 run_nn
+    TEXT created_by
+    TIMESTAMPTZ created_at NOT_NULL
+    TEXT note
+  }
+
+  fish {
+    UUID id PK NOT_NULL
+    TEXT fish_code NOT_NULL
+    TIMESTAMPTZ created_at NOT_NULL
+    TEXT identity_key
+    TEXT identity_hash
+    DATE dob
+    TEXT name_human
+    TEXT genetic_background
+    TEXT nickname
+    TEXT line_building_stage
+    TEXT description
+    TEXT notes
+    TEXT created_by
+  }
+
+  fluors {
+    TEXT fluor_code PK NOT_NULL
+    TEXT fluor_name NOT_NULL
+  }
+
+  fusions {
+    TEXT fusion_code PK NOT_NULL
+    TEXT fusion_name NOT_NULL
+    TEXT fluor_code
+    TEXT tag_code
+  }
+
+  join_annotations {
+    UUID id PK NOT_NULL
+    TEXT target_type NOT_NULL
+    UUID target_id NOT_NULL
+    UUID annotation_id NOT_NULL
+    NUMERIC value_num
+    TEXT value_text
+    TEXT created_by
+    TIMESTAMPTZ created_at NOT_NULL
+  }
+
+  join_clutch_treatments {
+    UUID id PK NOT_NULL
+    UUID clutch_instance_id NOT_NULL
+    TEXT treatment_type NOT_NULL
+    TEXT created_by
+    TIMESTAMPTZ created_at NOT_NULL
+    UUID treatment_id NOT_NULL
+  }
+
+  join_fish_tanks {
+    UUID id PK NOT_NULL
+    UUID fish_id NOT_NULL
+    UUID tank_id NOT_NULL
+    TIMESTAMPTZ since NOT_NULL
+    TIMESTAMPTZ until
+    TIMESTAMPTZ valid_from NOT_NULL
+    TIMESTAMPTZ valid_to
+  }
+
+  join_fish_transgene_alleles {
+    UUID id PK NOT_NULL
+    UUID fish_id NOT_NULL
+    TEXT transgene_base_code NOT_NULL
+    INT4 allele_number NOT_NULL
+    TEXT zygosity
+  }
+
+  join_plasmid_fusions {
+    UUID id PK NOT_NULL
+    TEXT plasmid_code NOT_NULL
+    TEXT fusion_code NOT_NULL
+    INT4 position
+    TIMESTAMPTZ created_at NOT_NULL
+  }
+
+  label_items {
+    UUID id PK NOT_NULL
+    UUID job_id NOT_NULL
+    JSONB payload NOT_NULL
+    TIMESTAMPTZ created_at NOT_NULL
+  }
+
+  label_jobs {
+    UUID id PK NOT_NULL
+    TEXT kind NOT_NULL
+    TIMESTAMPTZ created_at NOT_NULL
+  }
+
+  mount_slots {
+    UUID id PK NOT_NULL
+    UUID mount_id NOT_NULL
+    TEXT well NOT_NULL
+    INT2 subwell NOT_NULL
+    UUID fish_id
+  }
+
+  mounts {
+    UUID id PK NOT_NULL
+    TEXT mount_code
+    TIMESTAMPTZ created_at NOT_NULL
+    UUID clutch_instance_id
+  }
+
+  plasmids {
+    UUID id PK NOT_NULL
+    TEXT code NOT_NULL
+    TEXT name NOT_NULL
+    TEXT nickname
+    TIMESTAMPTZ created_at NOT_NULL
+    TEXT created_by
+    TEXT resistance
+    BOOL supports_invitro_rna
+    TEXT notes
+  }
+
+  tags {
+    TEXT tag_code PK NOT_NULL
+    TEXT tag_name NOT_NULL
+  }
+
+  tank_label_history {
+    UUID id
+    UUID tank_uuid
+    TEXT label
+    TIMESTAMPTZ created_at
+    TEXT created_by
+  }
+
+  tank_pairs {
+    UUID id PK NOT_NULL
+    TEXT tank_pair_code NOT_NULL
+    UUID mother_tank_id NOT_NULL
+    UUID father_tank_id NOT_NULL
+    TEXT status NOT_NULL
+    TEXT note
+    TEXT created_by
+    TIMESTAMPTZ created_at NOT_NULL
+    TIMESTAMPTZ updated_at
+  }
+
+  tanks {
+    UUID id PK NOT_NULL
+    TEXT tank_code NOT_NULL
+    TIMESTAMPTZ created_at NOT_NULL
+    TEXT status
+  }
+
+  transgene_alleles {
+    TEXT transgene_base_code PK NOT_NULL
+    INT4 allele_number PK NOT_NULL
+    TEXT allele_name
+    TEXT allele_nickname
+  }
+
+  transgenes {
+    TEXT transgene_base_code PK NOT_NULL
+    TIMESTAMPTZ created_at NOT_NULL
+  }
+
+  treatments {
+    UUID id PK NOT_NULL
+    TEXT kind_code NOT_NULL
+    TEXT name NOT_NULL
+    TEXT notes
+    TEXT plasmid_code
+    TIMESTAMPTZ created_at NOT_NULL
+  }
+
+  v_annotations_latest {
+    TEXT target_type
+    UUID target_id
+    UUID annotation_id
+    TEXT kind_code
+    TEXT label
+    TEXT value_type
+    NUMERIC value_num
+    TEXT value_text
+    TEXT created_by
+    TIMESTAMPTZ created_at
+  }
+
+  v_clutch_annotations {
+    TEXT clutch_code
+    UUID clutch_instance_id
+    TEXT kind_code
+    TEXT label
+    TEXT value_type
+    NUMERIC value_num
+    TEXT value_text
+    TIMESTAMPTZ created_at
+    TEXT created_by
+  }
+
+  v_clutch_annotations_pivot {
+    TEXT clutch_code
+    NUMERIC green_intensity
+    NUMERIC red_intensity
+    NUMERIC green_frequency
+    NUMERIC red_frequency
+    NUMERIC n_animals
+    TEXT health
+    TEXT notes
+    TIMESTAMPTZ annotations_last_at
+  }
+
+  v_clutch_instances {
+    UUID clutch_id
+    TEXT clutch_instance_code
+    UUID cross_instance_id
+    TEXT tank_pair_code
+    TEXT clutch_genotype_pretty
+    TEXT normalized_genotype
+    TIMESTAMPTZ clutch_created_at
+    UUID treatment_id
+    TEXT treatment_name
+    TEXT treatment_code
+    TEXT treatment_kind_code
+    TEXT treatment_notes
+    TIMESTAMPTZ last_treatment_at
+  }
+
+  v_clutch_instances_base {
+    UUID clutch_id
+    TEXT clutch_instance_code
+    UUID cross_instance_id
+    TEXT tank_pair_code
+    TEXT clutch_genotype_pretty
+    TEXT normalized_genotype
+    TIMESTAMPTZ clutch_created_at
+    UUID treatment_id
+    TEXT treatment_name
+    TEXT treatment_code
+    TEXT treatment_kind_code
+    TEXT treatment_notes
+    TIMESTAMPTZ last_treatment_at
+  }
+
+  v_clutch_treatments_pretty {
+    TEXT join_id
+    TEXT clutch_id
+    TEXT treatment_id
+    TEXT kind_code
+    TEXT treatment_name
+    TEXT plasmid_code
+    TEXT treatment_notes
+    TIMESTAMPTZ created_at
+  }
+
+  v_fish {
+    UUID fish_uuid
+    TEXT fish_code
+    TEXT tank_code
+    TIMESTAMPTZ created_at
+  }
+
+  v_fish_genotypes_pretty {
+    TEXT fish_id
+    TEXT genotype_pretty
+  }
+
+  v_fish_rich {
+    UUID fish_uuid
+    TEXT fish_code
+    TEXT fish_name
+    TEXT fish_nickname
+    TEXT genetic_background
+    TEXT line_building_stage
+    TEXT description
+    DATE dob
+    INT4 allele_number
+    TEXT allele_code
+    TEXT transgene
+    TEXT genotype_rollup
+    INT4 n_active_tanks
+    TIMESTAMPTZ created_at
+    TEXT fusion_rollup
+    TEXT fluor_rollup_genetic
+    TEXT tag_rollup_genetic
+    TEXT fluor_rollup
+    TEXT fish_treatments_codes
+    TEXT fish_treatments_names
+    TEXT fish_treatments_fusions
+    TEXT fish_genotype_codes
+    TEXT fish_genotype_fusions
+    TEXT fish_lineage_pretty
+    TEXT fish_lineage_fusions_pretty
+    TEXT fish_lineage_full_fusions_pretty
+  }
+
+  v_fish_rich_base {
+    UUID fish_uuid
+    TEXT fish_code
+    TEXT fish_name
+    TEXT fish_nickname
+    TEXT genetic_background
+    TEXT line_building_stage
+    TEXT description
+    DATE dob
+    INT4 allele_number
+    TEXT allele_code
+    TEXT transgene
+    TEXT genotype_rollup
+    INT4 n_active_tanks
+    TIMESTAMPTZ created_at
+    TEXT fusion_rollup
+    TEXT fluor_rollup_genetic
+    TEXT tag_rollup_genetic
+    TEXT fluor_rollup
+  }
+
+  v_fish_tank_history {
+    TEXT join_id
+    TEXT fish_id
+    TEXT tank_id
+    TIMESTAMPTZ valid_from
+    TIMESTAMPTZ valid_to
+    BOOL is_current
+  }
+
+  v_join_clutch_treatments_resolved {
+    UUID id
+    UUID clutch_instance_id
+    UUID treatment_id
+    TEXT treatment_name_resolved
+    TEXT treatment_code_resolved
+    TEXT kind_code
+    TEXT treatment_notes
+    TIMESTAMPTZ created_at
+  }
+
+  v_labels_for_crosses {
+    UUID cross_id
+    TEXT label_item_id
+    TEXT job_id
+    TEXT label_text
+    TIMESTAMPTZ created_at
+  }
+
+  v_labels_for_tanks {
+    UUID tank_id
+    TEXT label_item_id
+    TEXT job_id
+    TEXT label_text
+    TIMESTAMPTZ created_at
+  }
+
+  v_mount_annotations_latest {
+    UUID mount_id
+    UUID annotation_id
+    TEXT kind_code
+    TEXT label
+    TEXT value_type
+    NUMERIC value_num
+    TEXT value_text
+    TIMESTAMPTZ created_at
+  }
+
+  v_mount_annotations_pivot_json {
+    UUID mount_id
+    JSONB annotations_json
+  }
+
+  v_mount_slot_annotations_latest {
+    UUID mount_slot_id
+    UUID annotation_id
+    TEXT kind_code
+    TEXT label
+    TEXT value_type
+    NUMERIC value_num
+    TEXT value_text
+    TIMESTAMPTZ created_at
+  }
+
+  v_mount_slot_annotations_pivot {
+    TEXT mount_code
+    UUID mount_id
+    UUID mount_slot_id
+    TEXT well
+    INT2 subwell
+    NUMERIC red_intensity
+    NUMERIC green_intensity
+    TEXT orientation
+    TEXT notes
+    TIMESTAMPTZ annotations_last_at
+  }
+
+  v_mount_slot_annotations_pivot_json {
+    UUID mount_slot_id
+    JSONB annotations_json
+  }
+
+  v_mount_slots {
+    TEXT mount_code
+    UUID mount_id
+    UUID mount_slot_id
+    TEXT well
+    INT2 subwell
+  }
+
+  v_plasmid_fusions_pretty {
+    TEXT join_id
+    TEXT plasmid_id
+    TEXT plasmid_code
+    TEXT plasmid_name
+    TEXT fusion_code
+    TEXT fusion_name
+    INT4 position
+    TIMESTAMPTZ created_at
+  }
+
+  v_plasmids_rich {
+    TEXT plasmid_code
+    TEXT plasmid_name
+    TEXT nickname
+    TEXT resistance
+    BOOL supports_invitro_rna
+    TEXT notes
+    TEXT created_by
+    TIMESTAMPTZ created_at
+    TEXT fusion_names
+    TEXT fluor_names
+    TEXT tag_names
+    UUID plasmid_id
+    TEXT plasmid_fusion_pretty
+  }
+
+  v_plasmids_rich_base {
+    TEXT plasmid_code
+    TEXT plasmid_name
+    TEXT nickname
+    TEXT resistance
+    BOOL supports_invitro_rna
+    TEXT notes
+    TEXT created_by
+    TIMESTAMPTZ created_at
+    TEXT fusion_names
+    TEXT fluor_names
+    TEXT tag_names
+  }
+
+  v_tank_pairs {
+    TEXT tank_pair_id
+    TEXT tank_pair_code
+    TEXT status
+    TEXT note
+    TEXT created_by
+    TIMESTAMPTZ created_at
+    TIMESTAMPTZ updated_at
+    TEXT mother_tank_id
+    TEXT mother_tank_code
+    TEXT father_tank_id
+    TEXT father_tank_code
+  }
+
+  v_tanks {
+    UUID tank_uuid
+    TEXT tank_code
+    TEXT fish_code
+    TEXT status
+    TIMESTAMPTZ created_at
+  }
+
+  annotations ||--o{ join_annotations : FK
+  clutches ||--o{ join_clutch_treatments : FK
+  clutches ||--o{ mounts : FK
+  crosses ||--o{ clutches : FK
+  crosses ||--o{ cross_clutch_counters : FK
+  fish ||--o{ join_fish_tanks : FK
+  fish ||--o{ join_fish_transgene_alleles : FK
+  fish ||--o{ mount_slots : FK
+  fluors ||--o{ fusions : FK
+  fusions ||--o{ join_plasmid_fusions : FK
+  label_jobs ||--o{ label_items : FK
+  mounts ||--o{ mount_slots : FK
+  plasmids ||--o{ join_plasmid_fusions : FK
+  plasmids ||--o{ treatments : FK
+  tags ||--o{ fusions : FK
+  tank_pairs ||--o{ crosses : FK
+  tanks ||--o{ join_fish_tanks : FK
+  tanks ||--o{ tank_pairs : FK
+  transgenes ||--o{ transgene_alleles : FK
+  treatments ||--o{ join_clutch_treatments : FK
