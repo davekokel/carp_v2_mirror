@@ -15,14 +15,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_jft_one_open_per_fish
 
 DO $$
 BEGIN
-  ALTER TABLE public.join_fish_tanks
-    ADD CONSTRAINT ex_jft_no_overlap
-    EXCLUDE USING gist (
-      fish_id WITH =,
-      tstzrange(valid_from, COALESCE(valid_to, 'infinity'::timestamptz), '[)') WITH &&
-    );
-EXCEPTION WHEN duplicate_object THEN
-  NULL;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE connamespace = 'public'::regnamespace
+      AND conname = 'ex_jft_no_overlap'
+  ) THEN
+    EXECUTE $$
+      ALTER TABLE public.join_fish_tanks
+      ADD CONSTRAINT ex_jft_no_overlap
+      EXCLUDE USING gist (
+        fish_id WITH =,
+        tstzrange(valid_from, COALESCE(valid_to, 'infinity'::timestamptz), '[)') WITH &&
+      )
+    $$;
+  END IF;
 END$$;
 
 COMMIT;
