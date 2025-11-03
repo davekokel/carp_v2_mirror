@@ -21,14 +21,14 @@ BEGIN
     WHERE connamespace = 'public'::regnamespace
       AND conname = 'ex_jft_no_overlap'
   ) THEN
-    EXECUTE $$
+    EXECUTE $sql$
       ALTER TABLE public.join_fish_tanks
       ADD CONSTRAINT ex_jft_no_overlap
       EXCLUDE USING gist (
         fish_id WITH =,
         tstzrange(valid_from, COALESCE(valid_to, 'infinity'::timestamptz), '[)') WITH &&
       )
-    $$;
+    $sql$;
   END IF;
 END$$;
 
