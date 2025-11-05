@@ -1,7 +1,5 @@
 BEGIN;
 
-DROP VIEW IF EXISTS public.v_clutch_instances_base_resolved;
-
 DO $$
 DECLARE
   has_geno boolean;
@@ -26,7 +24,7 @@ BEGIN
   END IF;
 
   sql := format($s$
-    CREATE VIEW public.v_clutch_instances_base_resolved AS
+    CREATE OR REPLACE VIEW public.v_clutch_instances_base_resolved AS
     SELECT
       c.id                                   AS clutch_id,
       c.clutch_code                          AS clutch_code,
