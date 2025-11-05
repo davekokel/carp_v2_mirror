@@ -1,33 +1,46 @@
 BEGIN;
 
--- ft_injection_mix_sources (keep if your file already had this)
-DROP TABLE IF EXISTS public.ft_injection_mix_sources;
-CREATE TABLE public.ft_injection_mix_sources (
-  id          bigserial PRIMARY KEY,
-  ft_code     text NOT NULL
-              REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  source_kind text NOT NULL CHECK (source_kind IN
-              ('plasmid','enzyme','oligo','pcr_product','mrna','grna','protocol','other')),
-  ref_code    text,
-  ref_text    text,
-  qty         numeric,
-  units       text,
-  role        text,
-  notes       jsonb,
-  CONSTRAINT ck_ftmix_src_ref_present CHECK (ref_code IS NOT NULL OR ref_text IS NOT NULL)
-);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_ftmix_src
-  ON public.ft_injection_mix_sources (ft_code, source_kind, COALESCE(ref_code,'∅'), COALESCE(ref_text,'∅'));
+DROP VIEW IF EXISTS public.v_fish_fluorescent_markers;
+DROP VIEW IF EXISTS public.v_fluorescent_treatment_markers;
 
--- ft_protein_markers (fixed: surrogate PK + UNIQUE INDEX using COALESCE)
-DROP TABLE IF EXISTS public.ft_protein_markers;
+DROP TABLE IF EXISTS public.ft_injection_mix_sources CASCADE;
+CREATE TABLE public.ft_injection_mix_sources (
+  mix_code   text    NOT NULL,
+  source_key text    NOT NULL,
+  source_val text    NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_ftmix_sources_mix ON public.ft_injection_mix_sources(mix_code);
+
+DROP TABLE IF EXISTS public.ft_protein_markers CASCADE;
 CREATE TABLE public.ft_protein_markers (
-  id         bigserial PRIMARY KEY,
-  ft_code    text NOT NULL REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  fluor_code text NOT NULL REFERENCES public.fluors(fluor_code),
-  tag_code   text NULL     REFERENCES public.tags(tag_code)
+  id         uuid    PRIMARY KEY DEFAULT gen_random_uuid(),
+  ft_code    text    NOT NULL,
+  fluor_code text    NOT NULL,
+  tag_code   text,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ft_protein_marker
-  ON public.ft_protein_markers (ft_code, COALESCE(tag_code,'∅'), fluor_code);
+  ON public.ft_protein_markers(ft_code, COALESCE(tag_code,'∅'), fluor_code);
+ALTER TABLE public.ft_protein_markers
+  DROP CONSTRAINT IF EXISTS fk_ftpm_ft;
+ALTER TABLE public.ft_protein_markers
+  ADD  CONSTRAINT fk_ftpm_ft FOREIGN KEY (ft_code)
+  REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE;
+
+DROP TABLE IF EXISTS public.ft_dye_markers CASCADE;
+CREATE TABLE public.ft_dye_markers (
+  id         uuid    PRIMARY KEY DEFAULT gen_random_uuid(),
+  ft_code    text    NOT NULL,
+  dye_code   text    NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ft_dye_marker
+  ON public.ft_dye_markers(ft_code, dye_code);
+ALTER TABLE public.ft_dye_markers
+  DROP CONSTRAINT IF EXISTS fk_ftdm_ft;
+ALTER TABLE public.ft_dye_markers
+  ADD  CONSTRAINT fk_ftdm_ft FOREIGN KEY (ft_code)
+  REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE;
 
 COMMIT;
