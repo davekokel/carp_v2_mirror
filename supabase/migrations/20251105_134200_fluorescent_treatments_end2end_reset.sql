@@ -2,102 +2,131 @@ BEGIN;
 
 DROP VIEW IF EXISTS public.v_fish_fluorescent_markers;
 DROP VIEW IF EXISTS public.v_fluorescent_treatment_markers;
+DROP VIEW IF EXISTS public.v_fish_import_ft_missing;
 
-DROP TABLE IF EXISTS public.ft_injection_mix_sources;
-DROP TABLE IF EXISTS public.ft_injection_mixes;
-DROP TABLE IF EXISTS public.ft_protein_markers;
-DROP TABLE IF EXISTS public.ft_dye_markers;
-DROP TABLE IF EXISTS public.join_fish_fluorescent_treatments;
-DROP TABLE IF EXISTS public.fluorescent_treatments;
-DROP TABLE IF EXISTS public.dyes;
+DO $$
+BEGIN
+  IF to_regclass('public.ft_injection_mixes') IS NULL THEN
+    EXECUTE 'CREATE TABLE public.ft_injection_mixes (
+               ft_code   text PRIMARY KEY,
+               created_at timestamptz NOT NULL DEFAULT now()
+             )';
+  END IF;
+END$$;
 
-CREATE TABLE public.fluorescent_treatments (
-  ft_code    text PRIMARY KEY,
-  ft_text    text NOT NULL,
-  ft_meta    jsonb,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  created_by text
-);
+ALTER TABLE public.ft_injection_mixes
+  DROP CONSTRAINT IF EXISTS fk_ftmix_ft;
+ALTER TABLE public.ft_injection_mixes
+  ADD  CONSTRAINT fk_ftmix_ft
+  FOREIGN KEY (ft_code) REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE;
 
-CREATE TABLE public.ft_injection_mixes (
-  ft_code       text PRIMARY KEY REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  protocol_code text,
-  protocol_text text,
-  notes         text
-);
-
-CREATE TABLE public.ft_injection_mix_sources (
-  id          bigserial PRIMARY KEY,
-  ft_code     text NOT NULL REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  source_kind text NOT NULL CHECK (source_kind IN ('plasmid','enzyme','oligo','pcr_product','mrna','grna','protocol','other')),
-  ref_code    text,
-  ref_text    text,
-  qty         numeric,
-  units       text,
-  role        text,
-  notes       jsonb,
-  CONSTRAINT ck_ftmix_src_ref_present CHECK (ref_code IS NOT NULL OR ref_text IS NOT NULL)
-);
-CREATE UNIQUE INDEX uq_ftmix_src ON public.ft_injection_mix_sources (ft_code, source_kind, COALESCE(ref_code,'∅'), COALESCE(ref_text,'∅'));
-
-CREATE TABLE public.fluors (fluor_code text PRIMARY KEY) ;
-CREATE TABLE public.tags   (tag_code   text PRIMARY KEY) ;
-CREATE TABLE public.dyes   (dye_code   text PRIMARY KEY, dye_name text);
-
-CREATE TABLE public.ft_protein_markers (
-  id         bigserial PRIMARY KEY,
-  ft_code    text NOT NULL REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  fluor_code text NOT NULL REFERENCES public.fluors(fluor_code),
-  tag_code   text REFERENCES public.tags(tag_code)
-);
-CREATE UNIQUE INDEX uq_ft_protein_marker ON public.ft_protein_markers (ft_code, COALESCE(tag_code,'∅'), fluor_code);
-
-CREATE TABLE public.ft_dye_markers (
-  id       bigserial PRIMARY KEY,
-  ft_code  text NOT NULL REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  dye_code text NOT NULL REFERENCES public.dyes(dye_code)
-);
-CREATE UNIQUE INDEX uq_ft_dye_marker ON public.ft_dye_markers (ft_code, dye_code);
-
-CREATE TABLE public.join_fish_fluorescent_treatments (
-  fish_id  uuid NOT NULL REFERENCES public.fish(id) ON DELETE CASCADE,
-  ft_code  text NOT NULL REFERENCES public.fluorescent_treatments(ft_code) ON DELETE RESTRICT,
-  allele_number text,
-  zygosity text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (fish_id, ft_code)
-);
+ALTER TABLE public.ft_injection_mix_elements
+  DROP CONSTRAINT IF EXISTS fk_ftmixel_mix;
+ALTER TABLE public.ft_injection_mix_elements
+  ADD  CONSTRAINT fk_ftmixel_mix
+  FOREIGN KEY (mix_code) REFERENCES public.ft_injection_mixes(ft_code) ON DELETE CASCADE;
 
 CREATE OR REPLACE VIEW public.v_fluorescent_treatment_markers AS
 SELECT
-  m.ft_code,
-  'fluor_protein_' || CASE WHEN m.tag_code IS NULL THEN 'untagged' ELSE 'tagged' END AS marker_kind,
-  m.fluor_code,
-  m.tag_code,
+  p.ft_code,
+  'protein'::text AS marker_kind,
+  p.fluor_code,
+  p.tag_code,
+  vf.label AS fluor_label,
+  vt.label AS tag_label,
   NULL::text AS dye_code,
-  CASE WHEN m.tag_code IS NULL THEN m.fluor_code ELSE m.tag_code || '::' || m.fluor_code END AS marker_label
-FROM public.ft_protein_markers m
+  NULL::text AS dye_label,
+  p.created_at
+FROM public.ft_proteins p
+LEFT JOIN public.v_fluors_lu vf ON vf.code = p.fluor_code
+LEFT JOIN public.v_tags_lu   vt ON vt.code = p.tag_code
 UNION ALL
 SELECT
   d.ft_code,
-  'dye' AS marker_kind,
+  'dye'::text AS marker_kind,
   NULL::text AS fluor_code,
   NULL::text AS tag_code,
+  NULL::text AS fluor_label,
+  NULL::text AS tag_label,
   d.dye_code,
-  d.dye_code AS marker_label
-FROM public.ft_dye_markers d;
+  vd.label AS dye_label,
+  d.created_at
+FROM public.ft_dyes d
+LEFT JOIN public.v_dyes_lu vd ON vd.code = d.dye_code
+;
 
-CREATE OR REPLACE VIEW public.v_fish_fluorescent_markers AS
+DO $$
+DECLARE fish_pk text; fish_code_col text; jfish_col text; jft_col text; jcreated_col text; sql text;
+BEGIN
+  SELECT column_name INTO fish_pk
+  FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='fish'
+    AND column_name IN ('fish_uuid','id','uuid')
+  ORDER BY CASE column_name WHEN 'fish_uuid' THEN 1 WHEN 'id' THEN 2 WHEN 'uuid' THEN 3 ELSE 9 END
+  LIMIT 1;
+
+  SELECT column_name INTO fish_code_col
+  FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='fish'
+    AND column_name IN ('fish_code','code','name')
+  ORDER BY CASE column_name WHEN 'fish_code' THEN 1 WHEN 'code' THEN 2 WHEN 'name' THEN 3 ELSE 9 END
+  LIMIT 1;
+
+  SELECT column_name INTO jfish_col
+  FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='join_fish_fluorescent_treatments'
+    AND column_name IN ('fish_uuid','fish_id','fish_code')
+  ORDER BY CASE column_name WHEN 'fish_uuid' THEN 1 WHEN 'fish_id' THEN 2 WHEN 'fish_code' THEN 3 ELSE 9 END
+  LIMIT 1;
+
+  SELECT column_name INTO jft_col
+  FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='join_fish_fluorescent_treatments'
+    AND column_name IN ('ft_code','fluorescent_treatment_code','treatment_code')
+  ORDER BY CASE column_name WHEN 'ft_code' THEN 1 WHEN 'fluorescent_treatment_code' THEN 2 WHEN 'treatment_code' THEN 3 ELSE 9 END
+  LIMIT 1;
+
+  SELECT column_name INTO jcreated_col
+  FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='join_fish_fluorescent_treatments'
+    AND column_name IN ('created_at','linked_at','updated_at')
+  ORDER BY CASE column_name WHEN 'created_at' THEN 1 WHEN 'linked_at' THEN 2 WHEN 'updated_at' THEN 3 ELSE 9 END
+  LIMIT 1;
+
+  sql := format($v$
+    CREATE OR REPLACE VIEW public.v_fish_fluorescent_markers AS
+    SELECT
+      f.%1$I        AS fish_pk,
+      f.%2$I::text  AS fish_code,
+      j.%3$I::text  AS fish_ref_in_join,
+      j.%4$I::text  AS ft_code,
+      m.marker_kind,
+      m.fluor_code,
+      m.fluor_label,
+      m.tag_code,
+      m.tag_label,
+      m.dye_code,
+      m.dye_label,
+      COALESCE(j.%5$I, m.created_at) AS linked_at
+    FROM public.join_fish_fluorescent_treatments j
+    JOIN public.fish f ON f.%1$I = j.%3$I
+    JOIN public.v_fluorescent_treatment_markers m ON m.ft_code = j.%4$I
+  $v$, fish_pk, fish_code_col, jfish_col, jft_col, COALESCE(jcreated_col,'created_at'));
+
+  EXECUTE sql;
+END$$;
+
+CREATE OR REPLACE VIEW public.v_fish_import_ft_missing AS
 SELECT
-  f.id AS fish_id,
-  f.fish_code,
-  array_remove(array_agg(DISTINCT v.marker_label ORDER BY v.marker_label), NULL) AS markers,
-  array_remove(array_agg(DISTINCT v.fluor_code   ORDER BY v.fluor_code),   NULL) AS fluors,
-  array_remove(array_agg(DISTINCT v.tag_code     ORDER BY v.tag_code),     NULL) AS tags,
-  array_remove(array_agg(DISTINCT v.dye_code     ORDER BY v.dye_code),     NULL) AS dyes
+  j.fish_id,
+  j.ft_code,
+  CASE WHEN ft.ft_code IS NOT NULL THEN 'present_in_ft'
+       WHEN mix.ft_code IS NOT NULL THEN 'present_in_mix'
+       ELSE 'missing'
+  END AS status
 FROM public.join_fish_fluorescent_treatments j
-JOIN public.fish f ON f.id = j.fish_id
-LEFT JOIN public.v_fluorescent_treatment_markers v ON v.ft_code = j.ft_code
-GROUP BY f.id, f.fish_code;
+LEFT JOIN public.fluorescent_treatments ft ON ft.ft_code = j.ft_code
+LEFT JOIN public.ft_injection_mixes   mix  ON mix.ft_code = j.ft_code
+WHERE ft.ft_code IS NULL AND mix.ft_code IS NULL;
 
 COMMIT;

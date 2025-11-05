@@ -1,107 +1,106 @@
 BEGIN;
 
--- Parent registry (idempotent)
-CREATE TABLE IF NOT EXISTS public.fluorescent_treatments (
-  ft_code    text PRIMARY KEY,
-  ft_text    text NOT NULL,
-  ft_meta    jsonb,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  created_by text
-);
+-- Ensure ft_injection_mixes exists and is wired
+DO $$
+BEGIN
+  IF to_regclass('public.ft_injection_mixes') IS NULL THEN
+    EXECUTE $ct$
+      CREATE TABLE public.ft_injection_mixes (
+        ft_code   text PRIMARY KEY,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    $ct$;
+  END IF;
+END$$;
 
--- Injection mix context (optional details)
-CREATE TABLE IF NOT EXISTS public.ft_injection_mixes (
-  ft_code       text PRIMARY KEY
-                REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  protocol_code text,
-  protocol_text text,
-  notes         text
-);
+-- Ensure elements / proteins / dyes exist under the new names; do not drop existing data
+DO $$
+BEGIN
+  IF to_regclass('public.ft_injection_mix_elements') IS NULL THEN
+    EXECUTE $ct$
+      CREATE TABLE public.ft_injection_mix_elements (
+        mix_code   text    NOT NULL,
+        source_key text    NOT NULL,
+        source_val text    NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    $ct$;
+  END IF;
 
--- Injection mix sources (surrogate PK + logical uniqueness via UNIQUE INDEX)
-DROP TABLE IF EXISTS public.ft_injection_mix_sources;
-CREATE TABLE public.ft_injection_mix_sources (
-  id          bigserial PRIMARY KEY,
-  ft_code     text NOT NULL
-              REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  source_kind text NOT NULL CHECK (source_kind IN
-              ('plasmid','enzyme','oligo','pcr_product','mrna','grna','protocol','other')),
-  ref_code    text,
-  ref_text    text,
-  qty         numeric,
-  units       text,
-  role        text,
-  notes       jsonb,
-  CONSTRAINT ck_ftmix_src_ref_present
-    CHECK (ref_code IS NOT NULL OR ref_text IS NOT NULL)
-);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND tablename='ft_injection_mix_elements'
+      AND indexname='uq_ft_injection_mix_elements_key'
+  ) THEN
+    CREATE UNIQUE INDEX uq_ft_injection_mix_elements_key
+      ON public.ft_injection_mix_elements(mix_code, source_key);
+  END IF;
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_ftmix_src
-  ON public.ft_injection_mix_sources
-  (ft_code, source_kind, COALESCE(ref_code,'∅'), COALESCE(ref_text,'∅'));
+  IF to_regclass('public.ft_proteins') IS NULL THEN
+    EXECUTE $ct$
+      CREATE TABLE public.ft_proteins (
+        id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        ft_code    text NOT NULL,
+        fluor_code text NOT NULL,
+        tag_code   text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    $ct$;
+  END IF;
 
--- Protein markers (fluor ± tag)
-CREATE TABLE IF NOT EXISTS public.ft_protein_markers (
-  ft_code    text NOT NULL
-             REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  fluor_code text NOT NULL REFERENCES public.fluors(fluor_code),
-  tag_code   text REFERENCES public.tags(tag_code),
-  PRIMARY KEY (ft_code, COALESCE(tag_code,'∅'), fluor_code)
-);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND tablename='ft_proteins'
+      AND indexname='uq_ft_proteins_marker'
+  ) THEN
+    CREATE UNIQUE INDEX uq_ft_proteins_marker
+      ON public.ft_proteins(ft_code, COALESCE(tag_code,'∅'), fluor_code);
+  END IF;
 
--- Dye markers
-CREATE TABLE IF NOT EXISTS public.ft_dye_markers (
-  ft_code  text NOT NULL
-           REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE,
-  dye_code text NOT NULL REFERENCES public.dyes(dye_code),
-  PRIMARY KEY (ft_code, dye_code)
-);
+  IF to_regclass('public.ft_dyes') IS NULL THEN
+    EXECUTE $ct$
+      CREATE TABLE public.ft_dyes (
+        id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        ft_code    text NOT NULL,
+        dye_code   text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    $ct$;
+  END IF;
 
--- Fish ↔ fluorescent treatment link
-CREATE TABLE IF NOT EXISTS public.join_fish_fluorescent_treatments (
-  fish_id  uuid NOT NULL REFERENCES public.fish(id) ON DELETE CASCADE,
-  ft_code  text NOT NULL REFERENCES public.fluorescent_treatments(ft_code) ON DELETE RESTRICT,
-  allele_number text,
-  zygosity text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (fish_id, ft_code)
-);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND tablename='ft_dyes'
+      AND indexname='uq_ft_dyes_marker'
+  ) THEN
+    CREATE UNIQUE INDEX uq_ft_dyes_marker
+      ON public.ft_dyes(ft_code, dye_code);
+  END IF;
+END$$;
 
--- Views (drop + recreate to avoid partial-state errors)
-DROP VIEW IF EXISTS public.v_fish_fluorescent_markers;
-DROP VIEW IF EXISTS public.v_fluorescent_treatment_markers;
+-- Wire FKs (idempotent)
+ALTER TABLE public.ft_injection_mixes
+  DROP CONSTRAINT IF EXISTS fk_ftmix_ft;
+ALTER TABLE public.ft_injection_mixes
+  ADD  CONSTRAINT fk_ftmix_ft
+  FOREIGN KEY (ft_code) REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE;
 
-CREATE OR REPLACE VIEW public.v_fluorescent_treatment_markers AS
-SELECT
-  m.ft_code,
-  'fluor_protein_' || CASE WHEN m.tag_code IS NULL THEN 'untagged' ELSE 'tagged' END AS marker_kind,
-  m.fluor_code,
-  m.tag_code,
-  NULL::text AS dye_code,
-  CASE WHEN m.tag_code IS NULL THEN m.fluor_code
-       ELSE m.tag_code || '::' || m.fluor_code END AS marker_label
-FROM public.ft_protein_markers m
-UNION ALL
-SELECT
-  d.ft_code,
-  'dye' AS marker_kind,
-  NULL::text AS fluor_code,
-  NULL::text AS tag_code,
-  d.dye_code,
-  d.dye_code AS marker_label
-FROM public.ft_dye_markers d;
+ALTER TABLE public.ft_injection_mix_elements
+  DROP CONSTRAINT IF EXISTS fk_ftmixel_mix;
+ALTER TABLE public.ft_injection_mix_elements
+  ADD  CONSTRAINT fk_ftmixel_mix
+  FOREIGN KEY (mix_code) REFERENCES public.ft_injection_mixes(ft_code) ON DELETE CASCADE;
 
-CREATE OR REPLACE VIEW public.v_fish_fluorescent_markers AS
-SELECT
-  f.id AS fish_id,
-  f.fish_code,
-  array_remove(array_agg(DISTINCT v.marker_label ORDER BY v.marker_label), NULL) AS markers,
-  array_remove(array_agg(DISTINCT v.fluor_code   ORDER BY v.fluor_code),   NULL) AS fluors,
-  array_remove(array_agg(DISTINCT v.tag_code     ORDER BY v.tag_code),     NULL) AS tags,
-  array_remove(array_agg(DISTINCT v.dye_code     ORDER BY v.dye_code),     NULL) AS dyes
-FROM public.join_fish_fluorescent_treatments j
-JOIN public.fish f ON f.id = j.fish_id
-LEFT JOIN public.v_fluorescent_treatment_markers v ON v.ft_code = j.ft_code
-GROUP BY f.id, f.fish_code;
+ALTER TABLE public.ft_proteins
+  DROP CONSTRAINT IF EXISTS fk_ftproteins_ft;
+ALTER TABLE public.ft_proteins
+  ADD  CONSTRAINT fk_ftproteins_ft
+  FOREIGN KEY (ft_code) REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE;
+
+ALTER TABLE public.ft_dyes
+  DROP CONSTRAINT IF EXISTS fk_ftdyes_ft;
+ALTER TABLE public.ft_dyes
+  ADD  CONSTRAINT fk_ftdyes_ft
+  FOREIGN KEY (ft_code) REFERENCES public.fluorescent_treatments(ft_code) ON DELETE CASCADE;
 
 COMMIT;
