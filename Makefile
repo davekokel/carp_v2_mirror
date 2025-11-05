@@ -23,3 +23,6 @@ run-staging-pooler:
 .PHONY: run-local
 run-local:
 	./scripts/run_local.sh
+
+seed_ft_demo:
+	psql "$$DB_URL" -v ON_ERROR_STOP=1 -f supabase/seeds/local/ft_demo.seed.sql
