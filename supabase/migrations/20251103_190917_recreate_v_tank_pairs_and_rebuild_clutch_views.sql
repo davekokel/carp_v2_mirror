@@ -1,49 +1,53 @@
 BEGIN;
 
--- 1) Drop dependent clutch views so we can recreate v_tank_pairs cleanly
-DROP VIEW IF EXISTS public.v_clutch_instances CASCADE;
-DROP VIEW IF EXISTS public.v_clutch_instances_base CASCADE;
+-- Drop the affected views safely first
+DROP VIEW IF EXISTS public.v_clutch_instances_base_resolved;
+DROP VIEW IF EXISTS public.v_clutch_instances;
+DROP VIEW IF EXISTS public.v_clutch_instances_resolved_compat;
 
--- 2) Recreate v_tank_pairs with the desired column set
-DROP VIEW IF EXISTS public.v_tank_pairs;
-CREATE VIEW public.v_tank_pairs AS
-SELECT
-  tp.id::text                 AS tank_pair_id,
-  tp.tank_pair_code,
-  tp.status,
-  tp.note,
-  tp.created_by,
-  tp.created_at,
-  tp.updated_at,
-  tp.mother_tank_id::text     AS mother_tank_id,
-  tm.tank_code                AS mother_tank_code,
-  tp.father_tank_id::text     AS father_tank_id,
-  tf.tank_code                AS father_tank_code
-FROM public.tank_pairs tp
-LEFT JOIN public.tanks tm ON tm.id=tp.mother_tank_id
-LEFT JOIN public.tanks tf ON tf.id=tp.father_tank_id;
+DO $$
+DECLARE
+  has_geno boolean;
+  has_ci_fk boolean;
+  sql_base text;
+  join_clause text;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='clutches' AND column_name='clutch_genotype_pretty'
+  ) INTO has_geno;
 
--- 3) Rebuild clutch views (tight, normalized; no dependency on v_tank_pairs)
-CREATE VIEW public.v_clutch_instances_base AS
-SELECT
-  c.id                            AS clutch_id,
-  c.clutch_instance_code,
-  c.cross_instance_id,
-  c.tank_pair_code,
-  c.clutch_genotype_pretty,
-  c.normalized_genotype,
-  c.created_at                    AS clutch_created_at,
-  r.treatment_id,
-  r.treatment_name_resolved       AS treatment_name,
-  r.treatment_code_resolved       AS treatment_code,
-  r.kind_code                     AS treatment_kind_code,
-  r.treatment_notes,
-  r.created_at                    AS last_treatment_at
-FROM public.clutches c
-LEFT JOIN public.v_join_clutch_treatments_resolved r
-  ON r.clutch_instance_id = c.id;
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='clutch_instances' AND column_name='clutch_id'
+  ) INTO has_ci_fk;
 
-CREATE VIEW public.v_clutch_instances AS
-SELECT * FROM public.v_clutch_instances_base;
+  IF has_ci_fk THEN
+    join_clause := 'LEFT JOIN public.clutch_instances ci ON ci.clutch_id = c.id';
+  ELSE
+    join_clause := 'LEFT JOIN public.clutch_instances ci ON false';
+  END IF;
+
+  sql_base := format($s$
+    CREATE VIEW public.v_clutch_instances_base_resolved AS
+    SELECT
+      c.id                                   AS clutch_id,
+      c.clutch_code                          AS clutch_code,
+      %s                                     AS clutch_genotype_pretty,
+      ci.id                                  AS clutch_instance_id,
+      ci.clutch_instance_code                AS clutch_instance_code,
+      COALESCE(ci.created_at, c.created_at)  AS created_at
+    FROM public.clutches c
+    %s;
+  $s$,
+    CASE WHEN has_geno THEN 'c.clutch_genotype_pretty' ELSE 'NULL::text' END,
+    join_clause
+  );
+
+  EXECUTE sql_base;
+
+  -- If your file also recreates v_clutch_instances or compat views, put their CREATE VIEW
+  -- statements below and have them SELECT from v_clutch_instances_base_resolved rather than rejoining.
+END$$;
 
 COMMIT;
