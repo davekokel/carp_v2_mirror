@@ -1,7 +1,7 @@
 BEGIN;
 
--- Drop the affected views safely first
-DROP VIEW IF EXISTS public.v_clutch_instances_base_resolved;
+-- Do not drop the base view; we will replace it in-place.
+-- DROP VIEW IF EXISTS public.v_clutch_instances_base_resolved;
 DROP VIEW IF EXISTS public.v_clutch_instances;
 DROP VIEW IF EXISTS public.v_clutch_instances_resolved_compat;
 
@@ -29,7 +29,7 @@ BEGIN
   END IF;
 
   sql_base := format($s$
-    CREATE VIEW public.v_clutch_instances_base_resolved AS
+    CREATE OR REPLACE VIEW public.v_clutch_instances_base_resolved AS
     SELECT
       c.id                                   AS clutch_id,
       c.clutch_code                          AS clutch_code,
@@ -46,8 +46,15 @@ BEGIN
 
   EXECUTE sql_base;
 
-  -- If your file also recreates v_clutch_instances or compat views, put their CREATE VIEW
-  -- statements below and have them SELECT from v_clutch_instances_base_resolved rather than rejoining.
+  -- Recreate child views from the base view so they inherit the guards
+  CREATE VIEW public.v_clutch_instances AS
+  SELECT clutch_id, clutch_code, clutch_genotype_pretty, clutch_instance_id, clutch_instance_code, created_at
+  FROM public.v_clutch_instances_base_resolved;
+
+  CREATE VIEW public.v_clutch_instances_resolved_compat AS
+  SELECT clutch_id, clutch_code, clutch_genotype_pretty, clutch_instance_id, clutch_instance_code, created_at
+  FROM public.v_clutch_instances_base_resolved;
+
 END$$;
 
 COMMIT;
