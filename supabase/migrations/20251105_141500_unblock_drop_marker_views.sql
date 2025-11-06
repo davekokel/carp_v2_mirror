@@ -1,4 +1,6 @@
 BEGIN;
-DROP VIEW IF EXISTS public.v_fish_fluorescent_markers;
-DROP VIEW IF EXISTS public.v_fluorescent_treatment_markers;
+DO $$
+BEGIN
+  RAISE NOTICE '141500: superseded by v4 FT stack — no-op';
+END$$;
 COMMIT;
