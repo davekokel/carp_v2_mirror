@@ -48,29 +48,59 @@ def _fn_exists(schema: str, name: str) -> bool:
         """), {"s": schema, "n": name}).scalar())
 
 def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str, Any]]:
-    # r.* rollups are plain TEXT in v_plasmids_rich; do not array_to_string them again
+    # Discover actual column names in public.v_plasmids_rich at runtime
+    with _get_engine().begin() as cx:
+        cols = pd.read_sql(
+            text("""
+                select column_name
+                from information_schema.columns
+                where table_schema='public' and table_name='v_plasmids_rich'
+            """),
+            cx
+        )["column_name"].str.lower().tolist()
+
+    # Helper to pick the first existing column from candidates; otherwise return a SQL literal
+    def pick(cands: list[str], if_missing_literal: str = "''") -> str:
+        for c in cands:
+            if c.lower() in cols:
+                return f"r.{c}"
+        return if_missing_literal  # safe literal (already quoted)
+
+    # Canonical names (prefer new; fall back to old)
+    code_col     = pick(["code", "plasmid_code"])
+    name_col     = pick(["name", "plasmid_name"])
+    nick_col     = pick(["nickname"])             # nickname typically exists
+    fluor_col    = pick(["fluor_names", "fluors"])
+    tag_col      = pick(["tag_names", "tags"])
+    fusion_col   = pick(["fusion_names", "fusions"])
+    resist_col   = pick(["resistance"])
+    supp_col     = pick(["supports_invitro_rna"])
+    notes_col    = pick(["notes"])
+    created_by_c = pick(["created_by"])
+    created_at_c = pick(["created_at"])
+
+    # Build haystack & field map based on discovered columns
     haystack = (
         "concat_ws(' ', "
-        "coalesce(r.plasmid_code,''), coalesce(r.plasmid_name,''), coalesce(p.nickname,''), "
-        "coalesce(r.fluor_names,''), "
-        "coalesce(r.tag_names,''), "
-        "coalesce(r.fusion_names,''), "
-        "coalesce(p.resistance,''), coalesce(p.notes,''))"
+        f"coalesce({code_col},''), coalesce({name_col},''), coalesce({nick_col},''), "
+        f"coalesce({fluor_col},''), coalesce({tag_col},''), coalesce({fusion_col},''), "
+        f"coalesce({resist_col},''), coalesce({notes_col},''))"
     )
+
     field_map = {
-        "code":       "r.plasmid_code",
-        "name":       "r.plasmid_name",
-        "nickname":   "p.nickname",
-        "fluors":     "coalesce(r.fluor_names,'')",
-        "tags":       "coalesce(r.tag_names,'')",
-        "fusions":    "coalesce(r.fusion_names,'')",
-        "resistance": "p.resistance",
+        "code":       code_col,
+        "name":       name_col,
+        "nickname":   f"coalesce(p.nickname, {nick_col})",
+        "fluors":     f"coalesce({fluor_col},'')",
+        "tags":       f"coalesce({tag_col},'')",
+        "fusions":    f"coalesce({fusion_col},'')",
+        "resistance": f"coalesce(p.resistance, {resist_col})",
     }
 
+    # Parse search tokens
     tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
     params: Dict[str, Any] = {"lim": int(limit)}
-    where: List[str] = []
-
+    where: list[str] = []
     for i, tok in enumerate(tokens):
         neg = tok.startswith("-")
         core = tok[1:] if neg else tok
@@ -86,43 +116,47 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str
         where.append(("NOT " if neg else "") + f"({haystack} ILIKE :{key})")
 
     if supports_only:
-        where.append("(p.supports_invitro_rna = true)")
+        where.append(f"(coalesce(p.supports_invitro_rna, {supp_col}) = true)")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    # Build SQL using detected column names; join by code
     sql = f"""
       with rich as (
         select
-          r.plasmid_code,
-          r.plasmid_name,
-          r.nickname               as r_nickname,
-          r.resistance             as r_resistance,
-          r.supports_invitro_rna   as r_supports_invitro_rna,
-          r.notes                  as r_notes,
-          r.fusion_names,
-          r.fluor_names,
-          r.tag_names
+          {code_col}   as code,
+          {name_col}   as name,
+          {nick_col}   as nickname,
+          {fluor_col}  as fluor_names,
+          {tag_col}    as tag_names,
+          {fusion_col} as fusion_names,
+          {resist_col} as resistance,
+          {supp_col}   as supports_invitro_rna,
+          {notes_col}  as notes,
+          {created_by_c} as created_by,
+          {created_at_c} as created_at
         from public.v_plasmids_rich r
       )
       select
-        r.plasmid_code                           as code,
-        r.plasmid_name                           as name,
-        coalesce(p.nickname, r.r_nickname)       as nickname,
-        coalesce(r.fluor_names,  '')             as fluor_names,
-        coalesce(r.tag_names,    '')             as tag_names,
-        coalesce(r.fusion_names, '')             as fusion_names,
-        coalesce(p.resistance, r.r_resistance)   as resistance,
-        coalesce(p.supports_invitro_rna, r.r_supports_invitro_rna) as supports_invitro_rna,
-        p.created_by                              as created_by,
-        p.created_at                              as created_at,
-        NULL::uuid                                as rna_id,
-        NULL::text                                as rna_code,
-        NULL::text                                as rna_name,
-        coalesce(p.notes, r.r_notes)              as notes
+        r.code                                                as code,
+        r.name                                                as name,
+        coalesce(p.nickname, r.nickname)                      as nickname,
+        coalesce(r.fluor_names,  '')                          as fluor_names,
+        coalesce(r.tag_names,    '')                          as tag_names,
+        coalesce(r.fusion_names, '')                          as fusion_names,
+        coalesce(p.resistance, r.resistance)                  as resistance,
+        coalesce(p.supports_invitro_rna, r.supports_invitro_rna) as supports_invitro_rna,
+        p.created_by                                          as created_by,
+        p.created_at                                          as created_at,
+        NULL::uuid                                            as rna_id,
+        NULL::text                                            as rna_code,
+        NULL::text                                            as rna_name,
+        coalesce(p.notes, r.notes)                            as notes
       from rich r
       left join public.plasmids p
-        on p.code = r.plasmid_code
+        on p.code = r.code
       {where_sql}
-      order by r.plasmid_code
+      order by r.code
       limit :lim
     """
     return sql, params
