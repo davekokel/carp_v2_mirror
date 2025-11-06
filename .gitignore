@@ -65,3 +65,6 @@ carp_app/seed_kits/**/seed_kit_*/
 
 # local audit CSVs
 public_*_*.csv
+
+# ERD artifacts
+supabase/erd/
