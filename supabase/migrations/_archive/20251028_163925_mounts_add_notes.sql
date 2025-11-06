@@ -1,4 +1,0 @@
-BEGIN;
-ALTER TABLE public.mounts
-  ADD COLUMN IF NOT EXISTS notes text;
-COMMIT;

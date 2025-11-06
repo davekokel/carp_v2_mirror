@@ -1,1 +1,0 @@
-supabase/migrations/00000000_baseline.sql

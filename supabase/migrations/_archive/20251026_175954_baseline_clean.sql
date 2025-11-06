@@ -1,2 +1,0 @@
--- Baseline placeholder: all canonical objects are defined by earlier timestamped migrations.
--- Intentionally left empty to keep rebuild idempotent.
