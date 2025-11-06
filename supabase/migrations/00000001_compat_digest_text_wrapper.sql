@@ -1,4 +1,13 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE OR REPLACE FUNCTION digest(text,text) RETURNS bytea LANGUAGE internal IMMUTABLE PARALLEL SAFE AS 'digest';
+
+CREATE OR REPLACE FUNCTION public.digest(text, text)
+RETURNS bytea
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+AS $fn$
+  SELECT digest(convert_to($1,'UTF8'), $2)
+$fn$;
+
 COMMIT;
