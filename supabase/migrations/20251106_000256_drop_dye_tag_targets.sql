@@ -1,0 +1,3 @@
+BEGIN;
+DROP TABLE IF EXISTS public.dye_tag_targets CASCADE;
+COMMIT;
