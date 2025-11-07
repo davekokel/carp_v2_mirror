@@ -1,0 +1,4 @@
+BEGIN;
+ALTER TABLE public.fluors ADD COLUMN IF NOT EXISTS notes text;
+ALTER TABLE public.dyes   ADD COLUMN IF NOT EXISTS notes text;
+COMMIT;

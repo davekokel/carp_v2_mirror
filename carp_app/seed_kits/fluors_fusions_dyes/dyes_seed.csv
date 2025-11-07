@@ -1,0 +1,3 @@
+dye_name,excitation_nm,emission_nm,alt_names,notes
+JF549,549,571,Janelia Fluor 549; HaloTag ligand 549,Approximate peaks; adjust if you use vendor-specific spectra.
+JFX650,650,670,Janelia Fluor X 650; HaloTag ligand 650,Approximate peaks; adjust if you use vendor-specific spectra.
