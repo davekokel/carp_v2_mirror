@@ -1,0 +1,3 @@
+BEGIN;
+ALTER TABLE public.fusions ALTER COLUMN fluor_id DROP NOT NULL;
+COMMIT;
