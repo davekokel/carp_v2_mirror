@@ -1,3 +1,4 @@
+# carp_app/ui/pages/009_📤_upload_plasmids_overview.py
 from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
@@ -47,117 +48,94 @@ def _fn_exists(schema: str, name: str) -> bool:
             )
         """), {"s": schema, "n": name}).scalar())
 
-def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, Dict[str, Any]]:
-    # Discover actual column names in public.v_plasmids_rich at runtime
-    with _get_engine().begin() as cx:
-        cols = pd.read_sql(
-            text("""
-                select column_name
-                from information_schema.columns
-                where table_schema='public' and table_name='v_plasmids_rich'
-            """),
-            cx
-        )["column_name"].str.lower().tolist()
+def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, dict]:
+    tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
+    params: dict = {"lim": int(limit)}
+    where: list[str] = []
 
-    # Helper to pick the first existing column from candidates; otherwise return a SQL literal
-    def pick(cands: list[str], if_missing_literal: str = "''") -> str:
-        for c in cands:
-            if c.lower() in cols:
-                return f"r.{c}"
-        return if_missing_literal  # safe literal (already quoted)
-
-    # Canonical names (prefer new; fall back to old)
-    code_col     = pick(["code", "plasmid_code"])
-    name_col     = pick(["name", "plasmid_name"])
-    nick_col     = pick(["nickname"])             # nickname typically exists
-    fluor_col    = pick(["fluor_names", "fluors"])
-    tag_col      = pick(["tag_names", "tags"])
-    fusion_col   = pick(["fusion_names", "fusions"])
-    resist_col   = pick(["resistance"])
-    supp_col     = pick(["supports_invitro_rna"])
-    notes_col    = pick(["notes"])
-    created_by_c = pick(["created_by"])
-    created_at_c = pick(["created_at"])
-
-    # Build haystack & field map based on discovered columns
+    # search targets (we'll select these aliases below)
+    field_map = {
+        "code":       "p.code",
+        "name":       "p.name",
+        "nickname":   "p.nickname",
+        "fluors":     "COALESCE(a.fluor_names,'')",
+        "tags":       "COALESCE(a.tag_names,'')",
+        "fusions":    "COALESCE(a.fusion_names,'')",
+        "resistance": "p.resistance",
+        "notes":      "p.notes",
+    }
     haystack = (
         "concat_ws(' ', "
-        f"coalesce({code_col},''), coalesce({name_col},''), coalesce({nick_col},''), "
-        f"coalesce({fluor_col},''), coalesce({tag_col},''), coalesce({fusion_col},''), "
-        f"coalesce({resist_col},''), coalesce({notes_col},''))"
+        "coalesce(p.code,''), coalesce(p.name,''), coalesce(p.nickname,''), "
+        "coalesce(a.fluor_names,''), coalesce(a.tag_names,''), coalesce(a.fusion_names,''), "
+        "coalesce(p.resistance,''), coalesce(p.notes,''))"
     )
 
-    field_map = {
-        "code":       code_col,
-        "name":       name_col,
-        "nickname":   f"coalesce(p.nickname, {nick_col})",
-        "fluors":     f"coalesce({fluor_col},'')",
-        "tags":       f"coalesce({tag_col},'')",
-        "fusions":    f"coalesce({fusion_col},'')",
-        "resistance": f"coalesce(p.resistance, {resist_col})",
-    }
-
-    # Parse search tokens
-    tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
-    params: Dict[str, Any] = {"lim": int(limit)}
-    where: list[str] = []
     for i, tok in enumerate(tokens):
         neg = tok.startswith("-")
         core = tok[1:] if neg else tok
         if ":" in core:
-            k, vval = core.split(":", 1)
+            k, v = core.split(":", 1)
             k = (k or "").lower()
-            vval = (vval or "").strip().strip('"')
+            v = (v or "").strip().strip('"')
             if k in field_map:
-                key = f"t{i}"; params[key] = f"%{vval}%"
+                key = f"t{i}"
+                params[key] = f"%{v}%"
                 where.append(("NOT " if neg else "") + f"({field_map[k]} ILIKE :{key})")
                 continue
-        key = f"t{i}"; params[key] = f"%{core}%"
+        key = f"t{i}"
+        params[key] = f"%{core}%"
         where.append(("NOT " if neg else "") + f"({haystack} ILIKE :{key})")
 
     if supports_only:
-        where.append(f"(coalesce(p.supports_invitro_rna, {supp_col}) = true)")
-
+        where.append("(p.supports_invitro_rna = true)")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
-    # Build SQL using detected column names; join by code
     sql = f"""
-      with rich as (
-        select
-          {code_col}   as code,
-          {name_col}   as name,
-          {nick_col}   as nickname,
-          {fluor_col}  as fluor_names,
-          {tag_col}    as tag_names,
-          {fusion_col} as fusion_names,
-          {resist_col} as resistance,
-          {supp_col}   as supports_invitro_rna,
-          {notes_col}  as notes,
-          {created_by_c} as created_by,
-          {created_at_c} as created_at
-        from public.v_plasmids_rich r
+      WITH agg AS (
+        SELECT
+          p.code,
+          COALESCE(string_agg(DISTINCT fl.fluor_name, '; ' ORDER BY fl.fluor_name), '') AS fluor_names,
+          COALESCE(string_agg(DISTINCT tg.tag_name,   '; ' ORDER BY tg.tag_name),   '') AS tag_names,
+          COALESCE(string_agg(
+            DISTINCT CASE
+              WHEN fu.tag_id IS NOT NULL AND fu.fluor_id IS NOT NULL THEN tg.tag_name||'::'||fl.fluor_name
+              WHEN fu.tag_id IS NOT NULL THEN tg.tag_name
+              WHEN fu.fluor_id IS NOT NULL THEN fl.fluor_name
+            END, '; ' ORDER BY
+              CASE
+                WHEN fu.tag_id IS NOT NULL AND fu.fluor_id IS NOT NULL THEN tg.tag_name||'::'||fl.fluor_name
+                WHEN fu.tag_id IS NOT NULL THEN tg.tag_name
+                WHEN fu.fluor_id IS NOT NULL THEN fl.fluor_name
+              END
+          ), '') AS fusion_names
+        FROM public.plasmids p
+        LEFT JOIN public.join_plasmid_fusions j ON j.plasmid_id=p.id
+        LEFT JOIN public.fusions fu             ON fu.id=j.fusion_id
+        LEFT JOIN public.fluors  fl             ON fl.id=fu.fluor_id
+        LEFT JOIN public.tags    tg             ON tg.id=fu.tag_id
+        GROUP BY p.code
       )
-      select
-        r.code                                                as code,
-        r.name                                                as name,
-        coalesce(p.nickname, r.nickname)                      as nickname,
-        coalesce(r.fluor_names,  '')                          as fluor_names,
-        coalesce(r.tag_names,    '')                          as tag_names,
-        coalesce(r.fusion_names, '')                          as fusion_names,
-        coalesce(p.resistance, r.resistance)                  as resistance,
-        coalesce(p.supports_invitro_rna, r.supports_invitro_rna) as supports_invitro_rna,
-        p.created_by                                          as created_by,
-        p.created_at                                          as created_at,
-        NULL::uuid                                            as rna_id,
-        NULL::text                                            as rna_code,
-        NULL::text                                            as rna_name,
-        coalesce(p.notes, r.notes)                            as notes
-      from rich r
-      left join public.plasmids p
-        on p.code = r.code
+      SELECT
+        p.code,
+        p.name,
+        p.nickname,
+        a.fluor_names,
+        a.tag_names,
+        a.fusion_names,
+        p.resistance,
+        p.supports_invitro_rna,
+        p.created_by,
+        p.created_at,
+        NULL::uuid AS rna_id,
+        NULL::text AS rna_code,
+        NULL::text AS rna_name,
+        p.notes
+      FROM public.plasmids p
+      LEFT JOIN agg a ON a.code = p.code
       {where_sql}
-      order by r.code
-      limit :lim
+      ORDER BY p.code
+      LIMIT :lim
     """
     return sql, params
 
@@ -186,6 +164,7 @@ except Exception as e:
 
 st.caption(f"{len(df)} rows")
 
+# Ensure display columns exist (use the names we actually selected)
 for c in [
     "code","name","nickname","fluor_names","tag_names","fusion_names",
     "resistance","supports_invitro_rna","rna_code","rna_name",

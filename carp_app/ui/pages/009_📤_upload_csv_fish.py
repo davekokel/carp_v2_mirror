@@ -303,15 +303,28 @@ col_nick= "allele_nickname" if "allele_nickname" in df_work.columns else None
 col_zyg = "zygosity"        if "zygosity"        in df_work.columns else None
 
 def _fetch_vfish_rollup(cx, fish_codes: List[str]) -> pd.DataFrame:
-    if not fish_codes:
+    codes = [c for c in (fish_codes or []) if c]
+    if not codes:
         return pd.DataFrame(columns=["fish_code","markers","fluors","tags","dyes"])
     q = text("""
-      SELECT fish_code, markers, fluors, tags, dyes
-      FROM public.v_fish_fluorescent_markers
-      WHERE fish_code = ANY(:codes)
-      ORDER BY fish_code
+        SELECT
+            f.fish_code,
+            COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT jft.ft_code), NULL), '{}')         AS markers,
+            COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT p.fluor_code), NULL), '{}')        AS fluors,
+            COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT p.tag_code), NULL), '{}')          AS tags,
+            COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT d.dye_code), NULL), '{}')          AS dyes
+        FROM public.fish f
+        LEFT JOIN public.join_fish_fluorescent_treatments jft
+               ON jft.fish_id = f.id
+        LEFT JOIN public.ft_proteins p
+               ON p.ft_code = jft.ft_code
+        LEFT JOIN public.ft_dyes d
+               ON d.ft_code = jft.ft_code
+        WHERE f.fish_code = ANY(:codes)
+        GROUP BY f.fish_code
+        ORDER BY f.fish_code
     """)
-    return pd.read_sql(q, cx, params={"codes": list({c for c in fish_codes if c})})
+    return pd.read_sql(q, cx, params={"codes": codes})
 
 inserted: List[Dict[str,str]] = []
 
@@ -336,7 +349,7 @@ if st.button("Process upload (create/update fish and link treatments)", type="pr
             ft_codes = sorted({str(x).strip() for x in df_work[col_ft].dropna().astype(str) if str(x).strip()})
             if ft_codes:
                 cx.execute(text("""
-                    INSERT INTO public.fluorescent_treatments (ft_code, ft_text, created_by)
+                    INSERT INTO public.treatments_fluorescent (ft_code, ft_text, created_by)
                     SELECT code, ''::text, :by
                     FROM unnest((:codes)::text[]) AS code
                     ON CONFLICT (ft_code) DO NOTHING
@@ -416,11 +429,11 @@ if st.button("Process upload (create/update fish and link treatments)", type="pr
                     ft_text = str(r.get("ft_text") or "").strip()
                     if ft_text:
                         cx.execute(text("""
-                          INSERT INTO public.fluorescent_treatments (ft_code, ft_text, created_by)
-                          VALUES (:c,:t,:by)
-                          ON CONFLICT (ft_code) DO UPDATE
-                          SET ft_text = COALESCE(NULLIF(EXCLUDED.ft_text,''), public.fluorescent_treatments.ft_text)
-                        """), {"c": ft_code, "t": ft_text, "by": created_by})
+                            INSERT INTO public.treatments_fluorescent (ft_code, ft_text, created_by)
+                            VALUES (:c,:t,:by)
+                            ON CONFLICT (ft_code) DO UPDATE
+                            SET ft_text = COALESCE(NULLIF(EXCLUDED.ft_text,''), public.treatments_fluorescent.ft_text)
+                            """), {"c": ft_code, "t": ft_text, "by": created_by})
 
                 # Markers (protein ± tag)
                 if fluor:

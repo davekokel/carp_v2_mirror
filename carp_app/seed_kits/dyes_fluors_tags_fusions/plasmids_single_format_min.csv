@@ -1,0 +1,216 @@
+plasmid_code,nickname,resistance,supports_invitro_rna,notes,fusion_name
+pDQM001,CMV-SP6-mSG(J) IDT opt,Amp,FALSE,"IDT optimized, for mRNA production with SP6 - clone 2",mSG
+pDQM002,CMV-SP6-mSG(J) IDT opt,Amp,FALSE,"IDT optimized, for mRNA production with SP6 - clone 5",mSG
+pDQM005,ef1a-tdmSG(J),Amp,FALSE,iCodon optimized for tol2 insertions - clone 4,tdmSG
+pDQM006,ef1a-tdmSG-syntrons(J),Amp,FALSE,each mStayGold contains a 51bp syntron to boost expression - clone 6,tdmSG
+pDQM007,ef1a-tdmSG-syntrons(J),Amp,FALSE,each mStayGold contains a 51bp syntron to boost expression - clone 3,tdmSG
+pDQM008,ef1a-tdmSG-syntrons(J),Amp,FALSE,each mStayGold contains a 51bp syntron to boost expression - clone 8,tdmSG
+pDQM009,skittles2.0-4FP,Amp,FALSE,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK1,mScarlet|mKate2|Electra2|mKOK|mTFP1
+pDQM010,skittles2.0-4FP,Amp,FALSE,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK4,mScarlet|mKate2|Electra2|mKOK|mTFP1
+pDQM011,pCM268_ccdB-Electra2,Amp,FALSE,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),Electra2
+pDQM012,pCM268_ccdB-Electra2,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),Electra2
+pDQM013,pCM268_ccdB-mKOK,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mKOK
+pDQM014,pCM268_ccdB-mKate2,Amp,FALSE,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mKate2
+pDQM015,pCM268_ccdB-mKate2,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mKate2
+pDQM016,pCM268_ccdB-mTFP1,Amp,FALSE,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mTFP1
+pDQM017,pCM268_ccdB-mTFP1,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mTFP1
+pDQM018,pCM268_ccdB-miRFP670-2,Amp,FALSE,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),miRFP670
+pDQM019,pCM268_ccdB-miRFP670-2,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),miRFP670
+pDQM020,pCM268_ccdB-mLychee,Amp,FALSE,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mLychee
+pDQM021,pCM268_ccdB-mLychee,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mLychee
+pDQM022,pCM268_ccdB-mChilada,Amp,FALSE,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mChilada
+pDQM023,pCM268_ccdB-mChilada,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mChilada
+pDQM024,skittles2.0-5FP-mutation,Amp,FALSE,single base change (frame shift) in mKate2,mScarlet|mKate2|Electra2|mKOK|mTFP1
+pDQM025,skittles2.0-5FP-mutation,Amp,FALSE,single deletion (frame shift) in mTFP1,mScarlet|mKate2|Electra2|mKOK|mTFP1
+pDQM026,pCM268_ccdB-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,FALSE,promoterless ,dhb::tdmSG|tdmChilada::pcna
+pDQM027,pTwist-SP6-2xLynk:mSG(J)-iCodon,Amp,FALSE,for mRNA,2xLynk::mSG
+pDQM028,pTwist-SP6-2xLynk:mSG(B)-iCodon,Amp,FALSE,for mRNA,2xLynk::mSG
+pDQM029,pTwist-SP6-2xLynk:mBaoJin-iCodon,Amp,FALSE,for mRNA,2xLynk::mBaoJin
+pDQM030,pTwist-SP6-2xLynk:mYongHong-iCodon,Amp,FALSE,for mRNA - clone 1,2xLynk::mYongHong
+pDQM031,pTwist-SP6-2xLynk:mYongHong-iCodon,Amp,FALSE,for mRNA - clone 2,2xLynk::mYongHong
+pDQM032,pCM268_ccdB-mYongHong,Amp,FALSE,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mYongHong
+pDQM033,pCM268_ccdB-mYongHong,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mYongHong
+pDQM034,skittles2.0-5FP,Amp,FALSE,5 FP version of skittles - clone 1,mKate2/mCitrine/Electra2/mKOK/mTFP1
+pDQM035,skittles2.0-5FP,Amp,FALSE,5 FP version of skittles - clone 4,mKate2/mCitrine/Electra2/mKOK/mTFP1
+pDQM036,skittles3.0-4FP,Amp,FALSE,4 FP version of skittles with SEC hsp-phiC (cryaa:mSc) - clone 3,
+pDQM037,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,FALSE,ef1a driven cdk/pcna cell cycle sensor clone 1 (pIGLET),dhb::tdmSG|tdmChilada::pcna
+pDQM038,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,FALSE,ef1a driven cdk/pcna cell cycle sensor clone 2 (pIGLET),dhb::tdmSG|tdmChilada::pcna
+pDQM039,hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,FALSE,hsp driven cdk/pcna cell cycle sensor clone 2 (pIGLET),dhb::tdmSG|tdmChilada::pcna
+pDQM040,hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,FALSE,hsp driven cdk/pcna cell cycle sensor clone 3 (pIGLET),dhb::tdmSG|tdmChilada::pcna
+pDQM041,sox10:mChilada (pCM268),Amp,FALSE,sox10p-driven mChilada (pIGLET) clone 1,mChilada
+pDQM042,sox10:mChilada (pCM268),Amp,FALSE,sox10p-driven mChilada (pIGLET) clone 2,mChilada
+pDQM043,pCM268_ccdB-mCitrine,Amp,FALSE,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mCitrine
+pDQM044,pCM268_ccdB-mCitrine,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mCitrine
+pDQM045,pTwist-SP6:2xLynk:mScarlet3,Amp,FALSE,,2xLynk::mScarlet3
+pDQM046,pTwist-SP6:2xLynk:mScarlet3,Amp,FALSE,,2xLynk::mScarlet3
+pDQM047,pTwist-SP6-2xLynk:mSG(J)-iCodon,Amp,FALSE,Clone 1,2xLynk::mSG
+pDQM048,pTwist-SP6-2xLynk:mSG(J)-iCodon,Amp,FALSE,Clone 2,2xLynk::mSG
+pDQM049,pTwist-SP6-2xLynk:mSG(B)-iCodon,Amp,FALSE,Clone 1,2xLynk::mSG
+pDQM050,pTwist-SP6-2xLynk:mSG(B)-iCodon,Amp,FALSE,Clone 2,2xLynk::mSG
+pDQM051,ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,FALSE,Clone 1 - pIGLET,dhb::tdmSG|tdmChilada::h2b
+pDQM052,ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,FALSE,Clone 2 - pIGLET,dhb::tdmSG|tdmChilada::h2b
+pDQM053,hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,FALSE,Clone 2 - pIGLET,dhb::tdmSG|tdmChilada::h2b
+pDQM054,hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,FALSE,Clone 3 - pIGLET,dhb::tdmSG|tdmChilada::h2b
+pDQM055,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,FALSE,Clone 3 (truncated SV40),dhb::tdmSG|tdmChilada::pcna
+pDQM056,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,FALSE,Clone 4 (truncated SV40),dhb::tdmSG|tdmChilada::pcna
+pDQM057,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,FALSE,Clone 4 ,dhb::tdmSG|tdmChilada::pcna
+pDQM058,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,FALSE,Clone 1,dhb::tdmSG|tdmChilada::h2b
+pDQM059,skittles3.1-4FP (exorh:GFP),Amp,FALSE,Clone 3,gfp
+pDQM060,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,FALSE,Clone 3,2xLynk::tdmSG|tdmChilada::h2b
+pDQM061,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,FALSE,Clone 2,dhb::tdmSG|tdmChilada::pcna
+pDQM062,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,FALSE,Clone 3,dhb::tdmSG|tdmChilada::pcna
+pDQM063,exorh skittles 2.0 5FP,Amp,FALSE,"clone 1,iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",GFP|mKate2|Electra2|mCitrine|mKoK|mTFP1
+pDQM064,exorh skittles 2.0 5FP,Amp,FALSE,"clone 5, iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",GFP|mKate2|Electra2|mCitrine|mKoK|mTFP1
+pDQM065,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,FALSE,clone 1,2xLynk::tdmSG|tdmChilada::h2b
+pDQM066,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,FALSE,clone 2,2xLynk::tdmSG|tdmChilada::h2b
+pDQM067,ef1a:2xLynk-tdmSG-tPT2A-tdmYH-h2b (pCM268),Amp,FALSE,clone 1,2xLynk::tdmSG|tdmYH::h2b
+pDQM068,ef1a:2xLynk-tdmSG,Amp,FALSE,Clone 1,2xLynk::tdmSG
+pDQM069,ef1a:2xLynk-tdmSG,Amp,FALSE,Clone 2,2xLynk::tdmSG
+pDQM070,ef1a:2xLynk-tdmSG(introns),Amp,FALSE,Clone 2,2xLynk::tdmSG
+pDQM071,ef1a:2xLynk-tdmSG(introns),Amp,FALSE,Clone 4,2xLynk::tdmSG
+pDQM072,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,FALSE,Clone 2,2xLynk::tdmSG|tdmChilada::h2b
+pDQM073,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,FALSE,Clone 4,2xLynk::tdmSG|tdmChilada::h2b
+pDQM074,ef1a:2xLynk-tdmSG(introns),Amp,FALSE,Clone 1,2xLynk::tdmSG
+pDQM075,ef1a:2xLynk-tdmSG(introns),Amp,FALSE,Clone 3,2xLynk::tdmSG
+pDQM076,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),Amp,FALSE,Clone 1,dhb::tdmSG|tdmChilada::h2b
+pDQM077,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),Amp,FALSE,Clone 3,dhb::tdmSG|tdmChilada::h2b
+pDQM078,ef1a:2xLynk-tdmSG,Amp,FALSE,Clone 5,2xLynk::tdmSG
+pDQM079,ef1a:2xLynk-mSG,Amp,FALSE,Clone 1,2xLynk::mSG
+pDQM080,ef1a:2xLynk-mSG,Amp,FALSE,Clone 2,2xLynk::mSG
+pDQM081,ef1a:2xLynk:mSG-tPT2A:mChilada,Amp,FALSE,Clone 4,2xLynk::mSG
+pDQM082,ef1a:2xLynk:tdmChilada,Amp,FALSE,Clone 4,2xLynk::tdmChilada
+pDQM083,ef1a:linker:Electra2:linker-attB,Amp,FALSE,Clone 12-1,Electra2
+pDQM084,ef1a:linker:mKOK:linker-attB,Amp,FALSE,Clone 13-2,mKOK
+pDQM085,ef1a:linker:mKate2:linker-attB,Amp,FALSE,Clone 14-2,mKate2
+pDQM086,ef1a:linker:mCitrine:linker-attB,Amp,FALSE,Clone 43-1,mCitrine
+pDQM087,ef1a:linker:mTFP1:linker-attB,Amp,FALSE,Clone 16-1,mTFP1
+pDQM088,ef1a:linker:mYongHong:linker-attB,Amp,FALSE,Clone 32-1,mYongHong
+pDQM089,ef1a:linker:mChilada:linker-attB,Amp,FALSE,Clone 23-3,mChilada
+pDQM090,ef1a:linker:mChilada-MAGPV:linker-attB,Amp,FALSE,Clone 1,mChilada
+pDQM091,ef1a:linker:mChilada-MAGPV:linker-attB,Amp,FALSE,Clone 2,mChilada
+pDQM092,SP6:2xLynk:mchilada-MAGPV,Amp,FALSE,Clone 1,2xLynk::mchilada
+pDQM093,SP6:2xLynk:mchilada-MAGPV,Amp,FALSE,Clone 2,2xLynk::mchilada
+pDQM094,ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B,Amp,FALSE,Clone 1,2xLynk::tdmSG
+pDQM095,ef1a:mSG:CDT1-tPT2A-mYH:GMN (iCodon) [FUCCI],Amp,FALSE,Clone 2,mSG|mYH
+pDQM096,ef1a:mSG:CDT1-tPT2A-mYH:GMN (endogenous) [FUCCI],Amp,FALSE,Clone 2,mSG|mYH
+pDQM097,cryaa skittles 3.1 5FP (new phiC (full length)),Amp,FALSE,Clone 2,GFP|mKate2|Electra2|mCitrine|mKoK|mTFP1
+pDQM098,exorH:GFP; hsp:phiC(iC),Amp,FALSE,new phiC cloned into Erin's plasmid,gfp
+pDQM099,exorH:GFP; hsp:phiC(iC),Amp,FALSE,new phiC cloned into Erin's plasmid,gfp
+pDQM100,exorH:mScarlet; hsp:phiC(iC),Amp,FALSE,new phiC cloned into Erin's plasmid,mScarlet
+pDQM101,ef1a:linker:Halo:linker-attB,Amp,FALSE,Clone 1,Halo
+pDQM102,efa1:linker:mStayGold(J):linker-attB,Amp,FALSE,Clone 1,mStayGold
+pDQM103,efa1:linker:mStayGold(J):linker-attB,Amp,FALSE,Clone 2,mStayGold
+pDQM104,SP6:mchilada-MAGPV-h2b,Amp,FALSE,Clone 1,mchilada
+pDQM105,SP6:mYH:h2b,Amp,FALSE,Clone 4,mYH::h2b
+pDQM106,efa1:linker:miRFP670-2:linker-attB,Amp,FALSE,Clone 2,miRFP670
+pDQM107,efa1:linker:miRFP670-2:linker-attB,Amp,FALSE,Clone 5,miRFP670
+pDQM108,ccdB:linker:mChilada-MAGPV:linker,Amp,FALSE,Clone 1,mChilada
+pDQM109,ccdB:linker:mChilada-MAGPV:linker,Amp,FALSE,Clone 3,mChilada
+pDQM110,exorH:GFP; hsp:phiC(iC)-NLS,Amp,FALSE,Clone 1,gfp
+pDQM111,exorH:GFP; hsp:phiC(iC)-NLS,Amp,FALSE,Clone 3,gfp
+pDQM112,exorH:mScarlet; hsp:phiC(iC)-NLS,Amp,FALSE,Clone 1,mScarlet
+pDQM113,exorH:mScarlet; hsp:phiC(iC)-NLS,Amp,FALSE,Clone 2,mScarlet
+pDQM114,ef1a:mSG:CDT1-P2A-mYH:GMN (iCodon) [FUCCI],Amp,FALSE,clone 2,mSG|mYH
+pDQM115,SP6:2xLynk:mScarlet3S2,Amp,FALSE,Clone 1,2xLynk::mScarlet3S2
+pDQM116,SP6:2xLynk:mScarlet3S2,Amp,FALSE,Clone 2,2xLynk::mScarlet3S2
+pDQM117,SP6:mScarlet3S2:H2B,Amp,FALSE,Clone 2,mScarlet3S2::H2B
+pDQM118,SP6:mScarlet3S2:H2B,Amp,FALSE,Clone 3,mScarlet3S2::H2B
+pDQM119,SP6:mBeRFP:H2B,Amp,FALSE,Clone 3,mBeRFP::H2B
+pDQM120,ef1a:linker:mBeRFP:linker-attB,Amp,FALSE,Clone 1,mBeRFP
+pDQM121,ef1a:2xLynk:tdmScarlet3-S2-tol2,Amp,FALSE,Clones 1-4,2xLynk::tdmScarlet3
+pDQM122,ef1a:skittles 3.5 (2xLynk:mSG-attP-Halo-attP-3FPs),Amp,FALSE,Clone 3,2xLynk::mSG
+pDQM123,ef1a:skittles 3.5 (2xLynk:mSG-attP-Halo-attP-3FPs),Amp,FALSE,Clone 4,2xLynk::mSG
+pDQM124,ef1a:linker:mScarlet3-S2:linker-attB (tol2),Amp,FALSE,Clone 1 and 2,mScarlet3
+pDQM125,ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B,Amp,FALSE,clone 65-1,2xLynk::tdmSG
+pDQM126,ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B,Amp,FALSE,clone 94-1,2xLynk::tdmSG
+pDQM127,ef1a:skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),Amp,FALSE,Clone 1 & 2,2xLynk::mSG
+pDQM128,A2UCOE-ef1a-2xLynk:tdmSG-tol2,Amp,FALSE,TBD (missing ~96bp?),2xLynk::tdmSG
+pDQM129,ef1a-extended-2xLynk:tdmSG-tol2,Amp,FALSE,Clones 1-4,2xLynk::tdmSG
+pDQM130,MBP-TEV-phiC-NLS,Amp,FALSE,TBD,
+pDQM131,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,FALSE,"Clones 2,3",dhb::tdmSG|tdmChilada::h2b
+pDQM132,ef1a-extended::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,Amp,FALSE,Clones 1-3,2xLynk::tdmSG
+pDQM133,ef1a-extened::tdmScarlet3-S2:H2B-tol2,Amp,FALSE,Clones 1-3,tdmScarlet3
+pDQM134,A2UCOE-ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,Amp,FALSE,still missing ~100bp,2xLynk::tdmSG
+pDQM135,A2UCOE-ef1a-2xLynk:tdmSG-tol2,Amp,FALSE,still missing ~100bp,2xLynk::tdmSG
+pDQM136,ef1a-extended:2xLynk:tdmScarlet3-S2-tol2,Amp,FALSE,clone 3,2xLynk::tdmScarlet3
+pDQM137,ef1a:-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),Amp,FALSE,clone 3,2xLynk::mSG
+pDQM138,SP6:2xLynk:mGold2s,Amp,FALSE,TBD,2xLynk::mGold2s
+pDQM139,SP6:2xLynk:mGold2t,Amp,FALSE,TBD,2xLynk::mGold2t
+pDQM140,ef1a:linker:mGold2s:linker-attB (tol2),Amp,FALSE,clones 1-3,mGold2s
+pDQM141,ef1a:linker:mGold2t:linker-attB (tol2),Amp,FALSE,clones 2-3,mGold2t
+pDQM142,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmScarlet3-S2-h2b (pCM268),Amp,FALSE,TBD,dhb::tdmSG
+pDQM143,SP6:tol2(iCodon),Amp,FALSE,"Clones 1,2 and 4",
+pDQM144,ef1a:E2Crimson (iCodon),Amp,FALSE,Clones 1-4,E2Crimson
+pDQM145,ef1a:mCardinal (iCodon),Amp,FALSE,Clones 1-4,mCardinal
+pDQM146,ef1a-extended:linker:mScarlet3-S2:linker-attB (tol2),Amp,FALSE,made by Erin (Janelia),mScarlet3
+pDQM147,ef1a-extended:linker:mStayGold:linker-attB (tol2),Amp,FALSE,made by Erin (Janelia),mStayGold
+pDQM148,ef1a-extended:linker:mStayGold-c4:linker-attB (tol2),Amp,FALSE,made by Erin (Janelia),mStayGold
+pDQM149,ef1a-extended:linker:Halo:linker-sv40-he1.1-tagbfp2-attB (tol2),Amp,FALSE,made by Erin (Janelia),Halo|tagbfp2
+pDQM150,ef1a-extended-mSG:CDT1-tPT2A-mYH:GMN (endogenous),Amp,FALSE,,mSG|mYH
+pDQM151,ef1a-extended-mSG:CDT1 (endogenous),Amp,FALSE,Clones 3 & 4,mSG
+pDQM152,A2UCOE-ef1a-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),Amp,FALSE,,2xLynk::mSG
+pDQM153,ef1a-extended::DHB:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,Amp,FALSE,clone 1,DHB::tdmSG
+pDQM154,ef1a-extened::tdmScarlet3-S2:PCNA-tol2,Amp,FALSE,clone 1 + 2,tdmScarlet3
+pDQM155,ef1a-extended:DHB:tdmSG-tol2,Amp,FALSE,clone 2 + 4,DHB::tdmSG
+pDQM156,A2UCOE-loxP-ef1a-extended-2xLynk:tdmSc3S2-SV40-lox2272-attB-tol2,Amp,FALSE,,2xLynk::tdmSc3S2
+pDQM157,A2UCOE-FRT-ef1a-extended-2xLynk:tdmSc3S2-SV40-FRT3-attB-tol2,Amp,FALSE,,2xLynk::tdmSc3S2
+pDQM158,A2UCOE-ef1a-extened::tdmScarlet3-S2:PCNA-tol2,Amp,FALSE,TBD,tdmScarlet3
+pDQM159,A2UCOE-ef1a-extended:DHB:tdmSG-tol2,Amp,FALSE,TBD,DHB::tdmSG
+pDQM160,ef1a-extended-tdmScarlet3S2::GMN (endogenous),Amp,FALSE,clones 1 + 2,tdmScarlet3S2
+pDQM161,loxP-ubb-mSG-h2b-lox2272,Amp,FALSE,,mSG::h2b
+pDQM162,FRT3-ubb-mSG-h2b-FRT,Amp,FALSE,,mSG::h2b
+pDQM163,SP6-SB100x,,FALSE,,
+pDQM164,A2UCOE-ef1a-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),,FALSE,,2xLynk::mSG
+pDQM165,exorH:mScarlet; hsp:phiC(iC)-NLS,,FALSE,,mScarlet
+pDQM166,exorH:mScarlet; hsp:phiC(iC)-NLS-tPT2A-2xLynk-mSG-ubb,,FALSE,,2xLynk::mSG
+pDQM167,SB-LTR-loxP-ubb-mSG-h2b-SV40-SB-lox2272-LTR,,FALSE,,mSG::h2b
+pDQM168,SB-LTR-FRT-ubb-mSG-h2b-SV40-SB-FRT3-LTR,,FALSE,,mSG::h2b
+pDQM169,pTwist-SP6-phiC-ERT2-new,,FALSE,,
+MGCO-01,ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,2Xcox8A::mStayGold
+MGCO-02,ef1a-2Xcox8A-linker-mChilada-SV40-attb-tol2,Amp,TRUE,,2Xcox8A::mChilada
+MGCO-03,ef1a-2Xcox8A-linker-Halo-SV40-attb-tol2,Amp,TRUE,,2Xcox8A::Halo
+MGCO-04,ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2,Amp,TRUE,,mStayGold::sec61b
+MGCO-05,ef1a-linker-mChilada-C4linker-sec61b-SV40-attb-tol2,Amp,TRUE,,mChilada::sec61b
+MGCO-06,ef1a-linker-Halo-sec61b-SV40-attb-tol2,Amp,TRUE,,Halo::sec61b
+MGCO-07,ef1a-linker-mStayGold-C4linker-GM130-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-08,ef1a-linker-mChilada-C4linker-GM130-SV40-attb-tol2,Amp,TRUE,,mChilada
+MGCO-09,ef1a-linker-Halo-GM130-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-10,ef1a-TGN46-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-11,ef1a-TGN46-linker-mChilada-SV40-attb-tol2,Amp,TRUE,,mChilada
+MGCO-12,ef1a-TGN46-linker-Halo-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-13,ef1a-linker-mStayGold-C4linker-rab5a-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-14,ef1a-linker-Halo-rab5a-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-15,ef1a-LAMP1-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,LAMP1::mStayGold
+MGCO-16,ef1a-LAMP1-linker-mChilada-SV40-attb-tol2,Amp,TRUE,,LAMP1::mChilada
+MGCO-17,ef1a-Arl13b-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-18,ef1a-Arl13b-linker-Halo-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-19,ef1a-linker-mStayGold-C4linker-alphatubulin-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-20,ef1a-linker-Halo-linker-alphatubulin-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-21,ef1a-vimentin-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-22,ef1a-vimentin-linker-Halo-linker-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-23,ef1a-lifeact-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,lifeact::mStayGold
+MGCO-24,ef1a-lifeact-linker-Halo-linker-SV40-attb-tol2,Amp,TRUE,,lifeact::Halo
+MGCO-25,ef1a-linker-mStayGold-C4linker-MYH10-SV40-attb-tol2,Amp,TRUE,,mStayGold|mYH
+MGCO-26,ef1a-linker-mChilada-C4linker-MYH10-SV40-attb-tol2,Amp,TRUE,,mChilada|mYH
+MGCO-27,ef1a-extended-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2,Amp,TRUE,,mStayGold::sec61b
+MGCO-28,ef1a-extended-2Xcox8A-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,2Xcox8A::mStayGold
+MGCO-29,ef1a-extended-linker-mStayGold-C4linker-GM130-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-30,ef1a-extended-TGN46-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-31,ef1a-extended-LAMP1-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,LAMP1::mStayGold
+MGCO-32,ef1a-extended-linker-mStayGold-C4linker-alphatubulin-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-33,ef1a-extended-vimentin-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-34,ef1a-extended-lifeact-linker-mStayGold-SV40-attb-tol2,Amp,TRUE,,lifeact::mStayGold
+MGCO-35,ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2,Amp,TRUE,,2Xcox8A::mScarlet3S2
+MGCO-36,ef1a-extended-linker-mScarlet3S2-sec61b-SV40-attb-tol2,Amp,TRUE,,mScarlet3S2::sec61b
+MGCO-37,ef1a-extended-LAMP1-linker-mScarlet3S2-SV40-attb-tol2,Amp,TRUE,,LAMP1::mScarlet3S2
+MGCO-38,ef1a-extended-linker-mStayGold-C4linker-MyosinII-SV40-attb-tol2,Amp,TRUE,,mStayGold
+MGCO-39,ef1a-extended-2Xcox8A-linker-Halo-SV40-attb-tol2,Amp,TRUE,,2Xcox8A::Halo
+MGCO-40,ef1a-extended-linker-Halo-sec61b-SV40-attb-tol2,Amp,TRUE,,Halo::sec61b
+MGCO-41,ef1a-extended-linker-mScarlet3S2-GM130-SV40-attb-tol2,Amp,TRUE,,mScarlet3S2
+MGCO-42,ef1a-extended-linker-Halo-GM130-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-43,ef1a-extended-TGN46-linker-mScarlet3S2-SV40-attb-tol2,Amp,TRUE,,mScarlet3S2
+MGCO-44,ef1a-extended-TGN46-linker-Halo-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-45,ef1a-extended-linker-Halo-linker-alphatubulin-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-46,ef1a-extended-vimentin-linker-Halo-linker-SV40-attb-tol2,Amp,TRUE,,Halo
+MGCO-47,ef1a-extended-lifeact-linker-Halo-linker-SV40-attb-tol2,Amp,TRUE,,lifeact::Halo
+MGCO-48,ef1a-extended-linker-mScarlet3S2-linker-MyosinII-SV40-attb-tol2,Amp,TRUE,,mScarlet3S2

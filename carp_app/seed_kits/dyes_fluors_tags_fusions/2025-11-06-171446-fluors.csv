@@ -1,0 +1,28 @@
+fluor_nickname,alt_names,excitation_nm,emission_nm,notes
+E2Crimson,,611,646,
+Electra2,,503,516,
+GFP,,488,510,
+mBaoJin,,500,508,
+mBeRFP,,446,611,
+mCardinal,,604,659,
+mChilada,,587,610,
+mCitrine,,516,529,
+mGold2s,,517,529,
+mGold2t,,515,527,
+miRFP670,,642,670,
+mKOK,,588,633,
+mKate2,,588,633,
+mLychee,,569,594,
+mScarlet,,569,594,
+mScarlet3,,569,592,
+mScarlet3S2,,506,550,
+mStayGold,mSG,462,492,
+mTFP1,,462,492,
+mYongHong,mYH; mScarlet3-H,551,592,
+tagbfp2,,402,457,
+tdmChilada,,506,550,mChilada; ex and em are a guess
+tdmStayGold,tdmSG,496,505,mStayGold
+tdmScarlet3,,569,592,mScarlet3
+tdmScarlet3S2,tdmSc3S2,550,587,mScarlet3-S2
+tdmYH,,551,592,mYongHong
+halo,,,,
