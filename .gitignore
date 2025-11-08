@@ -81,3 +81,8 @@ carp_app/seed_kits/**/seed_kit_*/
 # One-off CSV exports (local audits)
 # ─────────────────────────────────────────────────────────────────────────────
 public_*_*.csv
+crosses/
+fish/
+plates/
+transgene_alleles/
+supabase/baselines/
