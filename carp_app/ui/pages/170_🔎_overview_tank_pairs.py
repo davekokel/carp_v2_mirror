@@ -1,14 +1,10 @@
-# =============================================================================
-# 🔎 Overview tank pairs — snapshot + latest CX codes & dates
-#   - Source: public.v_tank_pairs (columns may vary)
-#   - Latest cross/clutch via crosses.tank_pair_code (enriched crosses table)
-# =============================================================================
+# carp_app/ui/pages/170_🔎_overview_tank_pairs.py
 from __future__ import annotations
-import sys, pathlib
+import sys, pathlib, os
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
 
-import os
 from datetime import date
+from typing import Set
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
@@ -18,10 +14,9 @@ from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 from carp_app.ui.lib.app_ctx import get_engine
 
-# ── Auth + page ──────────────────────────────────────────────────────────────
+# ── Auth / page ──────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
-
 st.set_page_config(page_title="🔎 Overview tank pairs", page_icon="🔎", layout="wide")
 st.title("🔎 Overview tank pairs")
 
@@ -39,8 +34,9 @@ st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 
 VIEW = "public.v_tank_pairs"
 
+# ── Schema checks ────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
-def _vtp_cols() -> set[str]:
+def _view_cols() -> Set[str]:
     with _eng().begin() as cx:
         df = pd.read_sql(text("""
             select column_name
@@ -49,17 +45,29 @@ def _vtp_cols() -> set[str]:
         """), cx)
     return set(df["column_name"].tolist())
 
-C = _vtp_cols()
-have = lambda c: c in C
+@st.cache_data(show_spinner=False)
+def _table_exists(s: str, t: str) -> bool:
+    with _eng().begin() as cx:
+        n = pd.read_sql(text("""
+            select count(*)::int as n
+            from information_schema.tables
+            where table_schema=:s and table_name=:t
+        """), cx, params={"s": s, "t": t})["n"][0]
+    return n > 0
 
-# ── Filters (adaptive) ───────────────────────────────────────────────────────
+C = _view_cols()
+have = lambda c: c in C
+have_crosses = _table_exists("public", "crosses")
+have_clutches = _table_exists("public", "clutch_instances")
+
+# ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters"):
     c1, c2, c3, c4 = st.columns([3,1,1,1])
     q  = c1.text_input("Search (pair/fish/tank/genotype)")
     d1 = c2.date_input("Created from", value=None) if have("created_at") else None
     d2 = c3.date_input("Created to",   value=None) if have("created_at") else None
     status_val = c4.selectbox("Status", ["(any)","selected","scheduled","retired","closed"], index=0) if have("status") else "(any)"
-    st.form_submit_button("Apply", width="stretch")
+    st.form_submit_button("Apply")
 
 where, params = [], {}
 
@@ -88,7 +96,7 @@ if have("status") and status_val != "(any)":
 
 where_sql = (" where " + " AND ".join(where)) if where else ""
 
-# ── Adaptive SELECT ──────────────────────────────────────────────────────────
+# ── Adaptive SELECT pieces ───────────────────────────────────────────────────
 sel = []
 def add(col, alias=None, default_sql="null"):
     if have(col):
@@ -108,11 +116,40 @@ add("dad_fish_code")
 add("dad_tank_code")
 add("dad_genotype")
 
-pair_fish_expr  = "coalesce(tp.mom_fish_code,'') || ' × ' || coalesce(tp.dad_fish_code,'')"   if have("mom_fish_code") and have("dad_fish_code") else "null"
-pair_tanks_expr = "coalesce(tp.mom_tank_code,'') || ' × ' || coalesce(tp.dad_tank_code,'')"   if have("mom_tank_code") and have("dad_tank_code") else "null"
+pair_fish_expr  = "coalesce(tp.mom_fish_code,'') || ' × ' || coalesce(tp.dad_fish_code,'')" if have("mom_fish_code") and have("dad_fish_code") else "null"
+pair_tanks_expr = "coalesce(tp.mom_tank_code,'') || ' × ' || coalesce(tp.dad_tank_code,'')" if have("mom_tank_code") and have("dad_tank_code") else "null"
 
 have_tp_code = have("tank_pair_code")
 cx_join = "cr.tank_pair_code = tp.tank_pair_code" if have_tp_code else "1=0"
+
+# lateral blocks depend on table existence (no guessing)
+if have_crosses:
+    lateral_cross = f"""
+      left join lateral (
+        select cr.cross_run_code as cross_code, cr.cross_date
+        from public.crosses cr
+        where {cx_join}
+        order by cr.created_at desc nulls last, cr.cross_date desc nulls last
+        limit 1
+      ) cx on true
+    """
+else:
+    lateral_cross = "left join lateral (select null::text as cross_code, null::date as cross_date) cx on true"
+
+if have_crosses and have_clutches:
+    lateral_clutch = f"""
+      left join lateral (
+        select cl.clutch_instance_code as clutch_code,
+               cl.created_at as clutch_created_at
+        from public.clutch_instances cl
+        join public.crosses cr on cr.id = cl.cross_instance_id
+        where {cx_join}
+        order by cl.created_at desc nulls last
+        limit 1
+      ) cl on true
+    """
+else:
+    lateral_clutch = "left join lateral (select null::text as clutch_code, null::timestamptz as clutch_created_at) cl on true"
 
 order_clause = "tp.created_at desc nulls last, tp.tank_pair_code" if have("created_at") and have("tank_pair_code") else \
                "tp.created_at desc nulls last" if have("created_at") else \
@@ -120,8 +157,7 @@ order_clause = "tp.created_at desc nulls last, tp.tank_pair_code" if have("creat
 
 sql = text(f"""
   with tp as (
-    select *
-    from {VIEW}
+    select * from {VIEW}
     {where_sql}
   )
   select
@@ -133,22 +169,8 @@ sql = text(f"""
     cl.clutch_code       as latest_clutch_code,
     cl.clutch_created_at as latest_clutch_created_at
   from tp
-  left join lateral (
-    select cr.cross_run_code as cross_code, cr.cross_date
-    from public.crosses cr
-    where {cx_join}
-    order by cr.created_at desc nulls last, cr.cross_date desc nulls last
-    limit 1
-  ) cx on true
-  left join lateral (
-    select cl.clutch_instance_code as clutch_code,
-           cl.created_at as clutch_created_at
-    from public.clutch_instances cl
-    join public.crosses cr on cr.id = cl.cross_instance_id
-    where {cx_join}
-    order by cl.created_at desc nulls last
-    limit 1
-  ) cl on true
+  {lateral_cross}
+  {lateral_clutch}
   order by {order_clause}
   limit 500
 """)
