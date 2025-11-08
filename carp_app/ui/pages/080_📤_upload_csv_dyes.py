@@ -31,8 +31,7 @@ st.set_page_config(page_title="CARP — Upload Dyes", page_icon="📤", layout="
 st.title("📤 Upload Dyes")
 st.caption(
     "CSV/XLSX columns: dye_name (or dye/dye_nickname), excitation_nm, emission_nm, alt_names, notes, "
-    "localization, binds_tag. At least one of localization or binds_tag is required. "
-    "binds_tag must match an existing tag (code or name)."
+    "localization, binds_tag. These are optional; if provided, binds_tag must match an existing tag (code or name)."
 )
 
 _ENGINE: Optional[Engine] = None
@@ -41,6 +40,14 @@ def _eng() -> Engine:
     if _ENGINE is None:
         _ENGINE = get_engine()
     return _ENGINE
+
+def _fetch_tag_index(cx) -> Dict[str, Tuple[str, str]]:
+    rows = cx.execute(text("""
+        select id::text, lower(tag_code), coalesce(tag_name, tag_code) from public.tags
+        union
+        select id::text, lower(tag_name), coalesce(tag_name, tag_code) from public.tags where tag_name is not null
+    """)).all()
+    return {r[1]: (r[0], r[2]) for r in rows if r[1]}
 
 def _slug(s: Optional[str]) -> Optional[str]:
     if not s:
@@ -170,35 +177,33 @@ st.dataframe(out[["dye_name", "excitation_nm", "emission_nm", "alt_names", "note
              use_container_width=True, hide_index=True)
 st.caption(f"{len(out)} rows")
 
-qa_msgs: List[str] = []
+fatal_msgs: List[str] = []
+warn_msgs: List[str] = []
+
 if not bad_rows.empty:
-    qa_msgs.append(f"{len(bad_rows)} row(s) have missing name or out-of-range wavelengths (300–800 nm).")
+    fatal_msgs.append(f"{len(bad_rows)} row(s) have missing name or out-of-range wavelengths (300–800 nm).")
 if dup_mask.any():
-    qa_msgs.append(f"{int(dup_mask.sum())} row(s) produce duplicate `dye_code` slugs in this file.")
+    fatal_msgs.append(f"{int(dup_mask.sum())} row(s) produce duplicate `dye_code` slugs in this file.")
+
+# Optional fields: warn if BOTH are blank, but do not block
 if not needs_target.empty:
-    qa_msgs.append(f"{len(needs_target)} row(s) require either `localization` or `binds_tag`.")
+    warn_msgs.append(f"{len(needs_target)} row(s) are missing both `localization` and `binds_tag` (allowed).")
 
-def _fetch_tag_index(cx) -> Dict[str, Tuple[str, str]]:
-    rows = cx.execute(text("""
-        select id::text, lower(tag_code), coalesce(tag_name, tag_code) from public.tags
-        union
-        select id::text, lower(tag_name), coalesce(tag_name, tag_code) from public.tags where tag_name is not null
-    """)).all()
-    return {r[1]: (r[0], r[2]) for r in rows if r[1]}
-
+# If binds_tag column is present, validate values and warn on unknowns
 unknown_bind_rows = pd.DataFrame()
-with _eng().begin() as cx:
-    tag_idx = _fetch_tag_index(cx)
+if "binds_tag" in out.columns:
+    with _eng().begin() as cx:
+        tag_idx = _fetch_tag_index(cx)
+    bind_lists = out["binds_tag"].map(_split_list)
+    unknown_mask = bind_lists.map(lambda lst: any(s.strip().lower() not in tag_idx for s in lst))
+    if unknown_mask.any():
+        unknown_bind_rows = out.loc[unknown_mask].copy()
+        warn_msgs.append(f"{int(unknown_mask.sum())} row(s) reference unknown tag(s) in `binds_tag` (will be ignored unless you add those tags).")
 
-bind_lists = out["binds_tag"].map(_split_list)
-unknown_mask = bind_lists.map(lambda lst: any(s.strip().lower() not in tag_idx for s in lst))
-if unknown_mask.any():
-    unknown_bind_rows = out.loc[unknown_mask].copy()
-    qa_msgs.append(f"{int(unknown_mask.sum())} row(s) reference unknown tag(s) in `binds_tag` (must match code or name).")
-
-if qa_msgs:
-    st.warning("QA issues found:")
-    for m in qa_msgs:
+# Render fatal issues (block upload)
+if fatal_msgs:
+    st.error("QA errors found:")
+    for m in fatal_msgs:
         st.markdown(f"- {m}")
     if not bad_rows.empty:
         st.markdown("**Rows with missing name or out-of-range wavelengths:**")
@@ -206,16 +211,29 @@ if qa_msgs:
     if not dup_rows.empty:
         st.markdown("**Rows with duplicate `dye_code` slugs:**")
         st.dataframe(dup_rows.reset_index(drop=True), use_container_width=True, height=240)
+    st.download_button(
+        "⬇︎ Download fatal QA failures (CSV)",
+        data=pd.concat([bad_rows, dup_rows]).drop_duplicates().to_csv(index=False).encode("utf-8"),
+        file_name="dyes_qafail_fatal.csv", mime="text/csv", use_container_width=True
+    )
+    st.stop()
+
+# Render warnings (do NOT stop)
+if warn_msgs:
+    st.warning("QA warnings (upload will proceed):")
+    for m in warn_msgs:
+        st.markdown(f"- {m}")
     if not needs_target.empty:
         st.markdown("**Rows missing both `localization` and `binds_tag`:**")
-        st.dataframe(needs_target.reset_index(drop=True), use_container_width=True, height=240)
+        st.dataframe(needs_target.reset_index(drop=True), use_container_width=True, height=200)
     if not unknown_bind_rows.empty:
         st.markdown("**Rows with unknown `binds_tag` values:**")
-        st.dataframe(unknown_bind_rows.reset_index(drop=True), use_container_width=True, height=240)
-    st.download_button("⬇︎ Download QA failures (CSV)",
-                       data=pd.concat([bad_rows, dup_rows, needs_target, unknown_bind_rows]).drop_duplicates().to_csv(index=False).encode("utf-8"),
-                       file_name="dyes_qafail.csv", mime="text/csv", use_container_width=True)
-    st.stop()
+        st.dataframe(unknown_bind_rows.reset_index(drop=True), use_container_width=True, height=200)
+    st.download_button(
+        "⬇︎ Download QA warnings (CSV)",
+        data=pd.concat([needs_target, unknown_bind_rows]).drop_duplicates().to_csv(index=False).encode("utf-8"),
+        file_name="dyes_qawarn.csv", mime="text/csv", use_container_width=True
+    )
 
 rows: List[Dict[str, Any]] = []
 for r in out.itertuples(index=False):

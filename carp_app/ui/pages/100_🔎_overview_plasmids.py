@@ -53,22 +53,22 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, dict]:
     params: dict = {"lim": int(limit)}
     where: list[str] = []
 
-    # search targets (we'll select these aliases below)
+    # search targets (use arrays from v_plasmids; stringify for ILIKE)
     field_map = {
-        "code":       "p.code",
-        "name":       "p.name",
-        "nickname":   "p.nickname",
-        "fluors":     "COALESCE(a.fluor_names,'')",
-        "tags":       "COALESCE(a.tag_names,'')",
-        "fusions":    "COALESCE(a.fusion_names,'')",
-        "resistance": "p.resistance",
-        "notes":      "p.notes",
+        "code":       "vp.code",
+        "name":       "vp.name",
+        "nickname":   "vp.nickname",
+        "fluors":     "array_to_string(vp.fluors_arr, ',')",
+        "tags":       "array_to_string(vp.tags_arr, ',')",
+        "fusions":    "array_to_string(vp.fusions_arr, ',')",
+        "resistance": "vp.resistance",
+        "notes":      "vp.notes",
     }
     haystack = (
         "concat_ws(' ', "
-        "coalesce(p.code,''), coalesce(p.name,''), coalesce(p.nickname,''), "
-        "coalesce(a.fluor_names,''), coalesce(a.tag_names,''), coalesce(a.fusion_names,''), "
-        "coalesce(p.resistance,''), coalesce(p.notes,''))"
+        "coalesce(vp.code,''), coalesce(vp.name,''), coalesce(vp.nickname,''), "
+        "array_to_string(vp.fluors_arr, ','), array_to_string(vp.tags_arr, ','), array_to_string(vp.fusions_arr, ','), "
+        "coalesce(vp.resistance,''), coalesce(vp.notes,''))"
     )
 
     for i, tok in enumerate(tokens):
@@ -88,53 +88,28 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, dict]:
         where.append(("NOT " if neg else "") + f"({haystack} ILIKE :{key})")
 
     if supports_only:
-        where.append("(p.supports_invitro_rna = true)")
+        where.append("(vp.supports_invitro_rna = true)")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     sql = f"""
-      WITH agg AS (
-        SELECT
-          p.code,
-          COALESCE(string_agg(DISTINCT fl.fluor_name, '; ' ORDER BY fl.fluor_name), '') AS fluor_names,
-          COALESCE(string_agg(DISTINCT tg.tag_name,   '; ' ORDER BY tg.tag_name),   '') AS tag_names,
-          COALESCE(string_agg(
-            DISTINCT CASE
-              WHEN fu.tag_id IS NOT NULL AND fu.fluor_id IS NOT NULL THEN tg.tag_name||'::'||fl.fluor_name
-              WHEN fu.tag_id IS NOT NULL THEN tg.tag_name
-              WHEN fu.fluor_id IS NOT NULL THEN fl.fluor_name
-            END, '; ' ORDER BY
-              CASE
-                WHEN fu.tag_id IS NOT NULL AND fu.fluor_id IS NOT NULL THEN tg.tag_name||'::'||fl.fluor_name
-                WHEN fu.tag_id IS NOT NULL THEN tg.tag_name
-                WHEN fu.fluor_id IS NOT NULL THEN fl.fluor_name
-              END
-          ), '') AS fusion_names
-        FROM public.plasmids p
-        LEFT JOIN public.join_plasmid_fusions j ON j.plasmid_id=p.id
-        LEFT JOIN public.fusions fu             ON fu.id=j.fusion_id
-        LEFT JOIN public.fluors  fl             ON fl.id=fu.fluor_id
-        LEFT JOIN public.tags    tg             ON tg.id=fu.tag_id
-        GROUP BY p.code
-      )
       SELECT
-        p.code,
-        p.name,
-        p.nickname,
-        a.fluor_names,
-        a.tag_names,
-        a.fusion_names,
-        p.resistance,
-        p.supports_invitro_rna,
-        p.created_by,
-        p.created_at,
+        vp.code,
+        vp.name,
+        vp.nickname,
+        vp.fluors_arr AS fluors,
+        vp.tags_arr   AS tags,
+        vp.fusions_arr AS fusions,
+        vp.resistance,
+        vp.supports_invitro_rna,
+        vp.created_by,
+        vp.created_at,
         NULL::uuid AS rna_id,
         NULL::text AS rna_code,
         NULL::text AS rna_name,
-        p.notes
-      FROM public.plasmids p
-      LEFT JOIN agg a ON a.code = p.code
+        vp.notes
+      FROM public.v_plasmids vp
       {where_sql}
-      ORDER BY p.code
+      ORDER BY vp.code
       LIMIT :lim
     """
     return sql, params
@@ -165,17 +140,10 @@ except Exception as e:
 st.caption(f"{len(df)} rows")
 
 # Ensure display columns exist (use the names we actually selected)
-for c in [
-    "code","name","nickname","fluor_names","tag_names","fusion_names",
-    "resistance","supports_invitro_rna","rna_code","rna_name",
-    "created_by","created_at","notes"
-]:
-    if c not in df.columns:
-        df[c] = None
 
 view_cols = [
     "✓ Select",
-    "code","name","nickname","fluor_names","tag_names","fusion_names",
+    "code","name","nickname","fluors","tags","fusions",
     "resistance","supports_invitro_rna",
     "rna_code","rna_name","created_by","created_at","notes"
 ]
@@ -197,9 +165,12 @@ edited = st.data_editor(
         "code": st.column_config.TextColumn("code", disabled=True),
         "name": st.column_config.TextColumn("name", disabled=True),
         "nickname": st.column_config.TextColumn("nickname", disabled=True),
-        "fluor_names": st.column_config.TextColumn("fluors", disabled=True),
-        "tag_names": st.column_config.TextColumn("tags", disabled=True),
-        "fusion_names": st.column_config.TextColumn("fusions", disabled=True),
+
+        # new array-backed fields from v_plasmids
+        "fluors":  st.column_config.ListColumn("fluors",  disabled=True),
+        "tags":    st.column_config.ListColumn("tags",    disabled=True),
+        "fusions": st.column_config.ListColumn("fusions", disabled=True),
+
         "resistance": st.column_config.TextColumn("resistance", disabled=True),
         "supports_invitro_rna": st.column_config.CheckboxColumn("supports_invitro_rna", disabled=True),
         "rna_code": st.column_config.TextColumn("rna_code", disabled=True),

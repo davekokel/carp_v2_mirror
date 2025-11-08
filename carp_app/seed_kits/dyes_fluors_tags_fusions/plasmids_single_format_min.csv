@@ -30,8 +30,8 @@ pDQM030,pTwist-SP6-2xLynk:mYongHong-iCodon,Amp,FALSE,for mRNA - clone 1,2xLynk::
 pDQM031,pTwist-SP6-2xLynk:mYongHong-iCodon,Amp,FALSE,for mRNA - clone 2,2xLynk::mYongHong
 pDQM032,pCM268_ccdB-mYongHong,Amp,FALSE,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mYongHong
 pDQM033,pCM268_ccdB-mYongHong,Amp,FALSE,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mYongHong
-pDQM034,skittles2.0-5FP,Amp,FALSE,5 FP version of skittles - clone 1,mKate2/mCitrine/Electra2/mKOK/mTFP1
-pDQM035,skittles2.0-5FP,Amp,FALSE,5 FP version of skittles - clone 4,mKate2/mCitrine/Electra2/mKOK/mTFP1
+pDQM034,skittles2.0-5FP,Amp,FALSE,5 FP version of skittles - clone 1,mKate2|mCitrine|Electra2|mKOK|mTFP1
+pDQM035,skittles2.0-5FP,Amp,FALSE,5 FP version of skittles - clone 4,mKate2|mCitrine|Electra2|mKOK|mTFP1
 pDQM036,skittles3.0-4FP,Amp,FALSE,4 FP version of skittles with SEC hsp-phiC (cryaa:mSc) - clone 3,
 pDQM037,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,FALSE,ef1a driven cdk/pcna cell cycle sensor clone 1 (pIGLET),dhb::tdmSG|tdmChilada::pcna
 pDQM038,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,FALSE,ef1a driven cdk/pcna cell cycle sensor clone 2 (pIGLET),dhb::tdmSG|tdmChilada::pcna

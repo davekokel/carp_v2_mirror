@@ -1,0 +1,4 @@
+dye_name,localization,excitation_nm,emission_nm,alt_names,notes
+JF549,halo,549,571,Janelia Fluor 549; HaloTag ligand 549,Approximate peaks; adjust if you use vendor-specific spectra.
+JFX650,halo,650,670,Janelia Fluor X 650; HaloTag ligand 650,Approximate peaks; adjust if you use vendor-specific spectra.
+LysoTracker Deep Red,lysosome,647,668,,

@@ -345,18 +345,15 @@ def _fetch_vfish_rollup(cx, fish_codes: List[str]) -> pd.DataFrame:
     if not codes:
         return pd.DataFrame(columns=["fish_code","markers","fluors","tags","dyes"])
     q = text("""
-        SELECT
-            f.fish_code,
-            COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT jft.ft_code), NULL), '{}')         AS markers,
-            COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT p.fluor_code), NULL), '{}')        AS fluors,
-            COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT p.tag_code), NULL), '{}')          AS tags,
-            COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT d.dye_code), NULL), '{}')          AS dyes
+        SELECT f.fish_code,
+               COALESCE(r.markers,'') AS markers,
+               COALESCE(r.fluors,'')  AS fluors,
+               COALESCE(r.tags,'')    AS tags,
+               COALESCE(r.dyes,'')    AS dyes
         FROM public.fish f
-        LEFT JOIN public.join_fish_fluorescent_treatments jft ON jft.fish_id = f.id
-        LEFT JOIN public.ft_proteins p  ON p.ft_code = jft.ft_code
-        LEFT JOIN public.ft_dyes     d  ON d.ft_code = jft.ft_code
+        LEFT JOIN public.v_fluorescent_marker_rollup r
+          ON r.fish_code = f.fish_code
         WHERE f.fish_code = ANY(:codes)
-        GROUP BY f.fish_code
         ORDER BY f.fish_code
     """)
     return pd.read_sql(q, cx, params={"codes": codes})
@@ -447,28 +444,54 @@ if st.button("Process upload (create/update fish and links)", type="primary"):
             zy      = _norm_zygosity(zy_raw)
 
             # Transgene/allele upsert & link (idempotent) — fallback: base = tg_base_code or ft_code
+            # Transgene/allele upsert & link (idempotent) — fallback: base = tg_base_code or ft_code
             base_from_tg = (str(r.get(col_tg)).strip() if col_tg and pd.notna(r.get(col_tg)) else "")
             base_from_ft = (str(r.get(col_ft)).strip() if col_ft and pd.notna(r.get(col_ft)) else "")
             allele_base  = (base_from_tg or base_from_ft).strip()
 
             if allele_base:
                 up = cx.execute(text("""
-                    SELECT * FROM public.upsert_transgene_allele(:b, :n)
+                    SELECT
+                    out_base   AS transgene_base_code,
+                    out_number AS allele_number,
+                    out_name   AS allele_name
+                    FROM public.upsert_transgene_allele(:b, :n)
                 """), {"b": allele_base, "n": (nn if nn != "" else None)}).mappings().first()
+
                 if up:
+                    # link fish → (transgene, allele)
                     cx.execute(text("""
                         INSERT INTO public.join_fish_transgene_alleles
                         (fish_id, transgene_base_code, allele_number, zygosity)
-                        VALUES (:fid, :b, :num, :zyg)
+                        VALUES
+                        (:fid, :b, :num, :zyg)
                         ON CONFLICT (fish_id, transgene_base_code, allele_number) DO UPDATE
                         SET zygosity = COALESCE(EXCLUDED.zygosity, public.join_fish_transgene_alleles.zygosity)
-                    """), {"fid": fid, "b": up["transgene_base_code"], "num": up["allele_number"], "zyg": zy})
+                    """), {
+                        "fid": fid,
+                        "b":   up["transgene_base_code"],
+                        "num": up["allele_number"],
+                        "zyg": zy,
+                    })
+
+                    # ensure FT master exists for this base and link fish → FT (for marker rollups)
+                    cx.execute(text("""
+                        INSERT INTO public.treatments_fluorescent (ft_code, ft_text, created_by)
+                        VALUES (:ft, ''::text, :by)
+                        ON CONFLICT (ft_code) DO NOTHING
+                    """), {"ft": allele_base, "by": created_by})
+
+                    cx.execute(text("""
+                        INSERT INTO public.join_fish_fluorescent_treatments (fish_id, ft_code)
+                        VALUES (:fid, :ft)
+                        ON CONFLICT DO NOTHING
+                    """), {"fid": fid, "ft": allele_base})
+
                     allele_linked += 1
                 else:
                     allele_skipped += 1
             else:
                 allele_skipped += 1
-
             # FT catalogs & link
             if ft_code:
                 if "ft_text" in df_work.columns:
@@ -516,6 +539,16 @@ if st.button("Process upload (create/update fish and links)", type="primary"):
 fish_codes = [row.get("fish_code") for row in inserted if row.get("fish_code")]
 with _eng().begin() as cx:
     results = _fetch_vfish_rollup(cx, fish_codes)
+
+# convert comma-joined strings to lists for ListColumn
+if not results.empty:
+    results = results.fillna("")
+    results = results.assign(
+        markers=results["markers"].str.split(",").apply(lambda xs: [x for x in xs if x]),
+        fluors=results["fluors"].str.split(",").apply(lambda xs: [x for x in xs if x]),
+        tags=results["tags"].str.split(",").apply(lambda xs: [x for x in xs if x]),
+        dyes=results["dyes"].str.split(",").apply(lambda xs: [x for x in xs if x]),
+    )
 
 if not results.empty:
     st.subheader("Fluorescent markers (rollup)")
