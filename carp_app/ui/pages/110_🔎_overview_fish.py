@@ -45,6 +45,37 @@ st.set_page_config(page_title="CARP — Search Fish → Tanks", page_icon="🔎"
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
+def _load_fish_rich_all(q: str | None, limit: int) -> pd.DataFrame:
+    """
+    Fallback: return a wider/raw view of fish when the summary query is empty.
+    Uses the same filter as _load_fish_overview but selects all columns from v_fish_overview_id.
+    """
+    sql = text("""
+      SELECT *
+      FROM public.v_fish_overview_id
+      WHERE (:q IS NULL)
+         OR (
+              fish_code ILIKE :q
+           OR COALESCE(nickname,'')            ILIKE :q
+           OR COALESCE(genetic_background,'')  ILIKE :q
+           OR COALESCE(line_building_stage,'') ILIKE :q
+           OR COALESCE(allele_codes,'')        ILIKE :q
+           OR COALESCE(allele_nicknames,'')    ILIKE :q
+           OR COALESCE(transgenes,'')          ILIKE :q
+           OR COALESCE(genotype_rollup,'')     ILIKE :q
+           OR COALESCE(fusion_rollup,'')       ILIKE :q
+           OR COALESCE(fluor_rollup,'')        ILIKE :q
+           OR COALESCE(tag_rollup,'')          ILIKE :q
+           OR COALESCE(dye_rollup,'')          ILIKE :q
+         )
+      ORDER BY created_at DESC NULLS LAST, fish_code
+      LIMIT :lim
+    """)
+    params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
+    with _get_engine().begin() as cx:
+        df = pd.read_sql(sql, cx, params=params)
+    return _coerce_strings(df)
+
 def _normalize_q(q_raw: str) -> str | None:
     q = (q_raw or "").strip()
     return q or None
