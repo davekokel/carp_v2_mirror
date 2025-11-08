@@ -18,7 +18,11 @@ WITH alleles AS (
 ),
 pick AS (
   SELECT DISTINCT ON (a.fish_code)
-         a.fish_code, a.transgene_base_code, a.allele_number, a.allele_name, a.allele_nickname
+         a.fish_code,
+         a.transgene_base_code,
+         a.allele_number,
+         a.allele_name,
+         a.allele_nickname
   FROM alleles a
   ORDER BY a.fish_code, a.allele_number DESC
 )
