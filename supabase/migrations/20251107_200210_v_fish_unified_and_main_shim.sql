@@ -1,9 +1,11 @@
 BEGIN;
 
--- Recreate v_fish_unified with a safe DISTINCT + ORDER BY pattern and
--- without referencing v_fish_main (avoid recursion).
+-- Remove old views if present
+DROP VIEW IF EXISTS public.v_fish_main;
 DROP VIEW IF EXISTS public.v_fish_unified;
 
+-- Build v_fish_unified without depending on optional fish columns
+-- and with a safe DISTINCT+ORDER BY pattern for genotype labels.
 CREATE VIEW public.v_fish_unified AS
 WITH markers AS (
   SELECT
@@ -30,23 +32,16 @@ mr AS (
 )
 SELECT
   f.fish_code,
-  f.nickname,
-  f.birthday,
-  f.genetic_background,
-  f.line_building_stage,
   COALESCE(gp.genotype_pretty,'') AS genotype_pretty,
   COALESCE(mr.markers,'')         AS markers,
   COALESCE(mr.fluors,'')          AS fluors,
   COALESCE(mr.tags,'')            AS tags,
-  COALESCE(mr.dyes,'')            AS dyes,
-  f.created_at
+  COALESCE(mr.dyes,'')            AS dyes
 FROM public.fish f
 LEFT JOIN gp ON gp.fish_code = f.fish_code
 LEFT JOIN mr ON mr.fish_code = f.fish_code;
 
--- OPTIONAL: Make v_fish_main a shim over unified now that unified is independent.
--- If you have a bespoke v_fish_main you want to keep, comment this block out.
-DROP VIEW IF EXISTS public.v_fish_main;
+-- Shim v_fish_main to the unified view (non-recursive)
 CREATE VIEW public.v_fish_main AS
 SELECT * FROM public.v_fish_unified;
 
