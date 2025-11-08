@@ -86,3 +86,5 @@ fish/
 plates/
 transgene_alleles/
 supabase/baselines/
+schema_implied/
+schema_real/
