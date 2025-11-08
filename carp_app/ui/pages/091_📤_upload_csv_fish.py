@@ -195,7 +195,8 @@ except Exception as e:
 df.columns = [c.strip().lower() for c in df.columns]
 ALIASES = {
     "birthday": ["dob","date_birth","date of birth"],
-    "tg_base_code": ["transgene_base_code","tg_base_code","base_code","tg_base","transgene_base"],
+    # Treat plasmid_base_code/plasmid_code as the same as tg_base_code
+    "tg_base_code": ["transgene_base_code","tg_base_code","base_code","tg_base","transgene_base","plasmid_base_code","plasmid_code"],
     "ft_code": ["ft_code","mix_code"],  # treatment code
     "ft_text": ["ft_text","mix_text","treatment_text","notes","description"],
     "allele_nickname": ["allele_nickname","allele_nick","allele_name","allele"],
@@ -447,8 +448,7 @@ if st.button("Process upload (create/update fish and links)", type="primary"):
             zy_raw  = (str(r.get(col_zyg)).strip() if (col_zyg and pd.notna(r.get(col_zyg))) else "")
             zy      = _norm_zygosity(zy_raw)
 
-            # Transgene/allele upsert & link (idempotent) — fallback: base = tg_base_code or ft_code
-            # Transgene/allele upsert & link (idempotent) — fallback: base = tg_base_code or ft_code
+            # Transgene/allele upsert & link (idempotent) — base = tg_base_code or ft_code
             base_from_tg = (str(r.get(col_tg)).strip() if col_tg and pd.notna(r.get(col_tg)) else "")
             base_from_ft = (str(r.get(col_ft)).strip() if col_ft and pd.notna(r.get(col_ft)) else "")
             allele_base  = (base_from_tg or base_from_ft).strip()
@@ -456,19 +456,18 @@ if st.button("Process upload (create/update fish and links)", type="primary"):
             if allele_base:
                 up = cx.execute(text("""
                     SELECT
-                    out_base   AS transgene_base_code,
-                    out_number AS allele_number,
-                    out_name   AS allele_name
+                      out_base   AS transgene_base_code,
+                      out_number AS allele_number,
+                      out_name   AS allele_name
                     FROM public.upsert_transgene_allele(:b, :n)
                 """), {"b": allele_base, "n": (nn if nn != "" else None)}).mappings().first()
 
                 if up:
-                    # link fish → (transgene, allele)
                     cx.execute(text("""
                         INSERT INTO public.join_fish_transgene_alleles
-                        (fish_id, transgene_base_code, allele_number, zygosity)
+                          (fish_id, transgene_base_code, allele_number, zygosity)
                         VALUES
-                        (:fid, :b, :num, :zyg)
+                          (:fid, :b, :num, :zyg)
                         ON CONFLICT (fish_id, transgene_base_code, allele_number) DO UPDATE
                         SET zygosity = COALESCE(EXCLUDED.zygosity, public.join_fish_transgene_alleles.zygosity)
                     """), {
@@ -478,7 +477,7 @@ if st.button("Process upload (create/update fish and links)", type="primary"):
                         "zyg": zy,
                     })
 
-                    # ensure FT master exists for this base and link fish → FT (for marker rollups)
+                    # Ensure FT master for this base, link fish→FT, then derive FT markers from plasmid→fusion (forward-only)
                     cx.execute(text("""
                         INSERT INTO public.treatments_fluorescent (ft_code, ft_text, created_by)
                         VALUES (:ft, ''::text, :by)
@@ -491,12 +490,15 @@ if st.button("Process upload (create/update fish and links)", type="primary"):
                         ON CONFLICT DO NOTHING
                     """), {"fid": fid, "ft": allele_base})
 
+                    cx.execute(text("SELECT public.ensure_ft_markers_from_transgene(:ft)"), {"ft": allele_base})
+
                     allele_linked += 1
                 else:
                     allele_skipped += 1
             else:
                 allele_skipped += 1
-            # FT catalogs & link
+
+            # FT catalogs & link (explicit CSV ft_code and optional fluor/tag/dye)
             if ft_code:
                 if "ft_text" in df_work.columns:
                     ft_text = str(r.get("ft_text") or "").strip()
@@ -512,7 +514,7 @@ if st.button("Process upload (create/update fish and links)", type="primary"):
                     cx.execute(text("""
                       INSERT INTO public.ft_proteins (ft_code, fluor_code, tag_code)
                       VALUES (:ft, :flu, NULLIF(:tag,''))
-                      ON CONFLICT (ft_code, COALESCE(tag_code,'∅'), fluor_code) DO NOTHING
+                      ON CONFLICT (ft_code, fluor_code, tag_code) DO NOTHING
                     """), {"ft": ft_code, "flu": fluor, "tag": tag})
 
                 if dye:
@@ -531,7 +533,12 @@ if st.button("Process upload (create/update fish and links)", type="primary"):
                   SET  allele_number = COALESCE(EXCLUDED.allele_number, public.join_fish_fluorescent_treatments.allele_number),
                        zygosity      = COALESCE(EXCLUDED.zygosity,      public.join_fish_fluorescent_treatments.zygosity)
                 """), {"fid": fid, "ft": ft_code, "allele": nn if jft_has_allele else None, "zyg": zy})
+
+                # Also derive markers for explicit FT rows (forward-only)
+                cx.execute(text("SELECT public.ensure_ft_markers_from_transgene(:ft)"), {"ft": ft_code})
+
                 linked += 1
+            
 
     st.success(
     f"Done. Processed {len(df_work)} row(s). "
@@ -583,9 +590,16 @@ if fish_codes:
     with _eng().begin() as cx:
         alleles_preview = pd.read_sql(
             text("""
-                SELECT fish_code,
-                       transgene_base_code, allele_nickname, allele_number, allele_name,
-                       transgene_pretty_nickname, transgene_pretty_name
+                SELECT
+                  fish_code,
+                  transgene_base_code,
+                  allele_number,
+                  allele_name,
+                  allele_nickname,
+                  transgene_pretty_nickname,
+                  transgene_pretty_name,
+                  genotype_pretty,
+                  fluors, tags, dyes
                 FROM public.v_fish_main
                 WHERE fish_code = ANY(:codes)
                 ORDER BY fish_code

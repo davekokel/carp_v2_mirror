@@ -1,4 +1,4 @@
-plasmid_code,nickname,resistance,supports_invitro_rna,notes,fusion_name
+plasmid_code,nickname,resistance,supports_invitro_rna,notes,fluor_or_fluor_fusion_name
 pDQM001,CMV-SP6-mSG(J) IDT opt,Amp,FALSE,"IDT optimized, for mRNA production with SP6 - clone 2",mSG
 pDQM002,CMV-SP6-mSG(J) IDT opt,Amp,FALSE,"IDT optimized, for mRNA production with SP6 - clone 5",mSG
 pDQM005,ef1a-tdmSG(J),Amp,FALSE,iCodon optimized for tol2 insertions - clone 4,tdmSG
