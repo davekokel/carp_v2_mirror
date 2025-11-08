@@ -1,21 +1,7 @@
 BEGIN;
 
--- 1) Helpful composite index for de-dupe probes (idempotent).
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_indexes
-    WHERE schemaname='public' AND indexname='ix_join_annotations_ttype_tid_aid_val'
-  ) THEN
-    CREATE INDEX ix_join_annotations_ttype_tid_aid_val
-    ON public.join_annotations(target_type, target_id, annotation_id, value_num, value_text);
-  END IF;
-END$$;
-
--- 2) Copy clutch-level annotations to treated_clutch with correct uuid target_id.
---    This block adapts to either schema:
---      A) treated_clutches.clutch_instance_id (uuid)
---      B) treated_clutches.clutch_code (text)
+-- Schema-aware copy of clutch-level annotations -> treated_clutch.
+-- Works whether treated_clutches links by clutch_instance_id (uuid) or clutch_code (text).
 DO $$
 DECLARE
   has_ci_id   boolean;
@@ -63,7 +49,7 @@ BEGIN
       FROM src s
       LEFT JOIN public.join_annotations j
         ON j.target_type   = ''treated_clutch''
-       AND j.target_id     = s.treated_clutch_id   -- uuid = uuid, no cast
+       AND j.target_id     = s.treated_clutch_id   -- uuid; no cast
        AND j.annotation_id = s.annotation_id
        AND (j.value_num  IS NOT DISTINCT FROM s.value_num)
        AND (j.value_text IS NOT DISTINCT FROM s.value_text)

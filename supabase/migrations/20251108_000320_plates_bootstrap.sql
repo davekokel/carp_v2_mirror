@@ -1,23 +1,21 @@
 BEGIN;
 
--- === Safe, idempotent bootstrap + view recreate ===
-
--- helper for well row letter (A..Z)
+-- 0) Helper: row_letter(1)='A', 2='B', ...
 CREATE OR REPLACE FUNCTION public.row_letter(p_row int)
 RETURNS text LANGUAGE sql IMMUTABLE AS $$
   SELECT chr(64 + GREATEST(1, LEAST(26, p_row)))
 $$;
 
--- plate_formats
+-- 1) Formats (idempotent)
 CREATE TABLE IF NOT EXISTS public.plate_formats (
-  code       text PRIMARY KEY,
-  name       text,
-  n_rows     int  NOT NULL,
-  n_cols     int  NOT NULL,
+  code    text PRIMARY KEY,
+  name    text,
+  n_rows  int  NOT NULL,
+  n_cols  int  NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- basic seeds (idempotent)
+-- seed a few common formats (safe upserts)
 INSERT INTO public.plate_formats(code,name,n_rows,n_cols)
 VALUES
   ('bruker_mount','Bruker mount',6,1),
@@ -26,7 +24,7 @@ VALUES
 ON CONFLICT (code) DO UPDATE
 SET name=EXCLUDED.name, n_rows=EXCLUDED.n_rows, n_cols=EXCLUDED.n_cols;
 
--- plates
+-- 2) Plates (idempotent)
 CREATE TABLE IF NOT EXISTS public.plates (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   plate_code  text UNIQUE,
@@ -36,16 +34,17 @@ CREATE TABLE IF NOT EXISTS public.plates (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- sequence + default for plate_code (if missing)
+-- plate_code sequence + default generator
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relkind='S' AND relname='seq_plate_code') THEN
     CREATE SEQUENCE public.seq_plate_code;
   END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_schema='public' AND table_name='plates'
-      AND column_name='plate_code' AND column_default IS NOT NULL
+    WHERE table_schema='public' AND table_name='plates' AND column_name='plate_code'
+      AND column_default IS NOT NULL
   ) THEN
     ALTER TABLE public.plates
     ALTER COLUMN plate_code SET DEFAULT (
@@ -54,7 +53,7 @@ BEGIN
   END IF;
 END$$;
 
--- plate_slots
+-- 3) Plate slots (idempotent)
 CREATE TABLE IF NOT EXISTS public.plate_slots (
   id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   plate_id           uuid NOT NULL REFERENCES public.plates(id) ON DELETE CASCADE,
@@ -65,8 +64,7 @@ CREATE TABLE IF NOT EXISTS public.plate_slots (
   orientation        text,
   created_at         timestamptz NOT NULL DEFAULT now()
 );
-
--- unique (plate_id,row_idx,col_idx)
+-- uniqueness per well
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -77,7 +75,7 @@ BEGIN
   END IF;
 END$$;
 
--- v_plate_layout: well_label as A01, A02, ...
+-- 4) View: v_plate_layout
 DROP VIEW IF EXISTS public.v_plate_layout;
 CREATE VIEW public.v_plate_layout AS
 SELECT

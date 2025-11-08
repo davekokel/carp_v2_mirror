@@ -1,57 +1,40 @@
 BEGIN;
 
+-- 1) Ensure table exists with the columns we actually use
 CREATE TABLE IF NOT EXISTS public.tanks (
-  tank_uuid uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tank_code text UNIQUE,
-  created_at timestamptz DEFAULT now()
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tank_code  text NOT NULL,
+  status     text,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
-ALTER TABLE public.tanks ADD COLUMN IF NOT EXISTS fish_code text;
-ALTER TABLE public.tanks ADD COLUMN IF NOT EXISTS tank_num integer;
-ALTER TABLE public.tanks ADD COLUMN IF NOT EXISTS status text;
-
-UPDATE public.tanks
-SET fish_code = regexp_replace(tank_code, '^.*\(([^)]+)\).*$', '\1')
-WHERE fish_code IS NULL AND tank_code IS NOT NULL;
-
-UPDATE public.tanks
-SET tank_num = NULLIF(regexp_replace(tank_code, '^.*#([0-9]+).*$', '\1'), '')::int
-WHERE tank_num IS NULL AND tank_code IS NOT NULL;
-
-UPDATE public.tanks
-SET status = 'active'
-WHERE status IS NULL;
-
-ALTER TABLE public.tanks
-  ADD CONSTRAINT chk_tanks_status CHECK (status IN ('active','to_kill','inactive'));
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_tanks_fish_num ON public.tanks (fish_code, tank_num);
-
-CREATE OR REPLACE FUNCTION public.next_tank_num(p_fish_code text)
-RETURNS integer
-LANGUAGE sql
-AS $$
-  SELECT COALESCE(MAX(tank_num),0)+1 FROM public.tanks WHERE fish_code = p_fish_code
-$$;
-
-CREATE OR REPLACE FUNCTION public.tanks_bi_set_defaults()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
+-- 2) Add status if missing (idempotent)
+DO $$
 BEGIN
-  IF NEW.fish_code IS NULL THEN
-    RAISE EXCEPTION 'fish_code is required';
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='tanks' AND column_name='status'
+  ) THEN
+    ALTER TABLE public.tanks ADD COLUMN status text;
   END IF;
+END$$;
 
-  IF NEW.tank_num IS NULL THEN
-    NEW.tank_num := public.next_tank_num(NEW.fish_code);
+-- 3) Unique index on tank_code (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND tablename='tanks' AND indexname='uq_tanks_tank_code'
+  ) THEN
+    CREATE UNIQUE INDEX uq_tanks_tank_code ON public.tanks(tank_code);
   END IF;
+END$$;
 
-  IF NEW.status IS NULL THEN
-    NEW.status := 'active';
-  END IF;
-
-  NEW.tank_code := 'TANK('||NEW.fish_code||')#'||NEW.tank_num;
+-- 4) Basic before-insert defaults (idempotent)
+CREATE OR REPLACE FUNCTION public.tanks_bi_set_defaults()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.created_at IS NULL THEN NEW.created_at := now(); END IF;
   RETURN NEW;
 END
 $$;
@@ -59,41 +42,23 @@ $$;
 DROP TRIGGER IF EXISTS trg_tanks_bi_set_defaults ON public.tanks;
 CREATE TRIGGER trg_tanks_bi_set_defaults
 BEFORE INSERT ON public.tanks
-FOR EACH ROW
-EXECUTE FUNCTION public.tanks_bi_set_defaults();
+FOR EACH ROW EXECUTE FUNCTION public.tanks_bi_set_defaults();
 
-CREATE OR REPLACE FUNCTION public.ensure_active_tank_for_fish(p_fish_code text)
-RETURNS uuid
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  v_id uuid;
-BEGIN
-  SELECT tank_uuid INTO v_id
-  FROM public.tanks
-  WHERE fish_code = p_fish_code AND status = 'active'
-  ORDER BY created_at DESC
-  LIMIT 1;
-
-  IF v_id IS NOT NULL THEN
-    RETURN v_id;
-  END IF;
-
-  INSERT INTO public.tanks (fish_code, status)
-  VALUES (p_fish_code, 'active')
-  RETURNING tank_uuid INTO v_id;
-
-  RETURN v_id;
-END
-$$;
-
-CREATE OR REPLACE VIEW public.v_tanks AS
+-- 5) Recreate v_tanks to match the real table columns.
+--    id → tank_uuid; derive fish_code & tank_num from tank_code "TANK(<fish_code>)#<n>"
+DROP VIEW IF EXISTS public.v_tanks;
+CREATE VIEW public.v_tanks AS
 SELECT
-  tank_uuid,
-  tank_code,
-  fish_code,
-  status,
-  created_at
-FROM public.tanks;
+  t.id::uuid AS tank_uuid,
+  t.tank_code::text AS tank_code,
+  COALESCE(
+    NULLIF(regexp_replace(t.tank_code, '^.*\(([^)]+)\).*$', '\1'), ''),
+    ''
+  )::text AS fish_code,
+  NULLIF(regexp_replace(t.tank_code, '^.*#([0-9]+).*$', '\1'), '')::int AS tank_num,
+  t.status::text AS status,
+  t.created_at
+FROM public.tanks t
+ORDER BY t.created_at DESC NULLS LAST, t.tank_code;
 
 COMMIT;

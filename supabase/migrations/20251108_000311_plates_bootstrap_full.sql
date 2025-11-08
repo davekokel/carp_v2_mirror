@@ -1,40 +1,64 @@
 BEGIN;
 
--- 0) ensure legacy mounts are gone (ignore if they never existed)
-DROP VIEW  IF EXISTS public.v_mounts CASCADE;
-DROP TABLE IF EXISTS public.mount_slots CASCADE;
-DROP TABLE IF EXISTS public.mounts CASCADE;
+-- Clean up old mounts artifacts if present (safe to skip)
+DROP VIEW IF EXISTS public.v_mounts;
+DROP TABLE IF EXISTS public.mount_slots;
+DROP TABLE IF EXISTS public.mounts;
 
--- 1) plate_formats
+-- 1) plate_formats (idempotent)
 CREATE TABLE IF NOT EXISTS public.plate_formats (
-  code    text PRIMARY KEY,
-  name    text NOT NULL,
-  n_rows  int  NOT NULL CHECK (n_rows BETWEEN 1 AND 24),
-  n_cols  int  NOT NULL CHECK (n_cols BETWEEN 1 AND 24)
+  code       text PRIMARY KEY,
+  name       text,
+  n_rows     int  NOT NULL,
+  n_cols     int  NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- 2) plates
+-- seed formats (upsert)
+INSERT INTO public.plate_formats(code,name,n_rows,n_cols) VALUES
+  ('bruker_mount','Bruker mount',6,1),
+  ('coverslip_25mm','Coverslip Ø25mm',10,3),
+  ('plate_96_well','96-well plate',8,12)
+ON CONFLICT (code) DO UPDATE
+SET name=EXCLUDED.name, n_rows=EXCLUDED.n_rows, n_cols=EXCLUDED.n_cols;
+
+-- 2) plates (idempotent)
 CREATE TABLE IF NOT EXISTS public.plates (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  plate_code  text UNIQUE NOT NULL,
-  format_code text NOT NULL REFERENCES public.plate_formats(code) ON DELETE RESTRICT,
+  plate_code  text UNIQUE,
+  format_code text NOT NULL REFERENCES public.plate_formats(code),
   plate_name  text,
   created_by  text,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE SEQUENCE IF NOT EXISTS public.seq_plate_code;
+-- seq + default for plate_code (guarded)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relkind='S' AND relname='seq_plate_code') THEN
+    CREATE SEQUENCE public.seq_plate_code;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='plates'
+      AND column_name='plate_code' AND column_default IS NOT NULL
+  ) THEN
+    ALTER TABLE public.plates
+    ALTER COLUMN plate_code SET DEFAULT (
+      'PLT-'||to_char(now(),'YYYYMMDD')||'-'||lpad(nextval('public.seq_plate_code')::text, 4, '0')
+    );
+  END IF;
+END$$;
 
-CREATE OR REPLACE FUNCTION public.plate_code_next()
-RETURNS text LANGUAGE sql AS $$
-  SELECT 'PLT-'||to_char(now(),'YYYYMMDD')||'-'||lpad(nextval('public.seq_plate_code')::text,6,'0')
-$$;
-
+-- trigger to assign plate_code/created_at on insert
 CREATE OR REPLACE FUNCTION public.plates_bi_assign_code()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF NEW.plate_code IS NULL OR NEW.plate_code='' THEN
-    NEW.plate_code := public.plate_code_next();
+  IF NEW.plate_code IS NULL OR NEW.plate_code = '' THEN
+    NEW.plate_code := 'PLT-'||to_char(now(),'YYYYMMDD')||'-'||lpad(nextval('public.seq_plate_code')::text, 4, '0');
+  END IF;
+  IF NEW.created_at IS NULL THEN
+    NEW.created_at := now();
   END IF;
   RETURN NEW;
 END
@@ -45,121 +69,62 @@ CREATE TRIGGER trg_plates_bi_assign_code
 BEFORE INSERT ON public.plates
 FOR EACH ROW EXECUTE FUNCTION public.plates_bi_assign_code();
 
--- 3) row index -> letter (A..)
-CREATE OR REPLACE FUNCTION public.row_letter(i int)
-RETURNS text LANGUAGE sql IMMUTABLE AS $$
-  SELECT chr(64 + i)
-$$;
+-- 3) plate_slots (idempotent)
+CREATE TABLE IF NOT EXISTS public.plate_slots (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  plate_id           uuid NOT NULL REFERENCES public.plates(id) ON DELETE CASCADE,
+  row_idx            int  NOT NULL,
+  col_idx            int  NOT NULL,
+  treated_clutch_id  uuid REFERENCES public.treated_clutches(id),
+  fish_code          text,
+  orientation        text,
+  created_at         timestamptz NOT NULL DEFAULT now()
+);
 
--- 4) plate_slots (create if missing)
+-- unique well per plate
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema='public' AND table_name='plate_slots'
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND tablename='plate_slots' AND indexname='uq_plate_slots_loc'
   ) THEN
-    CREATE TABLE public.plate_slots (
-      id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      plate_id      uuid NOT NULL REFERENCES public.plates(id) ON DELETE CASCADE,
-      row_idx       int  NOT NULL CHECK (row_idx BETWEEN 1 AND 24),
-      col_idx       int  NOT NULL CHECK (col_idx BETWEEN 1 AND 24),
-      -- A01/A02 with LPAD
-      well_label    text GENERATED ALWAYS AS (public.row_letter(row_idx) || lpad(col_idx::text,2,'0')) STORED,
-      treated_clutch_id uuid REFERENCES public.treated_clutches(id) ON DELETE SET NULL,
-      fish_code     text,
-      orientation   text,
-      created_at    timestamptz NOT NULL DEFAULT now(),
-      UNIQUE(plate_id, row_idx, col_idx)
-    );
+    CREATE UNIQUE INDEX uq_plate_slots_loc ON public.plate_slots(plate_id, row_idx, col_idx);
   END IF;
 END$$;
 
--- orientation constraint (replace if present)
-ALTER TABLE public.plate_slots
-  DROP CONSTRAINT IF EXISTS ck_plate_slots_orientation;
-
-ALTER TABLE public.plate_slots
-  ADD CONSTRAINT ck_plate_slots_orientation
-  CHECK (
-    orientation IS NULL OR orientation IN (
-      'dorsal_head_top',
-      'lateral_head_left',
-      'lateral_head_right',
-      'head_down_dorsal_top'
-    )
-  );
-
--- rebuild index on well_label
-DROP INDEX IF EXISTS ix_plate_slots_label;
-CREATE INDEX IF NOT EXISTS ix_plate_slots_label
-  ON public.plate_slots(plate_id, well_label);
-
--- 5) slot generation function + trigger (idempotent)
-CREATE OR REPLACE FUNCTION public.generate_slots_for_plate(p_plate_id uuid)
-RETURNS void LANGUAGE plpgsql AS $$
-DECLARE
-  rrows int; rcols int;
-BEGIN
-  SELECT pf.n_rows, pf.n_cols
-    INTO rrows, rcols
-  FROM public.plates p
-  JOIN public.plate_formats pf ON pf.code = p.format_code
-  WHERE p.id = p_plate_id;
-
-  IF rrows IS NULL OR rcols IS NULL THEN
-    RAISE EXCEPTION 'Unknown plate or format for plate_id %', p_plate_id;
-  END IF;
-
-  INSERT INTO public.plate_slots (plate_id, row_idx, col_idx)
-  SELECT p_plate_id, r, c
-  FROM generate_series(1, rrows) r
-  CROSS JOIN generate_series(1, rcols) c
-  ON CONFLICT (plate_id, row_idx, col_idx) DO NOTHING;
-END
-$$;
-
-CREATE OR REPLACE FUNCTION public.plates_ai_generate_slots()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  PERFORM public.generate_slots_for_plate(NEW.id);
-  RETURN NEW;
-END
-$$;
-
-DROP TRIGGER IF EXISTS trg_plates_ai_generate_slots ON public.plates;
-CREATE TRIGGER trg_plates_ai_generate_slots
-AFTER INSERT ON public.plates
-FOR EACH ROW EXECUTE FUNCTION public.plates_ai_generate_slots();
-
--- 6) layout view (uses A01/A02 label)
+-- 4) DROP the dependent view first, then (re)create row_letter, then recreate the view
 DROP VIEW IF EXISTS public.v_plate_layout;
+
+-- drop old signature if present to allow parameter rename
+DROP FUNCTION IF EXISTS public.row_letter(integer);
+
+-- helper: row_letter(1)='A', …
+CREATE FUNCTION public.row_letter(p_row integer)
+RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT chr(64 + GREATEST(1, LEAST(26, p_row)))
+$$;
+
+-- 5) v_plate_layout
 CREATE VIEW public.v_plate_layout AS
 SELECT
   p.plate_code,
-  p.plate_name,
+  COALESCE(p.plate_name,'') AS plate_name,
   p.format_code,
   pf.n_rows,
   pf.n_cols,
   s.row_idx,
   s.col_idx,
-  public.row_letter(s.row_idx) AS row_letter,
-  s.well_label,                           -- A01 style
+  public.row_letter(s.row_idx)                                   AS row_letter,
+  (public.row_letter(s.row_idx) || lpad(s.col_idx::text,2,'0'))  AS well_label,
   s.treated_clutch_id,
-  COALESCE(tc.treated_clutch_code,'') AS treated_clutch_code,
-  s.fish_code,
-  COALESCE(s.orientation,'') AS orientation,
+  COALESCE(tc.treated_clutch_code,'')                            AS treated_clutch_code,
+  COALESCE(s.fish_code,'')                                       AS fish_code,
+  COALESCE(s.orientation,'')                                     AS orientation,
   s.created_at
 FROM public.plate_slots s
 JOIN public.plates        p  ON p.id = s.plate_id
 JOIN public.plate_formats pf ON pf.code = p.format_code
 LEFT JOIN public.treated_clutches tc ON tc.id = s.treated_clutch_id
 ORDER BY p.plate_code, s.row_idx, s.col_idx;
-
--- 7) seed formats
-INSERT INTO public.plate_formats(code, name, n_rows, n_cols) VALUES
-  ('bruker_mount',         'Bruker mount (1×6 as 6×1 grid)', 6, 1),
-  ('coverslip_round_25mm', 'Coverslip round 25mm (10×3)',    10, 3),
-  ('plate_96_well',        '96-well plate (8×12)',            8, 12)
-ON CONFLICT (code) DO NOTHING;
 
 COMMIT;
