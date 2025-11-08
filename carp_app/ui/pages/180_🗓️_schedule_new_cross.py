@@ -58,7 +58,7 @@ def resolve_plasmid_base_sql(label: str) -> str:
         df = _safe(cx, text(r"""
             with labels(lab, ord) as (select CAST(:lab AS text) as lab, 1::int as ord),
             parts as (
-              select lab, ord, unnest(regexp_split_to_array(lab, '\s*[×x]\s*')) as part
+              select lab, ord, unnest(regexp_split_to_array(lab, '\s*[×x;]\s*')) as part
               from labels
             ),
             codes_raw as (
@@ -228,8 +228,8 @@ def _expected_rows(m: str|None, d: str|None) -> pd.DataFrame:
         return pd.DataFrame(columns=["label","source","plasmid_base"])
     with eng.begin() as cx:
         df = _safe(cx, """
-            select fish_code, genotype_rollup as g
-            from public.v_fish_rich
+            select fish_code, genotype_pretty as g
+            from public.v_fish_unified
             where fish_code = any(:codes)
         """, {"codes": codes})
     def toks(s: str) -> list[str]:
@@ -241,8 +241,8 @@ def _expected_rows(m: str|None, d: str|None) -> pd.DataFrame:
     singles = [{"label": t, "source": "mom"} for t in mom_sorted] + \
               [{"label": t, "source": "dad"} for t in dad_sorted if t not in set(mom_sorted)]
     all_single = [r["label"] for r in singles]
-    doubles = [{"label": " × ".join(sorted(x)), "source": "double"}
-               for x in itertools.combinations(all_single, 2)]
+    doubles = [{"label": " ; ".join(sorted(x)), "source": "double"}
+           for x in itertools.combinations(all_single, 2)]
     rows = pd.DataFrame(singles + doubles, columns=["label","source"])
     if rows.empty:
         rows["plasmid_base"] = pd.Series(dtype="string")
