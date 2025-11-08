@@ -108,39 +108,43 @@ if df.empty:
     st.info("No instances yet."); st.stop()
 
 # ── Display + Selection ──────────────────────────────────────────────────────
+# ── Display + Selection ──────────────────────────────────────────────────────
 sel_col = "✓ Select"
 grid = df.copy()
-grid.insert(0, sel_col, False)
+if sel_col not in grid.columns:
+    grid.insert(0, sel_col, False)
 
-cols_show = [
-    sel_col,
-    "tank_pair_code","fish_pair_code",
-    "mom_fish_code","dad_fish_code",
-    "mom_tank_code","dad_tank_code",
-    "mom_genotype","dad_genotype","clutch_genotype",
-    "cross_code","cross_date","clutch_code",
-]
-present = [c for c in cols_show if c in grid.columns]
+# Put these first, then the rest
+first_cols = ["clutch_code", "clutch_genotype", "cross_date", "cross_code"]
+ordered = [c for c in first_cols if c in grid.columns]
+rest = [c for c in grid.columns if c not in ordered and c != sel_col]
+display_cols = [sel_col] + ordered + rest
 
 edited = st.data_editor(
-    grid[present],
+    grid[display_cols],
     hide_index=True,
     width="stretch",
     column_config={
-        sel_col: st.column_config.CheckboxColumn("✓", default=False),
-        "tank_pair_code":  st.column_config.TextColumn("TP code", disabled=True),
-        "fish_pair_code":  st.column_config.TextColumn("FP code", disabled=True),
-        "mom_fish_code":   st.column_config.TextColumn("Mom FSH", disabled=True),
-        "dad_fish_code":   st.column_config.TextColumn("Dad FSH", disabled=True),
-        "mom_tank_code":   st.column_config.TextColumn("Mom tank", disabled=True),
-        "dad_tank_code":   st.column_config.TextColumn("Dad tank", disabled=True),
-        "mom_genotype":    st.column_config.TextColumn("Mom genotype", disabled=True, width="large"),
-        "dad_genotype":    st.column_config.TextColumn("Dad genotype", disabled=True, width="large"),
-        "clutch_genotype": st.column_config.TextColumn("Clutch genotype", disabled=True, width="large"),
-        "cross_code":      st.column_config.TextColumn("Cross code", disabled=True),
-        "cross_date":      st.column_config.DateColumn("Cross date", disabled=True, format="YYYY-MM-DD"),
-        "clutch_code":     st.column_config.TextColumn("Clutch code", disabled=True),
-    },
+        sel_col:              st.column_config.CheckboxColumn("✓", default=False),
+
+        # first four (now pinned left after the checkbox)
+        "clutch_code":        st.column_config.TextColumn("Clutch code", disabled=True),
+        "clutch_genotype":    st.column_config.TextColumn("Clutch genotype", disabled=True, width="large"),
+        "cross_date":         st.column_config.DateColumn("Cross date", disabled=True, format="YYYY-MM-DD"),
+        "cross_code":         st.column_config.TextColumn("Cross code", disabled=True),
+
+        # keep the rest readable
+        "tank_pair_code":     st.column_config.TextColumn("TP code", disabled=True),
+        "fish_pair_code":     st.column_config.TextColumn("FP code", disabled=True),
+        "mom_fish_code":      st.column_config.TextColumn("Mom FSH", disabled=True),
+        "dad_fish_code":      st.column_config.TextColumn("Dad FSH", disabled=True),
+        "mom_tank_code":      st.column_config.TextColumn("Mom tank", disabled=True),
+        "dad_tank_code":      st.column_config.TextColumn("Dad tank", disabled=True),
+        "mom_genotype":       st.column_config.TextColumn("Mom genotype", disabled=True, width="large"),
+        "dad_genotype":       st.column_config.TextColumn("Dad genotype", disabled=True, width="large"),
+        "clutch_created_at":  st.column_config.DatetimeColumn("Clutch created", disabled=True),
+        "cross_created_at":   st.column_config.DatetimeColumn("Cross created", disabled=True),
+      },
     key="cross_clutch_instances_editor",
 )
 

@@ -1,5 +1,9 @@
 # =============================================================================
-# 🐣 Annotate Clutch Instances — current contract (v_clutch_instances)
+# 🐣 Annotate Treated Clutch Groups — lead with treated_clutch_code (v_treated_clutches)
+#   • Picker lists baseline T(<CI>)-0 and all treated groups
+#   • Reads current values from v_treated_clutch_annotations_pivot
+#   • Writes annotations to join_annotations with target_type='treated_clutch'
+#   • Intensities / frequencies use 1–100 scale
 # =============================================================================
 from __future__ import annotations
 import sys, pathlib
@@ -17,185 +21,140 @@ sb, session, user = require_auth()
 from carp_app.ui.email_otp_gate import require_email_otp
 require_email_otp()
 
-st.set_page_config(page_title="🐣 Annotate Clutch Instances", page_icon="🐣", layout="wide")
-st.title("🐣 Annotate Clutch Instances")
+st.set_page_config(page_title="🐣 Annotate Treated Clutch Groups", page_icon="🐣", layout="wide")
+st.title("🐣 Annotate Treated Clutch Groups")
 
 DB_URL = os.getenv("DB_URL")
 if not DB_URL:
-    st.error("DB_URL not set")
-    st.stop()
+    st.error("DB_URL not set"); st.stop()
 eng = get_engine()
 
-VIEW = "public.v_clutch_instances"                # current view
+# Views / tables
+V_TCLUTCH = "public.v_treated_clutches"                 # groups (baseline + treated)
+V_PVT_G   = "public.v_treated_clutch_annotations_pivot" # per-group pivot
+V_LATEST  = "public.v_annotations_latest_group"         # per-group latest rows
+T_CLUTCH  = "public.clutch_instances"                   # clutch context
+T_JANN    = "public.join_annotations"                   # writes
+T_ANN     = "public.annotations"                        # kinds
 
-# ---------- data ----------
-def _load_clutches_filtered(d1: date, d2: date, who: str, q: str, most_recent: bool) -> pd.DataFrame:
+# ---------- helpers ----------
+def _exists_view(qualified: str) -> bool:
+    sch, name = qualified.split(".", 1)
+    sql = text("""
+      SELECT 1
+      FROM information_schema.views
+      WHERE table_schema=:s AND table_name=:n
+      UNION ALL
+      SELECT 1
+      FROM pg_catalog.pg_matviews
+      WHERE schemaname=:s AND matviewname=:n
+      LIMIT 1
+    """)
+    with eng.begin() as cx:
+        return cx.execute(sql, {"s": sch, "n": name}).first() is not None
+
+def _load_groups_filtered(d1: date, d2: date, q: str, most_recent: bool) -> pd.DataFrame:
+    if not _exists_view(V_TCLUTCH):
+        st.error(f"Required view not found: {V_TCLUTCH}"); st.stop()
     where, p = [], {}
     if not most_recent:
-        where.append("v.created_at_instance::date BETWEEN :d1 AND :d2")
+        where.append("vt.group_created_at::date BETWEEN :d1 AND :d2")
         p.update({"d1": d1, "d2": d2})
-    if who.strip():
-        where.append("COALESCE(v.created_by_instance,'') ILIKE :by")
-        p["by"] = f"%{who.strip()}%"
     if q.strip():
         p["q"] = f"%{q.strip()}%"
         where.append("""(
-          COALESCE(v.clutch_code,'')                         ILIKE :q OR
-          COALESCE(v.cross_name_pretty,'')                   ILIKE :q OR
-          COALESCE(v.clutch_name,'')                         ILIKE :q OR
-          COALESCE(v.clutch_genotype_pretty,'')              ILIKE :q OR
-          COALESCE(v.treatments_pretty_effective,'')         ILIKE :q OR
-          COALESCE(v.genotype_treatment_rollup_effective,'') ILIKE :q
+          vt.treated_clutch_code ILIKE :q OR
+          vt.clutch_code         ILIKE :q OR
+          vt.cross_name_pretty   ILIKE :q OR
+          COALESCE(vt.clutch_genotype_pretty,'')   ILIKE :q OR
+          COALESCE(vt.treatments_codes_group,'')   ILIKE :q OR
+          COALESCE(vt.treatments_names_group,'')   ILIKE :q OR
+          COALESCE(vt.treatment_genotype_group,'') ILIKE :q
         )""")
     wsql = ("WHERE " + " AND ".join(where)) if where else ""
-
     sql = text(f"""
       SELECT
-        v.clutch_code,
-        v.cross_name_pretty,
-        v.clutch_name,
-        v.clutch_genotype_pretty,
-        v.genotype_treatment_rollup_effective,
-        v.treatments_count_effective,
-        v.treatments_pretty_effective,
-        v.clutch_birthday,
-        v.created_by_instance,
-        v.created_at_instance
-      FROM {VIEW} v
+        vt.treated_clutch_code,
+        vt.group_created_at,
+        vt.treatments_count_group::int AS treatments_count_group,
+        vt.treatments_codes_group,
+        vt.treatments_names_group,
+        vt.treatment_genotype_group,
+        vt.clutch_code,
+        vt.clutch_birthday,
+        vt.cross_name_pretty,
+        vt.clutch_genotype_pretty
+      FROM {V_TCLUTCH} vt
       {wsql}
-      ORDER BY v.created_at_instance DESC NULLS LAST, v.clutch_code
+      ORDER BY
+        vt.clutch_code,
+        (regexp_match(vt.treated_clutch_code, '\\-(\\d+)$'))[1]::int ASC,
+        vt.group_created_at ASC
       LIMIT 500
     """)
     with eng.begin() as cx:
         df = pd.read_sql(sql, cx, params=p)
-
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
-    if "treatments_count_effective" in df.columns:
-        df["treatments_count_effective"] = (
-            pd.to_numeric(df["treatments_count_effective"], errors="coerce")
-              .fillna(0).astype(int)
-        )
     return df
 
-def _resolve_ci_id(code: str) -> Optional[str]:
-    if not code:
-        return None
+def _resolve_ids_from_group(treated_clutch_code: str) -> tuple[Optional[str], Optional[str]]:
+    if not treated_clutch_code: return None, None
+    sql = text("""
+      SELECT tc.id::text AS treated_clutch_id, ci.id::text AS clutch_instance_id
+      FROM public.treated_clutches tc
+      JOIN public.clutch_instances ci ON ci.id = tc.clutch_instance_id
+      WHERE tc.treated_clutch_code = :g
+      LIMIT 1
+    """)
     with eng.begin() as cx:
-        df = pd.read_sql(text("""
-            SELECT id::text AS clutch_instance_id
-            FROM public.clutch_instances
-            WHERE clutch_instance_code = :c
-            LIMIT 1
-        """), cx, params={"c": code})
-        if not df.empty:
-            return df["clutch_instance_id"].iloc[0]
-    return None
+        row = pd.read_sql(sql, cx, params={"g": treated_clutch_code})
+    if row.empty: return None, None
+    return row.iloc[0]["treated_clutch_id"], row.iloc[0]["clutch_instance_id"]
 
-def _load_ci_annotation(cid: str) -> pd.DataFrame:
+def _load_group_annotation(group_code: str) -> pd.DataFrame:
+    if not _exists_view(V_PVT_G):
+        return pd.DataFrame()
+    sql = text(f"""
+      SELECT *
+      FROM {V_PVT_G}
+      WHERE treated_clutch_code = :g
+      LIMIT 1
+    """)
     with eng.begin() as cx:
-        sql = text("""
-        WITH ci AS (
-          SELECT id, clutch_instance_code, created_at
-          FROM public.clutch_instances
-          WHERE id = CAST(:cid AS uuid)
-          LIMIT 1
-        ),
-        pvt AS (
-          SELECT *
-          FROM public.v_clutch_annotations_pivot
-          WHERE clutch_code = (SELECT clutch_instance_code FROM ci)
-          LIMIT 1
-        ),
-        latest AS (
-          SELECT created_by, created_at
-          FROM public.v_annotations_latest
-          WHERE target_type='clutch'
-            AND target_id = CAST(:cid AS uuid)
-            AND kind_code IN ('red_intensity','green_intensity','notes','green_frequency','red_frequency','n_animals')
-          ORDER BY created_at DESC
-          LIMIT 1
-        )
-        SELECT
-          ci.id::text                          AS clutch_instance_id,
-          ci.clutch_instance_code,
-          pvt.red_intensity,
-          pvt.green_intensity,
-          pvt.green_frequency,
-          pvt.red_frequency,
-          pvt.n_animals,
-          pvt.notes,
-          (pvt.red_intensity        IS NOT NULL) AS red_selected,
-          (pvt.green_intensity      IS NOT NULL) AS green_selected,
-          (pvt.green_frequency      IS NOT NULL) AS greenfreq_selected,
-          (pvt.red_frequency        IS NOT NULL) AS redfreq_selected,
-          (pvt.n_animals            IS NOT NULL) AS n_animals_selected,
-          latest.created_by                       AS annotated_by,
-          latest.created_at                       AS annotated_at,
-          ci.created_at
-        FROM ci
-        LEFT JOIN pvt    ON TRUE
-        LEFT JOIN latest ON TRUE
-        """)
-        return pd.read_sql(sql, cx, params={"cid": cid})
+        df = pd.read_sql(sql, cx, params={"g": group_code})
+    for c in df.select_dtypes(include="object").columns:
+        df[c] = df[c].astype("string").fillna("")
+    return df
 
-def _update_ci_annotation(cid: str, red: str, green: str, note: str, fallback_user: str,
-                          gfreq: str = "", rfreq: str = "", n_animals: str = ""):
+def _update_group_annotation(treated_clutch_id: str, red: str, green: str, note: str, fallback_user: str,
+                             gfreq: str = "", rfreq: str = "", n_animals: str = ""):
     who = (getattr(user, "email", "") or fallback_user or "")
     with eng.begin() as cx:
-        if (red or "").strip() != "":
-            cx.execute(text("""
-              INSERT INTO public.join_annotations (target_type, target_id, annotation_id, value_num, created_by)
-              SELECT 'clutch', CAST(:cid AS uuid), a.id, NULLIF(:v,'')::numeric,
-                     COALESCE(current_setting('app.user', TRUE), :who)
-              FROM public.annotations a
-              WHERE a.kind_code='red_intensity'
-            """), {"cid": cid, "v": red, "who": who})
+        def ins(kind:str, val:str, numeric=True):
+            if (val or "").strip()=="":
+                return
+            if numeric:
+                cx.execute(text(f"""
+                  INSERT INTO public.join_annotations (target_type, target_id, annotation_id, value_num, created_by)
+                  SELECT 'treated_clutch', CAST(:tid AS uuid), a.id, NULLIF(:v,'')::numeric,
+                         COALESCE(current_setting('app.user', TRUE), :who)
+                  FROM {T_ANN} a WHERE a.kind_code=:k
+                """), {"tid": treated_clutch_id, "v": val, "k": kind, "who": who})
+            else:
+                cx.execute(text(f"""
+                  INSERT INTO public.join_annotations (target_type, target_id, annotation_id, value_text, created_by)
+                  SELECT 'treated_clutch', CAST(:tid AS uuid), a.id, NULLIF(:v,''), 
+                         COALESCE(current_setting('app.user', TRUE), :who)
+                  FROM {T_ANN} a WHERE a.kind_code=:k
+                """), {"tid": treated_clutch_id, "v": val, "k": kind, "who": who})
 
-        if (green or "").strip() != "":
-            cx.execute(text("""
-              INSERT INTO public.join_annotations (target_type, target_id, annotation_id, value_num, created_by)
-              SELECT 'clutch', CAST(:cid AS uuid), a.id, NULLIF(:v,'')::numeric,
-                     COALESCE(current_setting('app.user', TRUE), :who)
-              FROM public.annotations a
-              WHERE a.kind_code='green_intensity'
-            """), {"cid": cid, "v": green, "who": who})
-
-        if (gfreq or "").strip() != "":
-            cx.execute(text("""
-              INSERT INTO public.join_annotations (target_type, target_id, annotation_id, value_num, created_by)
-              SELECT 'clutch', CAST(:cid AS uuid), a.id, NULLIF(:v,'')::numeric,
-                     COALESCE(current_setting('app.user', TRUE), :who)
-              FROM public.annotations a
-              WHERE a.kind_code='green_frequency'
-            """), {"cid": cid, "v": gfreq, "who": who})
-
-        if (rfreq or "").strip() != "":
-            cx.execute(text("""
-              INSERT INTO public.join_annotations (target_type, target_id, annotation_id, value_num, created_by)
-              SELECT 'clutch', CAST(:cid AS uuid), a.id, NULLIF(:v,'')::numeric,
-                     COALESCE(current_setting('app.user', TRUE), :who)
-              FROM public.annotations a
-              WHERE a.kind_code='red_frequency'
-            """), {"cid": cid, "v": rfreq, "who": who})
-
-        if (n_animals or "").strip() != "":
-            cx.execute(text("""
-              INSERT INTO public.join_annotations (target_type, target_id, annotation_id, value_num, created_by)
-              SELECT 'clutch', CAST(:cid AS uuid), a.id, NULLIF(:v,'')::numeric,
-                     COALESCE(current_setting('app.user', TRUE), :who)
-              FROM public.annotations a
-              WHERE a.kind_code='n_animals'
-            """), {"cid": cid, "v": n_animals, "who": who})
-
-        if (note or "").strip() != "":
-            cx.execute(text("""
-              INSERT INTO public.join_annotations (target_type, target_id, annotation_id, value_text, created_by)
-              SELECT 'clutch', CAST(:cid AS uuid), a.id, NULLIF(:v,''),
-                     COALESCE(current_setting('app.user', TRUE), :who)
-              FROM public.annotations a
-              WHERE a.kind_code='notes'
-            """), {"cid": cid, "v": note, "who": who})
+        ins('red_intensity',   red)
+        ins('green_intensity', green)
+        ins('green_frequency', gfreq)
+        ins('red_frequency',   rfreq)
+        ins('n_animals',       n_animals)
+        ins('notes',           note, numeric=False)
 
 # ---------- filters ----------
 with st.form("filters", clear_on_submit=False):
@@ -203,84 +162,85 @@ with st.form("filters", clear_on_submit=False):
     c1, c2, c3, c4 = st.columns([1, 1, 1, 3])
     with c1: d1 = st.date_input("From", value=today - timedelta(days=120))
     with c2: d2 = st.date_input("To",   value=today + timedelta(days=14))
-    with c3: created_by = st.text_input("Created by (plan/instance)", value="")
-    with c4: qtxt = st.text_input("Search (code/cross/clutch/genotype/strain)", value="")
+    with c3: qtxt = st.text_input("Search (group/clutch/cross/genotype/treatments)", value="")
+    with c4: st.empty()
     r1, r2 = st.columns([1, 3])
     with r1: ignore_dates = st.checkbox("Most recent (ignore dates)", value=False)
     with r2: st.form_submit_button("Apply", width="stretch")
 
-df = _load_clutches_filtered(d1, d2, created_by, qtxt, ignore_dates)
-st.caption(f"{len(df)} clutch(es)")
+df = _load_groups_filtered(d1, d2, qtxt, ignore_dates)
+st.caption(f"{len(df)} treated clutch group(s)")
 if df.empty:
-    st.info("No clutches found with the current filters.")
-    st.stop()
+    st.info("No groups found with the current filters."); st.stop()
 
+# lead with treated_clutch_code
 cols = [
-    "clutch_code","cross_name_pretty","clutch_name",
-    "clutch_genotype_pretty","genotype_treatment_rollup_effective",
-    "treatments_count_effective","treatments_pretty_effective",
-    "clutch_birthday","created_by_instance",
+    "treated_clutch_code","group_created_at",
+    "treatments_count_group","treatments_codes_group","treatments_names_group",
+    "treatment_genotype_group",
+    "clutch_code","clutch_birthday","cross_name_pretty","clutch_genotype_pretty",
 ]
 dfv = df[cols].copy()
 dfv.insert(0, "✓ Select", False)
-last_ci = st.session_state.get("__annot_last_ci")
-if last_ci:
-    dfv.loc[dfv["clutch_code"] == last_ci, "✓ Select"] = True
+last_group = st.session_state.get("__annot_last_group")
+if last_group:
+    dfv.loc[dfv["treated_clutch_code"] == last_group, "✓ Select"] = True
 
 picker = st.data_editor(
     dfv, hide_index=True, width="stretch", num_rows="fixed",
     column_config={
-        "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
+        "✓ Select":               st.column_config.CheckboxColumn("✓", default=False),
+        "group_created_at":       st.column_config.DatetimeColumn("created_at", disabled=True),
+        "clutch_birthday":        st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
+        "treatments_count_group": st.column_config.NumberColumn("# tx", format="%d", step=1, disabled=True),
     },
     column_order=["✓ Select"] + cols,
-    key="annotate_ci_picker_v4",
+    key="annotate_group_picker_v1",
 )
 sel = picker.get("✓ Select", pd.Series(False, index=picker.index)).fillna(False).astype(bool)
 picked = dfv[sel].reset_index(drop=True)
 if picked.empty:
-    st.info("Select a clutch instance row to annotate it.")
+    st.info("Select a treated clutch group to annotate it.")
     st.stop()
 
-ci_code = str(picked.iloc[0]["clutch_code"])
-st.session_state["__annot_last_ci"] = ci_code
-cid = _resolve_ci_id(ci_code)
-if not cid:
-    st.error("Could not resolve clutch_instance_id from this code.")
-    st.stop()
+group_code = str(picked.iloc[0]["treated_clutch_code"])
+st.session_state["__annot_last_group"] = group_code
+treated_clutch_id, cid = _resolve_ids_from_group(group_code)
+if not cid or not treated_clutch_id:
+    st.error("Could not resolve IDs for this group."); st.stop()
 
-st.caption(f"{ci_code} — {picked.iloc[0]['genotype_treatment_rollup_effective']}")
-st.subheader("Annotate this clutch instance")
+st.caption(f"{group_code} — {picked.iloc[0]['treatment_genotype_group']}")
+st.subheader("Annotate this treated clutch group")
 
-cur = _load_ci_annotation(cid)
+cur = _load_group_annotation(group_code)
 row = cur.iloc[0] if not cur.empty else {}
 
-# inputs
+# inputs (1–100 scale)
 c1, c2, c3 = st.columns([1, 1, 2])
 with c1:
-    red_val = st.number_input("red_intensity", min_value=0.0, max_value=1.0, step=0.05,
-                              value=float(row.get("red_intensity") or 0.0))
+    red_val = st.number_input("red_intensity (1–100)", min_value=1, max_value=100, step=1,
+                              value=int(round(float(row.get("red_intensity") or 0) or 0)) or 1)
 with c2:
-    green_val = st.number_input("green_intensity", min_value=0.0, max_value=1.0, step=0.05,
-                                value=float(row.get("green_intensity") or 0.0))
+    green_val = st.number_input("green_intensity (1–100)", min_value=1, max_value=100, step=1,
+                                value=int(round(float(row.get("green_intensity") or 0) or 0)) or 1)
 with c3:
     note_txt = st.text_input("note", value=str(row.get("notes") or ""), placeholder="optional")
 
 c4, c5, c6 = st.columns([1, 1, 1])
 with c4:
-    gfreq_val = st.number_input("green_frequency (0–1)", min_value=0.0, max_value=1.0, step=0.05,
-                                value=float(row.get("green_frequency") or 0.0))
+    gfreq_val = st.number_input("green_frequency (1–100)", min_value=1, max_value=100, step=1,
+                                value=int(round(float(row.get("green_frequency") or 0) or 0)) or 1)
 with c5:
-    rfreq_val = st.number_input("red_frequency (0–1)", min_value=0.0, max_value=1.0, step=0.05,
-                                value=float(row.get("red_frequency") or 0.0))
+    rfreq_val = st.number_input("red_frequency (1–100)", min_value=1, max_value=100, step=1,
+                                value=int(round(float(row.get("red_frequency") or 0) or 0)) or 1)
 with c6:
     n_val = st.number_input("n_animals (integer ≥ 0)", min_value=0, step=1,
                             value=int(row.get("n_animals") or 0))
 
 # save
-if st.button("Save annotation", width="stretch", key="save_ci_annotation"):
-    _update_ci_annotation(
-        cid,
+if st.button("Save annotation", width="stretch", key="save_group_annotation"):
+    _update_group_annotation(
+        treated_clutch_id,
         "" if red_val   is None else str(red_val),
         "" if green_val is None else str(green_val),
         note_txt,
@@ -292,17 +252,16 @@ if st.button("Save annotation", width="stretch", key="save_ci_annotation"):
     st.success("Annotation saved.")
 
 # display
-st.subheader("Updated clutch instance")
-updated = _load_ci_annotation(cid)
+st.subheader("Updated treated clutch group")
+updated = _load_group_annotation(group_code)
 if updated.empty:
     st.info("No record found (unexpected).")
 else:
     show_cols = [
-        "clutch_instance_code",
-        "red_intensity", "green_intensity",
-        "green_frequency", "red_frequency", "n_animals",
+        "treated_clutch_code",
+        "red_intensity","green_intensity",
+        "green_frequency","red_frequency","n_animals",
         "notes",
-        "red_selected", "green_selected", "greenfreq_selected", "redfreq_selected", "n_animals_selected",
-        "annotated_by", "annotated_at", "created_at",
+        "annotated_by","annotated_at",
     ]
     st.dataframe(updated[[c for c in show_cols if c in updated.columns]], width="stretch", hide_index=True)
