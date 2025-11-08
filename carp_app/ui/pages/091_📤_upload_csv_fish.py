@@ -434,6 +434,10 @@ if st.button("Process upload (create/update fish and links)", type="primary"):
                 continue
             inserted.append(dict(got))
 
+            fc = (got.get("fish_code") or "").strip()
+            if fc:
+                cx.execute(text("SELECT public.ensure_active_tank_for_fish(:fc)"), {"fc": fc})
+
             # Resolve optional columns
             ft_code = (str(r.get(col_ft)).strip() if col_ft and pd.notna(r.get(col_ft)) else "")
             fluor   = (str(r.get(col_flu)).strip() if col_flu and pd.notna(r.get(col_flu)) else "")

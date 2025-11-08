@@ -1,3 +1,4 @@
+# carp_app/ui/pages/110_🔎_overview_fusions.py
 from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
@@ -39,69 +40,84 @@ def _eng() -> Engine:
 # ── Data loaders ─────────────────────────────────────────────────────────────
 @st.cache_data(ttl=60)
 def load_fusion_catalog() -> pd.DataFrame:
+    """
+    Return one row per fusion with fluor/tag labels and count of linked plasmids.
+    Joins by *IDs* (fusions.fluor_id / tag_id; join_plasmid_fusions.fusion_id).
+    """
     sql = """
-    with base as (
-      select
+    WITH base AS (
+      SELECT
+        f.id              AS fusion_id,
         f.fusion_code,
         f.fusion_name,
         fl.fluor_name,
-        t.tag_name
-      from public.fusions f
-      left join public.fluors fl on fl.fluor_code = f.fluor_code
-      left join public.tags   t  on t.tag_code   = f.tag_code
+        fl.fluor_code,
+        tg.tag_name,
+        tg.tag_code
+      FROM public.fusions f
+      LEFT JOIN public.fluors  fl ON fl.id = f.fluor_id
+      LEFT JOIN public.tags    tg ON tg.id = f.tag_id
     ),
-    counts as (
-      select fusion_code, count(*)::int as n_plasmids
-      from public.join_plasmid_fusions
-      group by fusion_code
+    counts AS (
+      SELECT
+        jpf.fusion_id,
+        COUNT(*)::int AS n_plasmids
+      FROM public.join_plasmid_fusions jpf
+      GROUP BY jpf.fusion_id
     )
-    select
+    SELECT
+      b.fusion_id,
       b.fusion_code,
       b.fusion_name,
       b.fluor_name,
+      b.fluor_code,
       b.tag_name,
-      coalesce(c.n_plasmids, 0) as n_plasmids
-    from base b
-    left join counts c using (fusion_code)
-    order by b.fusion_name
+      b.tag_code,
+      COALESCE(c.n_plasmids, 0) AS n_plasmids
+    FROM base b
+    LEFT JOIN counts c
+      ON c.fusion_id = b.fusion_id
+    ORDER BY b.fusion_name NULLS LAST, b.fusion_code
     """
     with _eng().begin() as cx:
         return pd.read_sql(text(sql), cx)
 
 @st.cache_data(ttl=60)
-def load_plasmids_for_fusions(fusion_codes: List[str]) -> pd.DataFrame:
-    if not fusion_codes:
+def load_plasmids_for_fusions(fusion_ids: List[str]) -> pd.DataFrame:
+    """
+    Given a list of fusion_ids, return the plasmids (from v_plasmids) that link to them.
+    """
+    if not fusion_ids:
         return pd.DataFrame(columns=[
-            "plasmid_code","plasmid_name","nickname","resistance",
-            "supports_invitro_rna","fluor_names","tag_names","fusion_names","notes"
+            "code","name","nickname","resistance","supports_invitro_rna",
+            "fluors","tags","fusions","notes"
         ])
     sql = """
-    select
-      r.plasmid_code,
-      r.plasmid_name,
-      r.nickname,
-      r.resistance,
-      r.supports_invitro_rna,
-      r.fluor_names,
-      r.tag_names,
-      r.fusion_names,
-      r.notes
-    from public.v_plasmids_rich r
-    where exists (
-      select 1
-      from public.join_plasmid_fusions pf
-      where pf.plasmid_code = r.plasmid_code
-        and pf.fusion_code = any(:codes)
+    SELECT
+      vp.code,
+      vp.name,
+      vp.nickname,
+      vp.resistance,
+      vp.supports_invitro_rna,
+      vp.fluors,
+      vp.tags,
+      vp.fusions,
+      vp.notes
+    FROM public.v_plasmids AS vp
+    WHERE vp.id IN (
+      SELECT DISTINCT jpf.plasmid_id
+      FROM public.join_plasmid_fusions AS jpf
+      WHERE jpf.fusion_id = ANY(:ids)
     )
-    order by r.plasmid_code
+    ORDER BY vp.code
     """
     with _eng().begin() as cx:
-        return pd.read_sql(text(sql), cx, params={"codes": fusion_codes})
+        return pd.read_sql(text(sql), cx, params={"ids": fusion_ids})
 
 # ── Filters (search + fluor/tag pickers) ─────────────────────────────────────
 with _eng().begin() as cx:
-    flu_cat = pd.read_sql(text("select fluor_name from public.fluors order by fluor_name"), cx)["fluor_name"].dropna().tolist()
-    tag_cat = pd.read_sql(text("select tag_name   from public.tags   order by tag_name"),   cx)["tag_name"].dropna().tolist()
+    flu_cat = pd.read_sql(text("SELECT fluor_name FROM public.fluors ORDER BY fluor_name"), cx)["fluor_name"].dropna().tolist()
+    tag_cat = pd.read_sql(text("SELECT tag_name FROM public.tags ORDER BY tag_name"), cx)["tag_name"].dropna().tolist()
 
 with st.form("filters"):
     c1, c2, c3, c4 = st.columns([2,2,2,1])
@@ -117,7 +133,7 @@ with st.form("filters"):
 
 fusions = load_fusion_catalog()
 
-# Apply text/field filters client-side (fast, consistent with other overview pages)
+# Client-side filter helpers (simple token parsing akin to other overview pages)
 def _tokens(qs: str) -> List[str]:
     return [t for t in shlex.split(qs or "") if t and t.upper() != "AND"]
 
@@ -147,7 +163,7 @@ def _match_row(row: pd.Series) -> bool:
         if not neg and not hit:
             return False
     if fl_sel and (row.get("fluor_name") not in fl_sel):
-        return False
+        return false
     if tag_sel and (row.get("tag_name") not in tag_sel):
         return False
     return True
@@ -166,7 +182,7 @@ view_cols = ["✓ Select","fusion_name","fluor_name","tag_name","n_plasmids"]
 tbl = fusions_view.copy()
 tbl.insert(0, "✓ Select", False)
 
-sig = "|".join(tbl.get("fusion_code", pd.Series([], dtype=str)).astype(str).tolist())
+sig = "|".join(tbl.get("fusion_id", pd.Series([], dtype=str)).astype(str).tolist())  # stable selection key by ID
 if st.session_state.get("_fusions_sig") != sig:
     st.session_state["_fusions_sig"] = sig
     st.session_state["_fusions_table"] = tbl.copy()
@@ -177,33 +193,35 @@ edited = st.data_editor(
     hide_index=True,
     column_order=view_cols,
     column_config={
-        "✓ Select":   st.column_config.CheckboxColumn("✓ Select", default=False),
-        "fusion_name":st.column_config.TextColumn("fusion", disabled=True),
-        "fluor_name": st.column_config.TextColumn("fluor",  disabled=True),
-        "tag_name":   st.column_config.TextColumn("tag",    disabled=True),
-        "n_plasmids": st.column_config.NumberColumn("# plasmids", disabled=True),
+        "✓ Select":    st.column_config.CheckboxColumn("✓ Select", default=False),
+        "fusion_name": st.column_config.TextColumn("fusion", disabled=True),
+        "fluor_name":  st.column_config.TextColumn("fluor",  disabled=True),
+        "tag_name":    st.column_config.TextColumn("tag",    disabled=True),
+        "n_plasmids":  st.column_config.NumberColumn("# plasmids", disabled=True),
     },
     key="fusions_editor",
 )
 st.session_state["_fusions_table"] = edited.copy()
 
-sel_codes_actual: List[str] = []
+# Build selection **by fusion_id**
+sel_ids_actual: List[str] = []
 if isinstance(edited, pd.DataFrame) and "✓ Select" in edited.columns:
-    sel_codes_actual = fusions_view.loc[edited.index[edited["✓ Select"]], "fusion_code"].astype(str).tolist()
+    sel_ids_actual = fusions_view.loc[
+        edited.index[edited["✓ Select"]],
+        "fusion_id"
+    ].astype(str).tolist()
 
 cA, cB, cC = st.columns([1,2,2])
 with cA:
-    st.caption(f"Selected fusions: {len(sel_codes_actual)}")
+    st.caption(f"Selected fusions: {len(sel_ids_actual)}")
 
 # ── Drilldown: plasmids containing the selected fusion(s) ────────────────────
-if sel_codes_actual:
+if sel_ids_actual:
     st.subheader("Plasmids containing selected fusion(s)")
-    plasmids = load_plasmids_for_fusions(sel_codes_actual).copy()
+    plasmids = load_plasmids_for_fusions(sel_ids_actual).copy()
+    # Display a friendly subset
     st.dataframe(
-        plasmids[[
-            "plasmid_code","plasmid_name","nickname","resistance","supports_invitro_rna",
-            "fluor_names","tag_names","fusion_names","notes"
-        ]],
+        plasmids[["code","name","nickname","resistance","supports_invitro_rna","fluors","tags","fusions","notes"]],
         use_container_width=True
     )
 else:
