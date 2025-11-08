@@ -17,7 +17,7 @@ require_email_otp()
 require_app_unlock()
 
 # ── std/3p ───────────────────────────────────────────────────────────────────
-import os, shlex
+import os
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
@@ -51,26 +51,23 @@ def _load_fish_rich_all(q: str | None, limit: int) -> pd.DataFrame:
     Uses the same filter as _load_fish_overview but selects all columns from v_fish_overview_id.
     """
     sql = text("""
-      SELECT *
-      FROM public.v_fish_overview_id
-      WHERE (:q IS NULL)
-         OR (
-              fish_code ILIKE :q
-           OR COALESCE(nickname,'')            ILIKE :q
-           OR COALESCE(genetic_background,'')  ILIKE :q
-           OR COALESCE(line_building_stage,'') ILIKE :q
-           OR COALESCE(allele_codes,'')        ILIKE :q
-           OR COALESCE(allele_nicknames,'')    ILIKE :q
-           OR COALESCE(transgenes,'')          ILIKE :q
-           OR COALESCE(genotype_rollup,'')     ILIKE :q
-           OR COALESCE(fusion_rollup,'')       ILIKE :q
-           OR COALESCE(fluor_rollup,'')        ILIKE :q
-           OR COALESCE(tag_rollup,'')          ILIKE :q
-           OR COALESCE(dye_rollup,'')          ILIKE :q
-         )
-      ORDER BY created_at DESC NULLS LAST, fish_code
-      LIMIT :lim
-    """)
+        SELECT *
+        FROM public.v_fish_unified
+        WHERE (:q IS NULL)
+            OR (
+                fish_code ILIKE :q
+            OR COALESCE(nickname,'')            ILIKE :q
+            OR COALESCE(genetic_background,'')  ILIKE :q
+            OR COALESCE(line_building_stage,'') ILIKE :q
+            OR COALESCE(genotype_pretty,'')     ILIKE :q
+            OR COALESCE(markers,'')             ILIKE :q
+            OR COALESCE(fluors,'')              ILIKE :q
+            OR COALESCE(tags,'')                ILIKE :q
+            OR COALESCE(dyes,'')                ILIKE :q
+            )
+        ORDER BY created_at DESC NULLS LAST, fish_code
+        LIMIT :lim
+        """)
     params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
@@ -91,23 +88,22 @@ def _load_fish_overview(q: str | None, limit: int) -> pd.DataFrame:
     sql = text("""
       SELECT
         fish_code, nickname, birthday, genetic_background, line_building_stage,
-        allele_count, allele_codes, allele_nicknames, transgenes, genotype_rollup,
-        fusion_rollup, fluor_rollup, tag_rollup, dye_rollup, created_at
-      FROM public.v_fish_overview_id
+        genotype_pretty,
+        markers,        -- base(allele) codes
+        fluors, tags, dyes,
+        created_at
+      FROM public.v_fish_unified
       WHERE (:q IS NULL)
          OR (
               fish_code ILIKE :q
            OR COALESCE(nickname,'')            ILIKE :q
            OR COALESCE(genetic_background,'')  ILIKE :q
            OR COALESCE(line_building_stage,'') ILIKE :q
-           OR COALESCE(allele_codes,'')        ILIKE :q
-           OR COALESCE(allele_nicknames,'')    ILIKE :q
-           OR COALESCE(transgenes,'')          ILIKE :q
-           OR COALESCE(genotype_rollup,'')     ILIKE :q
-           OR COALESCE(fusion_rollup,'')       ILIKE :q
-           OR COALESCE(fluor_rollup,'')        ILIKE :q
-           OR COALESCE(tag_rollup,'')          ILIKE :q
-           OR COALESCE(dye_rollup,'')          ILIKE :q
+           OR COALESCE(genotype_pretty,'')     ILIKE :q
+           OR COALESCE(markers,'')             ILIKE :q
+           OR COALESCE(fluors,'')              ILIKE :q
+           OR COALESCE(tags,'')                ILIKE :q
+           OR COALESCE(dyes,'')                ILIKE :q
          )
       ORDER BY created_at DESC NULLS LAST, fish_code
       LIMIT :lim
@@ -115,10 +111,7 @@ def _load_fish_overview(q: str | None, limit: int) -> pd.DataFrame:
     params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
-
-    if "allele_count" in df.columns:
-        df["allele_count"] = pd.to_numeric(df["allele_count"], errors="coerce").astype("Int64")
-    return _coerce_strings(df)
+    return _coerce_strings(df)   # <-- add this
 
 def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
     """
@@ -153,52 +146,54 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
         return pd.DataFrame(columns=want_cols)
 
     sql = text(r"""
-      WITH picked AS (SELECT unnest(cast(:ids AS uuid[])) AS container_id),
-      vt AS (
-        SELECT
-            v.tank_uuid::uuid         AS tank_id,
-            regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1')::text AS fish_code,
-            v.tank_code::text         AS tank_code,
-            ''::text                  AS status,
-            v.created_at::timestamptz AS created_at,
-            split_part(v.tank_code, '#', 2)   AS tank_num
-        FROM public.v_tanks v
-      ),
-      vf AS (
-        SELECT
-            f.fish_code::text               AS fish_code,
-            COALESCE(f.nickname,'')         AS nickname,
-            COALESCE(f.genetic_background,'') AS genetic_background,
-            COALESCE(f.line_building_stage,'') AS stage,
-            f.birthday::date                AS dob,
-            COALESCE(f.genotype_rollup,'')  AS genotype,
-            COALESCE(f.genotype_rollup,'')  AS transgene_pretty
-        FROM public.v_fish_overview_id f
-      )
-      SELECT
-        p.container_id::text                AS container_id,
-        vt.tank_code                        AS tank_code,
-        vt.status                           AS status,
-        vt.fish_code                        AS fish_code,
-        vf.nickname                         AS name_short,
-        vf.nickname                         AS name,
-        vf.nickname                         AS nickname,
-        ''::text                            AS alias,
-        CASE
-          WHEN vt.tank_num IS NOT NULL AND vt.tank_num <> ''
-            THEN 'TANK(' || vt.fish_code || ')#' || vt.tank_num
-          ELSE vt.tank_code
-        END                                  AS tank_display,
-        vf.genotype                          AS genotype,
-        vf.transgene_pretty                  AS transgene_pretty,
-        vf.genetic_background                AS genetic_background,
-        vf.stage                             AS stage,
-        vf.dob                               AS dob
-      FROM picked p
-      JOIN vt  ON vt.tank_id = p.container_id
-      LEFT JOIN vf ON vf.fish_code = vt.fish_code
-      ORDER BY vt.created_at ASC, vt.tank_code ASC
-    """)
+  WITH picked AS (
+    SELECT unnest(cast(:ids AS uuid[])) AS container_id
+  ),
+  vt AS (
+    SELECT
+        v.tank_uuid::uuid         AS tank_id,
+        regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1')::text AS fish_code,
+        v.tank_code::text         AS tank_code,
+        ''::text                  AS status,
+        v.created_at::timestamptz AS created_at,
+        split_part(v.tank_code, '#', 2)   AS tank_num
+    FROM public.v_tanks v
+  ),
+  vf AS (
+    SELECT
+        f.fish_code::text                  AS fish_code,
+        COALESCE(f.nickname,'')            AS nickname,
+        COALESCE(f.genetic_background,'')  AS genetic_background,
+        COALESCE(f.line_building_stage,'') AS stage,
+        f.birthday::date                   AS dob,
+        COALESCE(f.genotype_pretty,'')     AS genotype,
+        COALESCE(f.genotype_pretty,'')     AS transgene_pretty
+    FROM public.v_fish_unified f
+  )
+  SELECT
+    p.container_id::text                AS container_id,
+    vt.tank_code                        AS tank_code,
+    vt.status                           AS status,
+    vt.fish_code                        AS fish_code,
+    vf.nickname                         AS name_short,
+    vf.nickname                         AS name,
+    vf.nickname                         AS nickname,
+    ''::text                            AS alias,
+    CASE
+      WHEN vt.tank_num IS NOT NULL AND vt.tank_num <> ''
+        THEN 'TANK(' || vt.fish_code || ')#' || vt.tank_num
+      ELSE vt.tank_code
+    END                                  AS tank_display,
+    vf.genotype                          AS genotype,
+    vf.transgene_pretty                  AS transgene_pretty,
+    vf.genetic_background                AS genetic_background,
+    vf.stage                             AS stage,
+    vf.dob                               AS dob
+  FROM picked p
+  JOIN vt  ON vt.tank_id = p.container_id
+  LEFT JOIN vf ON vf.fish_code = vt.fish_code
+  ORDER BY vt.created_at ASC, vt.tank_code ASC
+""")
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params={"ids": container_ids})
 
@@ -250,30 +245,23 @@ def main():
 
     # Rename display headers (match v_fish_overview_id)
     df = df.rename(columns={
-        "fish_code":         "fish_code",
-        "nickname":          "Nickname",
-        "birthday":          "Birth date",
-        "genetic_background":"Genetic background",
+        "fish_code":          "fish_code",
+        "nickname":           "Nickname",
+        "birthday":           "Birth date",
+        "genetic_background": "Genetic background",
         "line_building_stage":"Line-building stage",
-        "allele_count":      "Allele count",
-        "allele_codes":      "Allele codes",
-        "allele_nicknames":  "Allele nickname(s)",
-        "transgenes":        "Transgenes",
-        "genotype_rollup":   "Genotype rollup",
-        "fusion_rollup":     "Fusion rollup",
-        "fluor_rollup":      "Fluor rollup",
-        "tag_rollup":        "Tag rollup",
-        "dye_rollup":        "Dye rollup",
-        "created_at":        "Created time",
+        "genotype_pretty":    "Genotype",
+        "markers":            "Markers",
+        "fluors":             "Fluors",
+        "tags":               "Tags",
+        "dyes":               "Dyes",
+        "created_at":         "Created time",
     })
 
     show_cols = [
-        "fish_code",
-        "Nickname",
-        "Genetic background", "Line-building stage",
-        "Allele count", "Allele codes", "Allele nickname(s)", "Transgenes", "Genotype rollup",
-        "Fusion rollup", "Fluor rollup", "Tag rollup", "Dye rollup",
-        "Birth date", "Created time",
+        "fish_code","Nickname","Genetic background","Line-building stage",
+        "Genotype","Markers","Fluors","Tags","Dyes",
+        "Birth date","Created time",
     ]
     show_cols = [c for c in show_cols if c in df.columns]
     st.subheader(f"Fish ({len(df)} rows)")
