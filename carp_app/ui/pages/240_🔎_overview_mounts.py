@@ -1,12 +1,12 @@
 # =============================================================================
-# 024_🔎_overview_mounts.py — Drill-down mounts (with clutch lineage/genotype pretties)
-# Top grid: mounts + summary metrics + clutch lineage/genotype (display + explicit)
-# Bottom grid: per-slot latest annotations (8 rows)
+# 024_🔎_overview_plates.py — Drill-down plates (summary + treated clutches + layout)
+# Top grid: plates with summary stats (counts, orientation mode), searchable
+# Drill-down per plate: treated clutch summary + full well layout + CSV export
 # =============================================================================
 from __future__ import annotations
 
 import os, sys, pathlib
-from typing import Optional, Set
+from typing import Optional, Set, Tuple, List
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
@@ -33,8 +33,8 @@ from carp_app.ui.lib.app_ctx import get_engine as _create_engine
 from carp_app.lib.time import utc_today
 
 # ── page config ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="CARP — 🔎 Overview Mounts (drill-down)", page_icon="🔎", layout="wide")
-st.title("🔎 Overview Mounts")
+st.set_page_config(page_title="CARP — 🔎 Overview Plates (drill-down)", page_icon="🔎", layout="wide")
+st.title("🔎 Overview Mounts")  # keep sidebar label stable
 
 # ── engine cache ─────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
@@ -48,146 +48,139 @@ def eng() -> Engine:
     return _eng_cached()
 
 # ── helpers ──────────────────────────────────────────────────────────────────
-def _columns(schema: str, name: str) -> Set[str]:
-    q = text("""
-      select column_name
-      from information_schema.columns
-      where table_schema=:s and table_name=:n
-      order by ordinal_position
+def _exists_view(qname: str) -> bool:
+    sch, name = qname.split(".", 1)
+    sql = text("""
+      SELECT 1 FROM information_schema.views WHERE table_schema=:s AND table_name=:n
+      UNION ALL
+      SELECT 1 FROM pg_catalog.pg_matviews WHERE schemaname=:s AND matviewname=:n
+      LIMIT 1
     """)
     with eng().begin() as cx:
-        df = pd.read_sql(q, cx, params={"s": schema, "n": name})
-    return set(df["column_name"].tolist())
+        return cx.execute(sql, {"s": sch, "n": name}).first() is not None
 
-
-def _mounts_summary_for_day(day: Optional[pd.Timestamp]) -> pd.DataFrame:
-    """
-    One row per mount_code with summary metrics + clutch lineage/genotype pretties.
-    Robust to optional mount columns; filters by day using timestamp when present,
-    else parses from code.
-    """
-    cols = _columns("public", "mounts")
-
-    sel_mounting = "m.mounting_orientation" if "mounting_orientation" in cols else "NULL::text"
-    sel_n_top    = "m.n_top"                if "n_top"                in cols else "NULL::int"
-    sel_n_bottom = "m.n_bottom"             if "n_bottom"             in cols else "NULL::int"
-    sel_notes    = "m.notes"                if "notes"                in cols else "NULL::text"
-
-    sel_mounted_at = "m.mounted_at"   if "mounted_at"   in cols else "NULL::timestamptz"
-    sel_time_mount = "m.time_mounted" if "time_mounted" in cols else "NULL::timestamptz"
-    sel_created_at = "m.created_at"   if "created_at"   in cols else "NULL::timestamptz"
-
-    date_candidates = ["mounted_at", "time_mounted", "created_at", "imaged_at"]
-    date_col = next((c for c in date_candidates if c in cols), None)
-    day_param = pd.Timestamp(day).date() if day is not None else None
-
-    if day_param and date_col:
-        where_day = f"WHERE DATE(m.{date_col}) = :d"
-        params = {"d": day_param}
-    elif day_param:
-        where_day = "WHERE (regexp_match(m.mount_code, '^MT-(\\d{8})-'))[1] = to_char(:d::date,'YYYYMMDD')"
-        params = {"d": day_param}
-    else:
-        where_day, params = "", {}
-
-    sql = text(f"""
-    WITH base AS (
-      SELECT
-        m.id                    AS mount_id,
-        m.mount_code,
-        ci.clutch_instance_code AS clutch_code,
-        {sel_mounting}          AS mounting_orientation,
-        {sel_n_top}             AS n_top,
-        {sel_n_bottom}          AS n_bottom,
-        {sel_notes}             AS notes,
-        {sel_mounted_at}        AS mounted_at_raw,
-        {sel_time_mount}        AS time_mounted_raw,
-        {sel_created_at}        AS created_at_raw,
-        COALESCE({sel_mounted_at}, {sel_time_mount}, {sel_created_at}) AS mounted_ts
-      FROM public.mounts m
-      LEFT JOIN public.clutch_instances ci ON ci.id = m.clutch_instance_id
-      {where_day}
-    ),
-    slots AS (
-      SELECT p.mount_code, p.red_intensity, p.green_intensity, p.orientation
-      FROM public.v_mount_slot_annotations_pivot p
-      INNER JOIN base b ON b.mount_code = p.mount_code
-    ),
-    orient_mode AS (
-      SELECT s.mount_code,
-             (SELECT orientation
-              FROM (
-                SELECT orientation, COUNT(*) AS c
-                FROM slots s2
-                WHERE s2.mount_code = s.mount_code
-                GROUP BY orientation
-                ORDER BY c DESC NULLS LAST, orientation ASC
-                LIMIT 1
-              ) x) AS orientation_mode
-      FROM slots s
-      GROUP BY s.mount_code
-    )
-    SELECT
-      b.mount_code,
-      b.clutch_code,
-      b.mounting_orientation,
-      b.n_top,
-      b.n_bottom,
-      b.notes,
-      b.mounted_ts AS mounted_at,
-      COUNT(s.red_intensity)                    AS slots,
-      ROUND(AVG(s.red_intensity)::numeric, 3)   AS red_avg,
-      MIN(s.red_intensity)                      AS red_min,
-      MAX(s.red_intensity)                      AS red_max,
-      ROUND(AVG(s.green_intensity)::numeric, 3) AS green_avg,
-      MIN(s.green_intensity)                    AS green_min,
-      MAX(s.green_intensity)                    AS green_max,
-      om.orientation_mode,
-      vci.clutch_genotype_pretty,
-      vci.clutch_genotype_fusions,
-      vci.clutch_treatments_codes,
-      vci.clutch_treatments_names,
-      vci.clutch_treatments_fusions,
-      vci.clutch_lineage_pretty,
-      vci.clutch_lineage_fusions_pretty,
-      vci.clutch_lineage_full_fusions_pretty
-    FROM base b
-    LEFT JOIN slots s        ON s.mount_code = b.mount_code
-    LEFT JOIN orient_mode om ON om.mount_code = b.mount_code
-    LEFT JOIN public.v_clutch_instances vci ON vci.clutch_code = b.clutch_code
-    GROUP BY
-      b.mount_code, b.clutch_code, b.mounting_orientation, b.n_top, b.n_bottom, b.notes, b.mounted_ts, om.orientation_mode,
-      vci.clutch_genotype_pretty, vci.clutch_genotype_fusions,
-      vci.clutch_treatments_codes, vci.clutch_treatments_names, vci.clutch_treatments_fusions,
-      vci.clutch_lineage_pretty, vci.clutch_lineage_fusions_pretty, vci.clutch_lineage_full_fusions_pretty
-    ORDER BY b.mounted_ts DESC NULLS LAST, b.mount_code;
+def _exists_table(qname: str) -> bool:
+    sch, name = qname.split(".", 1)
+    sql = text("""
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema=:s AND table_name=:n
+      LIMIT 1
     """)
+    with eng().begin() as cx:
+        return cx.execute(sql, {"s": sch, "n": name}).first() is not None
 
+V_LAYOUT   = "public.v_plate_layout"
+T_PLATES   = "public.plates"
+T_SLOTS    = "public.plate_slots"          # used only to check presence
+V_TCLUTCH  = "public.v_treated_clutches"   # optional, for tx→genotype context
+V_CI       = "public.v_clutch_instances"   # optional, if you want extra context
+
+# ── queries ──────────────────────────────────────────────────────────────────
+def _plates_for_day(day: Optional[pd.Timestamp]) -> pd.DataFrame:
+    """
+    Returns one row per plate (basic header). If day is given, filters by DATE(created_at)=day.
+    """
+    if not _exists_table(T_PLATES):
+        return pd.DataFrame(columns=["plate_code","plate_name","format_code","created_by","created_at"])
+    params = {}
+    if day is not None:
+        sql = text(f"""
+          SELECT plate_code, plate_name, format_code, created_by, created_at
+          FROM {T_PLATES}
+          WHERE DATE(created_at) = :d
+          ORDER BY created_at DESC NULLS LAST, plate_code
+        """)
+        params["d"] = pd.Timestamp(day).date()
+    else:
+        sql = text(f"""
+          SELECT plate_code, plate_name, format_code, created_by, created_at
+          FROM {T_PLATES}
+          ORDER BY created_at DESC NULLS LAST, plate_code
+          LIMIT 200
+        """)
     with eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
+    for c in df.select_dtypes("object").columns:
+        df[c] = df[c].astype("string").fillna("")
     return df
 
-
-def _slots_for_mount(mount_code: str) -> pd.DataFrame:
-    """Returns per-slot annotations for a given mount."""
-    sql = text("""
-      SELECT
-        mount_code,
-        well,
-        subwell,
-        red_intensity,
-        green_intensity,
-        orientation,
-        notes,
-        annotations_last_at
-      FROM public.v_mount_slot_annotations_pivot
-      WHERE mount_code = :code
-      ORDER BY CASE WHEN well='top' THEN 0 ELSE 1 END, subwell ASC
+def _layout_for_plate(plate_code: str) -> pd.DataFrame:
+    """
+    Load per-well layout for a plate from v_plate_layout.
+    """
+    if not _exists_view(V_LAYOUT):
+        return pd.DataFrame(columns=["well_label","treated_clutch_code","orientation"])
+    sql = text(f"""
+      SELECT plate_code, plate_name, format_code, n_rows, n_cols,
+             row_idx, col_idx, row_letter, well_label,
+             treated_clutch_id, treated_clutch_code, orientation, created_at
+      FROM {V_LAYOUT}
+      WHERE plate_code = :p
+      ORDER BY row_idx, col_idx
     """)
     with eng().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"code": mount_code})
+        df = pd.read_sql(sql, cx, params={"p": plate_code})
+    for c in df.select_dtypes("object").columns:
+        df[c] = df[c].astype("string").fillna("")
     return df
 
+def _plate_summary_from_layout(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Summarize a single-plate layout DF into a one-row summary:
+    - n_wells, n_filled, n_groups
+    - distinct treated_clutch_code list
+    - orientation_mode
+    """
+    if df.empty:
+        return pd.DataFrame([{
+            "n_wells": 0, "n_filled": 0, "n_groups": 0,
+            "treated_groups": "", "orientation_mode": ""
+        }])
+    n_wells  = df.shape[0]
+    filled   = df.loc[df["treated_clutch_code"] != ""]
+    n_filled = filled.shape[0]
+    codes = filled["treated_clutch_code"].unique().tolist()
+    n_groups = len(codes)
+    treated_groups = ", ".join(codes)
+
+    # orientation mode (most frequent non-empty)
+    orient_counts = df.loc[df["orientation"] != "", "orientation"].value_counts()
+    orientation_mode = orient_counts.index[0] if not orient_counts.empty else ""
+
+    return pd.DataFrame([{
+        "n_wells": n_wells,
+        "n_filled": n_filled,
+        "n_groups": n_groups,
+        "treated_groups": treated_groups,
+        "orientation_mode": orientation_mode
+    }])
+
+def _treated_clutch_details(plate_layout: pd.DataFrame) -> pd.DataFrame:
+    """
+    For a plate, return per-treated_clutch_code details using v_treated_clutches when present.
+    """
+    codes = plate_layout.loc[plate_layout["treated_clutch_code"] != "", "treated_clutch_code"] \
+                        .dropna().astype(str).unique().tolist()
+    if not codes:
+        return pd.DataFrame(columns=["treated_clutch_code","clutch_code","offspring_genotype","tx_to_genotype"])
+    if not _exists_view(V_TCLUTCH):
+        # minimal fallback
+        return pd.DataFrame({"treated_clutch_code": codes})
+
+    sql = text(f"""
+      SELECT treated_clutch_code,
+             clutch_code,
+             COALESCE(clutch_genotype_pretty,'')    AS offspring_genotype,
+             COALESCE(treatment_genotype_group,'')  AS tx_to_genotype
+      FROM {V_TCLUTCH}
+      WHERE treated_clutch_code = ANY(:codes)
+      ORDER BY treated_clutch_code
+    """)
+    with eng().begin() as cx:
+        df = pd.read_sql(sql, cx, params={"codes": codes})
+    for c in df.select_dtypes("object").columns:
+        df[c] = df[c].astype("string").fillna("")
+    return df
 
 # ── filters ──────────────────────────────────────────────────────────────────
 today = utc_today()
@@ -196,91 +189,26 @@ with st.form("filters"):
     with c1:
         day = st.date_input("Day", value=today)
     with c2:
-        q = st.text_input("Search (mount/clutch/genotype/treatments contains)", value="")
+        q = st.text_input("Search (plate/format/group/geno contains)", value="")
     submitted = st.form_submit_button("Apply", width="stretch")
 
-# toggles
-if hasattr(st, "segmented_control"):
-    SHOW_TREATMENTS_AS = st.segmented_control(
-        "Lineage display", options=["codes","names","fusions"], default="codes", key="mounts_tx_label_mode"
-    )
-    SHOW_GENOTYPE_AS = st.segmented_control(
-        "Genotype display", options=["codes","fusions"], default="codes", key="mounts_gx_label_mode"
-    )
-else:
-    SHOW_TREATMENTS_AS = st.selectbox(
-        "Lineage display", options=["codes","names","fusions"], index=0, key="mounts_tx_label_mode"
-    )
-    SHOW_GENOTYPE_AS = st.selectbox(
-        "Genotype display", options=["codes","fusions"], index=0, key="mounts_gx_label_mode"
-    )
-
-# ── main summary ─────────────────────────────────────────────────────────────
-summary = _mounts_summary_for_day(day)
+# ── load plates (header) ─────────────────────────────────────────────────────
+plates = _plates_for_day(day)
 
 if q.strip():
     _q = q.strip().lower()
-    summary = summary[
-        summary["mount_code"].fillna("").str.lower().str.contains(_q) |
-        summary["clutch_code"].fillna("").str.lower().str.contains(_q) |
-        summary["clutch_genotype_pretty"].fillna("").str.lower().str.contains(_q) |
-        summary["clutch_genotype_fusions"].fillna("").str.lower().str.contains(_q) |
-        summary["clutch_treatments_codes"].fillna("").str.lower().str.contains(_q) |
-        summary["clutch_treatments_names"].fillna("").str.lower().str.contains(_q) |
-        summary["clutch_treatments_fusions"].fillna("").str.lower().str.contains(_q)
+    plates = plates[
+        plates["plate_code"].fillna("").str.lower().str.contains(_q) |
+        plates["format_code"].fillna("").str.lower().str.contains(_q) |
+        plates["plate_name"].fillna("").str.lower().str.contains(_q)
     ]
 
-if summary.empty:
-    st.info("No mounts found for this filter.")
+if plates.empty:
+    st.info("No plates found for this filter.")
     st.stop()
 
-# orientation fallback
-summary["mounting_orientation"] = summary["mounting_orientation"].fillna(summary.get("orientation_mode"))
-
-# lineage display
-if SHOW_TREATMENTS_AS == "codes":
-    summary["lineage_display"] = summary["clutch_lineage_pretty"]
-elif SHOW_TREATMENTS_AS == "names":
-    names = summary["clutch_treatments_names"].fillna("")
-    geno  = summary["clutch_genotype_pretty"].fillna("")
-    summary["lineage_display"] = names.where(names.eq(""), names + " > ") + geno
-else:
-    summary["lineage_display"] = summary["clutch_lineage_full_fusions_pretty"].fillna(
-        summary["clutch_lineage_fusions_pretty"]
-    )
-
-# genotype display
-if SHOW_GENOTYPE_AS == "codes":
-    summary["genotype_display"] = summary["clutch_genotype_pretty"]
-else:
-    summary["genotype_display"] = summary["clutch_genotype_fusions"].fillna(summary["clutch_genotype_pretty"])
-
-# columns to display
-preferred = [
-    "mount_code","clutch_code","mounted_at",
-    "orientation_mode","mounting_orientation",
-    "red_avg","red_min","red_max","green_avg","green_min","green_max",
-    "n_top","n_bottom","notes",
-    "genotype_display","clutch_genotype_pretty","clutch_genotype_fusions",
-    "lineage_display","clutch_lineage_pretty","clutch_lineage_fusions_pretty",
-]
-
-cols_show = [c for c in preferred if c in summary.columns and summary[c].notna().any()]
-for key in ["mount_code","clutch_code","mounted_at"]:
-    if key in cols_show:
-        cols_show.insert(0, cols_show.pop(cols_show.index(key)))
-
-grid = summary[cols_show].copy()
-
-# numeric formatting
-for c in ["red_avg","green_avg"]:
-    if c in grid.columns:
-        grid[c] = pd.to_numeric(grid[c], errors="coerce").round(3)
-for c in ["red_min","red_max","green_min","green_max"]:
-    if c in grid.columns:
-        grid[c] = pd.to_numeric(grid[c], errors="coerce")
-
-# interactive grid
+# Checkbox table of plates
+grid = plates.copy()
 grid.insert(0, "✓ Select", False)
 picker = st.data_editor(
     grid,
@@ -289,31 +217,68 @@ picker = st.data_editor(
     num_rows="fixed",
     column_config={
         "✓ Select":  st.column_config.CheckboxColumn("✓", default=False),
-        "mounted_at": st.column_config.DatetimeColumn("mounted_at", format="YYYY-MM-DD HH:mm"),
-        "red_avg":   st.column_config.NumberColumn("red_avg",   format="%.3f"),
-        "green_avg": st.column_config.NumberColumn("green_avg", format="%.3f"),
-        "genotype_display": st.column_config.TextColumn("Genotype (display)", disabled=True),
-        "lineage_display":  st.column_config.TextColumn("Lineage (display)",  disabled=True),
+        "created_at": st.column_config.DatetimeColumn("created_at", format="YYYY-MM-DD HH:mm"),
     },
-    key="overview_mounts_drill_v3",
+    key="overview_plates_pick_v1",
 )
 
 sel_series = picker.get("✓ Select", pd.Series(False, index=picker.index)).fillna(False)
-if sel_series.sum() == 0 and len(grid.index) == 1:
-    sel_series.iloc[0] = True
-selected = grid[sel_series].reset_index(drop=True)
+selected = plates[sel_series].reset_index(drop=True)
 
-# ── slot details ─────────────────────────────────────────────────────────────
 st.divider()
-st.subheader("Per-slot annotations for selected mount")
+st.subheader("Selected plate(s)")
 
 if selected.empty:
-    st.info("Select one row above to view its 8 slots.")
-else:
-    mount_code = str(selected.iloc[0]["mount_code"])
-    slots_df = _slots_for_mount(mount_code)
-    if slots_df.empty:
-        st.info(f"No slot annotations yet for {mount_code}.")
+    st.info("Select one or more plates above to view details.")
+    st.stop()
+
+for _, prow in selected.iterrows():
+    pcode = str(prow["plate_code"])
+    st.markdown(f"### Plate **{pcode}** — {prow['format_code']}")
+
+    layout_df = _layout_for_plate(pcode)
+    if layout_df.empty:
+        st.info("No layout for this plate (unexpected).")
+        continue
+
+    # summary
+    summary_df = _plate_summary_from_layout(layout_df)
+    cA, cB = st.columns([1,1])
+    with cA:
+        info = pd.DataFrame([{
+            "plate_name": str(prow.get("plate_name") or ""),
+            "format_code": str(prow.get("format_code") or ""),
+            "created_by": str(prow.get("created_by") or ""),
+            "created_at": prow.get("created_at"),
+        }])
+        st.markdown("**Plate summary**")
+        st.dataframe(info, hide_index=True, use_container_width=True)
+    with cB:
+        st.markdown("**Fill / groups / orientation**")
+        st.dataframe(summary_df, hide_index=True, use_container_width=True)
+
+    # treated clutch details
+    tdf = _treated_clutch_details(layout_df)
+    st.markdown("**Treated clutch summary**")
+    if tdf.empty:
+        st.caption("No treated groups on this plate.")
     else:
-        st.caption(f"Mount: **{mount_code}** — {len(slots_df)} slot row(s)")
-        st.dataframe(slots_df, hide_index=True, use_container_width=True)
+        st.dataframe(tdf, hide_index=True, use_container_width=True)
+
+    # layout (wells)
+    st.markdown("**Plate layout (wells)**")
+    st.dataframe(layout_df[["well_label","treated_clutch_code","orientation"]],
+                 hide_index=True, use_container_width=True, height=260)
+
+    # CSV export
+    csv_df = layout_df[["plate_code","plate_name","format_code","well_label","treated_clutch_code","orientation"]].copy()
+    st.download_button(
+        "⬇︎ Download layout CSV",
+        data=csv_df.to_csv(index=False).encode("utf-8"),
+        file_name=f"{pcode}_layout.csv",
+        mime="text/csv",
+        type="secondary",
+        use_container_width=True
+    )
+
+    st.markdown("---")
