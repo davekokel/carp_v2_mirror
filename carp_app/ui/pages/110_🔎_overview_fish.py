@@ -1,35 +1,34 @@
+# carp_app/ui/pages/110_🔎_overview_fish.py
 from __future__ import annotations
-import sys, pathlib
+import sys, pathlib, os
+from typing import Optional, List
+import pandas as pd
+import streamlit as st
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+# repo root on sys.path
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# ── app libs / auth ──────────────────────────────────────────────────────────
+# app libs / auth
 from carp_app.lib.time import utc_now
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    from auth_gate import require_app_unlock
+    def require_app_unlock():
+        return None
+
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-# ── std/3p ───────────────────────────────────────────────────────────────────
-import os
-import pandas as pd
-import streamlit as st
-from sqlalchemy import text
-from sqlalchemy.engine import Engine
-
-# ── app libs ─────────────────────────────────────────────────────────────────
+# engine
 from carp_app.ui.lib.app_ctx import get_engine as _create_engine
-from carp_app.ui.lib.labels_components import build_tank_labels_pdf  # 2.4"×1.5" + QR
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Engine (cached)
-# ─────────────────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def _cached_engine() -> Engine:
     url = os.getenv("DB_URL", "")
@@ -43,37 +42,9 @@ def _get_engine() -> Engine:
 st.set_page_config(page_title="CARP — Search Fish → Tanks", page_icon="🔎", layout="wide")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers
+# Helpers (now use v_fish_main as the single canonical view; NO v_fish_unified)
 # ─────────────────────────────────────────────────────────────────────────────
-def _load_fish_rich_all(q: str | None, limit: int) -> pd.DataFrame:
-    """
-    Fallback: return a wider/raw view of fish when the summary query is empty.
-    Uses the same filter as _load_fish_overview but selects all columns from v_fish_overview_id.
-    """
-    sql = text("""
-        SELECT *
-        FROM public.v_fish_unified
-        WHERE (:q IS NULL)
-            OR (
-                fish_code ILIKE :q
-            OR COALESCE(nickname,'')            ILIKE :q
-            OR COALESCE(genetic_background,'')  ILIKE :q
-            OR COALESCE(line_building_stage,'') ILIKE :q
-            OR COALESCE(genotype_pretty,'')     ILIKE :q
-            OR COALESCE(markers,'')             ILIKE :q
-            OR COALESCE(fluors,'')              ILIKE :q
-            OR COALESCE(tags,'')                ILIKE :q
-            OR COALESCE(dyes,'')                ILIKE :q
-            )
-        ORDER BY created_at DESC NULLS LAST, fish_code
-        LIMIT :lim
-        """)
-    params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params=params)
-    return _coerce_strings(df)
-
-def _normalize_q(q_raw: str) -> str | None:
+def _normalize_q(q_raw: str) -> Optional[str]:
     q = (q_raw or "").strip()
     return q or None
 
@@ -84,38 +55,114 @@ def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
         df[c] = df[c].astype("string").fillna("")
     return df
 
-def _load_fish_overview(q: str | None, limit: int) -> pd.DataFrame:
+def _load_fish_overview(q: Optional[str], limit: int) -> pd.DataFrame:
+    sql = text("""
+    WITH mk AS (  -- base-code markers (allele-labelled)
+      SELECT
+        x.fish_code,
+        string_agg(DISTINCT m_expr, ',' ORDER BY m_expr) AS markers
+      FROM (
+        SELECT
+          vm.fish_code,
+          CASE
+            WHEN vm.allele_name IS NOT NULL AND vm.allele_name <> ''
+              THEN vm.transgene_base_code || '(' || vm.allele_name || ')'
+            ELSE vm.transgene_base_code
+          END AS m_expr
+        FROM public.v_fish_main vm
+      ) x
+      GROUP BY x.fish_code
+    ),
+    gp AS (  -- genotype_pretty: only allele-named markers
+      SELECT
+        y.fish_code,
+        COALESCE(string_agg(DISTINCT g_expr, ', ' ORDER BY g_expr), '') AS genotype_pretty
+      FROM (
+        SELECT
+          vm.fish_code,
+          vm.transgene_base_code || '(' || vm.allele_name || ')' AS g_expr
+        FROM public.v_fish_main vm
+        WHERE vm.allele_name IS NOT NULL AND vm.allele_name <> ''
+      ) y
+      GROUP BY y.fish_code
+    )
+    SELECT
+      f.fish_code,
+      f.nickname,
+      f.dob                        AS birthday,
+      COALESCE(f.genetic_background,'')  AS genetic_background,
+      COALESCE(f.line_building_stage,'') AS line_building_stage,
+      gp.genotype_pretty,
+      mk.markers,
+      COALESCE(r.fluors,'')        AS fluors,
+      COALESCE(r.tags,'')          AS tags,
+      COALESCE(r.dyes,'')          AS dyes,
+      f.created_at
+    FROM public.fish f
+    LEFT JOIN gp ON gp.fish_code = f.fish_code
+    LEFT JOIN mk ON mk.fish_code = f.fish_code
+    LEFT JOIN public.v_fluorescent_marker_rollup r
+      ON r.fish_code = f.fish_code
+    WHERE (:q IS NULL)
+       OR (
+            f.fish_code ILIKE :q
+         OR COALESCE(f.nickname,'')            ILIKE :q
+         OR COALESCE(f.genetic_background,'')  ILIKE :q
+         OR COALESCE(f.line_building_stage,'') ILIKE :q
+         OR COALESCE(gp.genotype_pretty,'')    ILIKE :q
+         OR COALESCE(mk.markers,'')            ILIKE :q
+         OR COALESCE(r.fluors,'')              ILIKE :q
+         OR COALESCE(r.tags,'')                ILIKE :q
+         OR COALESCE(r.dyes,'')                ILIKE :q
+         )
+    ORDER BY f.created_at DESC NULLS LAST, f.fish_code
+    LIMIT :lim
+    """)
+    params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
+    with _get_engine().begin() as cx:
+        df = pd.read_sql(sql, cx, params=params)
+    return _coerce_strings(df)
+
+def _load_fish_rich_all(q: Optional[str], limit: int) -> pd.DataFrame:
+    """
+    Wider fallback: materialize per-allele rows from v_fish_main with base markers.
+    """
     sql = text("""
       SELECT
-        fish_code, nickname, birthday, genetic_background, line_building_stage,
-        genotype_pretty,
-        markers,        -- base(allele) codes
-        fluors, tags, dyes,
-        created_at
-      FROM public.v_fish_unified
+        vm.fish_code,
+        vm.transgene_base_code,
+        vm.allele_number,
+        vm.allele_name,
+        vm.allele_nickname,
+        vm.transgene_pretty_nickname,
+        vm.transgene_pretty_name,
+        vm.genotype_pretty,
+        COALESCE(rb.fluors,'') AS base_fluors,
+        COALESCE(rb.tags,'')   AS base_tags
+      FROM public.v_fish_main vm
+      LEFT JOIN public.v_fluorescent_marker_rollup_by_base rb
+        ON rb.fish_code = vm.fish_code
+       AND rb.ft_code   = vm.transgene_base_code
       WHERE (:q IS NULL)
          OR (
-              fish_code ILIKE :q
-           OR COALESCE(nickname,'')            ILIKE :q
-           OR COALESCE(genetic_background,'')  ILIKE :q
-           OR COALESCE(line_building_stage,'') ILIKE :q
-           OR COALESCE(genotype_pretty,'')     ILIKE :q
-           OR COALESCE(markers,'')             ILIKE :q
-           OR COALESCE(fluors,'')              ILIKE :q
-           OR COALESCE(tags,'')                ILIKE :q
-           OR COALESCE(dyes,'')                ILIKE :q
+              vm.fish_code ILIKE :q
+           OR vm.transgene_base_code ILIKE :q
+           OR COALESCE(vm.allele_name,'') ILIKE :q
+           OR COALESCE(vm.allele_nickname,'') ILIKE :q
+           OR COALESCE(vm.genotype_pretty,'') ILIKE :q
          )
-      ORDER BY created_at DESC NULLS LAST, fish_code
+      ORDER BY vm.fish_code, vm.transgene_base_code, vm.allele_number
       LIMIT :lim
     """)
     params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
-    return _coerce_strings(df)   # <-- add this
+    return _coerce_strings(df)
 
-def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
+def _load_tanks_for_codes(codes: List[str]) -> pd.DataFrame:
     """
-    v_tanks in this schema does not expose fish_code → parse it from tank_code "TANK(<code>)#N".
+    Tanks for selected fish.
+    v_tanks doesn't expose fish_code, so parse it from tank_code "TANK(<code>)#N".
     """
     if not codes:
         return pd.DataFrame(columns=["fish_code","tank_code","status","created_at","container_id"])
@@ -123,7 +170,7 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
       SELECT
         v.tank_uuid::text         AS container_id,
         v.tank_code::text         AS tank_code,
-        ''::text                  AS status,  -- v_tanks has no status; display blank (or 'active')
+        ''::text                  AS status,  -- no status column; blank for now
         regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1')::text AS fish_code,
         v.created_at::timestamptz AS created_at
       FROM public.v_tanks v
@@ -134,7 +181,10 @@ def _load_tanks_for_codes(codes: list[str]) -> pd.DataFrame:
         df = pd.read_sql(sql, cx, params={"codes": codes})
     return _coerce_strings(df)
 
-def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
+def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
+    """
+    Enrich tank rows with fish nickname / genotype using fish + v_fish_main.
+    """
     want_cols = [
         "container_id","label","status","fish_code",
         "nickname","name","alias","tank_display",
@@ -165,10 +215,14 @@ def _fetch_enriched_for_containers(container_ids: list[str]) -> pd.DataFrame:
         COALESCE(f.nickname,'')            AS nickname,
         COALESCE(f.genetic_background,'')  AS genetic_background,
         COALESCE(f.line_building_stage,'') AS stage,
-        f.birthday::date                   AS dob,
-        COALESCE(f.genotype_pretty,'')     AS genotype,
-        COALESCE(f.genotype_pretty,'')     AS transgene_pretty
-    FROM public.v_fish_unified f
+        f.dob::date                        AS dob,
+        -- use v_fish_main genotype_pretty (any row per fish)
+        MAX(vm.genotype_pretty)            AS genotype,
+        MAX(vm.genotype_pretty)            AS transgene_pretty
+    FROM public.fish f
+    LEFT JOIN public.v_fish_main vm
+      ON vm.fish_code = f.fish_code
+    GROUP BY f.fish_code, f.nickname, f.genetic_background, f.line_building_stage, f.dob
   )
   SELECT
     p.container_id::text                AS container_id,
@@ -219,33 +273,33 @@ def main():
     with st.form("filters", clear_on_submit=False):
         c1, c2 = st.columns([3,1])
         with c1:
-            q_raw = st.text_input("Search (code/name/nickname/background/transgene/genotype/alleles/fluors/fusions/tags)", "")
+            q_raw = st.text_input("Search (code/nickname/background/genotype/alleles/fluors/tags)", "")
         with c2:
             limit = int(st.number_input("Limit", min_value=1, max_value=5000, value=500, step=100))
         _ = st.form_submit_button("Search")
 
-    q = (q_raw or "").strip() or None
+    q = _normalize_q(q_raw)
 
     df = _load_fish_overview(q, limit)
     if df.empty:
         st.info("No fish match your search.")
-        with st.expander("Advanced: full v_fish_rich (all columns)"):
+        with st.expander("Advanced: per-allele rows (v_fish_main)"):
             raw = _load_fish_rich_all(q, limit)
             st.caption(f"{len(raw)} row(s) • columns: {', '.join(raw.columns)}")
             if not raw.empty:
                 st.dataframe(raw, use_container_width=True, hide_index=True)
                 st.download_button(
-                    "⬇︎ Download v_fish_rich.csv",
+                    "⬇︎ Download v_fish_main_per_allele.csv",
                     data=raw.to_csv(index=False).encode("utf-8"),
-                    file_name=f"v_fish_rich_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    file_name=f"v_fish_main_per_allele_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
                     type="secondary",
                     mime="text/csv"
                 )
         return
 
-    # Rename display headers (match v_fish_overview_id)
+    # Rename display headers
     df = df.rename(columns={
-        "fish_code":          "fish_code",
+        "fish_code":          "Fish code",
         "nickname":           "Nickname",
         "birthday":           "Birth date",
         "genetic_background": "Genetic background",
@@ -258,33 +312,32 @@ def main():
         "created_at":         "Created time",
     })
 
-    show_cols = [
-        "fish_code","Nickname","Genetic background","Line-building stage",
-        "Genotype","Markers","Fluors","Tags","Dyes",
-        "Birth date","Created time",
+    cols = [
+        "Fish code","Nickname","Genetic background","Line-building stage",
+        "Genotype","Markers","Fluors","Tags","Dyes","Birth date","Created time",
     ]
-    show_cols = [c for c in show_cols if c in df.columns]
-    st.subheader(f"Fish ({len(df)} rows)")
+    cols = [c for c in cols if c in df.columns]
 
-    table = df[show_cols].copy()
+    st.subheader(f"Fish ({len(df)} rows)")
+    table = df[cols].copy()
     table.insert(0, "✓ Select", False)
 
-    editor_cols = ["✓ Select"] + show_cols
+    editor_cols = ["✓ Select"] + cols
     fish_table = st.data_editor(
         table,
         hide_index=True,
         use_container_width=True,
         column_config=None,
         column_order=editor_cols,
-        key="fish_table_v4",
+        key="fish_table_v6",
     )
 
     # Tanks for selected fish
     st.subheader("Tanks for selected fish")
 
     selected_codes = (
-        fish_table.loc[fish_table["✓ Select"], "fish_code"].dropna().astype(str).tolist()
-        if isinstance(fish_table, pd.DataFrame) and "✓ Select" in fish_table.columns and "fish_code" in fish_table.columns
+        fish_table.loc[fish_table["✓ Select"], "Fish code"].dropna().astype(str).tolist()
+        if isinstance(fish_table, pd.DataFrame) and "✓ Select" in fish_table.columns and "Fish code" in fish_table.columns
         else []
     )
     if not selected_codes:
@@ -298,13 +351,13 @@ def main():
 
     tcols = [c for c in ["fish_code","tank_code","status","created_at","container_id"] if c in tdf.columns]
     tview = tdf[tcols].copy()
-    tview.insert(0, "✓ Print", False)  # make the Print selector the first column
+    tview.insert(0, "✓ Print", False)
 
     tanks_table = st.data_editor(
         tview,
         use_container_width=True,
         hide_index=True,
-        column_order=["✓ Print"] + tcols,  # ensure first column
+        column_order=["✓ Print"] + tcols,
         key="tank_table",
     )
 
@@ -346,6 +399,7 @@ def main():
             "fish_code":          r.get("fish_code") or "",
         })
 
+    from carp_app.ui.lib.labels_components import build_tank_labels_pdf
     pdf_bytes = build_tank_labels_pdf(rows) if rows else b""
     st.download_button(
         "⬇︎ Download PDF labels (2.4×1.5 • QR)",
