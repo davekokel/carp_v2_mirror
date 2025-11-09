@@ -20,9 +20,10 @@ mStayGold,mSG,462,492,
 mTFP1,,462,492,
 mYongHong,mYH; mScarlet3-H,551,592,
 tagbfp2,,402,457,
-tdmChilada,,506,550,mChilada; ex and em are a guess
-tdmStayGold,tdmSG,496,505,mStayGold
-tdmScarlet3,,569,592,mScarlet3
-tdmScarlet3S2,tdmSc3S2,550,587,mScarlet3-S2
-tdmYH,,551,592,mYongHong
+tdmChilada,,506,550,
+tdmStayGold,tdmSG,496,505,
+tdmScarlet3,,569,592,
+tdmScarlet3S2,tdmSc3S2,550,587,
+tdmYH,,551,592,
 halo,,,,
+mYongHong,mYH,551,592,

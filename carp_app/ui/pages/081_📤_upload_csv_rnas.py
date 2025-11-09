@@ -1,8 +1,8 @@
 # carp_app/ui/pages/095_📤_upload_csv_rnas.py
 from __future__ import annotations
 
-import sys, pathlib, io, os, re
-from typing import Optional, List, Dict
+import sys, pathlib, io, os, re, json
+from typing import Optional, List, Dict, Tuple
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
@@ -27,14 +27,15 @@ require_email_otp()
 require_app_unlock()
 
 st.set_page_config(page_title="CARP — Upload RNAs from CSV", page_icon="📤", layout="wide")
-st.title("CARP — Upload RNAs from CSV")
+st.title("CARP — Upload RNAs from CSV (v6)")
 st.caption(
-    "CSV/XLSX must include **rna_base_code**. Optional: **rna_name**, **notes**. "
-    "Markers in **fluor_or_fluor_fusion_name** accept `Fluor`, `Tag:Fluor`, or `Fluor:Tag` (also `::`, `/`, `@`, `+`). "
+    "CSV/XLSX must include **rna_base_code**. Optional: **rna_name** (stored as nickname), **notes**. "
+    "Markers in **fluor_or_fluor_fusion_name** accept `Fluor` or `Fluor::Tag` (also `:`, `/`, `@`, `+`). "
     "If `rna_code` is blank, it becomes `RNA(<rna_base_code>)`. "
-    "Markers are stored in **rna_proteins**. RNAs are independent from plasmids."
+    "Markers are linked via **join_rna_fusions**."
 )
 
+# ── engine ──────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def _eng() -> Engine:
     url = os.getenv("DB_URL","")
@@ -70,7 +71,7 @@ ALIASES: Dict[str, List[str]] = {
     "rna_base_code": ["rna_base_code","base_plasmid_code","plasmid_code","base_code"],
     "rna_name":      ["rna_name","nickname","name","title"],
     "notes":         ["notes","note","desc","description"],
-    "token_list":    ["fluor_or_fluor_fusion_name","fusion_name","fluors","fusions","fluor_list"],
+    "token_list":    ["fluor_or_fluor_fusion_name","fusion_name","fluors","fusions","fluor_list","marker_list","tokens"],
     "rna_code":      ["rna_code","code","id"],
 }
 ren: Dict[str, str] = {}
@@ -96,35 +97,21 @@ if "rna_code" not in df.columns:
 df["rna_code"] = df.apply(lambda r: (r["rna_code"].strip() or f"RNA({str(r['rna_base_code']).strip()})"), axis=1)
 
 st.subheader("Preview (first 50)")
-st.dataframe(df[["rna_base_code","rna_code","rna_name","notes","token_list"]].head(50), width="stretch", hide_index=True)
+preview_cols = [c for c in ["rna_base_code","rna_code","rna_name","notes","token_list"] if c in df.columns]
+st.dataframe(df[preview_cols].head(50), width="stretch", hide_index=True)
 
-# Optional soft warning if base isn’t in plasmids (no blocking)
-bases = sorted(set(x.strip() for x in df["rna_base_code"].tolist() if str(x).strip()))
-missing_plasmids: List[str] = []
-if bases:
-    with _eng().begin() as cx:
-        present = pd.read_sql(text("SELECT code FROM public.plasmids WHERE code = ANY(:codes)"),
-                              cx, params={"codes": bases})
-    had = set(present["code"].tolist()) if not present.empty else set()
-    missing_plasmids = [b for b in bases if b not in had]
-if missing_plasmids:
-    st.warning("These rna_base_code values are not present in `plasmids` (FYI only): " + ", ".join(missing_plasmids))
-
-# ── STRICT token preflight for markers ───────────────────────────────────────
+# ── token utilities ─────────────────────────────────────────────────────────
 def _split_token(tok: str) -> List[str]:
     return [p.strip() for p in re.split(r"[:/@+]", (tok or "").strip()) if p.strip()]
 
-def _load_catalogs(cx) -> tuple[set, set]:
+def _load_catalogs(cx) -> Tuple[set, set]:
     flu_set: set[str] = set()
     rows = pd.read_sql(
         text("""
           SELECT
-            lower(fluor_code) AS c,
+            lower(fluor_code)              AS c,
             lower(COALESCE(fluor_name,'')) AS n,
-            lower(COALESCE(
-              CASE WHEN pg_typeof(alt_names)::text = 'text[]'
-                   THEN array_to_string(alt_names,';')
-                   ELSE alt_names::text END, '')) AS a
+            lower(COALESCE(alt_names,''))  AS a     -- alt_names is text in v6
           FROM public.fluors
         """), cx)
     for _, r in rows.iterrows():
@@ -137,13 +124,15 @@ def _load_catalogs(cx) -> tuple[set, set]:
                 if alias: flu_set.add(alias)
 
     tag_set: set[str] = set()
-    rows2 = pd.read_sql(text("SELECT lower(tag_code) AS c, lower(COALESCE(tag_name,'')) AS n FROM public.tags"), cx)
+    rows2 = pd.read_sql(
+        text("SELECT lower(tag_code) AS c, lower(COALESCE(tag_name,'')) AS n FROM public.tags"), cx
+    )
     for _, r in rows2.iterrows():
         if r["c"]: tag_set.add(r["c"])
         if r["n"]: tag_set.add(r["n"])
     return flu_set, tag_set
 
-def _classify(parts: List[str], flu_set: set, tag_set: set) -> tuple[Optional[str], Optional[str], Optional[str]]:
+def _classify(parts: List[str], flu_set: set, tag_set: set) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     if not parts: return None, None, None
     if len(parts) == 1:
         f = parts[0].lower()
@@ -157,6 +146,7 @@ def _classify(parts: List[str], flu_set: set, tag_set: set) -> tuple[Optional[st
     if not Lf and not Rf: return (None, None, 'unresolved_fluor')
     return (parts[0] if Lf else parts[-1], None, 'unresolved_tag')
 
+# ── STRICT token preflight for markers ───────────────────────────────────────
 tokens_raw: List[str] = []
 if "token_list" in df.columns:
     for raw in df["token_list"].fillna(""):
@@ -175,73 +165,82 @@ if tokens_raw:
         elif err == 'ambiguous':      ambig.append(tok)
 
 if unres_flu or unres_tag or ambig:
+    col1, col2, col3 = st.columns(3)
     if unres_flu:
-        st.error(f"{len(unres_flu)} unknown fluor token(s). Add to public.fluors or fix the CSV.")
-        st.dataframe(pd.DataFrame({"unresolved_fluor_token": sorted(set(unres_flu))}), hide_index=True, width="stretch")
+        with col1:
+            st.error(f"{len(set(unres_flu))} unknown fluor token(s). Add to public.fluors or fix the CSV.")
+            st.dataframe(pd.DataFrame({"unresolved_fluor_token": sorted(set(unres_flu))}), hide_index=True, width="stretch")
     if unres_tag:
-        st.error(f"{len(unres_tag)} unknown tag token(s). Add to public.tags or fix the CSV.")
-        st.dataframe(pd.DataFrame({"unresolved_tag_token": sorted(set(unres_tag))}), hide_index=True, width="stretch")
+        with col2:
+            st.error(f"{len(set(unres_tag))} unknown tag token(s). Add to public.tags or fix the CSV.")
+            st.dataframe(pd.DataFrame({"unresolved_tag_token": sorted(set(unres_tag))}), hide_index=True, width="stretch")
     if ambig:
-        st.error(f"{len(ambig)} ambiguous token(s). Fix the CSV.")
-        st.dataframe(pd.DataFrame({"ambiguous_token": sorted(set(ambig))}), hide_index=True, width="stretch")
+        with col3:
+            st.error(f"{len(set(ambig))} ambiguous token(s). Fix the CSV.")
+            st.dataframe(pd.DataFrame({"ambiguous_token": sorted(set(ambig))}), hide_index=True, width="stretch")
     st.stop()
 
 # ── process (idempotent) ────────────────────────────────────────────────────
-inserted, updated, seeded = [], [], []
+inserted, updated, linked = [], [], []
 
 if st.button("Process RNA upload", type="primary", use_container_width=True):
     with _eng().begin() as cx:
         for _, r in df.iterrows():
             base = (r.get("rna_base_code") or "").strip()
             rc   = (r.get("rna_code")      or "").strip()
-            rn   = (r.get("rna_name")      or "").strip() or None
+            rn   = (r.get("rna_name")      or "").strip() or None   # → nickname
             nt   = (r.get("notes")         or "").strip() or None
             tok  = (r.get("token_list")    or "").strip()
 
             if not base:
                 st.error("Row missing rna_base_code."); st.stop()
+            if not rc:
+                st.error("Row missing rna_code after normalization."); st.stop()
 
-            # Insert/update RNA; map rna_base_code -> DB column base_plasmid_code (no FK)
             row = cx.execute(
                 text("""
-                  INSERT INTO public.rnas (rna_code, rna_name, base_plasmid_code, genetic_element, notes, created_by)
-                  VALUES (:c,:n,:bp,NULL,:no,:by)
+                  INSERT INTO public.rnas (rna_code, nickname, notes)
+                  VALUES (:c, :n, :no)
                   ON CONFLICT (rna_code) DO UPDATE
-                    SET rna_name          = COALESCE(EXCLUDED.rna_name,          public.rnas.rna_name),
-                        base_plasmid_code = COALESCE(EXCLUDED.base_plasmid_code, public.rnas.base_plasmid_code),
-                        notes             = COALESCE(EXCLUDED.notes,             public.rnas.notes)
-                  RETURNING (xmax::text <> '0') AS was_update
+                    SET nickname = COALESCE(EXCLUDED.nickname, public.rnas.nickname),
+                        notes    = COALESCE(EXCLUDED.notes,    public.rnas.notes)
+                  RETURNING id, (xmax::text <> '0') AS was_update
                 """),
-                {"c": rc, "n": rn, "bp": base, "no": nt, "by": creator}
+                {"c": rc, "n": rn, "no": nt}
             ).mappings().first()
-            (updated if row and row.get("was_update") else inserted).append(rc)
+            rna_id = row["id"]
+            (updated if row["was_update"] else inserted).append(rc)
 
-            # Seed RNA markers in rna_proteins
             if tok:
                 for raw_tok in [t.strip() for t in tok.split("|") if t.strip()]:
                     parts = _split_token(raw_tok)
                     fluor, tag, _ = _classify(parts, flu_set, tag_set) if tokens_raw else (None, None, None)
-                    if fluor:
+                    combo = raw_tok if re.search(r"[:/@+]", raw_tok) else (fluor or "")
+                    if not combo: continue
+                    fusion_id_row = cx.execute(text("SELECT public.resolve_fusion_id(:combo) AS id"), {"combo": combo}).mappings().first()
+                    if fusion_id_row and fusion_id_row["id"]:
                         cx.execute(
                             text("""
-                              INSERT INTO public.rna_proteins (rna_code, fluor_code, tag_code)
-                              VALUES (:c,:flu, NULLIF(:tag,''))
-                              ON CONFLICT (rna_code, COALESCE(tag_code,'∅'), fluor_code) DO NOTHING
+                              INSERT INTO public.join_rna_fusions (rna_id, fusion_id)
+                              VALUES (:rid, :fid)
+                              ON CONFLICT DO NOTHING
                             """),
-                            {"c": rc, "flu": fluor.strip(), "tag": (tag or "").strip()}
+                            {"rid": rna_id, "fid": fusion_id_row["id"]}
                         )
-                        seeded.append({"rna_code": rc, "token": raw_tok})
+                        linked.append({"rna_code": rc, "token": raw_tok})
 
-    st.success(f"Uploaded RNAs • inserted: {len(inserted)} • updated: {len(updated)}")
+    st.success(f"Uploaded RNAs • inserted: {len(inserted)} • updated: {len(updated)} • linked: {len(linked)}")
 
     with _eng().begin() as cx:
         v = pd.read_sql(
             text("""
-              SELECT rna_code, rna_name, base_plasmid_code,
-                     COALESCE(fluor_names,'') AS fluor_names,
-                     COALESCE(tag_names,'')   AS tag_names,
-                     COALESCE(notes,'')       AS notes,
-                     created_at
+              SELECT
+                rna_code,
+                COALESCE(nickname,'') AS nickname,
+                COALESCE(notes,'')    AS notes,
+                COALESCE(fluors,'')   AS fluors,
+                COALESCE(tags,'')     AS tags,
+                created_at
               FROM public.v_rnas
               WHERE rna_code = ANY(:codes)
               ORDER BY rna_code
@@ -257,6 +256,3 @@ if st.button("Process RNA upload", type="primary", use_container_width=True):
             file_name="rnas_verification.csv",
             type="secondary"
         )
-    if seeded:
-        st.subheader("RNA marker tokens processed")
-        st.dataframe(pd.DataFrame(seeded), width="stretch", hide_index=True)
