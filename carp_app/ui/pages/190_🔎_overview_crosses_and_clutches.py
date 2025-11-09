@@ -17,7 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# auth / engine / labels
+# auth / engine
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 try:
@@ -25,7 +25,6 @@ try:
 except Exception:
     def require_app_unlock(): ...
 from carp_app.ui.lib.page_engine import engine
-from carp_app.ui.lib.labels_components import download_button_for_labels
 
 # ── Auth + page ──────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
@@ -40,6 +39,21 @@ with engine().begin() as cx:
 st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 
 # ── DB helpers ───────────────────────────────────────────────────────────────
+def _treatments_pk_col() -> str:
+    with engine().begin() as cx:
+        df = _safe(cx, """
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='treatments'
+                AND column_name IN ('id','treatment_id')
+          ORDER BY CASE column_name WHEN 'id' THEN 0 ELSE 1 END
+          LIMIT 1
+        """)
+    if df.empty:
+        # fallback: no recognized PK column; we won't show treatments
+        return ""
+    return df["column_name"].iat[0]
+
 def _safe(cx, q: str | TextClause, p=None) -> pd.DataFrame:
     q = q if isinstance(q, TextClause) else text(q)
     return pd.read_sql(q, cx, params=p or {})
@@ -173,7 +187,7 @@ st.caption(f"{len(df)} instance(s)")
 if df.empty:
     st.info("No instances yet."); st.stop()
 
-# ── Display + Selection ──────────────────────────────────────────────────────
+# ── Display + Selection (table remains as-is, read-only) ─────────────────────
 sel_col = "✓ Select"
 grid = df.copy()
 if sel_col not in grid.columns:
@@ -184,10 +198,11 @@ ordered = [c for c in first_cols if c in grid.columns]
 rest = [c for c in grid.columns if c not in ordered and c != sel_col]
 display_cols = [sel_col] + ordered + rest
 
-edited = st.data_editor(
+ro = st.data_editor(
     grid[display_cols],
     hide_index=True,
     use_container_width=True,
+    num_rows="fixed",
     column_config={
         sel_col:              st.column_config.CheckboxColumn("✓", default=False),
         "clutch_code":        st.column_config.TextColumn("Clutch code", disabled=True),
@@ -204,64 +219,93 @@ edited = st.data_editor(
         "clutch_created_at":  st.column_config.DatetimeColumn("Clutch created", disabled=True),
         "cross_created_at":   st.column_config.DatetimeColumn("Cross created", disabled=True),
       },
-    key="cross_clutch_instances_editor",
+    key="cross_clutch_instances_ro",
 )
+mask = ro.get(sel_col, pd.Series(False, index=ro.index)).fillna(False).astype(bool)
+picked = ro[mask]
 
-mask = edited.get(sel_col, pd.Series(False, index=edited.index)).fillna(False).astype(bool)
-picked = edited[mask]
-if picked.empty:
-    st.info("Select one or more rows to print labels.")
-    st.stop()
+# ── Details section (pivot + linked rows) ────────────────────────────────────
+st.divider()
+st.subheader("Details")
 
-# ── Label rows ───────────────────────────────────────────────────────────────
-def _rows_for_cross_labels(df_sel: pd.DataFrame) -> list[dict]:
-    rows: list[dict] = []
-    for r in df_sel.to_dict(orient="records"):
-        rows.append({
-            "cross_code": r.get("cross_code"),
-            "cross_date": r.get("cross_date"),
-            "mother_tank_code": r.get("mom_tank_code"),
-            "father_tank_code": r.get("dad_tank_code"),
-            "mom_genotype": r.get("mom_genotype"),
-            "dad_genotype": r.get("dad_genotype"),
-            "clutch_instance_code": r.get("clutch_code") or "",
-            "clutch_name": "",
-        })
-    return rows
+if len(picked) == 0:
+    st.info("Select a single row above to view details.")
+elif len(picked) > 1:
+    st.warning("Multiple rows selected. Please select just one to view details.")
+else:
+    sel = picked.iloc[0].to_dict()
+    cross_id = sel.get("cross_id")
+    cross_code = sel.get("cross_code")
+    clutch_code = sel.get("clutch_code")
 
-def _rows_for_petri_labels(df_sel: pd.DataFrame) -> list[dict]:
-    rows: list[dict] = []
-    for r in df_sel.to_dict(orient="records"):
-        cd = r.get("cross_date")
-        dob = (cd + timedelta(days=1)) if isinstance(cd, (pd.Timestamp, date)) else None
-        rows.append({
-            "clutch_instance_code": r.get("clutch_code") or "",
-            "clutch_name": "",
-            "mom_code": r.get("mom_fish_code"),
-            "dad_code": r.get("dad_fish_code"),
-            "clutch_genotype": r.get("clutch_genotype") or "",
-            "date_birth": dob,
-        })
-    return rows
+    # Pivot summary for the selected cross
+    summary_pairs = [
+        ("Cross code",       cross_code),
+        ("Cross date",       sel.get("cross_date")),
+        ("Tank pair code",   sel.get("tank_pair_code")),
+        ("Mom tank",         sel.get("mom_tank_code")),
+        ("Dad tank",         sel.get("dad_tank_code")),
+        ("Mom fish",         sel.get("mom_fish_code")),
+        ("Dad fish",         sel.get("dad_fish_code")),
+        ("Mom genotype",     sel.get("mom_genotype")),
+        ("Dad genotype",     sel.get("dad_genotype")),
+        ("Clutch code (this row)", clutch_code),
+        ("Clutch genotype",  sel.get("clutch_genotype")),
+        ("Cross created",    sel.get("cross_created_at")),
+        ("Clutch created",   sel.get("clutch_created_at")),
+    ]
+    pivot_df = pd.DataFrame(summary_pairs, columns=["Field", "Value"])
+    st.dataframe(pivot_df, hide_index=True, use_container_width=True)
 
-st.subheader("Print labels")
-c1, c2 = st.columns(2)
-with c1:
-    have_parents = all(c in df.columns for c in ["mom_tank_code","dad_tank_code"])
-    if have_parents:
-        download_button_for_labels(
-            rows=_rows_for_cross_labels(picked),
-            builder="crossing",
-            file_prefix="cross_labels",
-            button_text="⬇️ Download CROSS labels (PDF)",
-        )
+    # Linked rows: all clutches for this cross_id
+    with engine().begin() as cx:
+        clutches = _safe(cx, """
+          SELECT
+            cl.id::text              AS clutch_instance_id,
+            cl.clutch_instance_code  AS clutch_code,
+            cl.created_at,
+            COALESCE(cl.clutch_genotype_pretty,'') AS clutch_genotype
+          FROM public.clutch_instances cl
+          WHERE cl.cross_instance_id = :cid
+          ORDER BY cl.created_at
+        """, {"cid": cross_id})
+
+        st.markdown("**Clutch instances for this cross**")
+    if clutches.empty:
+        st.info("No clutch instances linked to this cross yet.")
     else:
-        st.button("⬇️ Download CROSS labels (PDF)", disabled=True)
-        st.caption("Need mom/dad tank codes to print cross labels.")
-with c2:
-    download_button_for_labels(
-        rows=_rows_for_petri_labels(picked),
-        builder="petri",
-        file_prefix="clutch_labels",
-        button_text="⬇️ Download CLUTCH labels (PDF)",
-    )
+        st.dataframe(
+            clutches[["clutch_code","clutch_genotype","created_at"]],
+            hide_index=True, use_container_width=True
+        )
+
+        # Optional: show treatments per clutch if the tables exist
+        if _table_exists("public","join_clutch_treatments") and _table_exists("public","treatments"):
+            clutch_ids = clutches["clutch_instance_id"].tolist()
+            if clutch_ids:
+                pk = _treatments_pk_col()
+                if pk:
+                    with engine().begin() as cx:
+                        tr = _safe(cx, f"""
+                          SELECT
+                            j.clutch_instance_id::text,
+                            t.kind_code,
+                            t.name,
+                            COALESCE(t.plasmid_id::text,'') AS plasmid_id,
+                            COALESCE(t.rna_id::text,'')     AS rna_id,
+                            j.created_at
+                          FROM public.join_clutch_treatments j
+                          JOIN public.treatments t ON t.{pk} = j.treatment_id
+                          WHERE j.clutch_instance_id = ANY(:ids)
+                          ORDER BY j.created_at
+                        """, {"ids": clutch_ids})
+                    st.markdown("**Treatments for selected cross’s clutches**")
+                    if tr.empty:
+                        st.info("No treatments linked to these clutches.")
+                    else:
+                        st.dataframe(
+                            tr[["clutch_instance_id","kind_code","name","plasmid_id","rna_id","created_at"]],
+                            hide_index=True, use_container_width=True
+                        )
+                else:
+                    st.info("Couldn’t detect a primary key column for public.treatments (expected id or treatment_id); skipping treatments.")

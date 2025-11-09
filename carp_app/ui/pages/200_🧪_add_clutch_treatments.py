@@ -1,11 +1,4 @@
 # carp_app/ui/pages/200_🧪_add_clutch_treatments.py
-# =============================================================================
-# 🧪 Add treatments to clutch — v_clutch_instances + treated_clutches + join_clutch_treatments
-#    • Plasmids + RNAs + Dyes
-#    • RNAs: v_rna_plasmids if present, else plasmids.supports_invitro_rna  → saved as RNA(<code>)
-#    • Single "Attach selected treatments" button
-#    • On every save: auto-create a new treated-clutch group "T(<clutch_code>)-n" and attach all items to it
-# =============================================================================
 from __future__ import annotations
 import sys, pathlib
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
@@ -43,9 +36,9 @@ def _eng() -> Engine:
     return _ENGINE
 
 # ── Config ───────────────────────────────────────────────────────────────────
-CLUTCHES_VIEW      = "public.v_clutch_instances"      # enriched contract view
-TREATED_CLUTCHES   = "public.treated_clutches"
-TREATMENTS_LINK    = "public.join_clutch_treatments"
+CLUTCHES_VIEW    = "public.v_clutch_instances"
+TREATED_CLUTCHES = "public.treated_clutches"
+TREATMENTS_LINK  = "public.join_clutch_treatments"
 
 REQUIRED_COLS = [
     "clutch_code","clutch_birthday","cross_name_pretty",
@@ -54,7 +47,7 @@ REQUIRED_COLS = [
     "created_by_instance","created_at_instance",
 ]
 
-# ── Guards ───────────────────────────────────────────────────────────────────
+# ── Guards / helpers ─────────────────────────────────────────────────────────
 def _assert_view_contract() -> None:
     sch, name = CLUTCHES_VIEW.split(".", 1)
     with _eng().begin() as cx:
@@ -85,6 +78,9 @@ def _view_exists(schema: str, name: str) -> bool:
     """)
     with _eng().begin() as cx:
         return cx.execute(q, {"s": schema, "n": name}).first() is not None
+
+# cache once for this run
+_HAS_V_RNA = _view_exists("public", "v_rna_plasmids")
 
 _assert_view_contract()
 _assert_table("public","clutch_instances")
@@ -173,25 +169,58 @@ def _load_plasmids(search: str) -> pd.DataFrame:
           limit 1000
         """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
 
-_HAS_V_RNA = _view_exists("public", "v_rna_plasmids")
+# === RNAs loader (schema-verified, no guessing) ==============================
 def _load_rnas(search: str) -> pd.DataFrame:
+    s = (search or "").strip()
     with _eng().begin() as cx:
         if _HAS_V_RNA:
+            if s:
+                return pd.read_sql(text("""
+                  SELECT code, name, COALESCE(nickname,'') AS nickname, created_at, created_by
+                  FROM public.v_rna_plasmids
+                  WHERE COALESCE(code,'') ILIKE :q
+                     OR COALESCE(name,'') ILIKE :q
+                     OR COALESCE(nickname,'') ILIKE :q
+                  ORDER BY COALESCE(created_at, now()) DESC NULLS LAST
+                  LIMIT 1000
+                """), cx, params={"q": f"%{s}%"})
             return pd.read_sql(text("""
-              select code, name, coalesce(nickname,'') as nickname, created_at, created_by
-              from public.v_rna_plasmids
-              where (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
-              order by coalesce(created_at, now()) desc
-              limit 1000
-            """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
+              SELECT code, name, COALESCE(nickname,'') AS nickname, created_at, created_by
+              FROM public.v_rna_plasmids
+              ORDER BY COALESCE(created_at, now()) DESC NULLS LAST
+              LIMIT 1000
+            """), cx)
+
+        # Fallback: pull directly from public.rnas (verified columns)
+        if s:
+            return pd.read_sql(text("""
+              SELECT
+                rna_code AS code,
+                rna_name AS name,
+                COALESCE(notes,'') AS nickname,
+                created_at,
+                created_by,
+                COALESCE(base_plasmid_code,'') AS base_code
+              FROM public.rnas
+              WHERE COALESCE(rna_code,'')          ILIKE :q
+                 OR COALESCE(rna_name,'')          ILIKE :q
+                 OR COALESCE(notes,'')             ILIKE :q
+                 OR COALESCE(base_plasmid_code,'') ILIKE :q
+              ORDER BY COALESCE(created_at, now()) DESC NULLS LAST, rna_code
+              LIMIT 1000
+            """), cx, params={"q": f"%{s}%"})
         return pd.read_sql(text("""
-          select code, name, coalesce(nickname,'') as nickname, created_at, created_by
-          from public.plasmids
-          where EXISTS (SELECT 1 FROM public.rnas r WHERE r.base_plasmid_code = p.code)
-            and (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
-          order by coalesce(created_at, now()) desc
-          limit 1000
-        """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
+          SELECT
+            rna_code AS code,
+            rna_name AS name,
+            COALESCE(notes,'') AS nickname,
+            created_at,
+            created_by,
+            COALESCE(base_plasmid_code,'') AS base_code
+          FROM public.rnas
+          ORDER BY COALESCE(created_at, now()) DESC NULLS LAST, rna_code
+          LIMIT 1000
+        """), cx)
 
 def _load_dyes(search: str) -> pd.DataFrame:
     with _eng().begin() as cx:
@@ -209,7 +238,6 @@ def _load_dyes(search: str) -> pd.DataFrame:
           limit 1000
         """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
 
-# Treatments I/O
 def _load_instance_treatments(clutch_instance_id: str) -> pd.DataFrame:
     with _eng().begin() as cx:
         sql = text(f"""
@@ -300,7 +328,7 @@ picker = st.data_editor(
     width="stretch",
     num_rows="fixed",
     column_config={
-        "✓ Select":            st.column_config.CheckboxColumn("✓", default=False),
+        "✓ Select":            st.column_config.CheckboxColumn("✓ Select", default=False),
         "clutch_birthday":     st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
         "created_at_instance": st.column_config.DatetimeColumn("created_at_instance", disabled=True),
         "treatments_count_effective": st.column_config.NumberColumn("treatments_count_effective", format="%d"),
@@ -328,53 +356,6 @@ if not clutch_instance_id:
 
 creator = os.environ.get("USER") or os.environ.get("USERNAME") or (getattr(user, "email", "") or "system")
 
-# ── Catalog loaders ─────────────────────────────────────────────────────────
-def _load_plasmids(search: str) -> pd.DataFrame:
-    with _eng().begin() as cx:
-        return pd.read_sql(text("""
-          select code, name, coalesce(nickname,'') as nickname, created_at, created_by
-          from public.plasmids
-          where (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
-          order by coalesce(created_at, now()) desc
-          limit 1000
-        """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
-
-_HAS_V_RNA = _view_exists("public", "v_rna_plasmids")
-def _load_rnas(search: str) -> pd.DataFrame:
-    with _eng().begin() as cx:
-        if _HAS_V_RNA:
-            return pd.read_sql(text("""
-              select code, name, coalesce(nickname,'') as nickname, created_at, created_by
-              from public.v_rna_plasmids
-              where (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
-              order by coalesce(created_at, now()) desc
-              limit 1000
-            """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
-        return pd.read_sql(text("""
-          select code, name, coalesce(nickname,'') as nickname, created_at, created_by
-          from public.plasmids
-          where EXISTS (SELECT 1 FROM public.rnas r WHERE r.base_plasmid_code = p.code)
-            and (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
-          order by coalesce(created_at, now()) desc
-          limit 1000
-        """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
-
-def _load_dyes(search: str) -> pd.DataFrame:
-    with _eng().begin() as cx:
-        return pd.read_sql(text("""
-          select dye_code as code,
-                 dye_name as name,
-                 coalesce(localization,'') as localization,
-                 excitation_nm, emission_nm
-          from public.dyes
-          where (:q = '' OR
-                 coalesce(dye_code,'') ilike :ql OR
-                 coalesce(dye_name,'') ilike :ql OR
-                 coalesce(localization,'') ilike :ql)
-          order by coalesce(dye_name, dye_code)
-          limit 1000
-        """), cx, params={"q": search or "", "ql": f"%{search or ''}%"})
-
 # ── Add treatments UI ────────────────────────────────────────────────────────
 st.subheader("Add treatments to this clutch instance")
 tabs = st.tabs(["Plasmids", "RNAs", "Dyes"])
@@ -388,13 +369,20 @@ with tabs[0]:
     if df_pl.empty:
         picked_pl = pd.DataFrame()
     else:
-        df_pl = df_pl.copy(); df_pl.insert(0, "✓ Select", False)
+        df_pl = df_pl.copy()
+        if "✓ Select" not in df_pl.columns:
+            df_pl.insert(0, "✓ Select", False)
         eg_pl = st.data_editor(
-            df_pl, hide_index=True, width="stretch", num_rows="fixed",
-            column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
+            df_pl,
+            hide_index=True,
+            width="stretch",
+            num_rows="fixed",
+            column_config={"✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False)},
             key="plasmids_editor_ci_v1",
         )
-        picked_pl = eg_pl[eg_pl["✓ Select"]].reset_index(drop=True)
+        sel_mask_pl = eg_pl.get("✓ Select").fillna(False).astype(bool) if "✓ Select" in eg_pl.columns else pd.Series([], dtype=bool)
+        picked_pl = eg_pl.loc[sel_mask_pl].reset_index(drop=True)
+        st.caption(f"Selected plasmids: {len(picked_pl)}")
         if not picked_pl.empty:
             picked_pl = picked_pl.assign(
                 treatment_type="plasmid",
@@ -402,31 +390,49 @@ with tabs[0]:
                 name=picked_pl["name"].astype(str),
                 _note=note_pl
             )
+    # persist for preview
+    st.session_state["_picked_pl"] = picked_pl if 'picked_pl' in locals() else pd.DataFrame()
 
 with tabs[1]:
     c1, c2 = st.columns([2,1])
     with c1: q_rna = st.text_input("Search RNAs (code / name / nickname)", value="")
     with c2: note_rna = st.text_input("Note for selected RNAs", value="")
     df_rna = _load_rnas(q_rna)
-    src = "v_rna_plasmids"
+    src = "v_rna_plasmids" if _HAS_V_RNA else "public.rnas (verified)"
     st.caption(f"{len(df_rna)} RNA(s) • source: {src}")
     if df_rna.empty:
         picked_rna = pd.DataFrame()
+        st.info("No RNAs match your search.")
     else:
-        df_rna = df_rna.copy(); df_rna.insert(0, "✓ Select", False)
+        df_rna = df_rna.copy()
+        if "✓ Select" not in df_rna.columns:
+            df_rna.insert(0, "✓ Select", False)
         eg_rna = st.data_editor(
-            df_rna, hide_index=True, width="stretch", num_rows="fixed",
-            column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
+            df_rna,
+            hide_index=True,
+            width="stretch",
+            num_rows="fixed",
+            column_config={"✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False)},
             key="rnas_editor_ci_v1",
         )
-        picked_rna = eg_rna[eg_rna["✓ Select"]].reset_index(drop=True)
+        sel_mask_rna = eg_rna.get("✓ Select").fillna(False).astype(bool) if "✓ Select" in eg_rna.columns else pd.Series([], dtype=bool)
+        picked_rna = eg_rna.loc[sel_mask_rna].reset_index(drop=True)
+        st.caption(f"Selected RNAs: {len(picked_rna)}")
+
+        # Canonicalize: if already RNA(...), keep; else wrap
+        def _canon_rna(series: pd.Series) -> pd.Series:
+            s = series.astype(str)
+            return s.where(s.str.match(r"^RNA\(.+\)$"), "RNA(" + s + ")")
+
         if not picked_rna.empty:
             picked_rna = picked_rna.assign(
                 treatment_type="rna",
-                code="RNA(" + picked_rna["code"].astype(str) + ")",   # canonical RNA(code)
+                code=_canon_rna(picked_rna["code"]),
                 name=picked_rna["name"].astype(str),
                 _note=note_rna
             )
+    # persist for preview
+    st.session_state["_picked_rna"] = picked_rna if 'picked_rna' in locals() else pd.DataFrame()
 
 with tabs[2]:
     c1, c2 = st.columns([2,1])
@@ -437,13 +443,20 @@ with tabs[2]:
     if df_dye.empty:
         picked_dye = pd.DataFrame()
     else:
-        df_dye = df_dye.copy(); df_dye.insert(0, "✓ Select", False)
+        df_dye = df_dye.copy()
+        if "✓ Select" not in df_dye.columns:
+            df_dye.insert(0, "✓ Select", False)
         eg_dye = st.data_editor(
-            df_dye, hide_index=True, width="stretch", num_rows="fixed",
-            column_config={"✓ Select": st.column_config.CheckboxColumn("✓", default=False)},
+            df_dye,
+            hide_index=True,
+            width="stretch",
+            num_rows="fixed",
+            column_config={"✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False)},
             key="dyes_editor_ci_v1",
         )
-        picked_dye = eg_dye[eg_dye["✓ Select"]].reset_index(drop=True)
+        sel_mask_dye = eg_dye.get("✓ Select").fillna(False).astype(bool) if "✓ Select" in eg_dye.columns else pd.Series([], dtype=bool)
+        picked_dye = eg_dye.loc[sel_mask_dye].reset_index(drop=True)
+        st.caption(f"Selected dyes: {len(picked_dye)}")
         if not picked_dye.empty:
             picked_dye = picked_dye.assign(
                 treatment_type="dye",
@@ -451,6 +464,65 @@ with tabs[2]:
                 name=picked_dye["name"].astype(str),
                 _note=note_dye
             )
+    # persist for preview
+    st.session_state["_picked_dye"] = picked_dye if 'picked_dye' in locals() else pd.DataFrame()
+
+# ── Preview selected items (formatted like "Treatments on this run") ─────────
+st.divider()
+st.subheader("Preview selected treatments")
+
+def _preview_from_state() -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    for df in (st.session_state.get("_picked_pl"),
+               st.session_state.get("_picked_rna"),
+               st.session_state.get("_picked_dye")):
+        if isinstance(df, pd.DataFrame) and not df.empty:
+            tmp = df.copy()
+            if "_note" not in tmp.columns:
+                tmp["_note"] = ""
+            frames.append(
+                tmp[["treatment_type","code","name","_note"]]
+                .rename(columns={
+                    "treatment_type": "material_type",
+                    "code":            "material_code",
+                    "name":            "material_name",
+                    "_note":           "notes",
+                })
+            )
+    if not frames:
+        return pd.DataFrame(columns=[
+            "treated_clutch_code","created_at","material_type","material_code","material_name","notes","created_by"
+        ])
+
+    out = pd.concat(frames, ignore_index=True)
+    out.insert(0, "treated_clutch_code", f"T({selected_clutch_code})-next")
+    out.insert(1, "created_at", pd.Timestamp.utcnow())
+    out["created_by"] = os.environ.get("USER") or os.environ.get("USERNAME") or (getattr(user, "email", "") or "system")
+    return out[["treated_clutch_code","created_at","material_type","material_code","material_name","notes","created_by"]]
+
+preview_df = _preview_from_state()
+st.caption(f"{len(preview_df)} item(s) selected")
+
+if preview_df.empty:
+    st.info("No treatments selected yet. Pick items in the tabs above to see them here.")
+else:
+    st.data_editor(
+        preview_df,
+        hide_index=True,
+        width="stretch",
+        num_rows="fixed",
+        disabled=True,
+        column_config={
+            "treated_clutch_code": st.column_config.TextColumn("treated_clutch_code", disabled=True),
+            "created_at":          st.column_config.DatetimeColumn("created_at", disabled=True),
+            "material_type":       st.column_config.TextColumn("material_type", disabled=True),
+            "material_code":       st.column_config.TextColumn("material_code", disabled=True),
+            "material_name":       st.column_config.TextColumn("material_name", disabled=True),
+            "notes":               st.column_config.TextColumn("notes", disabled=True),
+            "created_by":          st.column_config.TextColumn("created_by", disabled=True),
+        },
+        key="preview_selected_treatments_ro",
+    )
 
 # ── Save actions (single button) — auto-group per click ----------------------
 st.subheader("Save")
@@ -477,7 +549,6 @@ if st.button("➕ Attach selected treatments (new group)", width="stretch", key=
     if not items:
         st.warning("No treatments selected."); st.stop()
 
-    # Create the new group now (T(<clutch_code>)-n)
     creator = os.environ.get("USER") or os.environ.get("USERNAME") or (getattr(user, "email", "") or "system")
     grp = _create_autogroup(clutch_instance_id, ci_code, creator)
     n, errs = _insert_instance_treatments(clutch_instance_id, grp["treated_clutch_id"], creator, items)
@@ -495,7 +566,6 @@ if _tmsg:
 
 # ── Updated run summary (per group) ──────────────────────────────────────────
 st.subheader("Updated run summary (per group)")
-
 grp_sql = text("""
     SELECT
       v.treated_clutch_code,
@@ -513,10 +583,12 @@ with _eng().begin() as cx:
 if gdf.empty:
     st.info("No treatment groups yet for this clutch.")
 else:
-    st.dataframe(
+    st.data_editor(
         gdf,
         hide_index=True,
         width="stretch",
+        num_rows="fixed",
+        disabled=True,
         column_config={
             "treated_clutch_code":      st.column_config.TextColumn("treated_clutch_code", disabled=True),
             "group_created_at":         st.column_config.DatetimeColumn("created_at", disabled=True),
@@ -524,6 +596,7 @@ else:
             "treatments_codes_group":   st.column_config.TextColumn("treatments (codes)", disabled=True),
             "treatment_genotype_group": st.column_config.TextColumn("treatment > genotype", disabled=True),
         },
+        key="summary_groups_ro",
     )
 
 # ── Treatments on this run ───────────────────────────────────────────────────
@@ -546,7 +619,6 @@ else:
     live_pretty = " + ".join(dedup["material_code"].tolist())
     st.info(f"Live treatments on this run → count: {live_count} | {live_pretty}")
 
-    # Reorder: treated_clutch_code first; omit group_label
     preferred = [
         "treated_clutch_code",
         "created_at", "material_type", "material_code", "material_name", "notes", "created_by"
@@ -554,4 +626,11 @@ else:
     cols = [c for c in preferred if c in treat_df.columns] + \
            [c for c in treat_df.columns if c not in preferred and c != "group_label"]
 
-    st.dataframe(treat_df[cols], width="stretch", hide_index=True)
+    st.data_editor(
+        treat_df[cols],
+        hide_index=True,
+        width="stretch",
+        num_rows="fixed",
+        disabled=True,
+        key="treatments_on_run_ro",
+    )

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sys, pathlib, os, re
-from typing import List
+from typing import List, Dict
 from datetime import date
 import pandas as pd
 import streamlit as st
@@ -37,30 +37,142 @@ V_TCLUTCH = "public.v_treated_clutches"
 # ── helpers ──────────────────────────────────────────────────────────────────
 def _fusion_context_for_bases(bases: List[str]) -> pd.DataFrame:
     """
-    Given base codes (plasmid codes), return per-base fusion context:
-    fusion_names, fluor list, tag list.
+    For each base_code, return one row with aggregated strings:
+      fusion_names, fluors, tags.
+
+    Sources:
+      • Plasmid path: plasmids → join_plasmid_fusions → fusions → (fluors,tags via fusions)
+      • RNA path: rna_proteins (fluor_code,tag_code) → (fluors,tags) → fusions (optional)
+
+    Tolerant behavior:
+      • Match rna_proteins.rna_code as 'RNA(<base>)' OR '<base>'
+      • Join by normalized codes (lower/trim)
+      • Prefer human names; if a name is NULL, fall back to the code
+      • If no real fusion_name, synthesize: fluor_display||':'||tag_display
     """
+    bases = [b for b in (bases or []) if b]
     if not bases:
         return pd.DataFrame(columns=["base_code","fusion_names","fluors","tags"])
-    with engine().begin() as cx:
-        q = text("""
-          WITH bases AS (
-            SELECT unnest(:bases) AS base_code
-          )
+
+    # VALUES table with numbered bind params to avoid array syntax issues
+    uniq = list(dict.fromkeys(bases))
+    binds = [f"(:b{i})" for i in range(len(uniq))]
+    params = {f"b{i}": v for i, v in enumerate(uniq)}
+    values_sql = ", ".join(binds)
+
+    sql = text(f"""
+        WITH bases AS (
+          SELECT v.base_code
+          FROM (VALUES {values_sql}) AS v(base_code)
+        ),
+
+        -- Plasmid path
+        pl AS (
           SELECT
             b.base_code,
-            COALESCE(string_agg(DISTINCT f.fusion_name, ', ' ORDER BY f.fusion_name), '') AS fusion_names,
-            COALESCE(string_agg(DISTINCT fl.fluor_name, ', ' ORDER BY fl.fluor_name), '') AS fluors,
-            COALESCE(string_agg(DISTINCT tg.tag_name,   ', ' ORDER BY tg.tag_name),   '') AS tags
+            /* real fusion name if present */
+            f.fusion_name,
+            /* names for fluor/tag from fusions */
+            fl.fluor_name,
+            tg.tag_name
           FROM bases b
-          LEFT JOIN public.plasmids p               ON p.code = b.base_code
-          LEFT JOIN public.join_plasmid_fusions jpf ON jpf.plasmid_id = p.id
-          LEFT JOIN public.fusions f                ON f.id = jpf.fusion_id
-          LEFT JOIN public.fluors  fl               ON fl.id = f.fluor_id
-          LEFT JOIN public.tags    tg               ON tg.id = f.tag_id
-          GROUP BY b.base_code
-        """).bindparams(bindparam("bases", value=bases, type_=ARRAY(TEXT())))
-        df = pd.read_sql(q, cx)
+          JOIN public.plasmids p
+            ON p.code = b.base_code
+          LEFT JOIN public.join_plasmid_fusions jpf
+            ON jpf.plasmid_id = p.id
+          LEFT JOIN public.fusions f
+            ON f.id = jpf.fusion_id
+          LEFT JOIN public.fluors  fl
+            ON fl.id = f.fluor_id
+          LEFT JOIN public.tags    tg
+            ON tg.id = f.tag_id
+        ),
+
+        -- RNA path (accept 'RNA(<base>)' OR '<base>'; normalize code joins)
+        rn_raw AS (
+          SELECT
+            b.base_code,
+            rp.rna_code,
+            rp.fluor_code,
+            rp.tag_code
+          FROM bases b
+          JOIN public.rna_proteins rp
+            ON lower(trim(rp.rna_code)) IN (
+                 lower(trim('RNA('||b.base_code||')')),
+                 lower(trim(b.base_code))
+               )
+        ),
+        rn_named AS (
+          SELECT
+            r.base_code,
+            /* real fusion if present for (fluor,tag) */
+            fu.fusion_name,
+            /* display names for fluor/tag; fall back to codes if names missing */
+            COALESCE(fl.fluor_name, r.fluor_code) AS fluor_disp,
+            COALESCE(tg.tag_name,   r.tag_code)   AS tag_disp
+          FROM rn_raw r
+          LEFT JOIN public.fluors fl
+            ON lower(trim(fl.fluor_code)) = lower(trim(r.fluor_code))
+          LEFT JOIN public.tags tg
+            ON lower(trim(tg.tag_code))   = lower(trim(r.tag_code))
+          LEFT JOIN public.fusions fu
+            ON fu.fluor_id = fl.id AND fu.tag_id = tg.id
+        ),
+
+        unioned AS (
+          -- Standardize columns from both paths; compute fusion_disp fallback later
+          SELECT
+            base_code,
+            fusion_name,
+            fluor_name  AS fluor_disp,
+            tag_name    AS tag_disp
+          FROM pl
+          UNION ALL
+          SELECT
+            base_code,
+            fusion_name,
+            fluor_disp,
+            tag_disp
+          FROM rn_named
+        ),
+
+        with_fallback AS (
+          SELECT
+            base_code,
+            /* synthesize fusion label when missing */
+            COALESCE(fusion_name,
+                     CASE WHEN fluor_disp IS NOT NULL AND tag_disp IS NOT NULL
+                          THEN fluor_disp || ':' || tag_disp
+                          ELSE NULL END) AS fusion_disp,
+            fluor_disp,
+            tag_disp
+          FROM unioned
+        )
+
+        SELECT
+          base_code,
+          COALESCE(
+            string_agg(DISTINCT fusion_disp, ', ' ORDER BY fusion_disp)
+            FILTER (WHERE fusion_disp IS NOT NULL),
+            ''
+          ) AS fusion_names,
+          COALESCE(
+            string_agg(DISTINCT fluor_disp, ', ' ORDER BY fluor_disp)
+            FILTER (WHERE fluor_disp IS NOT NULL),
+            ''
+          ) AS fluors,
+          COALESCE(
+            string_agg(DISTINCT tag_disp, ', ' ORDER BY tag_disp)
+            FILTER (WHERE tag_disp IS NOT NULL),
+            ''
+          ) AS tags
+        FROM with_fallback
+        GROUP BY base_code
+        ORDER BY base_code
+    """)
+
+    with engine().begin() as cx:
+        df = pd.read_sql(sql, cx, params=params)
     return df
 
 def _exists_view(qname: str) -> bool:
@@ -341,44 +453,57 @@ inherit_tx = tx_sel.loc[tx_sel.get("✓", pd.Series(False)).fillna(False)]
 # ─────────────────────────────────────────────────────────────────────────────
 st.subheader("3) Preview (auto-fields & tank)")
 
-# Exactly one fish
-seed = pd.DataFrame([{
-    "✓ Create": True,
-    "nickname": "",
-    "birthday": pd.to_datetime(birthday_value).date() if hasattr(birthday_value, "date") else birthday_value,
-    "genetic_background": bg_value,
-    "line_building_stage": stage_value,
-    "description": "",
-    "zygosity": "",
+# Inputs (one fish; make auto-create tank always ON)
+nickname_value = ""
+birthday_val = pd.to_datetime(birthday_value).date() if hasattr(birthday_value, "date") else birthday_value
+genetic_background_value = bg_value
+line_building_stage_value = stage_value
+description_value = ""
+zygosity_value = ""
+
+# Build the payload used by the saver
+todo = pd.DataFrame([{
+    "nickname":            nickname_value,
+    "birthday":            birthday_val,
+    "genetic_background":  genetic_background_value,
+    "line_building_stage": line_building_stage_value,
+    "description":         description_value,
+    "zygosity":            zygosity_value,
 }])
 
-st.caption("Edit any fields below (exactly one fish will be created).")
-editor = st.data_editor(
-    seed, hide_index=True, use_container_width=True, num_rows="fixed",
+# Derive identity and tank behavior
+# (uses the existing _identity_key helper already defined above)
+todo["identity_key"] = todo.apply(_identity_key, axis=1)
+auto_tank = True  # always create an active tank
+will_create_tank_value = "yes"
+
+# Read-only pivot view with all fields
+pivot_rows = [
+    ("nickname",            todo.at[0, "nickname"]),
+    ("birthday",            todo.at[0, "birthday"]),
+    ("genetic_background",  todo.at[0, "genetic_background"]),
+    ("line_building_stage", todo.at[0, "line_building_stage"]),
+    ("description",         todo.at[0, "description"]),
+    ("zygosity",            todo.at[0, "zygosity"]),
+    ("identity_key",        todo.at[0, "identity_key"]),
+    ("will_create_tank",    will_create_tank_value),
+]
+pivot_df = pd.DataFrame(pivot_rows, columns=["Field", "Value"])
+
+st.data_editor(
+    pivot_df,
+    hide_index=True,
+    use_container_width=True,
+    num_rows="fixed",
+    disabled=True,
     column_config={
-        "✓ Create":            st.column_config.CheckboxColumn("✓", default=True),
-        "birthday":            st.column_config.DateColumn("birthday", format="YYYY-MM-DD"),
-        "genetic_background":  st.column_config.TextColumn("genetic_background"),
-        "line_building_stage": st.column_config.TextColumn("line_building_stage"),
-        "description":         st.column_config.TextColumn("description"),
-        "zygosity":            st.column_config.SelectboxColumn("zygosity", options=["","het","hom","unk"]),
+        "Field": st.column_config.TextColumn("Field", disabled=True),
+        "Value": st.column_config.TextColumn("Value", disabled=True),
     },
-    key="new_fish_from_tclutch_editor_single",
+    key="new_fish_from_tclutch_preview_pivot",
 )
 
-todo = editor.loc[editor["✓ Create"]].copy()
-if todo.empty:
-    st.info("Nothing selected to create."); st.stop()
-
-todo["identity_key"]     = todo.apply(_identity_key, axis=1)
-auto_tank = st.checkbox("Auto-create active tank for fish", value=True)
-todo["will_create_tank"] = "yes" if auto_tank else "no"
-st.dataframe(
-    todo[["✓ Create","nickname","birthday","genetic_background","line_building_stage","zygosity","identity_key","will_create_tank"]],
-    hide_index=True, use_container_width=True, height=140
-)
-
-# Note (stored on fish.notes)
+# Optional note (kept as a separate control, same as before)
 creation_note = st.text_input("Note (optional — stored on fish.notes)", value="")
 
 # ─────────────────────────────────────────────────────────────────────────────
