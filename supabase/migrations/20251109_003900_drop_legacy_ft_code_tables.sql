@@ -1,0 +1,4 @@
+BEGIN;
+DROP TABLE IF EXISTS public.ft_dyes CASCADE;
+DROP TABLE IF EXISTS public.ft_proteins CASCADE;
+COMMIT;
