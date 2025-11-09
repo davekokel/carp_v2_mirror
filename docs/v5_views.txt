@@ -1,0 +1,9 @@
+public|v_clutch_instances|view|postgres
+public|v_fish_main|view|postgres
+public|v_fish_unified|view|postgres
+public|v_ft_dyes|view|postgres
+public|v_ft_proteins|view|postgres
+public|v_plasmids|view|postgres
+public|v_rna_markers|view|postgres
+public|v_rnas|view|postgres
+public|v_tanks|view|postgres
