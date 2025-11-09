@@ -1,0 +1,168 @@
+plasmid_code,nickname,resistance,notes,fluor_or_fluor_fusion_name
+pDQM001,CMV-SP6-mSG(J) IDT opt,Amp,"IDT optimized, for mRNA production with SP6 - clone 2",mSG
+pDQM002,CMV-SP6-mSG(J) IDT opt,Amp,"IDT optimized, for mRNA production with SP6 - clone 5",mSG
+pDQM005,ef1a-tdmSG(J),Amp,iCodon optimized for tol2 insertions - clone 4,tdmSG
+pDQM006,ef1a-tdmSG-syntrons(J),Amp,each mStayGold contains a 51bp syntron to boost expression - clone 6,tdmSG
+pDQM007,ef1a-tdmSG-syntrons(J),Amp,each mStayGold contains a 51bp syntron to boost expression - clone 3,tdmSG
+pDQM008,ef1a-tdmSG-syntrons(J),Amp,each mStayGold contains a 51bp syntron to boost expression - clone 8,tdmSG
+pDQM009,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK1,mScarlet|mKate2|Electra2|mKOK|mTFP1
+pDQM010,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK4,mScarlet|mKate2|Electra2|mKOK|mTFP1
+pDQM011,pCM268_ccdB-Electra2,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),Electra2
+pDQM012,pCM268_ccdB-Electra2,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),Electra2
+pDQM013,pCM268_ccdB-mKOK,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mKOK
+pDQM014,pCM268_ccdB-mKate2,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mKate2
+pDQM015,pCM268_ccdB-mKate2,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mKate2
+pDQM016,pCM268_ccdB-mTFP1,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mTFP1
+pDQM017,pCM268_ccdB-mTFP1,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mTFP1
+pDQM018,pCM268_ccdB-miRFP670-2,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),miRFP670
+pDQM019,pCM268_ccdB-miRFP670-2,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),miRFP670
+pDQM020,pCM268_ccdB-mLychee,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mLychee
+pDQM021,pCM268_ccdB-mLychee,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mLychee
+pDQM022,pCM268_ccdB-mChilada,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mChilada
+pDQM023,pCM268_ccdB-mChilada,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mChilada
+pDQM024,skittles2.0-5FP-mutation,Amp,single base change (frame shift) in mKate2,mScarlet|mKate2|Electra2|mKOK|mTFP1
+pDQM025,skittles2.0-5FP-mutation,Amp,single deletion (frame shift) in mTFP1,mScarlet|mKate2|Electra2|mKOK|mTFP1
+pDQM026,pCM268_ccdB-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,promoterless ,dhb::tdmSG|tdmChilada::pcna
+pDQM027,pTwist-SP6-2xLynk:mSG(J)-iCodon,Amp,for mRNA,2xLynk::mSG
+pDQM028,pTwist-SP6-2xLynk:mSG(B)-iCodon,Amp,for mRNA,2xLynk::mSG
+pDQM029,pTwist-SP6-2xLynk:mBaoJin-iCodon,Amp,for mRNA,2xLynk::mBaoJin
+pDQM030,pTwist-SP6-2xLynk:mYongHong-iCodon,Amp,for mRNA - clone 1,2xLynk::mYongHong
+pDQM031,pTwist-SP6-2xLynk:mYongHong-iCodon,Amp,for mRNA - clone 2,2xLynk::mYongHong
+pDQM032,pCM268_ccdB-mYongHong,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mYongHong
+pDQM033,pCM268_ccdB-mYongHong,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mYongHong
+pDQM034,skittles2.0-5FP,Amp,5 FP version of skittles - clone 1,mKate2|mCitrine|Electra2|mKOK|mTFP1
+pDQM035,skittles2.0-5FP,Amp,5 FP version of skittles - clone 4,mKate2|mCitrine|Electra2|mKOK|mTFP1
+pDQM036,skittles3.0-4FP,Amp,4 FP version of skittles with SEC hsp-phiC (cryaa:mSc) - clone 3,
+pDQM037,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,ef1a driven cdk/pcna cell cycle sensor clone 1 (pIGLET),dhb::tdmSG|tdmChilada::pcna
+pDQM038,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,ef1a driven cdk/pcna cell cycle sensor clone 2 (pIGLET),dhb::tdmSG|tdmChilada::pcna
+pDQM039,hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,hsp driven cdk/pcna cell cycle sensor clone 2 (pIGLET),dhb::tdmSG|tdmChilada::pcna
+pDQM040,hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,hsp driven cdk/pcna cell cycle sensor clone 3 (pIGLET),dhb::tdmSG|tdmChilada::pcna
+pDQM041,sox10:mChilada (pCM268),Amp,sox10p-driven mChilada (pIGLET) clone 1,mChilada
+pDQM042,sox10:mChilada (pCM268),Amp,sox10p-driven mChilada (pIGLET) clone 2,mChilada
+pDQM043,pCM268_ccdB-mCitrine,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mCitrine
+pDQM044,pCM268_ccdB-mCitrine,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),mCitrine
+pDQM045,pTwist-SP6:2xLynk:mScarlet3,Amp,,2xLynk::mScarlet3
+pDQM046,pTwist-SP6:2xLynk:mScarlet3,Amp,,2xLynk::mScarlet3
+pDQM047,pTwist-SP6-2xLynk:mSG(J)-iCodon,Amp,Clone 1,2xLynk::mSG
+pDQM048,pTwist-SP6-2xLynk:mSG(J)-iCodon,Amp,Clone 2,2xLynk::mSG
+pDQM049,pTwist-SP6-2xLynk:mSG(B)-iCodon,Amp,Clone 1,2xLynk::mSG
+pDQM050,pTwist-SP6-2xLynk:mSG(B)-iCodon,Amp,Clone 2,2xLynk::mSG
+pDQM051,ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 1 - pIGLET,dhb::tdmSG|tdmChilada::h2b
+pDQM052,ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 2 - pIGLET,dhb::tdmSG|tdmChilada::h2b
+pDQM053,hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 2 - pIGLET,dhb::tdmSG|tdmChilada::h2b
+pDQM054,hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 3 - pIGLET,dhb::tdmSG|tdmChilada::h2b
+pDQM055,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 3 (truncated SV40),dhb::tdmSG|tdmChilada::pcna
+pDQM056,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 4 (truncated SV40),dhb::tdmSG|tdmChilada::pcna
+pDQM057,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,Clone 4 ,dhb::tdmSG|tdmChilada::pcna
+pDQM058,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 1,dhb::tdmSG|tdmChilada::h2b
+pDQM059,skittles3.1-4FP (exorh:GFP),Amp,Clone 3,gfp
+pDQM060,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 3,2xLynk::tdmSG|tdmChilada::h2b
+pDQM061,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 2,dhb::tdmSG|tdmChilada::pcna
+pDQM062,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 3,dhb::tdmSG|tdmChilada::pcna
+pDQM063,exorh skittles 2.0 5FP,Amp,"clone 1,iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",GFP|mKate2|Electra2|mCitrine|mKoK|mTFP1
+pDQM064,exorh skittles 2.0 5FP,Amp,"clone 5, iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",GFP|mKate2|Electra2|mCitrine|mKoK|mTFP1
+pDQM065,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,clone 1,2xLynk::tdmSG|tdmChilada::h2b
+pDQM066,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,clone 2,2xLynk::tdmSG|tdmChilada::h2b
+pDQM067,ef1a:2xLynk-tdmSG-tPT2A-tdmYH-h2b (pCM268),Amp,clone 1,2xLynk::tdmSG|tdmYH::h2b
+pDQM068,ef1a:2xLynk-tdmSG,Amp,Clone 1,2xLynk::tdmSG
+pDQM069,ef1a:2xLynk-tdmSG,Amp,Clone 2,2xLynk::tdmSG
+pDQM070,ef1a:2xLynk-tdmSG(introns),Amp,Clone 2,2xLynk::tdmSG
+pDQM071,ef1a:2xLynk-tdmSG(introns),Amp,Clone 4,2xLynk::tdmSG
+pDQM072,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,Clone 2,2xLynk::tdmSG|tdmChilada::h2b
+pDQM073,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,Clone 4,2xLynk::tdmSG|tdmChilada::h2b
+pDQM074,ef1a:2xLynk-tdmSG(introns),Amp,Clone 1,2xLynk::tdmSG
+pDQM075,ef1a:2xLynk-tdmSG(introns),Amp,Clone 3,2xLynk::tdmSG
+pDQM076,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),Amp,Clone 1,dhb::tdmSG|tdmChilada::h2b
+pDQM077,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),Amp,Clone 3,dhb::tdmSG|tdmChilada::h2b
+pDQM078,ef1a:2xLynk-tdmSG,Amp,Clone 5,2xLynk::tdmSG
+pDQM079,ef1a:2xLynk-mSG,Amp,Clone 1,2xLynk::mSG
+pDQM080,ef1a:2xLynk-mSG,Amp,Clone 2,2xLynk::mSG
+pDQM081,ef1a:2xLynk:mSG-tPT2A:mChilada,Amp,Clone 4,2xLynk::mSG
+pDQM082,ef1a:2xLynk:tdmChilada,Amp,Clone 4,2xLynk::tdmChilada
+pDQM083,ef1a:linker:Electra2:linker-attB,Amp,Clone 12-1,Electra2
+pDQM084,ef1a:linker:mKOK:linker-attB,Amp,Clone 13-2,mKOK
+pDQM085,ef1a:linker:mKate2:linker-attB,Amp,Clone 14-2,mKate2
+pDQM086,ef1a:linker:mCitrine:linker-attB,Amp,Clone 43-1,mCitrine
+pDQM087,ef1a:linker:mTFP1:linker-attB,Amp,Clone 16-1,mTFP1
+pDQM088,ef1a:linker:mYongHong:linker-attB,Amp,Clone 32-1,mYongHong
+pDQM089,ef1a:linker:mChilada:linker-attB,Amp,Clone 23-3,mChilada
+pDQM090,ef1a:linker:mChilada-MAGPV:linker-attB,Amp,Clone 1,mChilada
+pDQM091,ef1a:linker:mChilada-MAGPV:linker-attB,Amp,Clone 2,mChilada
+pDQM092,SP6:2xLynk:mchilada-MAGPV,Amp,Clone 1,2xLynk::mchilada
+pDQM093,SP6:2xLynk:mchilada-MAGPV,Amp,Clone 2,2xLynk::mchilada
+pDQM094,ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B,Amp,Clone 1,2xLynk::tdmSG
+pDQM095,ef1a:mSG:CDT1-tPT2A-mYH:GMN (iCodon) [FUCCI],Amp,Clone 2,mSG|mYH
+pDQM096,ef1a:mSG:CDT1-tPT2A-mYH:GMN (endogenous) [FUCCI],Amp,Clone 2,mSG|mYH
+pDQM097,cryaa skittles 3.1 5FP (new phiC (full length)),Amp,Clone 2,GFP|mKate2|Electra2|mCitrine|mKoK|mTFP1
+pDQM098,exorH:GFP; hsp:phiC(iC),Amp,new phiC cloned into Erin's plasmid,gfp
+pDQM099,exorH:GFP; hsp:phiC(iC),Amp,new phiC cloned into Erin's plasmid,gfp
+pDQM100,exorH:mScarlet; hsp:phiC(iC),Amp,new phiC cloned into Erin's plasmid,mScarlet
+pDQM101,ef1a:linker:Halo:linker-attB,Amp,Clone 1,Halo
+pDQM102,efa1:linker:mStayGold(J):linker-attB,Amp,Clone 1,mStayGold
+pDQM103,efa1:linker:mStayGold(J):linker-attB,Amp,Clone 2,mStayGold
+pDQM104,SP6:mchilada-MAGPV-h2b,Amp,Clone 1,mchilada
+pDQM105,SP6:mYH:h2b,Amp,Clone 4,mYH::h2b
+pDQM106,efa1:linker:miRFP670-2:linker-attB,Amp,Clone 2,miRFP670
+pDQM107,efa1:linker:miRFP670-2:linker-attB,Amp,Clone 5,miRFP670
+pDQM108,ccdB:linker:mChilada-MAGPV:linker,Amp,Clone 1,mChilada
+pDQM109,ccdB:linker:mChilada-MAGPV:linker,Amp,Clone 3,mChilada
+pDQM110,exorH:GFP; hsp:phiC(iC)-NLS,Amp,Clone 1,gfp
+pDQM111,exorH:GFP; hsp:phiC(iC)-NLS,Amp,Clone 3,gfp
+pDQM112,exorH:mScarlet; hsp:phiC(iC)-NLS,Amp,Clone 1,mScarlet
+pDQM113,exorH:mScarlet; hsp:phiC(iC)-NLS,Amp,Clone 2,mScarlet
+pDQM114,ef1a:mSG:CDT1-P2A-mYH:GMN (iCodon) [FUCCI],Amp,clone 2,mSG|mYH
+pDQM115,SP6:2xLynk:mScarlet3S2,Amp,Clone 1,2xLynk::mScarlet3S2
+pDQM116,SP6:2xLynk:mScarlet3S2,Amp,Clone 2,2xLynk::mScarlet3S2
+pDQM117,SP6:mScarlet3S2:H2B,Amp,Clone 2,mScarlet3S2::H2B
+pDQM118,SP6:mScarlet3S2:H2B,Amp,Clone 3,mScarlet3S2::H2B
+pDQM119,SP6:mBeRFP:H2B,Amp,Clone 3,mBeRFP::H2B
+pDQM120,ef1a:linker:mBeRFP:linker-attB,Amp,Clone 1,mBeRFP
+pDQM121,ef1a:2xLynk:tdmScarlet3-S2-tol2,Amp,Clones 1-4,2xLynk::tdmScarlet3
+pDQM122,ef1a:skittles 3.5 (2xLynk:mSG-attP-Halo-attP-3FPs),Amp,Clone 3,2xLynk::mSG
+pDQM123,ef1a:skittles 3.5 (2xLynk:mSG-attP-Halo-attP-3FPs),Amp,Clone 4,2xLynk::mSG
+pDQM124,ef1a:linker:mScarlet3-S2:linker-attB (tol2),Amp,Clone 1 and 2,mScarlet3
+pDQM125,ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B,Amp,clone 65-1,2xLynk::tdmSG
+pDQM126,ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B,Amp,clone 94-1,2xLynk::tdmSG
+pDQM127,ef1a:skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),Amp,Clone 1 & 2,2xLynk::mSG
+pDQM128,A2UCOE-ef1a-2xLynk:tdmSG-tol2,Amp,TBD (missing ~96bp?),2xLynk::tdmSG
+pDQM129,ef1a-extended-2xLynk:tdmSG-tol2,Amp,Clones 1-4,2xLynk::tdmSG
+pDQM130,MBP-TEV-phiC-NLS,Amp,TBD,
+pDQM131,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,"Clones 2,3",dhb::tdmSG|tdmChilada::h2b
+pDQM132,ef1a-extended::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,Amp,Clones 1-3,2xLynk::tdmSG
+pDQM133,ef1a-extened::tdmScarlet3-S2:H2B-tol2,Amp,Clones 1-3,tdmScarlet3
+pDQM134,A2UCOE-ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,Amp,still missing ~100bp,2xLynk::tdmSG
+pDQM135,A2UCOE-ef1a-2xLynk:tdmSG-tol2,Amp,still missing ~100bp,2xLynk::tdmSG
+pDQM136,ef1a-extended:2xLynk:tdmScarlet3-S2-tol2,Amp,clone 3,2xLynk::tdmScarlet3
+pDQM137,ef1a:-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),Amp,clone 3,2xLynk::mSG
+pDQM138,SP6:2xLynk:mGold2s,Amp,TBD,2xLynk::mGold2s
+pDQM139,SP6:2xLynk:mGold2t,Amp,TBD,2xLynk::mGold2t
+pDQM140,ef1a:linker:mGold2s:linker-attB (tol2),Amp,clones 1-3,mGold2s
+pDQM141,ef1a:linker:mGold2t:linker-attB (tol2),Amp,clones 2-3,mGold2t
+pDQM142,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmScarlet3-S2-h2b (pCM268),Amp,TBD,dhb::tdmSG
+pDQM143,SP6:tol2(iCodon),Amp,"Clones 1,2 and 4",
+pDQM144,ef1a:E2Crimson (iCodon),Amp,Clones 1-4,E2Crimson
+pDQM145,ef1a:mCardinal (iCodon),Amp,Clones 1-4,mCardinal
+pDQM146,ef1a-extended:linker:mScarlet3-S2:linker-attB (tol2),Amp,made by Erin (Janelia),mScarlet3
+pDQM147,ef1a-extended:linker:mStayGold:linker-attB (tol2),Amp,made by Erin (Janelia),mStayGold
+pDQM148,ef1a-extended:linker:mStayGold-c4:linker-attB (tol2),Amp,made by Erin (Janelia),mStayGold
+pDQM149,ef1a-extended:linker:Halo:linker-sv40-he1.1-tagbfp2-attB (tol2),Amp,made by Erin (Janelia),Halo|tagbfp2
+pDQM150,ef1a-extended-mSG:CDT1-tPT2A-mYH:GMN (endogenous),Amp,,mSG|mYH
+pDQM151,ef1a-extended-mSG:CDT1 (endogenous),Amp,Clones 3 & 4,mSG
+pDQM152,A2UCOE-ef1a-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),Amp,,2xLynk::mSG
+pDQM153,ef1a-extended::DHB:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,Amp,clone 1,DHB::tdmSG
+pDQM154,ef1a-extened::tdmScarlet3-S2:PCNA-tol2,Amp,clone 1 + 2,tdmScarlet3
+pDQM155,ef1a-extended:DHB:tdmSG-tol2,Amp,clone 2 + 4,DHB::tdmSG
+pDQM156,A2UCOE-loxP-ef1a-extended-2xLynk:tdmSc3S2-SV40-lox2272-attB-tol2,Amp,,2xLynk::tdmSc3S2
+pDQM157,A2UCOE-FRT-ef1a-extended-2xLynk:tdmSc3S2-SV40-FRT3-attB-tol2,Amp,,2xLynk::tdmSc3S2
+pDQM158,A2UCOE-ef1a-extened::tdmScarlet3-S2:PCNA-tol2,Amp,TBD,tdmScarlet3
+pDQM159,A2UCOE-ef1a-extended:DHB:tdmSG-tol2,Amp,TBD,DHB::tdmSG
+pDQM160,ef1a-extended-tdmScarlet3S2::GMN (endogenous),Amp,clones 1 + 2,tdmScarlet3S2
+pDQM161,loxP-ubb-mSG-h2b-lox2272,Amp,,mSG::h2b
+pDQM162,FRT3-ubb-mSG-h2b-FRT,Amp,,mSG::h2b
+pDQM163,SP6-SB100x,,,
+pDQM164,A2UCOE-ef1a-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),,,2xLynk::mSG
+pDQM165,exorH:mScarlet; hsp:phiC(iC)-NLS,,,mScarlet
+pDQM166,exorH:mScarlet; hsp:phiC(iC)-NLS-tPT2A-2xLynk-mSG-ubb,,,2xLynk::mSG
+pDQM167,SB-LTR-loxP-ubb-mSG-h2b-SV40-SB-lox2272-LTR,,,mSG::h2b
+pDQM168,SB-LTR-FRT-ubb-mSG-h2b-SV40-SB-FRT3-LTR,,,mSG::h2b
+pDQM169,pTwist-SP6-phiC-ERT2-new,,,
