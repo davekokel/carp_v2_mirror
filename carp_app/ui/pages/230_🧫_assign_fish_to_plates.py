@@ -1,14 +1,13 @@
-# =============================================================================
-# 023_🧫_assign_fish_to_plates.py
+# carp_app/ui/pages/023_🧫_assign_fish_to_plates.py
 # Plates — Create → pick treated_clutch_code(s) → map codes & orientations → note → PREVIEW → Save
-# =============================================================================
 from __future__ import annotations
+
 import sys, pathlib, os, re, io
 from typing import Dict, Tuple, Set, List
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
-from sqlalchemy.engine import Engine
 
 # --- wiring / auth ------------------------------------------------------------
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -17,21 +16,18 @@ if str(ROOT) not in sys.path:
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
-from carp_app.ui.lib.app_ctx import get_engine
+try:
+    from carp_app.ui.auth_gate import require_app_unlock
+except Exception:
+    def require_app_unlock(): ...
+from carp_app.ui.lib.page_engine import engine  # ← standardized engine helper
 
 sb, session, user = require_auth()
 require_email_otp()
+require_app_unlock()
 
 st.set_page_config(page_title="🧫 Plates — assign fish & orientations", page_icon="🧫", layout="wide")
 st.title("🧫 Plates — assign fish & orientations")
-
-DB_URL = os.getenv("DB_URL", "")
-if not DB_URL:
-    st.error("DB_URL not set"); st.stop()
-
-@st.cache_resource(show_spinner=False)
-def _eng() -> Engine:
-    return get_engine()
 
 # --- DB objects ---------------------------------------------------------------
 V_LAYOUT   = "public.v_plate_layout"
@@ -49,8 +45,36 @@ ORIENTATIONS = [
 
 # --- helpers ------------------------------------------------------------------
 def _formats() -> pd.DataFrame:
-    with _eng().begin() as cx:
+    with engine().begin() as cx:
         return pd.read_sql(text(f"SELECT code, name, n_rows, n_cols FROM {T_FORMATS} ORDER BY code"), cx)
+
+def _ensure_plate_slots(plate_code: str) -> None:
+    """
+    Seed plate_slots for a plate based on its format (n_rows × n_cols).
+    Idempotent: only inserts missing (row_idx,col_idx) cells.
+    """
+    sql = text(f"""
+    WITH p AS (
+      SELECT id, format_code FROM {T_PLATES} WHERE plate_code=:pc LIMIT 1
+    ),
+    f AS (
+      SELECT pf.n_rows, pf.n_cols FROM {T_FORMATS} pf JOIN p ON pf.code = p.format_code
+    ),
+    grid AS (
+      SELECT p.id AS plate_id, r AS row_idx, c AS col_idx
+      FROM p, f,
+           generate_series(1, (SELECT n_rows FROM f)) AS r,
+           generate_series(1, (SELECT n_cols FROM f)) AS c
+    )
+    INSERT INTO {T_SLOTS} (plate_id, row_idx, col_idx)
+    SELECT g.plate_id, g.row_idx, g.col_idx
+    FROM grid g
+    LEFT JOIN {T_SLOTS} s
+      ON s.plate_id = g.plate_id AND s.row_idx = g.row_idx AND s.col_idx = g.col_idx
+    WHERE s.plate_id IS NULL;
+    """)
+    with engine().begin() as cx:
+        cx.execute(sql, {"pc": plate_code})
 
 def _create_plate(format_code: str, created_by: str) -> str:
     sql = text(f"""
@@ -58,9 +82,11 @@ def _create_plate(format_code: str, created_by: str) -> str:
       VALUES (DEFAULT, :fmt, NULL, :by)
       RETURNING plate_code
     """)
-    with _eng().begin() as cx:
+    with engine().begin() as cx:
         code = cx.execute(sql, {"fmt": format_code, "by": created_by}).scalar()
-    return str(code)
+    plate_code = str(code)
+    _ensure_plate_slots(plate_code)  # seed grid immediately
+    return plate_code
 
 def _load_layout(plate_code: str) -> pd.DataFrame:
     sql = text(f"""
@@ -71,10 +97,20 @@ def _load_layout(plate_code: str) -> pd.DataFrame:
       WHERE plate_code = :p
       ORDER BY row_idx, col_idx
     """)
-    with _eng().begin() as cx:
+    with engine().begin() as cx:
         df = pd.read_sql(sql, cx, params={"p": plate_code})
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
+    return df
+
+def _load_or_seed_layout(plate_code: str) -> pd.DataFrame:
+    """
+    Load layout; if empty, seed slots and reload (self-heal).
+    """
+    df = _load_layout(plate_code)
+    if df.empty:
+        _ensure_plate_slots(plate_code)
+        df = _load_layout(plate_code)
     return df
 
 def _fetch_treated_groups(q: str, limit: int = 500) -> pd.DataFrame:
@@ -97,7 +133,7 @@ def _fetch_treated_groups(q: str, limit: int = 500) -> pd.DataFrame:
       LIMIT :lim
     """)
     p["lim"] = int(limit)
-    with _eng().begin() as cx:
+    with engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=p)
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
@@ -175,10 +211,10 @@ if not plate_code:
     st.info("Create a plate to proceed.")
     st.stop()
 
-# Load the plate you just created
-layout = _load_layout(plate_code)
+# Load + self-heal slots for the plate you just created
+layout = _load_or_seed_layout(plate_code)
 if layout.empty:
-    st.info("No layout rows for this plate (unexpected)."); st.stop()
+    st.error("No layout rows for this plate (format likely missing rows/cols)."); st.stop()
 rows, cols = int(layout["n_rows"].iloc[0]), int(layout["n_cols"].iloc[0])
 plate_note_initial = str(layout["plate_name"].iloc[0] or "")
 full_all_expr = f"A01:{chr(64+rows)}{str(cols).zfill(2)}"  # e.g., A01:H12
@@ -203,7 +239,7 @@ else:
     gdf = groups[["treated_clutch_code","clutch_code","clutch_genotype_pretty","treatment_genotype_group"]].copy()
     gdf.insert(0, "✓", False)
     gsel = st.data_editor(
-        gdf, hide_index=True, width="stretch", num_rows="fixed", height=260,
+        gdf, hide_index=True, use_container_width=True, num_rows="fixed", height=260,
         column_config={
             "✓": st.column_config.CheckboxColumn("✓", default=False),
             "treated_clutch_code": st.column_config.TextColumn("treated_clutch_code", disabled=True),
@@ -291,7 +327,7 @@ persisted_oris: List[str] = st.session_state.get(sel_oris_key, [])
 ori_df = pd.DataFrame({"orientation": ORIENTATIONS})
 ori_df.insert(0, "✓", False)
 ori_sel = st.data_editor(
-    ori_df, hide_index=True, width="stretch", num_rows="fixed", height=160,
+    ori_df, hide_index=True, use_container_width=True, num_rows="fixed", height=160,
     column_config={
         "✓": st.column_config.CheckboxColumn("✓", default=False),
         "orientation": st.column_config.TextColumn("orientation", disabled=True),
@@ -371,7 +407,7 @@ for ori, expr in (ori_map or {}).items():
         preview.loc[(preview["row_idx"]==r) & (preview["col_idx"]==c), "orientation"] = ori
 
 st.dataframe(preview[["well_label","treated_clutch_code","orientation"]],
-             hide_index=True, width="stretch", height=240)
+             hide_index=True, use_container_width=True, height=240)
 
 # ============================================================================
 # STEP 6 — Save plate
@@ -384,7 +420,7 @@ def _apply_mappings(plate_code: str,
     """
     Returns (n_code_updates, n_ori_updates, n_overwrites)
     """
-    with _eng().begin() as cx:
+    with engine().begin() as cx:
         pid = cx.execute(text(f"SELECT id::text FROM {T_PLATES} WHERE plate_code=:p LIMIT 1"), {"p": plate_code}).scalar()
         if not pid: raise RuntimeError("Unknown plate_code")
 
@@ -440,28 +476,31 @@ def _apply_mappings(plate_code: str,
     return n_code, n_ori, n_over
 
 def _update_plate_name(plate_code: str, new_name: str) -> None:
-    with _eng().begin() as cx:
+    with engine().begin() as cx:
         cx.execute(text(f"UPDATE {T_PLATES} SET plate_name = NULLIF(:nm,'') WHERE plate_code=:pc"),
                    {"nm": new_name, "pc": plate_code})
 
-if st.button("💾 Save plate", type="primary"):
+if st.button("💾 Save plate", type="primary", use_container_width=True):
     try:
         # update note if changed
         if plate_note != plate_note_initial:
             _update_plate_name(plate_code, plate_note)
-        n_code, n_ori, n_over = _apply_mappings(plate_code, _get_map(plate_code, "code_map", {}),
-                                               _get_map(plate_code, "ori_map", {}))
+        n_code, n_ori, n_over = _apply_mappings(
+            plate_code,
+            _get_map(plate_code, "code_map", {}),
+            _get_map(plate_code, "ori_map", {})
+        )
         st.success(f"Saved: codes→{n_code}, orientations→{n_ori} (overwrites: {n_over}).")
         # clear staged and reload
         _set_map(plate_code, "code_map", {})
         _set_map(plate_code, "ori_map", {})
-        layout = _load_layout(plate_code)
+        layout = _load_or_seed_layout(plate_code)
     except Exception as e:
         st.error(f"Save failed: {e}")
 
 st.divider()
 st.subheader("Export")
-dl_df = _load_layout(plate_code)[["plate_code","plate_name","format_code","well_label","treated_clutch_code","orientation"]].copy()
+dl_df = _load_or_seed_layout(plate_code)[["plate_code","plate_name","format_code","well_label","treated_clutch_code","orientation"]].copy()
 st.download_button(
     "⬇︎ Download layout CSV",
     data=_csv_bytes(dl_df),
