@@ -88,7 +88,6 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, dict]:
         where.append(("NOT " if neg else "") + f"({haystack} ILIKE :{key})")
 
     if supports_only:
-        where.append("(vp.supports_invitro_rna = true)")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     sql = f"""
@@ -100,7 +99,7 @@ def _build_query(q: str, supports_only: bool, limit: int) -> tuple[str, dict]:
         vp.tags_arr   AS tags,
         vp.fusions_arr AS fusions,
         vp.resistance,
-        vp.supports_invitro_rna,
+        
         vp.created_by,
         vp.created_at,
         NULL::uuid AS rna_id,
@@ -172,7 +171,6 @@ edited = st.data_editor(
         "fusions": st.column_config.ListColumn("fusions", disabled=True),
 
         "resistance": st.column_config.TextColumn("resistance", disabled=True),
-        "supports_invitro_rna": st.column_config.CheckboxColumn("supports_invitro_rna", disabled=True),
         "rna_code": st.column_config.TextColumn("rna_code", disabled=True),
         "rna_name": st.column_config.TextColumn("rna_name", disabled=True),
         "created_by": st.column_config.TextColumn("created_by", disabled=True),
@@ -203,7 +201,7 @@ with cC:
     ensure_missing_for_supported = st.button(
         "Ensure RNA for all supported (missing only)",
         use_container_width=True,
-        help="Create RNAs for all rows where supports_invitro_rna is TRUE but rna_code is empty.",
+        help="Create RNAs for selected plasmids.",
         disabled=(not has_ensure),
     )
 
@@ -233,7 +231,6 @@ if has_ensure and ensure_selected:
 if has_ensure and ensure_missing_for_supported:
     ok = 0
     miss_df = edited[
-        (edited["supports_invitro_rna"] == True)
         & (edited["rna_code"].isna() | (edited["rna_code"] == ""))
     ]
     with _get_engine().begin() as cx:

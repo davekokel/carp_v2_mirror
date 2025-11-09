@@ -187,7 +187,7 @@ def _load_rnas(search: str) -> pd.DataFrame:
         return pd.read_sql(text("""
           select code, name, coalesce(nickname,'') as nickname, created_at, created_by
           from public.plasmids
-          where (supports_invitro_rna is true)
+          where EXISTS (SELECT 1 FROM public.rnas r WHERE r.base_plasmid_code = p.code)
             and (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
           order by coalesce(created_at, now()) desc
           limit 1000
@@ -353,7 +353,7 @@ def _load_rnas(search: str) -> pd.DataFrame:
         return pd.read_sql(text("""
           select code, name, coalesce(nickname,'') as nickname, created_at, created_by
           from public.plasmids
-          where (supports_invitro_rna is true)
+          where EXISTS (SELECT 1 FROM public.rnas r WHERE r.base_plasmid_code = p.code)
             and (:q = '' OR coalesce(code,'') ilike :ql OR coalesce(name,'') ilike :ql OR coalesce(nickname,'') ilike :ql)
           order by coalesce(created_at, now()) desc
           limit 1000
@@ -408,7 +408,7 @@ with tabs[1]:
     with c1: q_rna = st.text_input("Search RNAs (code / name / nickname)", value="")
     with c2: note_rna = st.text_input("Note for selected RNAs", value="")
     df_rna = _load_rnas(q_rna)
-    src = "v_rna_plasmids" if _HAS_V_RNA else "plasmids.supports_invitro_rna"
+    src = "v_rna_plasmids"
     st.caption(f"{len(df_rna)} RNA(s) • source: {src}")
     if df_rna.empty:
         picked_rna = pd.DataFrame()

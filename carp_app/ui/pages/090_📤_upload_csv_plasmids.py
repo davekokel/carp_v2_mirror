@@ -34,7 +34,7 @@ PAGE_TITLE = "CARP — Upload Plasmids from CSV"
 st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
 st.title(PAGE_TITLE)
 st.caption(
-    "CSV/XLSX must include **plasmid_code**. Optional: nickname, resistance, supports_invitro_rna, notes. "
+    "CSV/XLSX must include **plasmid_code**. Optional: nickname, resistance, notes. "
     "Markers: **fluor_or_fluor_fusion_name** supports tokens like `Fluor` or `Tag:Fluor` "
     "(also `Tag::Fluor`, `Tag/Fluor`, `Tag@Fluor`, `Tag+Fluor`) and multiple tokens with `|`. "
     "**STRICT**: all referenced Fluors (and Tags, if present) must exist; otherwise the upload stops."
@@ -108,7 +108,6 @@ ALIASES: Dict[str, List[str]] = {
     "plasmid_code": ["code","plasmid","plasmid_base_code"],
     "nickname": ["nickname","name","plasmid_name"],
     "resistance": ["resistance","antibiotic","abx"],
-    "supports_invitro_rna": ["supports_invitro_rna","supports_mrna","mrna_ok"],
     "notes": ["notes","note","desc","description"],
     # Accept your new header name, normalize to 'fusion_name'
     "fusion_name": ["fluor_or_fluor_fusion_name","fusion_name","fusions","fluors","fluor_list"]
@@ -128,9 +127,6 @@ if "plasmid_code" not in df.columns:
 
 for col in ("plasmid_code","nickname","resistance","notes","fusion_name"):
     if col in df.columns: df[col] = df[col].fillna("").astype(str)
-if "supports_invitro_rna" in df.columns:
-    df["supports_invitro_rna"] = df["supports_invitro_rna"].map(_parse_bool)
-
 st.subheader("Preview (first 50 rows)")
 st.dataframe(df.head(50), width="stretch", hide_index=True)
 
@@ -273,7 +269,6 @@ with _eng().begin() as cx:
         fields = {
             "nickname": (r.get("nickname") or None),
             "resistance": (r.get("resistance") or None),
-            "supports_invitro_rna": (r.get("supports_invitro_rna") if "supports_invitro_rna" in r else None),
             "notes": (r.get("notes") or None),
             "created_by": creator or None
         }
@@ -283,15 +278,15 @@ with _eng().begin() as cx:
                 UPDATE public.plasmids
                 SET nickname = COALESCE(:nickname, nickname),
                     resistance = COALESCE(:resistance, resistance),
-                    supports_invitro_rna = COALESCE(:supports_invitro_rna, supports_invitro_rna),
+                    supports_invitro_rna = COALESCE(:supports_invitro_rna),
                     notes = COALESCE(:notes, notes)
                 WHERE code = :code
             """), {**fields, "code": code})
             updated.append({"plasmid_code": code})
         else:
             cx.execute(text("""
-                INSERT INTO public.plasmids (code, nickname, resistance, supports_invitro_rna, notes, created_by)
-                VALUES (:code, :nickname, :resistance, :supports_invitro_rna, :notes, :created_by)
+                INSERT INTO public.plasmids (code, nickname, resistance, notes, created_by)
+                VALUES (:code, :nickname, :resistance, :notes, :created_by)
                 ON CONFLICT (code) DO NOTHING
             """), {"code": code, **fields})
             inserted.append({"plasmid_code": code})
@@ -314,7 +309,7 @@ with _eng().begin() as cx:
 
     v_rich = pd.read_sql(
         text("""
-          SELECT plasmid_code, plasmid_name, nickname, resistance, supports_invitro_rna,
+          SELECT plasmid_code, plasmid_name, nickname, resistance,
                  fluor_names, tag_names, fusion_names
           FROM public.v_plasmids_rich
           WHERE plasmid_code = ANY(:codes)
@@ -372,7 +367,6 @@ else:
             "plasmid_name": cc.TextColumn("Name"),
             "nickname":     cc.TextColumn("Nickname"),
             "resistance":   cc.TextColumn("Resistance"),
-            "supports_invitro_rna": cc.CheckboxColumn("mRNA OK"),
             "fluor_names":  cc.TextColumn("Fluors"),
             "tag_names":    cc.TextColumn("Tags"),
             "fusion_names": cc.TextColumn("Fusions"),

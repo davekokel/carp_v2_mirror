@@ -1,4 +1,4 @@
-plasmid_code,nickname,notes,fluor_or_fluor_fusion_name
+rna_base_code,nickname,notes,fluor_or_fluor_fusion_name
 MGCO-01,ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2,,2Xcox8A::mStayGold
 MGCO-02,ef1a-2Xcox8A-linker-mChilada-SV40-attb-tol2,,2Xcox8A::mChilada
 MGCO-03,ef1a-2Xcox8A-linker-Halo-SV40-attb-tol2,,2Xcox8A::Halo

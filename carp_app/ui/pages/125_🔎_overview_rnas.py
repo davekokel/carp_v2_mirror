@@ -7,6 +7,7 @@ import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+# repo wiring
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -19,87 +20,81 @@ except Exception:
     def require_app_unlock(): ...
 from carp_app.ui.lib.page_engine import engine as _engine
 
+# ── Auth / page ──────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-st.set_page_config(page_title="CARP — Overview RNAs", page_icon="🔎", layout="wide")
+st.set_page_config(page_title="🔎 Overview RNAs", page_icon="🧬", layout="wide")
 st.title("🔎 Overview RNAs")
 
 @st.cache_resource(show_spinner=False)
 def _eng() -> Engine:
-    url = os.getenv("DB_URL","")
+    url = os.getenv("DB_URL", "")
     if not url:
         st.error("DB_URL not set"); st.stop()
     return _engine()
 
-with _eng().begin() as cx:
-    dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
-st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
-
+# ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters"):
     c1, c2 = st.columns([3,1])
-    q = c1.text_input("Search (rna_code / base plasmid / name / fusions / fluors / tags)")
-    limit = int(c2.number_input("Limit", min_value=10, max_value=5000, value=500, step=100))
+    with c1:
+        q = st.text_input("Search (code/name/base/markers/notes)", "")
+    with c2:
+        limit = int(st.number_input("Limit", min_value=50, max_value=5000, value=500, step=50))
     st.form_submit_button("Apply", use_container_width=True)
 
+# Pull whatever the view exposes; normalize columns in Python
 sql = text("""
-  SELECT
-    rna_code,
-    COALESCE(rna_name,'')           AS rna_name,
-    base_plasmid_code,
-    COALESCE(base_plasmid_name,'')  AS base_plasmid_name,
-    COALESCE(genetic_element,'')    AS genetic_element,
-    COALESCE(fusion_names,'')       AS fusion_names,
-    COALESCE(fluor_names,'')        AS fluor_names,
-    COALESCE(tag_names,'')          AS tag_names,
-    COALESCE(notes,'')              AS notes,
-    created_by,
-    created_at
-  FROM public.v_rnas
-  WHERE (:q IS NULL)
-     OR rna_code ILIKE :ql
-     OR base_plasmid_code ILIKE :ql
-     OR COALESCE(rna_name,'') ILIKE :ql
-     OR COALESCE(base_plasmid_name,'') ILIKE :ql
-     OR COALESCE(fusion_names,'') ILIKE :ql
-     OR COALESCE(fluor_names,'') ILIKE :ql
-     OR COALESCE(tag_names,'') ILIKE :ql
-     OR COALESCE(notes,'') ILIKE :ql
+  SELECT * FROM public.v_rnas
   ORDER BY created_at DESC NULLS LAST, rna_code
   LIMIT :lim
 """)
-params = {"q": (q if (q or "").strip() else None), "ql": f"%{(q or '').strip()}%", "lim": int(limit)}
-
 with _eng().begin() as cx:
-    df = pd.read_sql(sql, cx, params=params)
+    df = pd.read_sql(sql, cx, params={"lim": int(limit)})
+
+# Apply text filter client-side (avoids guessing DB columns)
+def _contains(s: pd.Series, needle: str) -> pd.Series:
+    return s.fillna("").astype(str).str.contains(needle, case=False, na=False)
+
+if q.strip():
+    needle = q.strip()
+    cols_for_filter = [c for c in df.columns if df[c].dtype == object or str(df[c].dtype).startswith(("string","object"))]
+    if cols_for_filter:
+        mask = pd.Series(False, index=df.index)
+        for c in cols_for_filter:
+            mask |= _contains(df[c], needle)
+        df = df.loc[mask].copy()
+
+# Ensure friendly columns exist even if the view doesn’t have them
+must_have = [
+    "rna_code",
+    "rna_name",
+    "base_plasmid_code",   # code only (no name expected in your model)
+    "fusion_names",        # may be missing in current view → synthesize empty
+    "fluor_names",
+    "tag_names",
+    "notes",
+    "created_by",
+    "created_at",
+]
+for c in must_have:
+    if c not in df.columns:
+        # create empty columns for missing optional fields
+        df[c] = "" if c not in ("created_at",) else pd.NaT
+
+# Reorder for display (drop columns not recognized to the end)
+display_cols = [c for c in must_have if c in df.columns]
+extras = [c for c in df.columns if c not in display_cols]
+df = df[display_cols + extras]
 
 st.caption(f"{len(df)} row(s)")
-if df.empty:
-    st.info("No RNAs found.")
-else:
-    st.dataframe(
-        df,
-        hide_index=True,
-        use_container_width=True,
-        column_config={
-            "rna_code":           st.column_config.TextColumn("RNA code", disabled=True),
-            "rna_name":           st.column_config.TextColumn("Name", disabled=True),
-            "base_plasmid_code":  st.column_config.TextColumn("Base plasmid", disabled=True),
-            "base_plasmid_name":  st.column_config.TextColumn("Plasmid name", disabled=True),
-            "genetic_element":    st.column_config.TextColumn("Element", disabled=True),
-            "fusion_names":       st.column_config.TextColumn("Fusions", disabled=True),
-            "fluor_names":        st.column_config.TextColumn("Fluors", disabled=True),
-            "tag_names":          st.column_config.TextColumn("Tags", disabled=True),
-            "notes":              st.column_config.TextColumn("Notes", disabled=True),
-            "created_by":         st.column_config.TextColumn("Created by", disabled=True),
-            "created_at":         st.column_config.DatetimeColumn("Created at", disabled=True),
-        },
-        key="rnas_overview_v1",
-    )
-    st.download_button(
-        "⬇︎ Download CSV",
-        data=df.to_csv(index=False).encode("utf-8"),
-        file_name="rnas_overview.csv",
-        type="secondary"
-    )
+st.dataframe(df, width="stretch", hide_index=True)
+
+st.download_button(
+    "⬇︎ Download CSV",
+    data=df.to_csv(index=False).encode("utf-8"),
+    file_name="overview_rnas.csv",
+    type="secondary",
+    use_container_width=True,
+)

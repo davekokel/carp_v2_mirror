@@ -89,7 +89,6 @@ def load_plasmids_for_fusions(fusion_ids: List[str]) -> pd.DataFrame:
     """
     if not fusion_ids:
         return pd.DataFrame(columns=[
-            "code","name","nickname","resistance","supports_invitro_rna",
             "fluors","tags","fusions","notes"
         ])
     sql = """
@@ -98,7 +97,7 @@ def load_plasmids_for_fusions(fusion_ids: List[str]) -> pd.DataFrame:
       vp.name,
       vp.nickname,
       vp.resistance,
-      vp.supports_invitro_rna,
+      
       vp.fluors,
       vp.tags,
       vp.fusions,
@@ -221,7 +220,6 @@ if sel_ids_actual:
     plasmids = load_plasmids_for_fusions(sel_ids_actual).copy()
     # Display a friendly subset
     st.dataframe(
-        plasmids[["code","name","nickname","resistance","supports_invitro_rna","fluors","tags","fusions","notes"]],
         use_container_width=True
     )
 else:
