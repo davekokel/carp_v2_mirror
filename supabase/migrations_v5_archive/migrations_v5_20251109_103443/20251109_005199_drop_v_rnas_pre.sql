@@ -1,3 +1,0 @@
-BEGIN;
-DROP VIEW IF EXISTS public.v_rnas;
-COMMIT;

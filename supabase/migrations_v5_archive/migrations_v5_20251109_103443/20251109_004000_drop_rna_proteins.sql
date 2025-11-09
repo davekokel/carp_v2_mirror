@@ -1,3 +1,0 @@
-BEGIN;
-DROP TABLE IF EXISTS public.rna_proteins CASCADE;
-COMMIT;

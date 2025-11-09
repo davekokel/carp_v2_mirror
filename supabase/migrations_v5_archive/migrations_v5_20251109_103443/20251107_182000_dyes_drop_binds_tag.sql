@@ -1,3 +1,0 @@
-BEGIN;
-ALTER TABLE public.dyes DROP COLUMN IF EXISTS binds_tag_id;
-COMMIT;
