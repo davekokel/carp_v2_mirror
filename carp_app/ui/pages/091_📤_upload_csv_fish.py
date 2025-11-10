@@ -1,118 +1,119 @@
 # carp_app/ui/pages/008_📤_upload_csv_fish.py
 from __future__ import annotations
 
-import sys, pathlib, io, os, re, math
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
-
-from typing import Optional, List, Dict
+import io, os, sys, re, math, pathlib
 from datetime import date, timedelta
-from pathlib import Path
+from typing import Optional, List, Dict, Any
 
 import pandas as pd
 import streamlit as st
-from streamlit import column_config as cc
+import uuid
+from sqlalchemy import bindparam
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import ProgrammingError, IntegrityError
 
+# repo root on sys.path
+ROOT = pathlib.Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+# auth / engine
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
-from carp_app.ui.lib.app_ctx import get_engine
-from carp_app.lib.time import utc_now
-
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock():
-        return None
+    def require_app_unlock(): ...
+from carp_app.ui.lib.app_ctx import get_engine
+from carp_app.lib.time import utc_now
 
-# ── Auth ─────────────────────────────────────────────────────────────────────
+# ──────────────────────────── Page / Auth ────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-# ── Page UX ───────────────────────────────────────────────────────────────────
-PAGE_TITLE = "CARP — Upload Fish from CSV"
-st.set_page_config(page_title=PAGE_TITLE, page_icon="📤", layout="wide")
-st.title(PAGE_TITLE)
-st.caption(
-    "Upload fish only. CSV/XLSX must include **birthday**. "
-    "Optional columns can (re)link treatments (ft_code + fluor/tag/dye) and **transgenes/alleles** "
-    "(tg_base_code + allele_nickname). This importer **upserts by default** (updates links for existing fish)."
-)
+st.set_page_config(page_title="CARP — Upload Fish from CSV", page_icon="🐟", layout="wide")
+st.title("🐟 Upload Fish from CSV — Forward Links & Alleles")
 
-# ── Engine ───────────────────────────────────────────────────────────────────
+# ────────────────────────── Engine / Utilities ───────────────────────
 _ENGINE: Optional[Engine] = None
 def _eng() -> Engine:
     global _ENGINE
     if _ENGINE is None:
+        if not os.getenv("DB_URL"):
+            raise RuntimeError("DB_URL is not set")
         _ENGINE = get_engine()
     return _ENGINE
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
-_ZYG_MAP = {
-    "het":"het","heterozygous":"het","hetero":"het","h":"het",
-    "hom":"hom","homozygous":"hom","homo":"hom",
-    "unknown":"unk","unk":"unk","?":"unk","na":"unk","n/a":"unk","none":"unk",
-    "":"", "null":""
-}
-def _norm_zygosity(s: str) -> Optional[str]:
-    if s is None: return None
-    z = str(s).strip().lower()
-    z = _ZYG_MAP.get(z, z)
-    if z in ("het","hom","unk"):
-        return z
-    if z == "":
-        return None
-    return None
+# ────────────────────────── Nickname & Placeholder Helpers ───────────────────────
+_NUMERIC_NICK_RE = re.compile(r"^\d+(?:\.0+)?$")
 
-def _col_exists(cx, schema: str, table: str, column: str) -> bool:
+def _is_numeric_nick(s: str | None) -> bool:
+    return bool(_NUMERIC_NICK_RE.fullmatch((s or "").strip()))
+
+_PLACEHOLDER_NICKS = {"", "unknown", "unk", "n/a", "na", "?", "-", "none"}
+def _norm_allele_nick(s: str | None) -> str:
+    v = (s or "").strip()
+    return "" if v.lower() in _PLACEHOLDER_NICKS else v
+
+def _fn_exists(cx, schema: str, name: str) -> bool:
     q = text("""
-      select exists (
-        select 1 from information_schema.columns
-        where table_schema=:s and table_name=:t and column_name=:c
-      )
+        SELECT EXISTS(
+          SELECT 1 FROM pg_proc p
+          JOIN pg_namespace n ON n.oid=p.pronamespace
+          WHERE n.nspname=:s AND p.proname=:n
+        )
     """)
-    return bool(cx.execute(q, {"s": schema, "t": table, "c": column}).scalar())
+    return bool(cx.execute(q, {"s": schema, "n": name}).scalar())
 
-def _norm_str(v):
-    if v is None:
-        return ""
-    s = str(v).strip().lower()
-    return " ".join(s.split())
+def _table_exists(cx, schema: str, table: str) -> bool:
+    q = text("""
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema=:s AND table_name=:t
+    )""")
+    return bool(cx.execute(q, {"s": schema, "t": table}).scalar())
 
-# identity key (includes nickname to make idempotent rows unique on purpose)
-def _identity_key(r: pd.Series) -> str:
-    parts = [
-        str(r.get("birthday") or "").strip(),
-        _norm_str(r.get("genetic_background")),
-        _norm_str(r.get("line_building_stage")),
-        _norm_str(r.get("ft_code") or r.get("mix_code") or r.get("tg_base_code")),
-        _norm_str(r.get("allele_nickname")),
-        _norm_str(r.get("nickname")),
-    ]
-    return " | ".join(parts)
+# base-36 short code from UUID (lower 40 bits)
+def _uuid_to_base36_8(uuid_str: str) -> str:
+    import uuid as _uuid
+    alpha = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    try:
+        n = _uuid.UUID(str(uuid_str)).int & ((1 << 40) - 1)
+    except Exception:
+        return "FSH-????????"
+    out = []
+    for _ in range(8):
+        out.append(alpha[n % 36])
+        n //= 36
+    return "FSH-" + "".join(reversed(out))
 
-_NUM_NICK_RE = re.compile(r"^\d+(?:\.0+)?$")
-def _canon_nickname(s: str) -> str:
-    s = (s or "").strip()
-    if _NUM_NICK_RE.match(s):
-        return re.sub(r"\.0+$", "", s)
-    return s
+# zygosity normalizer
+_ZYG_MAP = {
+    "het":"het","hetero":"het","heterozygous":"het","h":"het",
+    "hom":"hom","homo":"hom","homozygous":"hom",
+    "unk":"unk","unknown":"unk","?":"unk","na":"unk","n/a":"unk","none":"unk","":""
+}
+def _norm_zygosity(s: Optional[str]) -> Optional[str]:
+    if not s: return None
+    return _ZYG_MAP.get(str(s).strip().lower(), None) or None
 
+# Excel numeric dates → date
 def _parse_birthday(x) -> Optional[date]:
-    if x is None:
+    if x is None or str(x).strip() == "":
         return None
     s = str(x).strip()
-    if not s:
-        return None
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
         y, m, d = map(int, s.split("-")); return date(y, m, d)
     if re.fullmatch(r"\d{8}", s):
         y, m, d = int(s[:4]), int(s[4:6]), int(s[6:8]); return date(y, m, d)
     try:
         n = float(s)
-        if not math.isnan(n): return date(1899,12,30) + timedelta(days=int(n))
+        if not math.isnan(n):
+            # Excel serial (1900-based). Most CSVs use 1899-12-30 base.
+            return date(1899, 12, 30) + timedelta(days=int(n))
     except Exception:
         pass
     try:
@@ -121,526 +122,409 @@ def _parse_birthday(x) -> Optional[date]:
     except Exception:
         return None
 
-def _example_fish_csv_bytes() -> bytes:
-    example = pd.DataFrame([{
-        "nickname": "",
-        "birthday": "2025-01-15",
-        "genetic_background": "casper",
-        "line_building_stage": "F0",
-        "description": "",
-        "ft_code": "injmix-0001",
-        "ft_text": "example injection mix",
-        "fluor_code": "mScarlet",
-        "tag_code": "myc",
-        "tg_base_code": "2Xcox8A",
-        "allele_nickname": "505",
-        "zygosity": ""
-    }])
-    return example.to_csv(index=False).encode("utf-8")
-
-st.download_button(
-    "⬇︎ Example fish CSV (optional treatment & allele link columns included)",
-    data=_example_fish_csv_bytes(),
-    file_name="fish_example.csv",
-    mime="text/csv",
-    type="secondary"
-)
-
-# ── Upload ───────────────────────────────────────────────────────────────────
-uploaded = st.file_uploader("Upload fish file (.csv or .xlsx)", type=["csv", "xlsx"])
-if not uploaded:
-    st.info("Choose a CSV/XLSX to begin."); st.stop()
-
-default_batch = Path(getattr(uploaded, "name", "")).stem
-seed_batch_id = st.text_input("Seed batch ID", value=default_batch)
-
-creator_uuid = getattr(user, "id", None)
-created_by = getattr(user, "email", None) or os.environ.get("USER") or ""
-
-# Read CSV/XLSX (robust header detect for xlsx)
-try:
-    fname = (uploaded.name or "").lower()
+# ──────────────────────────── File Reader ────────────────────────────
+def _read_table(uploaded) -> pd.DataFrame:
     raw = io.BytesIO(uploaded.getvalue())
-    if fname.endswith(".xlsx"):
+    name = (uploaded.name or "").lower()
+    if name.endswith(".xlsx") or name.endswith(".xls"):
         xls = pd.ExcelFile(raw)
         sheet = st.selectbox("Worksheet", xls.sheet_names, index=0)
         tmp = pd.read_excel(xls, sheet_name=sheet, header=None, dtype=object)
-        tmp = tmp.applymap(lambda v: None if (v is Ellipsis or (isinstance(v, float) and math.isnan(v))) else v)
+        # heuristics to find header row
+        tmp = tmp.applymap(lambda v: None if (v is ... or (isinstance(v, float) and math.isnan(v))) else v)
         header_row = None
         for i in range(min(20, len(tmp))):
-            vals = [str(x).strip() if x is not None else "" for x in tmp.iloc[i].tolist()]
+            vals = [("" if v is None else str(v)).strip() for v in tmp.iloc[i].tolist()]
             if sum(bool(v) for v in vals) >= max(2, int(len(vals)*0.5)) and not all(v.lower().startswith("unnamed") for v in vals if v):
                 header_row = i; break
         if header_row is None:
-            st.error("Could not detect header row. Ensure first non-empty row contains column names."); st.stop()
-        cols = [str(c).strip().lower() for c in tmp.iloc[header_row].fillna("").tolist()]
+            st.error("Could not detect header row. Ensure first non-empty row contains column names.")
+            st.stop()
+        cols = [("" if v is None else str(v)).strip().lower() for v in tmp.iloc[header_row].tolist()]
         df = tmp.iloc[header_row+1:].copy()
         df.columns = cols
         df = df.loc[:, [c for c in df.columns if c and not str(c).lower().startswith("unnamed")]]
-        df.reset_index(drop=True, inplace=True)
-        try:
-            df = df.applymap(lambda v: None if v is Ellipsis else v)
-        except Exception:
-            df = df.replace({Ellipsis: None})
+        df = df.reset_index(drop=True)
+        return df
     else:
         df = pd.read_csv(raw, dtype=object)
-        try:
-            df = df.applymap(lambda v: None if v is Ellipsis else v)
-        except Exception:
-            df = df.replace({Ellipsis: None})
-except Exception as e:
-    st.error(f"Failed to read file: {e}"); st.stop()
+        df = df.applymap(lambda v: None if (v is ... ) else v)
+        return df
 
-# Normalize by name (order-agnostic) + aliases
-df.columns = [c.strip().lower() for c in df.columns]
-ALIASES = {
-    "birthday": ["dob","date_birth","date of birth"],
-    # Treat plasmid_base_code/plasmid_code as the same as tg_base_code
-    "tg_base_code": ["transgene_base_code","tg_base_code","base_code","tg_base","transgene_base","plasmid_base_code","plasmid_code"],
-    "ft_code": ["ft_code","mix_code"],  # treatment code
-    "ft_text": ["ft_text","mix_text","treatment_text","notes","description"],
+# ─────────────────────── Column mapping / identity ───────────────────
+ALIASES: Dict[str, List[str]] = {
+    "birthday": ["birthday","dob","date_birth","date of birth"],
+    "genetic_background": ["genetic_background","background","bg","strain"],
+    "in_breeding_stage": ["in_breeding_stage","line_building_stage","lb_stage","stage","line_stage"],
+    "tg_base_code": ["tg_base_code","transgene_base_code","base_code","tg_base","transgene_base","plasmid_code","plasmid_base_code"],
+    "ft_code": ["ft_code","mix_code","treatment_code"],
     "allele_nickname": ["allele_nickname","allele_nick","allele_name","allele"],
     "zygosity": ["zygosity","zyg","allele_zygosity"],
-    "fluor_code": ["fluor_code","fluor","fluorname"],
-    "tag_code": ["tag_code","tag","tagname"],
-    "dye_code": ["dye_code","dye","dyename"],
-    "nickname": ["nickname","nick"],
-    "genetic_background": ["genetic_background","background","bg","strain"],
-    "line_building_stage": ["line_building_stage","stage","lb_stage","line_stage"],
+    "nickname": ["nickname","nick","name"],
+    "description": ["description","desc","notes","note"],
+    # optional, ignored in this FT-less pipeline
+    "fluor_code": ["fluor","fluor_code","fluorname"],
+    "tag_code": ["tag","tag_code","tagname"],
+    "dye_code": ["dye","dye_code","dyename"],
+    "ft_text": ["ft_text","treatment_text","mix_text"],
 }
-rename: Dict[str,str] = {}
-for target, alts in ALIASES.items():
-    if target in df.columns: continue
-    for a in alts:
-        if a in df.columns:
-            rename[a] = target; break
-if rename:
-    df.rename(columns=rename, inplace=True)
 
-# Required headers
-if "birthday" not in df.columns:
-    st.error("Missing required column: birthday"); st.stop()
+def _normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df.columns = [("" if c is None else str(c)).strip().lower() for c in df.columns]
+    ren: Dict[str,str] = {}
+    for want, variants in ALIASES.items():
+        if want in df.columns: 
+            continue
+        for v in variants:
+            if v in df.columns:
+                ren[v] = want
+                break
+    if ren:
+        df = df.rename(columns=ren)
+    # keep only known + pass-through optional
+    return df
 
-# Clean and types
-if "fish_code" in df.columns:
-    df.drop(columns=["fish_code"], inplace=True)
-for c in ("nickname","genetic_background","line_building_stage","tg_base_code","ft_code","ft_text",
-          "fluor_code","tag_code","dye_code","allele_nickname","zygosity"):
-    if c in df.columns: df[c] = df[c].fillna("").astype(str)
-df["birthday"] = df["birthday"].apply(_parse_birthday)
-if df["birthday"].isna().any():
-    st.error("One or more rows have an invalid birthday."); st.stop()
-df = df.replace({Ellipsis: None})
+def _identity_key(row: pd.Series) -> str:
+    bday = row.get("birthday")
+    if isinstance(bday, (pd.Timestamp,)):
+        bstr = bday.date().isoformat()
+    elif isinstance(bday, date):
+        bstr = bday.isoformat()
+    else:
+        bstr = str(bday or "").strip()
+    base = (str(row.get("tg_base_code") or "").strip()) or (str(row.get("ft_code") or "").strip())
+    parts = [
+        bstr,
+        str(row.get("genetic_background") or "").strip(),
+        str(row.get("in_breeding_stage") or "").strip(),
+        base,
+        str(row.get("allele_nickname") or "").strip(),   # always treated as string
+        str(row.get("nickname") or "").strip(),
+    ]
+    return " | ".join(parts)
 
-# ── Duplicate reporting (file + DB) ──────────────────────────────────────────
-df["_identity_key"] = df.apply(_identity_key, axis=1)
-df["_row"] = df.index + 1
+# ─────────────── Upsert fish (function if present; else fallback) ────────────
+def _upsert_fish(
+    cx, *, birthday: date, genetic_background: str, in_breeding_stage: str,
+    nickname: Optional[str], description: Optional[str],
+    identity_key: str
+) -> Dict[str, Any]:
+    if _fn_exists(cx, "public", "upsert_fish_by_identity"):
+        q = text("""
+          SELECT * FROM public.upsert_fish_by_identity(
+            :p_seed_batch_id, :p_identity_key, :p_bday, :p_name_human,
+            :p_bg, :p_nick, :p_stage, :p_desc, :p_notes, :p_by
+          )
+        """)
+        return (cx.execute(q, {
+            "p_seed_batch_id": st.session_state.get("fish_seed_batch", ""),
+            "p_identity_key":  identity_key,
+            "p_bday":          birthday,
+            "p_name_human":    None,
+            "p_bg":            (genetic_background or None),
+            "p_nick":          (nickname or None),
+            "p_stage":         (in_breeding_stage or None),
+            "p_desc":          (description or None),
+            "p_notes":         None,
+            "p_by":            (getattr(user, "email", None) or os.environ.get("USER") or None),
+        }).mappings().first() or {})
+    # Fallback: manual upsert by identity_key / identity_hash
+    # Ensure pgcrypto for digest/gen_random_uuid
+    cx.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
+    ihash_sql = text("SELECT encode(digest(:s,'sha256'),'hex')")
+    identity_hash = cx.execute(ihash_sql, {"s": identity_key}).scalar()
 
-grp_sizes = df.groupby("_identity_key", dropna=False)["_row"].transform("size")
-_dupe_cols_all = [
-    "_row","_identity_key","birthday",
-    "genetic_background","line_building_stage",
-    "tg_base_code","ft_code","allele_nickname","nickname"
-]
-_dupe_cols = [c for c in _dupe_cols_all if c in df.columns]
-dupe_groups = df.loc[grp_sizes > 1, _dupe_cols].copy()
+    found = cx.execute(text("""
+        SELECT id, fish_code FROM public.fish
+        WHERE identity_hash = :h OR identity_key = :k
+        LIMIT 1
+    """), {"h": identity_hash, "k": identity_key}).mappings().first()
+    if found:
+        return dict(found)
 
-if not dupe_groups.empty:
-    first_mask = df.sort_values("_row").groupby("_identity_key", dropna=False).cumcount() == 0
-    dupe_groups = dupe_groups.merge(
-        df.loc[:, ["_row","_identity_key"]].assign(_keep=first_mask.astype(bool)),
-        on=["_row","_identity_key"], how="left"
-    )
-    dupe_groups["action"] = dupe_groups["_keep"].map(lambda k: "keep (first)" if k else "skip (duplicate)")
-    dupe_groups = dupe_groups.drop(columns=["_keep"]).sort_values(["_identity_key","_row"])
-    st.warning(f"Found {dupe_groups.shape[0]} duplicate row(s) (showing all rows in each duplicate group). "
-               "Only the first per identity will be kept; the others will be skipped.")
-    st.dataframe(dupe_groups, width="stretch", hide_index=True)
+    # insert new fish, synthesize fish_code from UUID
+    row = cx.execute(text("""
+        WITH new_id AS (SELECT gen_random_uuid() AS id)
+        INSERT INTO public.fish
+        (id, fish_code, birthday, genetic_background, in_breeding_stage,
+        nickname, description, identity_key, identity_hash, created_at)
+        SELECT
+        nid.id,
+        public.uuid_base36_8(nid.id),                -- FSH-XXXXXXXX from uuid
+        :bday, NULLIF(:bg,''), NULLIF(:stg,''),
+        NULLIF(:nick,''), NULLIF(:desc,''), :ikey, :ihash, now()
+        FROM new_id nid
+        RETURNING id, fish_code
+    """), {
+        "bday": birthday, "bg": genetic_background, "stg": in_breeding_stage,
+        "nick": nickname or "", "desc": description or "",
+        "ikey": identity_key, "ihash": identity_hash
+    }).mappings().first()
+    return dict(row or {})
 
-_dupe_cols2_all = [
-    "_row","_identity_key","birthday",
-    "genetic_background","line_building_stage",
-    "tg_base_code","ft_code","allele_nickname","nickname"
-]
-_dupe_cols2 = [c for c in _dupe_cols2_all if c in df.columns]
-dupe_in_file_to_skip = df.loc[
-    df.sort_values("_row").groupby("_identity_key", dropna=False).cumcount() >= 1,
-    _dupe_cols2
-].copy()
+# ─────────── upsert allele via function; fallback emulation if missing ───────
+def _upsert_allele(cx, base_code: str, csv_nickname: str) -> Optional[Dict[str, Any]]:
+    base = (base_code or "").strip()
+    nick = (csv_nickname or "").strip()
+    if not base:
+        return None
 
-if not dupe_in_file_to_skip.empty:
-    st.info(f"{dupe_in_file_to_skip.shape[0]} duplicate row(s) in the file will be skipped (non-first in each group).")
+    force_fallback = _is_numeric_nick(nick)
 
-# Already exist in DB
-with _eng().begin() as cx:
-    keys = df["_identity_key"].dropna().unique().tolist()
-    existing = pd.read_sql(
-        text("""
-            SELECT identity_key, fish_code AS existing_fish_code
-            FROM public.fish
-            WHERE identity_key = ANY(:keys)
-        """),
-        cx, params={"keys": keys}
-    )
+    if _fn_exists(cx, "public", "upsert_transgene_allele") and not force_fallback:
+        try:
+            q = text("""
+              SELECT transgene_base_code, allele_number, allele_name, allele_nickname
+              FROM public.upsert_transgene_allele(:b, :n)
+            """)
+            got = cx.execute(q, {"b": base, "n": (nick or None)}).mappings().first()
+            if got:
+                return dict(got)
+        except Exception:
+            pass
 
-_dupes_db_cols_all = [
-    "_row","_identity_key","existing_fish_code","birthday","genetic_background",
-    "line_building_stage","tg_base_code","ft_code","allele_nickname","nickname"
-]
-dupes_in_db_full = df.merge(existing, how="inner", left_on="_identity_key", right_on="identity_key")
-_dupes_db_cols = [c for c in _dupes_db_cols_all if c in dupes_in_db_full.columns]
-dupes_in_db = dupes_in_db_full[_dupes_db_cols].copy()
+    cx.execute(text("INSERT INTO public.transgenes(transgene_base_code) VALUES (:b) ON CONFLICT DO NOTHING"), {"b": base})
 
-if not dupes_in_db.empty:
-    st.info(f"{dupes_in_db.shape[0]} row(s) match fish already in the database — they will be **updated** (links refreshed).")
-    st.dataframe(dupes_in_db.sort_values(["_identity_key","_row"]) if "_row" in dupes_in_db.columns else dupes_in_db,
-                 width="stretch", hide_index=True)
+    if nick:
+        got = cx.execute(text("""
+            SELECT transgene_base_code, allele_number, allele_name, allele_nickname
+            FROM public.transgene_alleles
+            WHERE transgene_base_code = :b
+              AND lower(allele_nickname) = lower(:n)
+            LIMIT 1
+        """), {"b": base, "n": nick}).mappings().first()
+        if got:
+            return dict(got)
 
-# Upsert by default: only skip in-file dupes (process existing-in-DB rows)
-skip_keys = set(dupe_in_file_to_skip["_identity_key"].tolist())
-df_work = df.loc[~df["_identity_key"].isin(skip_keys)].reset_index(drop=True)
-st.info(f"Processing {len(df_work)} row(s); skipping {len(skip_keys)} duplicate row(s).")
+    cx.execute(text("""
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+            WHERE c.relkind='S' AND n.nspname='public' AND c.relname='transgene_allele_global'
+          ) THEN
+            CREATE SEQUENCE public."transgene_allele_global";
+          END IF;
+        END$$;
+    """))
 
-# Forward-only allele linking QA: accept tg_base_code OR ft_code as base source
-has_tg_col = "tg_base_code" in df_work.columns
-has_ft_col = "ft_code" in df_work.columns
+    while True:
+        new_no = cx.execute(text('SELECT nextval(\'public."transgene_allele_global"\')::int')).scalar()
+        gu = f"gu{new_no}"
+        ins = cx.execute(text("""
+            INSERT INTO public.transgene_alleles
+              (transgene_base_code, allele_number, allele_name, allele_nickname)
+            VALUES (:b, :n, :aname, :nnick)
+            ON CONFLICT DO NOTHING
+            RETURNING transgene_base_code, allele_number, allele_name, allele_nickname
+        """), {"b": base, "n": new_no, "aname": gu, "nnick": (nick or gu)}).mappings().first()
+        if ins:
+            return dict(ins)
 
-have_tg = (df_work["tg_base_code"].fillna("").astype(str).str.strip().ne("")
-           if has_tg_col else pd.Series([False]*len(df_work), index=df_work.index))
-have_ft = (df_work["ft_code"].fillna("").astype(str).str.strip().ne("")
-           if has_ft_col else pd.Series([False]*len(df_work), index=df_work.index))
-have_nn = (df_work["allele_nickname"].fillna("").astype(str).str.strip().ne("")
-           if "allele_nickname" in df_work.columns else pd.Series([False]*len(df_work), index=df_work.index))
+# format identity key for preview
+def _fmt_identity(row: pd.Series) -> str:
+    return _identity_key(row)
 
-n_src = int((have_tg | have_ft).sum())
-# show a few samples so we can verify real values seen by the importer
-if n_src > 0:
-    sample_cols = [c for c in ["fish_code","tg_base_code","ft_code","allele_nickname"] if c in df_work.columns]
-    st.dataframe(df_work.loc[:, sample_cols].head(8), width="stretch", hide_index=True)
-n_tg  = int(have_tg.sum())
-n_ft  = int(have_ft.sum())
-n_nn  = int(have_nn.sum())
+# ─────────────────────────────── UI: Upload ──────────────────────────
+st.caption("CSV/XLSX columns — **required**: `birthday`; **recommended**: `tg_base_code` or `ft_code`, `allele_nickname`, `in_breeding_stage`, `genetic_background`, `nickname`. Nicknames are treated **as strings**.")
 
-st.info(f"Allele inputs present — base source (tg_base_code or ft_code): {n_src} rows "
-        f"(tg_base_code: {n_tg} • ft_code: {n_ft}) • allele_nickname: {n_nn} rows")
-
-if n_src == 0:
-    st.error("Forward allele linking requires at least one base source per row: "
-             "'tg_base_code' (preferred) or 'ft_code'. Add one of these and try again.")
+uploaded = st.file_uploader("Choose fish CSV/XLSX", type=["csv","xlsx","xls"])
+if not uploaded:
+    st.info("Select a file to begin.")
     st.stop()
 
-st.subheader("Preview (first 50 rows)")
-st.dataframe(df.head(50), width="stretch", hide_index=True)
+st.session_state["fish_seed_batch"] = pathlib.Path(uploaded.name).stem
 
-# Resolved column names for linkage
-col_tg  = "tg_base_code" if "tg_base_code" in df_work.columns else None
-col_ft  = "ft_code" if "ft_code" in df_work.columns else None
-col_flu = "fluor_code" if "fluor_code" in df_work.columns else None
-col_tag = "tag_code"   if "tag_code"   in df_work.columns else None
-col_dye = "dye_code"   if "dye_code"   in df_work.columns else None
-col_nick= "allele_nickname" if "allele_nickname" in df_work.columns else None
-col_zyg = "zygosity"        if "zygosity"        in df_work.columns else None
+try:
+    df = _read_table(uploaded)
+except Exception as e:
+    st.error(f"Failed to read file: {e}")
+    st.stop()
 
-def _fetch_vfish_rollup(cx, fish_codes: List[str]) -> pd.DataFrame:
-    codes = [c for c in (fish_codes or []) if c]
-    if not codes:
-        return pd.DataFrame(columns=["fish_code","markers","fluors","tags","dyes"])
-    q = text("""
-        SELECT f.fish_code,
-               COALESCE(r.markers,'') AS markers,
-               COALESCE(r.fluors,'')  AS fluors,
-               COALESCE(r.tags,'')    AS tags,
-               COALESCE(r.dyes,'')    AS dyes
-        FROM public.fish f
-        LEFT JOIN public.v_fluorescent_marker_rollup r
-          ON r.fish_code = f.fish_code
-        WHERE f.fish_code = ANY(:codes)
-        ORDER BY f.fish_code
-    """)
-    return pd.read_sql(q, cx, params={"codes": codes})
+df = _normalize_headers(df)
 
-inserted: List[Dict[str,str]] = []
+required = ["birthday"]
+missing = [c for c in required if c not in df.columns]
+if missing:
+    st.error("Missing required column(s): " + ", ".join(missing))
+    st.stop()
 
-# ── Action ───────────────────────────────────────────────────────────────────
-if st.button("Process upload (create/update fish and links)", type="primary"):
-    allele_linked = 0
-    allele_skipped = 0
-    linked, skipped, reused = 0, 0, 0
+# normalize fields
+df["birthday"] = df["birthday"].apply(_parse_birthday)
+if df["birthday"].isna().any():
+    st.error("One or more rows have invalid `birthday` values.")
+    st.stop()
 
-    fn_upsert_fish = text("""
-      select * from public.upsert_fish_by_identity(
-        :p_seed_batch_id,:p_identity_key,:p_dob,:p_name_human,
-        :p_bg,:p_nick,:p_stage,:p_desc,:p_notes,:p_by
-      )
-    """)
+for c in ["genetic_background","in_breeding_stage","tg_base_code","ft_code",
+          "allele_nickname","zygosity","nickname","description",
+          "fluor_code","tag_code","dye_code","ft_text"]:
+    if c in df.columns:
+        df[c] = df[c].apply(lambda v: "" if v is None else str(v).strip())
 
-    with _eng().begin() as cx:
-        jft_has_allele = _col_exists(cx, "public", "join_fish_fluorescent_treatments", "allele_number")
+df["identity_key"] = df.apply(_identity_key, axis=1)
 
-        # Ensure FT masters for any provided ft_code (batch insert)
-        if col_ft:
-            ft_codes = sorted({str(x).strip() for x in df_work[col_ft].dropna().astype(str) if str(x).strip()})
-            if ft_codes:
-                cx.execute(text("""
-                    INSERT INTO public.treatments_fluorescent (ft_code, ft_text, created_by)
-                    SELECT code, ''::text, :by
-                    FROM unnest((:codes)::text[]) AS code
-                    ON CONFLICT (ft_code) DO NOTHING
-                """), {"codes": ft_codes, "by": created_by})
+st.subheader("Preview (first 30 rows)")
+show_cols = [c for c in ["birthday","genetic_background","in_breeding_stage","tg_base_code","ft_code","allele_nickname","zygosity","nickname","description"] if c in df.columns]
+preview = df[["identity_key"] + show_cols].head(30)
+st.dataframe(preview, use_container_width=True, hide_index=True)
+st.caption(f"{len(df)} rows detected")
 
-        for _, r in df_work.iterrows():
-            ident = r["_identity_key"]
+if not st.button("Process upload", type="primary"):
+    st.stop()
 
-            # upsert (existing rows will be reused)
-            got = cx.execute(
-                text("select id, fish_code from public.fish where identity_key = :k limit 1"),
-                {"k": ident}
-            ).mappings().first() or {}
-            if not got:
-                params = {
-                    "p_seed_batch_id": seed_batch_id,
-                    "p_identity_key":  ident,
-                    "p_dob":           r.get("birthday"),
-                    "p_name_human":    None,
-                    "p_bg":            (r.get("genetic_background") or None),
-                    "p_nick":          (_canon_nickname(r.get("nickname")) or None),
-                    "p_stage":         (r.get("line_building_stage") or None),
-                    "p_desc":          (r.get("description") or None),
-                    "p_notes":         None,
-                    "p_by":            created_by,
-                }
-                sp = cx.begin_nested()
-                try:
-                    got = cx.execute(fn_upsert_fish, params).mappings().first() or {}
-                    sp.commit()
-                except IntegrityError:
-                    sp.rollback()
-                    got = cx.execute(
-                        text("""
-                          SELECT id, fish_code
-                          FROM public.fish
-                          WHERE identity_key = :k
-                             OR identity_hash = encode(digest(:k,'sha256'),'hex')
-                          LIMIT 1
-                        """),
-                        {"k": ident}
-                    ).mappings().first() or {}
-                    reused += 1
-            else:
-                reused += 1
+# ───────────────────────── Process rows (transaction) ─────────────────
+inserted: List[Dict[str,Any]] = []
+linked_rows: List[Dict[str,Any]] = []
+created_tanks: List[str] = []
+reused, created = 0, 0
 
-            fid = got.get("id") or got.get("fish_id")
-            if not fid:
-                skipped += 1
-                continue
-            inserted.append(dict(got))
+with _eng().begin() as cx:
+    for r in df.itertuples(index=False):
+        birthday = r.birthday
+        bg       = getattr(r, "genetic_background", "") or ""
+        stage    = getattr(r, "in_breeding_stage", "") or ""
+        nick     = getattr(r, "nickname", "") or ""
+        desc     = getattr(r, "description", "") or ""
+        base     = (getattr(r,"tg_base_code","") or getattr(r,"ft_code","") or "").strip()
+        csv_nick = _norm_allele_nick(getattr(r, "allele_nickname", ""))
+        zyg      = _norm_zygosity(getattr(r,"zygosity",""))
 
-            fc = (got.get("fish_code") or "").strip()
-            if fc:
-                cx.execute(text("SELECT public.ensure_active_tank_for_fish(:fc)"), {"fc": fc})
+        ident = getattr(r, "identity_key")
 
-            # Resolve optional columns
-            ft_code = (str(r.get(col_ft)).strip() if col_ft and pd.notna(r.get(col_ft)) else "")
-            fluor   = (str(r.get(col_flu)).strip() if col_flu and pd.notna(r.get(col_flu)) else "")
-            tag     = (str(r.get(col_tag)).strip() if col_tag and pd.notna(r.get(col_tag)) else "")
-            dye     = (str(r.get(col_dye)).strip() if col_dye and pd.notna(r.get(col_dye)) else "")
-            nn      = _canon_nickname(str(r.get(col_nick)).strip()) if (col_nick and pd.notna(r.get(col_nick))) else ""
-            zy_raw  = (str(r.get(col_zyg)).strip() if (col_zyg and pd.notna(r.get(col_zyg))) else "")
-            zy      = _norm_zygosity(zy_raw)
+        # upsert fish (function or fallback)
+        try:
+            got = _upsert_fish(
+                cx,
+                birthday=birthday,
+                genetic_background=bg,
+                in_breeding_stage=stage,
+                nickname=nick or None,
+                description=desc or None,
+                identity_key=ident,
+            )
+        except Exception as ex:
+            st.warning(f"Skipping row (upsert error): {ident}\n{ex}")
+            continue
 
-            # Transgene/allele upsert & link (idempotent) — base = tg_base_code or ft_code
-            base_from_tg = (str(r.get(col_tg)).strip() if col_tg and pd.notna(r.get(col_tg)) else "")
-            base_from_ft = (str(r.get(col_ft)).strip() if col_ft and pd.notna(r.get(col_ft)) else "")
-            allele_base  = (base_from_tg or base_from_ft).strip()
+        if not got:
+            st.warning(f"Skipping row (no fish returned): {ident}")
+            continue
 
-            if allele_base:
-                up = cx.execute(text("""
-                    SELECT
-                      out_base   AS transgene_base_code,
-                      out_number AS allele_number,
-                      out_name   AS allele_name
-                    FROM public.upsert_transgene_allele(:b, :n)
-                """), {"b": allele_base, "n": (nn if nn != "" else None)}).mappings().first()
+        fid = got.get("id")
+        fcode_raw = got.get("fish_code")
+        if fid is None or not fcode_raw:
+            st.warning(f"Skipping row (missing fish id/code): {ident}")
+            continue
 
+        inserted.append({"fish_id": str(fid), "fish_code": fcode_raw, "identity_key": ident})
+        # rough created/reused heuristic
+        reused += 1 if df["identity_key"].tolist().count(ident) > 1 else 0
+
+        # allele: forward-only via canonical function or fallback
+        if base:
+            try:
+                up = _upsert_allele(cx, base, csv_nick)
                 if up:
                     cx.execute(text("""
                         INSERT INTO public.join_fish_transgene_alleles
                           (fish_id, transgene_base_code, allele_number, zygosity)
-                        VALUES
-                          (:fid, :b, :num, :zyg)
-                        ON CONFLICT (fish_id, transgene_base_code, allele_number) DO UPDATE
-                        SET zygosity = COALESCE(EXCLUDED.zygosity, public.join_fish_transgene_alleles.zygosity)
-                    """), {
-                        "fid": fid,
-                        "b":   up["transgene_base_code"],
-                        "num": up["allele_number"],
-                        "zyg": zy,
+                        VALUES (:fid, :b, :n, :zyg)
+                        ON CONFLICT (fish_id, transgene_base_code, allele_number)
+                        DO UPDATE SET zygosity =
+                           COALESCE(EXCLUDED.zygosity, public.join_fish_transgene_alleles.zygosity)
+                    """), {"fid": fid, "b": up["transgene_base_code"], "n": up["allele_number"], "zyg": zyg})
+                    linked_rows.append({
+                        "fish_code": fcode_raw,
+                        "transgene_base_code": up["transgene_base_code"],
+                        "allele_nickname": up.get("allele_nickname"),
+                        "allele_number": up["allele_number"],
+                        "allele_name": up["allele_name"],
+                        "zygosity": zyg or "",
                     })
+            except Exception as ex:
+                st.warning(f"Allele link failed for {fcode_raw} base={base} nick='{csv_nick}': {ex}")
 
-                    # Ensure FT master for this base, link fish→FT, then derive FT markers from plasmid→fusion (forward-only)
-                    cx.execute(text("""
-                        INSERT INTO public.treatments_fluorescent (ft_code, ft_text, created_by)
-                        VALUES (:ft, ''::text, :by)
-                        ON CONFLICT (ft_code) DO NOTHING
-                    """), {"ft": allele_base, "by": created_by})
+        # ensure active tank TANK(FSH-XXXXXXXX)#1
+        fshort = _uuid_to_base36_8(fid)
+        tcode = f"TANK({fshort})#1"
+        try:
+            cx.execute(text("""
+              INSERT INTO public.tanks (tank_code, status)
+              SELECT :tc, 'active'
+              WHERE NOT EXISTS (SELECT 1 FROM public.tanks WHERE tank_code = :tc)
+            """), {"tc": tcode})
+            created_tanks.append(tcode)
+        except Exception as ex:
+            # if tanks table has extra NOT NULLs, user will adjust; log & continue
+            st.warning(f"Tank create skipped for {fcode_raw}: {ex}")
 
-                    cx.execute(text("""
-                        INSERT INTO public.join_fish_fluorescent_treatments (fish_id, ft_code)
-                        VALUES (:fid, :ft)
-                        ON CONFLICT DO NOTHING
-                    """), {"fid": fid, "ft": allele_base})
+# ───────────────────────────── Summary / Output ──────────────────────
+st.success(f"Completed. Processed {len(df)} rows. Fish upserts: {len(inserted)}. Allele links: {len(linked_rows)}. Tanks ensured: {len(created_tanks)}.")
 
-                    cx.execute(text("SELECT public.ensure_ft_markers_from_transgene(:ft)"), {"ft": allele_base})
+# --- Verification: show the fish we just touched (cast ids -> uuid[]) ---
+# --- Verification: show the fish we just touched (cast ids -> uuid[]) ---
+if inserted:
+    fish_ids = [uuid.UUID(str(row["fish_id"])) for row in inserted]  # ensure uuid.UUID objects
+    if fish_ids:
+        with _eng().begin() as cx:
+            sql = text("""
+                SELECT
+                  f.fish_code,
+                  f.birthday,
+                  COALESCE(f.genetic_background,'')  AS genetic_background,
+                  COALESCE(f.in_breeding_stage,'')   AS in_breeding_stage,
+                  COALESCE(f.nickname,'')            AS nickname,
+                  jfta.transgene_base_code,
+                  ta.allele_number,
+                  COALESCE(ta.allele_name,'')        AS allele_name,
+                  COALESCE(ta.allele_nickname,'')    AS allele_name_override,
+                  COALESCE(jfta.zygosity,'')         AS zygosity
+                FROM public.fish f
+                LEFT JOIN public.join_fish_transgene_alleles jfta
+                  ON jfta.fish_id = f.id
+                LEFT JOIN public.transgene_alleles ta
+                  ON ta.transgene_base_code = jfta.transgene_base_code
+                 AND ta.allele_number       = jfta.allele_number
+                WHERE f.id = ANY(:ids)
+                ORDER BY f.fish_code, jfta.transgene_base_code, ta.allele_number
+            """).bindparams(bindparam("ids", type_=ARRAY(UUID(as_uuid=True))))
 
-                    allele_linked += 1
-                else:
-                    allele_skipped += 1
-            else:
-                allele_skipped += 1
+            preview = pd.read_sql(sql, cx, params={"ids": fish_ids})
 
-            # FT catalogs & link (explicit CSV ft_code and optional fluor/tag/dye)
-            if ft_code:
-                if "ft_text" in df_work.columns:
-                    ft_text = str(r.get("ft_text") or "").strip()
-                    if ft_text:
-                        cx.execute(text("""
-                            INSERT INTO public.treatments_fluorescent (ft_code, ft_text, created_by)
-                            VALUES (:c,:t,:by)
-                            ON CONFLICT (ft_code) DO UPDATE
-                            SET ft_text = COALESCE(NULLIF(EXCLUDED.ft_text,''), public.treatments_fluorescent.ft_text)
-                        """), {"c": ft_code, "t": ft_text, "by": created_by})
+        st.subheader("Verification (fish + allele links)")
+        st.dataframe(preview, use_container_width=True, hide_index=True)
 
-                if fluor:
-                    cx.execute(text("""
-                      INSERT INTO public.ft_proteins (ft_code, fluor_code, tag_code)
-                      VALUES (:ft, :flu, NULLIF(:tag,''))
-                      ON CONFLICT (ft_code, fluor_code, tag_code) DO NOTHING
-                    """), {"ft": ft_code, "flu": fluor, "tag": tag})
+        st.download_button(
+            "⬇︎ Download linked alleles (CSV)",
+            data=preview.to_csv(index=False).encode("utf-8"),
+            file_name=f"fish_alleles_linked_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
+            use_container_width=True,
+            type="secondary",
+        )
 
-                if dye:
-                    cx.execute(text("""
-                      INSERT INTO public.ft_dyes (ft_code, dye_code)
-                      VALUES (:ft, :dye)
-                      ON CONFLICT (ft_code, dye_code) DO NOTHING
-                    """), {"ft": ft_code, "dye": dye})
-
-                cx.execute(text("""
-                  INSERT INTO public.join_fish_fluorescent_treatments
-                    (fish_id, ft_code, allele_number, zygosity)
-                  VALUES
-                    (:fid, :ft, :allele, :zyg)
-                  ON CONFLICT (fish_id, ft_code) DO UPDATE
-                  SET  allele_number = COALESCE(EXCLUDED.allele_number, public.join_fish_fluorescent_treatments.allele_number),
-                       zygosity      = COALESCE(EXCLUDED.zygosity,      public.join_fish_fluorescent_treatments.zygosity)
-                """), {"fid": fid, "ft": ft_code, "allele": nn if jft_has_allele else None, "zyg": zy})
-
-                # Also derive markers for explicit FT rows (forward-only)
-                cx.execute(text("SELECT public.ensure_ft_markers_from_transgene(:ft)"), {"ft": ft_code})
-
-                linked += 1
-            
-
-    st.success(
-    f"Done. Processed {len(df_work)} row(s). "
-    f"Allele links: {allele_linked} (skipped {allele_skipped}); "
-    f"FT links: {linked}; reused {reused}, skipped {skipped}."
-)
-
-# ── Rollup preview ────────────────────────────────────────────────────────────
-fish_codes = [row.get("fish_code") for row in inserted if row.get("fish_code")]
-with _eng().begin() as cx:
-    results = _fetch_vfish_rollup(cx, fish_codes)
-
-# convert comma-joined strings to lists for ListColumn
-if not results.empty:
-    results = results.fillna("")
-    results = results.assign(
-        markers=results["markers"].str.split(",").apply(lambda xs: [x for x in xs if x]),
-        fluors=results["fluors"].str.split(",").apply(lambda xs: [x for x in xs if x]),
-        tags=results["tags"].str.split(",").apply(lambda xs: [x for x in xs if x]),
-        dyes=results["dyes"].str.split(",").apply(lambda xs: [x for x in xs if x]),
-    )
-
-if not results.empty:
-    st.subheader("Fluorescent markers (rollup)")
-    st.data_editor(
-        results,
-        hide_index=True,
-        width="stretch",
-        column_config={
-            "fish_code":      cc.TextColumn("Fish code"),
-            "markers":        cc.ListColumn("Markers"),
-            "fluors":         cc.ListColumn("Fluors"),
-            "tags":           cc.ListColumn("Tags"),
-            "dyes":           cc.ListColumn("Dyes"),
-        },
-        key="fluor_rollup_v4",
-    )
+# tanks preview
+if created_tanks:
+    tanks_df = pd.DataFrame({"tank_code": created_tanks})
+    st.subheader("Tanks ensured (this run)")
+    st.dataframe(tanks_df, use_container_width=True, hide_index=True)
     st.download_button(
-        "⬇︎ Download rollup (CSV)",
-        data=results.to_csv(index=False).encode("utf-8"),
-        file_name=f"fish_fluorescent_markers_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
-        mime="text/csv",
+        "⬇︎ Download ensured tanks (CSV)",
+        data=tanks_df.to_csv(index=False).encode("utf-8"),
+        file_name=f"fish_tanks_ensured_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
+        use_container_width=True,
         type="secondary"
     )
-else:
-    st.info("No markers to show yet (import rows, then see rollup here).")
-# Alleles (forward links) preview
-if fish_codes:
-    with _eng().begin() as cx:
-        alleles_preview = pd.read_sql(
-            text("""
-                SELECT
-                  fish_code,
-                  transgene_base_code,
-                  allele_number,
-                  allele_name,
-                  allele_nickname,
-                  transgene_pretty_nickname,
-                  transgene_pretty_name,
-                  genotype_pretty,
-                  fluors, tags, dyes
-                FROM public.v_fish_main
-                WHERE fish_code = ANY(:codes)
-                ORDER BY fish_code
-                LIMIT 200
-            """),
-            cx, params={"codes": fish_codes}
-        )
-    st.subheader("Alleles (forward links)")
-    if alleles_preview.empty:
-        st.info("No allele links detected for the imported fish (check tg_base_code inputs).")
-    else:
-        st.data_editor(alleles_preview, hide_index=True, width="stretch", key="alleles_preview_editor")
-        st.download_button(
-            "⬇︎ Download allele preview (CSV)",
-            data=alleles_preview.to_csv(index=False).encode("utf-8"),
-            file_name=f"fish_alleles_preview_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            type="secondary"
-        )
 
-# ── Optional: CSV of skipped/duplicate rows ───────────────────────────────────
-try:
-    if uploaded:
-        skipped_report = pd.DataFrame(columns=["_row","_identity_key","reason"])
-        if 'dupes_in_file_to_skip' in locals() and not dupe_in_file_to_skip.empty:
-            skipped_report = pd.concat([
-                skipped_report,
-                dupe_in_file_to_skip.loc[:,["_row","_identity_key"]].assign(reason="duplicate_in_file")
-            ], ignore_index=True)
-        if 'dupes_in_db' in locals() and not dupes_in_db.empty:
-            skipped_report = pd.concat([
-                skipped_report,
-                dupes_in_db.loc[:,["_row","_identity_key"]].assign(reason="exists_in_db")
-            ], ignore_index=True)
-        if not skipped_report.empty:
-            st.download_button(
-                "⬇︎ Download skipped duplicates",
-                data=skipped_report.sort_values("_row").to_csv(index=False).encode("utf-8"),
-                file_name=f"fish_upload_skipped_duplicates_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                type="secondary"
-            )
-except Exception:
-    pass
+# result export
+if inserted:
+    out_df = pd.DataFrame(inserted)
+    st.subheader("Fish upserts (this run)")
+    st.dataframe(out_df, use_container_width=True, hide_index=True)
+    st.download_button(
+        "⬇︎ Download fish upserts (CSV)",
+        data=out_df.to_csv(index=False).encode("utf-8"),
+        file_name=f"fish_upserts_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
+        use_container_width=True,
+        type="secondary"
+    )

@@ -4,15 +4,15 @@ import sys, pathlib, os
 from typing import Optional, List
 import pandas as pd
 import streamlit as st
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from sqlalchemy.engine import Engine
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 
 # repo root on sys.path
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# app libs / auth
 from carp_app.lib.time import utc_now
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
@@ -26,7 +26,6 @@ sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-# engine
 from carp_app.ui.lib.app_ctx import get_engine as _create_engine
 
 @st.cache_resource(show_spinner=False)
@@ -41,9 +40,7 @@ def _get_engine() -> Engine:
 
 st.set_page_config(page_title="CARP — Search Fish → Tanks", page_icon="🔎", layout="wide")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers (now use v_fish_main as the single canonical view; NO v_fish_unified)
-# ─────────────────────────────────────────────────────────────────────────────
+# ───────────────────────────────── helpers ──────────────────────────────────
 def _normalize_q(q_raw: str) -> Optional[str]:
     q = (q_raw or "").strip()
     return q or None
@@ -55,103 +52,50 @@ def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
         df[c] = df[c].astype("string").fillna("")
     return df
 
+def _table_exists(schema: str, table: str) -> bool:
+    sql = text("""
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema=:s AND table_name=:t
+      )
+    """)
+    with _get_engine().begin() as cx:
+        return bool(cx.execute(sql, {"s": schema, "t": table}).scalar())
+
+# ───────────────────────────── data loaders ────────────────────────────────
 def _load_fish_overview(q: Optional[str], limit: int) -> pd.DataFrame:
     sql = text("""
-    WITH mk AS (  -- base-code markers (allele-labelled)
       SELECT
-        x.fish_code,
-        string_agg(DISTINCT m_expr, ',' ORDER BY m_expr) AS markers
-      FROM (
-        SELECT
-          vm.fish_code,
-          CASE
-            WHEN vm.allele_name IS NOT NULL AND vm.allele_name <> ''
-              THEN vm.transgene_base_code || '(' || vm.allele_name || ')'
-            ELSE vm.transgene_base_code
-          END AS m_expr
-        FROM public.v_fish_main vm
-      ) x
-      GROUP BY x.fish_code
-    ),
-    gp AS (  -- genotype_pretty: only allele-named markers
-      SELECT
-        y.fish_code,
-        COALESCE(string_agg(DISTINCT g_expr, ', ' ORDER BY g_expr), '') AS genotype_pretty
-      FROM (
-        SELECT
-          vm.fish_code,
-          vm.transgene_base_code || '(' || vm.allele_name || ')' AS g_expr
-        FROM public.v_fish_main vm
-        WHERE vm.allele_name IS NOT NULL AND vm.allele_name <> ''
-      ) y
-      GROUP BY y.fish_code
-    )
-    SELECT
-      f.fish_code,
-      f.nickname,
-      f.dob                        AS birthday,
-      COALESCE(f.genetic_background,'')  AS genetic_background,
-      COALESCE(f.line_building_stage,'') AS line_building_stage,
-      gp.genotype_pretty,
-      mk.markers,
-      COALESCE(r.fluors,'')        AS fluors,
-      COALESCE(r.tags,'')          AS tags,
-      COALESCE(r.dyes,'')          AS dyes,
-      f.created_at
-    FROM public.fish f
-    LEFT JOIN gp ON gp.fish_code = f.fish_code
-    LEFT JOIN mk ON mk.fish_code = f.fish_code
-    LEFT JOIN public.v_fluorescent_marker_rollup r
-      ON r.fish_code = f.fish_code
-    WHERE (:q IS NULL)
-       OR (
-            f.fish_code ILIKE :q
-         OR COALESCE(f.nickname,'')            ILIKE :q
-         OR COALESCE(f.genetic_background,'')  ILIKE :q
-         OR COALESCE(f.line_building_stage,'') ILIKE :q
-         OR COALESCE(gp.genotype_pretty,'')    ILIKE :q
-         OR COALESCE(mk.markers,'')            ILIKE :q
-         OR COALESCE(r.fluors,'')              ILIKE :q
-         OR COALESCE(r.tags,'')                ILIKE :q
-         OR COALESCE(r.dyes,'')                ILIKE :q
-         )
-    ORDER BY f.created_at DESC NULLS LAST, f.fish_code
-    LIMIT :lim
-    """)
-    params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params=params)
-    return _coerce_strings(df)
-
-def _load_fish_rich_all(q: Optional[str], limit: int) -> pd.DataFrame:
-    """
-    Wider fallback: materialize per-allele rows from v_fish_main with base markers.
-    """
-    sql = text("""
-      SELECT
-        vm.fish_code,
-        vm.transgene_base_code,
-        vm.allele_number,
-        vm.allele_name,
-        vm.allele_nickname,
-        vm.transgene_pretty_nickname,
-        vm.transgene_pretty_name,
-        vm.genotype_pretty,
-        COALESCE(rb.fluors,'') AS base_fluors,
-        COALESCE(rb.tags,'')   AS base_tags
-      FROM public.v_fish_main vm
-      LEFT JOIN public.v_fluorescent_marker_rollup_by_base rb
-        ON rb.fish_code = vm.fish_code
-       AND rb.ft_code   = vm.transgene_base_code
+        fish_code_display,
+        fish_code_raw,
+        nickname,
+        birthday,
+        genetic_background,
+        line_building_stage,
+        genotype_pretty,
+        markers,
+        fluors,
+        tags,
+        fusions,
+        n_fusions,
+        dyes,
+        created_at
+      FROM public.v_fish_overview v
       WHERE (:q IS NULL)
          OR (
-              vm.fish_code ILIKE :q
-           OR vm.transgene_base_code ILIKE :q
-           OR COALESCE(vm.allele_name,'') ILIKE :q
-           OR COALESCE(vm.allele_nickname,'') ILIKE :q
-           OR COALESCE(vm.genotype_pretty,'') ILIKE :q
+              v.fish_code_raw       ILIKE :q
+           OR v.fish_code_display   ILIKE :q
+           OR v.nickname            ILIKE :q
+           OR v.genetic_background  ILIKE :q
+           OR v.line_building_stage ILIKE :q
+           OR v.genotype_pretty     ILIKE :q
+           OR v.markers             ILIKE :q
+           OR v.fluors              ILIKE :q
+           OR v.tags                ILIKE :q
+           OR v.fusions             ILIKE :q
          )
-      ORDER BY vm.fish_code, vm.transgene_base_code, vm.allele_number
+      ORDER BY v.created_at DESC NULLS LAST, v.fish_code_raw
       LIMIT :lim
     """)
     params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
@@ -159,32 +103,86 @@ def _load_fish_rich_all(q: Optional[str], limit: int) -> pd.DataFrame:
         df = pd.read_sql(sql, cx, params=params)
     return _coerce_strings(df)
 
-def _load_tanks_for_codes(codes: List[str]) -> pd.DataFrame:
-    """
-    Tanks for selected fish.
-    v_tanks doesn't expose fish_code, so parse it from tank_code "TANK(<code>)#N".
-    """
-    if not codes:
-        return pd.DataFrame(columns=["fish_code","tank_code","status","created_at","container_id"])
-    sql = text(r"""
+def _load_fish_rich_all(q: Optional[str], limit: int) -> pd.DataFrame:
+    has_fp = _table_exists("public", "ft_proteins")
+    if has_fp:
+        rb_cte = """
+        rb AS (
+          SELECT
+            f.fish_code,
+            jff.ft_code AS transgene_base_code,
+            COALESCE(string_agg(DISTINCT fp.fluor_code, ','), '')          AS base_fluors,
+            COALESCE(string_agg(DISTINCT NULLIF(fp.tag_code,''), ','), '') AS base_tags
+          FROM public.fish f
+          LEFT JOIN public.join_fish_fluorescent_treatments jff
+            ON jff.fish_id = f.id
+          LEFT JOIN public.ft_proteins fp
+            ON fp.ft_code = jff.ft_code
+          GROUP BY f.fish_code, jff.ft_code
+        )
+        """
+    else:
+        rb_cte = """
+        rb AS (
+          SELECT
+            f.fish_code,
+            jff.ft_code AS transgene_base_code,
+            ''::text AS base_fluors,
+            ''::text AS base_tags
+          FROM public.fish f
+          LEFT JOIN public.join_fish_fluorescent_treatments jff
+            ON jff.fish_id = f.id
+          GROUP BY f.fish_code, jff.ft_code
+        )
+        """
+
+    sql = text(f"""
+      WITH jt AS (
+        SELECT
+          f.fish_code,
+          jfta.transgene_base_code,
+          jfta.allele_number,
+          ta.allele_name,
+          ta.allele_nickname
+        FROM public.join_fish_transgene_alleles jfta
+        JOIN public.fish f
+          ON f.id = jfta.fish_id
+        LEFT JOIN public.transgene_alleles ta
+          ON ta.transgene_base_code = jfta.transgene_base_code
+         AND ta.allele_number       = jfta.allele_number
+      ),
+      {rb_cte}
       SELECT
-        v.tank_uuid::text         AS container_id,
-        v.tank_code::text         AS tank_code,
-        ''::text                  AS status,  -- no status column; blank for now
-        regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1')::text AS fish_code,
-        v.created_at::timestamptz AS created_at
-      FROM public.v_tanks v
-      WHERE regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1') = ANY(:codes)
-      ORDER BY v.created_at ASC, v.tank_code ASC
+        jt.fish_code,
+        jt.transgene_base_code,
+        jt.allele_number,
+        COALESCE(jt.allele_name,'')      AS allele_name,
+        COALESCE(jt.allele_nickname,'')  AS allele_nickname,
+        ''::text AS transgene_pretty_nickname,
+        ''::text AS transgene_pretty_name,
+        ''::text AS genotype_pretty,
+        COALESCE(rb.base_fluors,'') AS base_fluors,
+        COALESCE(rb.base_tags,'')   AS base_tags
+      FROM jt
+      LEFT JOIN rb
+        ON rb.fish_code = jt.fish_code
+       AND rb.transgene_base_code = jt.transgene_base_code
+      WHERE (:q IS NULL)
+         OR (
+              jt.fish_code ILIKE :q
+           OR jt.transgene_base_code ILIKE :q
+           OR COALESCE(jt.allele_name,'') ILIKE :q
+           OR COALESCE(jt.allele_nickname,'') ILIKE :q
+         )
+      ORDER BY jt.fish_code, jt.transgene_base_code, jt.allele_number
+      LIMIT :lim
     """)
+    params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
     with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"codes": codes})
+        df = pd.read_sql(sql, cx, params=params)
     return _coerce_strings(df)
 
 def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
-    """
-    Enrich tank rows with fish nickname / genotype using fish + v_fish_main.
-    """
     want_cols = [
         "container_id","label","status","fish_code",
         "nickname","name","alias","tank_display",
@@ -195,34 +193,52 @@ def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
     if not ids:
         return pd.DataFrame(columns=want_cols)
 
-    sql = text(r"""
+    use_view = _table_exists("public", "v_tanks")
+    src_table = "public.v_tanks" if use_view else "public.tanks"
+    id_col   = "tank_uuid" if use_view else "id"
+
+    sql = text(f"""
   WITH picked AS (
-    SELECT unnest(cast(:ids AS uuid[])) AS container_id
+    SELECT unnest(:ids) AS container_id
   ),
   vt AS (
     SELECT
-        v.tank_uuid::uuid         AS tank_id,
-        regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1')::text AS fish_code,
-        v.tank_code::text         AS tank_code,
-        ''::text                  AS status,
-        v.created_at::timestamptz AS created_at,
-        split_part(v.tank_code, '#', 2)   AS tank_num
-    FROM public.v_tanks v
+        v.{id_col}::uuid                              AS tank_id,
+        regexp_replace(v.tank_code, '^.*\\(([^)]+)\\).*$', '\\1')::text AS fish_code,
+        v.tank_code::text                             AS tank_code,
+        COALESCE(CAST(v.status AS text), ''::text)    AS status,
+        v.created_at::timestamptz                     AS created_at,
+        split_part(v.tank_code, '#', 2)               AS tank_num
+    FROM {src_table} v
+  ),
+  gp AS (
+    SELECT
+      f.fish_code,
+      string_agg(
+        DISTINCT (ta.transgene_base_code || '(' || ta.allele_name || ')'),
+        ', ' ORDER BY (ta.transgene_base_code || '(' || ta.allele_name || ')')
+      ) AS genotype
+    FROM public.fish f
+    LEFT JOIN public.join_fish_transgene_alleles jfta
+      ON jfta.fish_id = f.id
+    LEFT JOIN public.transgene_alleles ta
+      ON ta.transgene_base_code = jfta.transgene_base_code
+     AND ta.allele_number       = jfta.allele_number
+    WHERE COALESCE(ta.allele_name,'') <> ''
+    GROUP BY f.fish_code
   ),
   vf AS (
     SELECT
         f.fish_code::text                  AS fish_code,
         COALESCE(f.nickname,'')            AS nickname,
         COALESCE(f.genetic_background,'')  AS genetic_background,
-        COALESCE(f.line_building_stage,'') AS stage,
-        f.dob::date                        AS dob,
-        -- use v_fish_main genotype_pretty (any row per fish)
-        MAX(vm.genotype_pretty)            AS genotype,
-        MAX(vm.genotype_pretty)            AS transgene_pretty
+        COALESCE(f.in_breeding_stage,'')   AS stage,
+        f.birthday::date                   AS dob,
+        COALESCE(gp.genotype,'')           AS genotype,
+        COALESCE(gp.genotype,'')           AS transgene_pretty
     FROM public.fish f
-    LEFT JOIN public.v_fish_main vm
-      ON vm.fish_code = f.fish_code
-    GROUP BY f.fish_code, f.nickname, f.genetic_background, f.line_building_stage, f.dob
+    LEFT JOIN gp
+      ON gp.fish_code = f.fish_code
   )
   SELECT
     p.container_id::text                AS container_id,
@@ -242,15 +258,14 @@ def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
     vf.transgene_pretty                  AS transgene_pretty,
     vf.genetic_background                AS genetic_background,
     vf.stage                             AS stage,
-    vf.dob                               AS dob
+    vf.birthday                          AS dob
   FROM picked p
   JOIN vt  ON vt.tank_id = p.container_id
   LEFT JOIN vf ON vf.fish_code = vt.fish_code
   ORDER BY vt.created_at ASC, vt.tank_code ASC
-""")
+""").bindparams(bindparam("ids", type_=ARRAY(UUID(as_uuid=True))))
     with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"ids": container_ids})
-
+        df = pd.read_sql(sql, cx, params={"ids": ids})
     if df.empty:
         return df
     for c in ["label","fish_code","genotype","transgene_pretty","genetic_background","stage","status","tank_display","tank_code","nickname","name"]:
@@ -261,11 +276,33 @@ def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
             df["dob"] = pd.to_datetime(df["dob"], errors="coerce").dt.date
         except Exception:
             df["dob"] = None
-    return df[[c for c in want_cols if c in df.columns]]
+    want = [c for c in want_cols if c in df.columns]
+    return df[want]
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Page
-# ─────────────────────────────────────────────────────────────────────────────
+def _load_tanks_for_codes(codes: List[str]) -> pd.DataFrame:
+    if not codes:
+        return pd.DataFrame(columns=["fish_code","tank_code","status","created_at","container_id"])
+
+    use_view = _table_exists("public", "v_tanks")
+    src_table = "public.v_tanks" if use_view else "public.tanks"
+    id_col   = "tank_uuid" if use_view else "id"
+
+    sql = text(f"""
+      SELECT
+        v.{id_col}::text                                           AS container_id,
+        v.tank_code::text                                          AS tank_code,
+        COALESCE(CAST(v.status AS text), ''::text)                 AS status,
+        regexp_replace(v.tank_code, '^.*\\(([^)]+)\\).*$', '\\1')::text AS fish_code,
+        v.created_at::timestamptz                                  AS created_at
+      FROM {src_table} v
+      WHERE regexp_replace(v.tank_code, '^.*\\(([^)]+)\\).*$', '\\1') = ANY(:codes)
+      ORDER BY v.created_at ASC, v.tank_code ASC
+    """)
+    with _get_engine().begin() as cx:
+        df = pd.read_sql(sql, cx, params={"codes": codes})
+    return _coerce_strings(df)
+
+# ───────────────────────────────── page ──────────────────────────────────────
 def main():
     st.title("🔎 Search Fish → Tanks")
     st.caption(f"DB_URL = {os.getenv('DB_URL','')}")
@@ -283,38 +320,41 @@ def main():
     df = _load_fish_overview(q, limit)
     if df.empty:
         st.info("No fish match your search.")
-        with st.expander("Advanced: per-allele rows (v_fish_main)"):
+        with st.expander("Advanced: per-allele rows (direct from base tables)"):
             raw = _load_fish_rich_all(q, limit)
             st.caption(f"{len(raw)} row(s) • columns: {', '.join(raw.columns)}")
             if not raw.empty:
-                st.dataframe(raw, use_container_width=True, hide_index=True)
+                st.dataframe(raw, width="stretch", hide_index=True)
                 st.download_button(
-                    "⬇︎ Download v_fish_main_per_allele.csv",
+                    "⬇︎ Download per_allele.csv",
                     data=raw.to_csv(index=False).encode("utf-8"),
-                    file_name=f"v_fish_main_per_allele_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    file_name=f"per_allele_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
                     type="secondary",
-                    mime="text/csv"
+                    mime="text/csv",
+                    width="stretch",
                 )
         return
 
-    # Rename display headers
     df = df.rename(columns={
-        "fish_code":          "Fish code",
-        "nickname":           "Nickname",
-        "birthday":           "Birth date",
-        "genetic_background": "Genetic background",
-        "line_building_stage":"Line-building stage",
-        "genotype_pretty":    "Genotype",
-        "markers":            "Markers",
-        "fluors":             "Fluors",
-        "tags":               "Tags",
-        "dyes":               "Dyes",
-        "created_at":         "Created time",
+        "fish_code_display":   "Fish code",
+        "nickname":            "Nickname",
+        "birthday":            "Birth date",
+        "genetic_background":  "Genetic background",
+        "line_building_stage": "Line-building stage",
+        "genotype_pretty":     "Genotype",
+        "markers":             "Markers",
+        "fluors":              "Fluors",
+        "tags":                "Tags",
+        "fusions":             "Fusions",
+        "n_fusions":           "# Fusions",
+        "dyes":                "Dyes",
+        "created_at":          "Created time",
     })
 
     cols = [
         "Fish code","Nickname","Genetic background","Line-building stage",
-        "Genotype","Markers","Fluors","Tags","Dyes","Birth date","Created time",
+        "Genotype","Markers","Fluors","Tags","Fusions","# Fusions","Dyes",
+        "Birth date","Created time",
     ]
     cols = [c for c in cols if c in df.columns]
 
@@ -322,17 +362,15 @@ def main():
     table = df[cols].copy()
     table.insert(0, "✓ Select", False)
 
-    editor_cols = ["✓ Select"] + cols
     fish_table = st.data_editor(
         table,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config=None,
-        column_order=editor_cols,
-        key="fish_table_v6",
+        column_order=["✓ Select"] + cols,
+        key="fish_table_v7",
     )
 
-    # Tanks for selected fish
     st.subheader("Tanks for selected fish")
 
     selected_codes = (
@@ -340,9 +378,9 @@ def main():
         if isinstance(fish_table, pd.DataFrame) and "✓ Select" in fish_table.columns and "Fish code" in fish_table.columns
         else []
     )
-    if not selected_codes:
-        st.info("Select one or more fish to show their tanks.")
-        st.stop()
+    if selected_codes:
+        disp_to_raw = dict(zip(df["Fish code"], df.get("fish_code_raw", df["Fish code"])))
+        selected_codes = [disp_to_raw.get(c, c) for c in selected_codes]
 
     tdf = _load_tanks_for_codes(selected_codes)
     if tdf.empty:
@@ -355,7 +393,7 @@ def main():
 
     tanks_table = st.data_editor(
         tview,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_order=["✓ Print"] + tcols,
         key="tank_table",
@@ -407,7 +445,7 @@ def main():
         file_name=f"tank_labels_2_4x1_5_{utc_now().strftime('%Y%m%d_%H%M%S')}.pdf",
         mime="application/pdf",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         disabled=(pdf_bytes == b""),
     )
 
