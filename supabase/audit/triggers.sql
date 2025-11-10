@@ -1,0 +1,1 @@
+clutch_instances|trg_clutch_default_treated|CREATE TRIGGER trg_clutch_default_treated AFTER INSERT ON public.clutch_instances FOR EACH ROW EXECUTE FUNCTION trg_clutch_default_treated()
