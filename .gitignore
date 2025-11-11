@@ -88,3 +88,7 @@ transgene_alleles/
 supabase/baselines/
 schema_implied/
 schema_real/
+
+# local tooling
+/tools/
+
