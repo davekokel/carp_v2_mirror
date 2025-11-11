@@ -1,383 +1,268 @@
-# carp_app/ui/pages/009_📤_upload_plasmids_overview.py
+# carp_app/ui/pages/100_🐟_overview_plasmids.py
 from __future__ import annotations
-import sys, pathlib
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[3]))
-
-import os, shlex
-from typing import Optional
+import os, pathlib, sys
+from typing import List, Dict, Optional
 
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from carp_app.lib.db import get_engine
-
-st.set_page_config(page_title="CARP — Plasmids Overview", page_icon="🧪", layout="wide")
+# repo root on sys.path
+ROOT = pathlib.Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
-
-sb, session, user = require_auth()
-require_email_otp()
-st.title("🧪 Plasmids Overview")
-
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
+from carp_app.ui.lib.app_ctx import get_engine as _create_engine
+from carp_app.lib.time import utc_now
+
+# ───────────── auth & page ─────────────
+sb, session, user = require_auth()
+require_email_otp()
 require_app_unlock()
 
-_ENGINE: Optional[Engine] = None
+st.set_page_config(page_title="CARP — Plasmids Overview", page_icon="🧪", layout="wide")
+st.title("🧪 Plasmids Overview")
+
+# ───────────── engine cache ────────────
+@st.cache_resource(show_spinner=False)
+def _cached_engine() -> Engine:
+    url = os.environ.get("DB_URL")
+    if not url:
+        raise RuntimeError("DB_URL not set")
+    return _create_engine()
+
 def _get_engine() -> Engine:
-    global _ENGINE
-    if _ENGINE is None:
-        url = os.getenv("DB_URL") or ""
-        if not url:
-            raise RuntimeError("DB_URL is not set")
-        _ENGINE = get_engine()
-    return _ENGINE
+    return _cached_engine()
 
-def _build_query(q: str, limit: int) -> tuple[str, dict]:
-    """
-    Build inline plasmid overview query with n_fusions, no supports_invitro_rna, no name.
-    """
-    tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
-    params: dict = {"lim": int(limit)}
-    where: list[str] = []
+# ───────────── data loaders ────────────
+def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    for c in df.select_dtypes(include=["object", "string"]).columns:
+        df[c] = df[c].astype("string").fillna("")
+    return df
 
-    base_cte = """
-      WITH vp AS (
-        SELECT
-          p.code,
-          COALESCE(p.nickname,'')   AS nickname,
-          COALESCE(p.resistance,'') AS resistance,
-
-          COALESCE(
-            ARRAY_REMOVE(
-              ARRAY_AGG(DISTINCT fl.fluor_code)
-              FILTER (WHERE fl.fluor_code IS NOT NULL),
-              NULL
-            ),
-            ARRAY[]::text[]
-          ) AS fluors_arr,
-
-          COALESCE(
-            ARRAY_REMOVE(
-              ARRAY_AGG(DISTINCT tg.tag_code)
-              FILTER (WHERE tg.tag_code IS NOT NULL),
-              NULL
-            ),
-            ARRAY[]::text[]
-          ) AS tags_arr,
-
-          COALESCE(
-            ARRAY_REMOVE(
-              ARRAY_AGG(
-                DISTINCT CASE
-                  WHEN tg.tag_code IS NULL THEN fl.fluor_code
-                  ELSE CONCAT(fl.fluor_code,'::',tg.tag_code)
-                END
-              ) FILTER (WHERE fl.fluor_code IS NOT NULL),
-              NULL
-            ),
-            ARRAY[]::text[]
-          ) AS fusions_arr,
-
-          p.created_at,
-          NULL::text AS created_by,
-          COALESCE(p.notes,'') AS notes
-        FROM public.plasmids p
-        LEFT JOIN public.join_plasmid_fusions jpf ON jpf.plasmid_id = p.id
-        LEFT JOIN public.fusions f               ON f.id = jpf.fusion_id
-        LEFT JOIN public.fluors  fl              ON fl.id = f.fluor_id
-        LEFT JOIN public.tags    tg              ON tg.id = f.tag_id
-        GROUP BY p.code, p.nickname, p.resistance, p.created_at, p.notes
-      )
-    """
-
-    field_map = {
-        "code":       "vp.code",
-        "nickname":   "vp.nickname",
-        "fluors":     "array_to_string(vp.fluors_arr, ',')",
-        "tags":       "array_to_string(vp.tags_arr, ',')",
-        "fusions":    "array_to_string(vp.fusions_arr, ',')",
-        "resistance": "vp.resistance",
-        "notes":      "vp.notes",
-    }
-    haystack = (
-        "concat_ws(' ', "
-        "coalesce(vp.code,''), coalesce(vp.nickname,''), "
-        "array_to_string(vp.fluors_arr, ','), array_to_string(vp.tags_arr, ','), "
-        "array_to_string(vp.fusions_arr, ','), coalesce(vp.resistance,''), coalesce(vp.notes,''))"
-    )
-
-    for i, tok in enumerate(tokens):
-        neg = tok.startswith("-")
-        core = tok[1:] if neg else tok
-        if ":" in core:
-            k, v = core.split(":", 1)
-            k = (k or "").lower()
-            v = (v or "").strip().strip('"')
-            if k in field_map:
-                key = f"t{i}"
-                params[key] = f"%{v}%"
-                where.append(("NOT " if neg else "") + f"({field_map[k]} ILIKE :{key})")
-                continue
-        key = f"t{i}"
-        params[key] = f"%{core}%"
-        where.append(("NOT " if neg else "") + f"({haystack} ILIKE :{key})")
-
-    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
-
-    body = f"""
-      {base_cte}
-      SELECT
-        vp.code,
-        vp.nickname,
-        vp.fluors_arr  AS fluors,
-        vp.tags_arr    AS tags,
-        vp.fusions_arr AS fusions,
-        COALESCE(cardinality(vp.fusions_arr), 0) AS n_fusions,
-        vp.resistance,
-        vp.created_by,
-        vp.created_at,
-        vp.notes
-      FROM vp
-      {where_sql}
-      ORDER BY vp.code
-      LIMIT :lim
-    """
-    return body, params
-
-def _load_plasmids(q: str, limit: int) -> pd.DataFrame:
-    sql, params = _build_query(q, limit)
+def _load_plasmids_overview(q: Optional[str], limit: int) -> pd.DataFrame:
+    sql = text("""
+      select
+        code, name, nickname, resistance,
+        fluors, tag_codes, fusions, n_fusions, created_at
+      from public.v_plasmids_overview v
+      where (:q is null)
+         or (
+              v.code        ilike :q
+           or v.name        ilike :q
+           or v.nickname    ilike :q
+           or v.resistance  ilike :q
+           or v.fluors      ilike :q
+           or v.tag_codes   ilike :q
+           or v.fusions     ilike :q
+         )
+      order by v.created_at desc nulls last, v.code
+      limit :lim
+    """)
+    params = {"q": (f"%{q.strip()}%" if q and q.strip() else None), "lim": int(limit)}
     with _get_engine().begin() as cx:
-        return pd.read_sql(text(sql), cx, params=params)
+        df = pd.read_sql(sql, cx, params=params)
+    return _coerce_strings(df)
 
-# === Filters form ===
-with st.form("filters"):
-    c1, c2 = st.columns([3,1])
+# ───────── reference & insert/link helpers for payload ─────────
+def _load_refdata():
+    with _get_engine().begin() as cx:
+        fluors = [r["fluor_code"] for r in cx.execute(
+            text("select fluor_code from public.fluors order by 1")
+        ).mappings().all()]
+        tags = [r["tag_code"] for r in cx.execute(
+            text("select tag_code from public.tags order by 1")
+        ).mappings().all()]
+    tag_positions = ["", "N", "C", "N-term", "C-term", "internal"]
+    return fluors, tags, tag_positions
+
+def _ensure_fusion_and_link(cx, plasmid_id: str, fluor_code: str | None,
+                            tag_code: str | None, tag_pos: str | None,
+                            fusion_name: str | None):
+    if not fluor_code and not tag_code:
+        return None
+    fid = cx.execute(text("select id from public.fluors where fluor_code=:c limit 1"),
+                     {"c": (fluor_code or None)}).scalar() if fluor_code else None
+    tid = cx.execute(text("select id from public.tags where tag_code=:c limit 1"),
+                     {"c": (tag_code or None)}).scalar() if tag_code else None
+    if fluor_code and not fid:
+        raise ValueError(f"Unknown fluor_code '{fluor_code}'")
+    if tag_code and not tid:
+        raise ValueError(f"Unknown tag_code '{tag_code}'")
+    fusion_id = cx.execute(text("""
+        with ins as (
+          insert into public.fusions (fluor_id, tag_id, tag_pos, name)
+          values (:fid, :tid, nullif(:pos,''), nullif(:fname,''))
+          on conflict do nothing
+          returning id
+        )
+        select id from ins
+        union all
+        select id from public.fusions
+         where (fluor_id is not distinct from :fid)
+           and (tag_id  is not distinct from :tid)
+           and coalesce(tag_pos,'') = coalesce(:pos,'')
+        limit 1
+    """), {"fid": fid, "tid": tid, "pos": (tag_pos or ""), "fname": (fusion_name or None)}).scalar()
+    if not fusion_id:
+        raise RuntimeError("Could not create or find fusion")
+    cx.execute(text("""
+        insert into public.join_plasmid_fusions (plasmid_id, fusion_id)
+        values (:pid, :fid)
+        on conflict do nothing
+    """), {"pid": plasmid_id, "fid": fusion_id})
+    return fusion_id
+
+def _insert_plasmid_with_fusions(code: str, nickname: str,
+                                 resistance: str | None,
+                                 notes: str | None,
+                                 fusion_rows: list[dict]):
+    if not code or not nickname:
+        raise ValueError("code and nickname are required")
+    with _get_engine().begin() as cx:
+        row = cx.execute(text("""
+          insert into public.plasmids (code, name, nickname, resistance, created_at)
+          values (:code, :name, :nick, nullif(:res,''), now())
+          on conflict (code) do update
+            set name=excluded.name,
+                nickname=excluded.nickname,
+                resistance=excluded.resistance
+          returning id, code
+        """), {"code": code.strip(),
+               "name": nickname.strip(),
+               "nick": nickname.strip(),
+               "res": (resistance or "").strip()}).mappings().first()
+        pid = row["id"]
+        created = 0
+        for fr in fusion_rows:
+            fcode = (fr.get("fluor_code") or "").strip() or None
+            tcode = (fr.get("tag_code") or "").strip() or None
+            tpos  = (fr.get("tag_pos") or "").strip()
+            fname = (fr.get("fusion_name") or "").strip() or None
+            if not fcode and not tcode:
+                continue
+            _ensure_fusion_and_link(cx, pid, fcode, tcode, tpos, fname)
+            created += 1
+    return {"plasmid_code": code, "linked_fusions": created}
+
+# ─────────────────────────── page ───────────────────────────
+def main():
+    st.caption(f"DB_URL = {os.getenv('DB_URL','')}")
+
+    with st.form("plasmid_filters", clear_on_submit=False):
+        c1, c2 = st.columns([3,1])
+        with c1:
+            q = st.text_input("Search (code/nickname/name/fluors/tags/fusions)", "")
+        with c2:
+            limit = int(st.number_input("Limit", min_value=10, max_value=2000, value=500, step=50))
+        _ = st.form_submit_button("Search")
+
+    df = _load_plasmids_overview(q, limit)
+    if df.empty:
+        st.info("No plasmids match your filters.")
+    else:
+        st.subheader(f"Plasmids ({len(df)} rows)")
+        table_cols = ["code","name","nickname","resistance","fluors","tag_codes","fusions","n_fusions","created_at"]
+        table = df[table_cols]
+        table_view = st.dataframe(table, width="stretch", hide_index=True)
+
+        st.divider()
+        st.subheader("Edit selection")
+        editable_map = {
+            "name": "Name",
+            "nickname": "Nickname",
+            "resistance": "Resistance",
+        }
+        edit_choice = st.multiselect("Choose which columns are editable", list(editable_map.keys()), [])
+        selected = st.data_editor(
+            table.assign(**{k: table[k] for k in table.columns}),
+            width="stretch",
+            hide_index=True,
+            column_config=None,
+            disabled=[c for c in table.columns if c not in edit_choice],
+            key="plasmids_editor_v1",
+        )
+        if st.button("Save edits", type="primary"):
+            changed = selected[[c for c in edit_choice] + ["code"]]
+            changed = changed[changed["code"].notna()]
+            if not changed.empty and edit_choice:
+                with _get_engine().begin() as cx:
+                    for _, row in changed.drop_duplicates(subset=["code"])[["code"] + list(edit_choice)].iterrows():
+                        cx.execute(text(f"""
+                          update public.plasmids
+                          set {", ".join([f"{c} = :{c}" for c in edit_choice])}
+                          where code = :code
+                        """), {**{c: (row[c] if pd.notna(row[c]) else None) for c in edit_choice},
+                               "code": row["code"]})
+                st.success("Edits saved.")
+
+    st.divider()
+    st.subheader("Add new plasmid")
+
+    fluors, tags, tag_positions = _load_refdata()
+    c1, c2 = st.columns([2, 2])
     with c1:
-        q = st.text_input("Search (supports code:, nickname:, fluors:, tags:, fusions:, resistance:)", "")
+        new_code = st.text_input("code (required)")
+        new_nick = st.text_input("nickname (required)")
     with c2:
-        limit = int(st.number_input("Limit", min_value=1, max_value=10000, value=1000, step=200))
-    submitted = st.form_submit_button("Apply")
+        new_res  = st.text_input("resistance")
+        new_note = st.text_area("notes", height=80)
 
-try:
-    df = _load_plasmids(q, limit)
-except Exception as e:
-    st.error(f"Query error: {type(e).__name__}: {e}")
-    with st.expander("Debug"):
-        st.code(str(e))
-    st.stop()
+    st.markdown("**Fusions (add as many as you need)**")
+    if "plasmid_fusion_rows" not in st.session_state:
+        st.session_state.plasmid_fusion_rows = pd.DataFrame(
+            [{"fluor_code": "", "tag_code": "", "tag_pos": "", "fusion_name": ""}]
+        )
 
-st.caption(f"{len(df)} rows")
-
-# ===== READ-ONLY MASTER TABLE ================================================
-view_cols = [
-    "✓ Select",
-    "code","nickname","fluors","tags","fusions","n_fusions",
-    "resistance","created_by","created_at","notes"
-]
-
-UPDATABLE_COLS = ["nickname", "resistance", "notes"]
-
-# Base view of the current query result
-df_view = df.copy()
-df_view.insert(0, "✓ Select", False)
-
-# ---- Safe session_state initialization / refresh ----
-def _sig_from(df_codes: pd.Series) -> str:
-    return "|".join(df_codes.astype(str).tolist()) if not df_codes.empty else ""
-
-new_sig = _sig_from(df_view.get("code", pd.Series([], dtype=str)))
-
-if "_plasmids_table" not in st.session_state:
-    st.session_state["_plasmids_table"]   = df_view.copy()
-    st.session_state["_plasmids_original"] = df_view.copy()
-    st.session_state["_plasmids_sig"]      = new_sig
-else:
-    if st.session_state.get("_plasmids_sig") != new_sig:
-        st.session_state["_plasmids_table"]   = df_view.copy()
-        st.session_state["_plasmids_original"] = df_view.copy()
-        st.session_state["_plasmids_sig"]      = new_sig
-
-# Render the read-only master table
-ro = st.data_editor(
-    st.session_state["_plasmids_table"],
-    use_container_width=True,
-    hide_index=True,
-    height=520,
-    num_rows="fixed",
-    column_order=view_cols,
-    column_config={
-        "✓ Select":   st.column_config.CheckboxColumn("✓ Select", default=False),
-        "code":       st.column_config.TextColumn("code", disabled=True),
-        "nickname":   st.column_config.TextColumn("nickname", disabled=True),
-        "fluors":     st.column_config.ListColumn("fluors",  disabled=True),
-        "tags":       st.column_config.ListColumn("tags",    disabled=True),
-        "fusions":    st.column_config.ListColumn("fusions", disabled=True),
-        "n_fusions":  st.column_config.NumberColumn("n_fusions", disabled=True, format="%d"),
-        "resistance": st.column_config.TextColumn("resistance", disabled=True),
-        "created_by": st.column_config.TextColumn("created_by", disabled=True),
-        "created_at": st.column_config.DatetimeColumn("created_at", disabled=True),
-        "notes":      st.column_config.TextColumn("notes", disabled=True),
-    },
-    key="plasmids_ro",
-)
-
-if "✓ Select" in ro.columns:
-    st.session_state["_plasmids_table"]["✓ Select"] = ro["✓ Select"].values
-else:
-    st.session_state["_plasmids_table"]["✓ Select"] = False
-
-st.divider()
-
-# ===== EDIT SELECTION PANEL ===================================================
-st.subheader("Edit selection")
-
-cL, cR = st.columns([2,2])
-with cL:
-    editable_cols = st.multiselect(
-        "1) Choose which columns are editable",
-        options=UPDATABLE_COLS,
-        help="Only these columns will be editable below."
-    )
-with cR:
-    sel_mask = st.session_state["_plasmids_table"]["✓ Select"] == True
-    sel_codes = st.session_state["_plasmids_table"].loc[sel_mask, "code"].dropna().astype(str).tolist()
-    st.metric("Selected rows", len(sel_codes))
-
-if len(sel_codes) == 0 or len(editable_cols) == 0:
-    st.info("Select at least one row in the table above and choose one or more editable columns.")
-else:
-    base_all = st.session_state["_plasmids_table"].set_index("code")
-    edit_slice = base_all.loc[sel_codes].reset_index()
-
-    col_cfg = {
-        "code":       st.column_config.TextColumn("code", disabled=True),
-        "nickname":   st.column_config.TextColumn("nickname", disabled=("nickname" not in editable_cols)),
-        "resistance": st.column_config.TextColumn("resistance", disabled=("resistance" not in editable_cols)),
-        "notes":      st.column_config.TextColumn("notes", disabled=("notes" not in editable_cols)),
-    }
-
-    st.caption("Edit the selected rows/columns below, then save.")
-    edited_slice = st.data_editor(
-        edit_slice[["code"] + sorted(set(editable_cols))],
-        use_container_width=True,
+    fusion_df = st.data_editor(
+        st.session_state.plasmid_fusion_rows,
+        num_rows="dynamic",
+        width="stretch",
         hide_index=True,
-        num_rows="fixed",
-        key="plasmids_edit_slice",
-        column_config=col_cfg,
+        column_config={
+            "fluor_code": st.column_config.SelectboxColumn("Fluor", options=fluors, required=False),
+            "tag_code":   st.column_config.SelectboxColumn("Tag",   options=tags,   required=False),
+            "tag_pos":    st.column_config.SelectboxColumn("Tag position", options=tag_positions, required=False),
+            "fusion_name": st.column_config.TextColumn("Fusion name (optional)", width="medium"),
+        },
+        key="plasmid_fusion_editor",
     )
 
-    do_save = st.button("💾 Save selected edits", type="primary")
-
-    if do_save:
-        orig_all = st.session_state["_plasmids_original"].set_index("code")
-        cur_rows = edited_slice.set_index("code")
-        to_update = []
-
-        for code, row in cur_rows.iterrows():
-            changed = {}
-            for col in UPDATABLE_COLS:
-                if col not in editable_cols: continue
-                old = orig_all.at[code, col] if (code in orig_all.index and col in orig_all.columns) else None
-                new = row.get(col)
-                if (pd.isna(old) and pd.isna(new)) or (old == new):
-                    continue
-                changed[col] = None if pd.isna(new) else new
-            if changed:
-                changed["code"] = code
-                to_update.append(changed)
-
-        if not to_update:
-            st.success("No changes detected.")
-        else:
-            upd_sql = text("""
-                UPDATE public.plasmids
-                   SET nickname  = COALESCE(:nickname, nickname),
-                       resistance= COALESCE(:resistance, resistance),
-                       notes     = COALESCE(:notes, notes)
-                 WHERE code = :code
-            """)
-
-            n_upd = 0
-            with _get_engine().begin() as cx:
-                for rec in to_update:
-                    payload = {
-                        "code":       rec["code"],
-                        "nickname":   rec.get("nickname"),
-                        "resistance": rec.get("resistance"),
-                        "notes":      rec.get("notes"),
-                    }
-                    cx.execute(upd_sql, payload)
-                    n_upd += 1
-
-            for rec in to_update:
-                for k, v in rec.items():
-                    if k == "code": continue
-                    st.session_state["_plasmids_table"].loc[
-                        st.session_state["_plasmids_table"]["code"] == rec["code"], k
-                    ] = v
-                    st.session_state["_plasmids_original"].loc[
-                        st.session_state["_plasmids_original"]["code"] == rec["code"], k
-                    ] = v
-
-            st.success(f"Saved {n_upd} updated row(s).")
-
-st.divider()
-
-# ===== ADD NEW PLASMID ========================================================
-with st.expander("➕ Add new plasmid"):
-    with st.form("add_plasmid"):
-        new_code = st.text_input("code (required)", "")
-        new_nick = st.text_input("nickname (required)", "")
-        new_res  = st.text_input("resistance", "")
-        new_notes = st.text_area("notes", "")
-        submitted_add = st.form_submit_button("Insert")
-
-    if submitted_add:
-        code_ok = (new_code or "").strip()
-        nick_ok = (new_nick or "").strip()
-        if not code_ok or not nick_ok:
-            st.error("Both code and nickname are required.")
-        else:
-            ins_sql = text("""
-                INSERT INTO public.plasmids(code, nickname, resistance, notes, created_by)
-                VALUES (:code, :nickname, :resistance, :notes, :by)
-                ON CONFLICT (code) DO NOTHING
-            """)
-            by = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
-            with _get_engine().begin() as cx:
-                cx.execute(ins_sql, {
-                    "code": code_ok,
-                    "nickname": nick_ok,
-                    "resistance": (new_res or None),
-                    "notes": (new_notes or None),
-                    "by": by,
-                })
-
-            row = {
-                "✓ Select": False,
-                "code": code_ok,
-                "nickname": nick_ok,
-                "fluors": [],
-                "tags": [],
-                "fusions": [],
-                "n_fusions": 0,
-                "resistance": (new_res or None),
-                "created_by": by,
-                "created_at": pd.Timestamp.utcnow(),
-                "notes": (new_notes or None),
-            }
-            st.session_state["_plasmids_table"] = pd.concat(
-                [st.session_state["_plasmids_table"], pd.DataFrame([row])],
-                ignore_index=True
+    if st.button("Insert", type="primary"):
+        rows = []
+        for _, r in fusion_df.fillna("").iterrows():
+            rows.append({
+                "fluor_code": (r.get("fluor_code") or "").strip(),
+                "tag_code":   (r.get("tag_code") or "").strip(),
+                "tag_pos":    (r.get("tag_pos") or "").strip(),
+                "fusion_name": (r.get("fusion_name") or "").strip(),
+            })
+        try:
+            res = _insert_plasmid_with_fusions(new_code.strip(), new_nick.strip(), new_res, new_note, rows)
+            st.success(f"Inserted/updated {res['plasmid_code']} • linked {res['linked_fusions']} fusion(s).")
+            st.session_state.plasmid_fusion_rows = pd.DataFrame(
+                [{"fluor_code": "", "tag_code": "", "tag_pos": "", "fusion_name": ""}]
             )
-            st.session_state["_plasmids_original"] = pd.concat(
-                [st.session_state["_plasmids_original"], pd.DataFrame([row])],
-                ignore_index=True
-            )
-            st.success(f"Inserted plasmid {code_ok}.")
+        except Exception as e:
+            st.error(f"Insert failed: {e}")
+
+    with st.expander("Reference: available fluors & tags", expanded=False):
+        colA, colB = st.columns(2)
+        with colA:
+            st.caption("Fluors")
+            st.dataframe(pd.DataFrame({"fluor_code": fluors}), width="stretch", hide_index=True)
+        with colB:
+            st.caption("Tags")
+            st.dataframe(pd.DataFrame({"tag_code": tags}), width="stretch", hide_index=True)
+
+if __name__ == "__main__":
+    main()
