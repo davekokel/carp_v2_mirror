@@ -64,36 +64,63 @@ def _distinct_statuses() -> list[str]:
 
 # Pull from v_tanks, deriving fish_code and synthesizing status for display.
 def _load_tanks(statuses: List[str], q: str) -> pd.DataFrame:
-    if not _exists("public", "v_tanks"):
-        st.error("Required view public.v_tanks not found."); st.stop()
-
     q = (q or "").strip()
-    sql = text(r"""
-      with vt as (
-        select
-          v.tank_uuid::text                                        as id,
-          v.tank_code::text                                        as tank_code,
-          regexp_replace(v.tank_code, '^.*\(([^)]+)\).*$', '\1')::text as fish_code, -- derive from tank_code
-          ''::text                                                 as status,       -- synthesize (view has none)
-          v.created_at                                             as created_at
-        from public.v_tanks v
-      )
-      select id, tank_code, fish_code, status, created_at
-      from vt
-      where (:qq = '')
-         or (coalesce(tank_code,'') ilike :ql
-          or coalesce(fish_code,'') ilike :ql
-          or id ilike :ql)
-      order by created_at desc nulls last, tank_code
-      limit 1000
-    """)
-    params = {"qq": q, "ql": f"%{q}%"}
+    use_vto = _exists("public", "v_tanks_overview")
+
+    if use_vto:
+        sql = text(r"""
+          SELECT
+            id::text                         AS id,
+            tank_code::text                  AS tank_code,
+            fish_code::text                  AS fish_code,
+            COALESCE(status::text,'')        AS status,
+            created_at
+          FROM public.v_tanks_overview
+          WHERE (:qq = ''
+                 OR COALESCE(tank_code,'') ILIKE :ql
+                 OR COALESCE(fish_code,'') ILIKE :ql
+                 OR id::text ILIKE :ql)
+            AND (:has_status = FALSE OR COALESCE(status,'') = ANY(:sts))
+          ORDER BY created_at DESC NULLS LAST, tank_code
+          LIMIT 1000
+        """)
+        params = {
+            "qq": q,
+            "ql": f"%{q}%",
+            "has_status": bool(statuses),
+            "sts": statuses if statuses else [""]  # ignored when has_status = FALSE
+        }
+    else:
+        # Strict FK path: tanks → fish
+        sql = text(r"""
+          SELECT
+            t.id::text                       AS id,
+            t.tank_code::text                AS tank_code,
+            f.fish_code::text                AS fish_code,
+            COALESCE(t.status::text,'')      AS status,
+            t.created_at
+          FROM public.tanks t
+          JOIN public.fish f ON f.id = t.fish_id
+          WHERE (:qq = ''
+                 OR COALESCE(t.tank_code,'') ILIKE :ql
+                 OR COALESCE(f.fish_code,'') ILIKE :ql
+                 OR t.id::text ILIKE :ql)
+            AND (:has_status = FALSE OR COALESCE(t.status,'') = ANY(:sts))
+          ORDER BY t.created_at DESC NULLS LAST, t.tank_code
+          LIMIT 1000
+        """)
+        params = {
+            "qq": q,
+            "ql": f"%{q}%",
+            "has_status": bool(statuses),
+            "sts": statuses if statuses else [""]
+        }
 
     with ENG.begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    # Normalize expected columns for the grid
-    for want in ["label", "capacity", "tank_code", "fish_code", "status", "created_at", "tank_updated_at"]:
+    # Normalize columns your grid expects
+    for want in ["label", "capacity", "tank_code", "fish_code", "status", "created_at", "tank_updated_at", "id"]:
         if want not in df.columns:
             df[want] = pd.NA
 

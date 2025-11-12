@@ -1,7 +1,7 @@
 # carp_app/ui/pages/110_🧬_overview_fusions.py
 from __future__ import annotations
 import os, sys, pathlib, shlex
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import pandas as pd
 import streamlit as st
@@ -41,8 +41,8 @@ def _cached_engine() -> Engine:
 def _eng() -> Engine:
     return _cached_engine()
 
-# ───────── helpers ─────────
-def _load_refdata() -> tuple[List[str], List[str], List[str]]:
+# ───────── refdata ─────────
+def _load_refdata() -> tuple[list[str], list[str], list[str]]:
     with _eng().begin() as cx:
         fluors = [r["fluor_code"] for r in cx.execute(text(
             "select fluor_code from public.fluors order by 1"
@@ -53,17 +53,16 @@ def _load_refdata() -> tuple[List[str], List[str], List[str]]:
     tag_positions = ["", "N", "C", "N-term", "C-term", "internal"]
     return fluors, tags, tag_positions
 
+# ───────── query builder (no view; compute display name) ─────────
 def _build_query(q: str, limit: int) -> tuple[str, dict]:
-    import shlex
     tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
     params: dict = {"lim": int(limit)}
     where: list[str] = []
 
-    # columns available on v_fusions_overview
     c_fluor = "fluor"
     c_tag   = "tag"
     c_pos   = "tag_pos"
-    c_name  = "fusion_name"
+    c_name  = "fusion_name"  # computed
 
     field_map = {"fluor": c_fluor, "tag": c_tag, "pos": c_pos, "name": c_name}
     haystack = f"concat_ws(' ', {c_fluor}, {c_tag}, {c_pos}, {c_name})"
@@ -87,12 +86,28 @@ def _build_query(q: str, limit: int) -> tuple[str, dict]:
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     sql = f"""
+    WITH agg AS (
       SELECT
-        id, fusion_name, fluor, tag, tag_pos, n_plasmids, n_rnas, created_at
-      FROM public.v_fusions_overview
-      {where_sql}
-      ORDER BY n_plasmids DESC, n_rnas DESC, {c_fluor}, {c_tag} NULLS FIRST, {c_pos} NULLS FIRST
-      LIMIT :lim
+        f.id,
+        concat_ws('::', COALESCE(fl.fluor_code,''), COALESCE(tg.tag_code,'')) AS fusion_name,
+        COALESCE(fl.fluor_code,'')   AS fluor,
+        COALESCE(tg.tag_code,'')     AS tag,
+        COALESCE(f.tag_pos::text,'') AS tag_pos,
+        COUNT(DISTINCT jpf.plasmid_id) AS n_plasmids,
+        COUNT(DISTINCT jrf.rna_id)     AS n_rnas,
+        f.created_at
+      FROM public.fusions f
+      LEFT JOIN public.fluors fl ON fl.id = f.fluor_id
+      LEFT JOIN public.tags   tg ON tg.id = f.tag_id
+      LEFT JOIN public.join_plasmid_fusions jpf ON jpf.fusion_id = f.id
+      LEFT JOIN public.join_rna_fusions     jrf ON jrf.fusion_id = f.id
+      GROUP BY f.id, fl.fluor_code, tg.tag_code, f.tag_pos, f.created_at
+    )
+    SELECT id, fusion_name, fluor, tag, tag_pos, n_plasmids, n_rnas, created_at
+    FROM agg
+    {where_sql}
+    ORDER BY n_plasmids DESC, n_rnas DESC, fluor, tag NULLS FIRST, tag_pos NULLS FIRST
+    LIMIT :lim
     """
     return sql, params
 
@@ -104,24 +119,20 @@ def _load_fusions(q: str, limit: int) -> pd.DataFrame:
         df[c] = df[c].astype("string").fillna("")
     return df
 
-def _update_fusions(ids: List[str], name: Optional[str], tag_pos: Optional[str]) -> int:
-    if not ids:
+# only tag_pos is editable in base schema
+def _update_fusions(ids: List[str], tag_pos: Optional[str]) -> int:
+    if not ids or tag_pos is None:
         return 0
-    count = 0
     with _eng().begin() as cx:
-        for fid in ids:
-            sets = []
-            vals = {"id": fid}
-            if name is not None:
-                sets.append("name = :name")
-                vals["name"] = name if name.strip() else None
-            if tag_pos is not None:
-                sets.append("tag_pos = NULLIF(:pos,'')")
-                vals["pos"] = tag_pos
-            if sets:
-                cx.execute(text(f"UPDATE public.fusions SET {', '.join(sets)} WHERE id = :id"), vals)
-                count += 1
-    return count
+        res = cx.execute(
+            text("""
+              UPDATE public.fusions
+                 SET tag_pos = NULLIF(:pos,'')
+               WHERE id = ANY(:ids)
+            """),
+            {"pos": tag_pos, "ids": ids}
+        )
+        return res.rowcount or 0
 
 def _ensure_fusion(fluor_code: Optional[str], tag_code: Optional[str],
                    tag_pos: Optional[str], fusion_name: Optional[str]) -> str:
@@ -139,8 +150,8 @@ def _ensure_fusion(fluor_code: Optional[str], tag_code: Optional[str],
 
         fusion_id = cx.execute(text("""
             WITH ins AS (
-              INSERT INTO public.fusions (fluor_id, tag_id, tag_pos, name)
-              VALUES (:fid, :tid, NULLIF(:pos,''), NULLIF(:fname,''))
+              INSERT INTO public.fusions (fluor_id, tag_id, tag_pos)
+              VALUES (:fid, :tid, NULLIF(:pos,''))
               ON CONFLICT DO NOTHING
               RETURNING id
             )
@@ -151,7 +162,7 @@ def _ensure_fusion(fluor_code: Optional[str], tag_code: Optional[str],
                AND (tag_id  IS NOT DISTINCT FROM :tid)
                AND COALESCE(tag_pos,'') = COALESCE(:pos,'')
             LIMIT 1
-        """), {"fid": fid, "tid": tid, "pos": (tag_pos or ""), "fname": (fusion_name or None)}).scalar()
+        """), {"fid": fid, "tid": tid, "pos": (tag_pos or "")}).scalar()
         if not fusion_id:
             raise RuntimeError("unable to create or locate fusion")
         return str(fusion_id)
@@ -215,8 +226,8 @@ if len(selected_ids) == 1:
             text("""
                 SELECT
                   p.code,
-                  COALESCE(p.name,'')      AS name,
-                  COALESCE(p.nickname,'')  AS nickname,
+                  COALESCE(p.name,'')       AS name,
+                  COALESCE(p.nickname,'')   AS nickname,
                   COALESCE(p.resistance,'') AS resistance,
                   p.created_at
                 FROM public.join_plasmid_fusions jpf
@@ -250,7 +261,8 @@ else:
     st.caption("Tip: check a fusion row above to preview its plasmids.")
 
 st.divider()
-# ───────── Edit selection ─────────
+
+# ───────── Edit selection (tag_pos only) ─────────
 st.subheader("Edit selection")
 selected_ids = []
 if isinstance(grid, pd.DataFrame) and "✓ Select" in grid.columns:
@@ -258,20 +270,17 @@ if isinstance(grid, pd.DataFrame) and "✓ Select" in grid.columns:
     if not sel.empty and "id" in sel.columns:
         selected_ids = sel["id"].astype(str).tolist()
 
-c1, c2, c3 = st.columns([2,2,1])
+c1, c2 = st.columns([2,1])
 with c1:
-    new_name = st.text_input("Set fusion name (applies to selected; leave blank to clear)", "")
-with c2:
     _, _, tag_positions = _load_refdata()
     new_pos = st.selectbox("Set tag position (applies to selected)", tag_positions, index=0)
-with c3:
+with c2:
     applied = st.button("Apply changes", type="primary", disabled=(len(selected_ids) == 0))
 
 if applied:
     try:
         changed = _update_fusions(
             selected_ids,
-            name=(new_name if new_name != "" else ""),
             tag_pos=new_pos if new_pos is not None else ""
         )
         st.success(f"Updated {changed} fusion(s). Reload the table to see changes.")
@@ -317,7 +326,6 @@ if st.button("Insert fusion rows", type="primary"):
         except Exception as e:
             st.error(f"Row skipped [{f},{t},{p},{n}]: {e}")
     st.success(f"Inserted/ensured {len(rows)} fusion(s).")
-    # reset editor to a single blank row
     st.session_state.new_fusions_df = pd.DataFrame(
         [{"fluor_code":"", "tag_code":"", "tag_pos":"", "name":""}]
     )

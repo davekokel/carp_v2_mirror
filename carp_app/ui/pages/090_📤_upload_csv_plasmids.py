@@ -101,34 +101,55 @@ with tab1:
                 _insert_rows(cx, "_stg_plasmids", rows)
                 cx.execute(text("""
                     UPDATE _stg_plasmids SET
-                      plasmid_code = btrim(plasmid_code),
-                      nickname     = NULLIF(btrim(COALESCE(nickname,'')),''),
-                      resistance   = NULLIF(btrim(COALESCE(resistance,'')),''),
-                      notes        = NULLIF(btrim(COALESCE(notes,'')),'');
+                    plasmid_code = btrim(plasmid_code),
+                    nickname     = NULLIF(btrim(COALESCE(nickname,'')),''),
+                    resistance   = NULLIF(btrim(COALESCE(resistance,'')),''),
+                    notes        = NULLIF(btrim(COALESCE(notes,'')),'');
                     DELETE FROM _stg_plasmids WHERE COALESCE(plasmid_code,'')='';
                 """))
+
+                # 1) ensure FK target rows exist (transgenes) for the incoming base codes
+                cx.execute(text("""
+                    INSERT INTO public.transgenes (transgene_base_code)
+                    SELECT DISTINCT s.plasmid_code
+                    FROM _stg_plasmids s
+                    LEFT JOIN public.transgenes t
+                    ON t.transgene_base_code = s.plasmid_code
+                    WHERE t.transgene_base_code IS NULL
+                """))
+
+                # 2) upsert plasmids (FK now satisfied)
                 res = cx.execute(text("""
                     WITH up AS (
-                      INSERT INTO public.plasmids(code,nickname,resistance,notes)
-                      SELECT plasmid_code, nickname, resistance, notes
-                      FROM _stg_plasmids
-                      ON CONFLICT (code) DO UPDATE SET
+                    INSERT INTO public.plasmids(code,nickname,resistance,notes)
+                    SELECT plasmid_code, nickname, resistance, notes
+                    FROM _stg_plasmids
+                    ON CONFLICT (code) DO UPDATE SET
                         nickname   = COALESCE(EXCLUDED.nickname,  public.plasmids.nickname),
                         resistance = COALESCE(EXCLUDED.resistance, public.plasmids.resistance),
                         notes      = COALESCE(EXCLUDED.notes,      public.plasmids.notes)
-                      RETURNING code AS plasmid_code, (xmax = 0) AS inserted
+                    RETURNING code AS plasmid_code, (xmax = 0) AS inserted
                     )
                     SELECT
-                      SUM(CASE WHEN inserted THEN 1 ELSE 0 END) AS n_inserted,
-                      SUM(CASE WHEN NOT inserted THEN 1 ELSE 0 END) AS n_updated
+                    SUM(CASE WHEN inserted THEN 1 ELSE 0 END) AS n_inserted,
+                    SUM(CASE WHEN NOT inserted THEN 1 ELSE 0 END) AS n_updated
                     FROM up
                 """)).mappings().first()
+
                 n_ins = int(res["n_inserted"] or 0)
                 n_upd = int(res["n_updated"] or 0)
                 st.success(f"Plasmids — inserted: {n_ins} • updated: {n_upd}")
 
                 touched = pd.read_sql(
-                    text("SELECT code AS plasmid_code, COALESCE(nickname,'') AS nickname, COALESCE(resistance,'') AS resistance, COALESCE(notes,'') AS notes FROM public.plasmids WHERE code = ANY(:codes) ORDER BY code"),
+                    text("""
+                    SELECT code AS plasmid_code,
+                            COALESCE(nickname,'')   AS nickname,
+                            COALESCE(resistance,'') AS resistance,
+                            COALESCE(notes,'')      AS notes
+                    FROM public.plasmids
+                    WHERE code = ANY(:codes)
+                    ORDER BY code
+                    """),
                     cx, params={"codes": df["plasmid_code"].tolist()}
                 )
             st.subheader("Verification")

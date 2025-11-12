@@ -19,7 +19,6 @@ try:
 except Exception:
     def require_app_unlock(): ...
 
-# standardized engine helper
 from carp_app.ui.lib.page_engine import engine
 
 sb, session, user = require_auth()
@@ -29,84 +28,196 @@ require_app_unlock()
 st.set_page_config(page_title="CARP — 🧬 Select tank pairings", page_icon="🧬", layout="wide")
 st.title("🧬 Select tank pairings")
 
-# ---- helpers ----------------------------------------------------------------
-def _tank_pair_parent_cols() -> Tuple[str, str]:
+# ------------------ strict verification helpers ------------------------------
+def _cols(schema: str, table: str) -> List[str]:
     with engine().begin() as cx:
-        cols = pd.read_sql(
+        df = pd.read_sql(
             text("""
               SELECT column_name
               FROM information_schema.columns
-              WHERE table_schema='public' AND table_name='tank_pairs'
-            """),
-            cx,
-        )["column_name"].tolist()
-    for a, b in (("mother_tank_id","father_tank_id"),
-                 ("tank_id_mother","tank_id_father")):
-        if a in cols and b in cols:
-            return a, b
-    raise RuntimeError("public.tank_pairs must have mother/father tank UUID columns (e.g. mother_tank_id/father_tank_id).")
+              WHERE table_schema=:s AND table_name=:t
+              ORDER BY ordinal_position
+            """), cx, params={"s": schema, "t": table}
+        )
+    return df["column_name"].tolist()
 
-@st.cache_data(show_spinner=False)
-def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
+def _assert_table(schema: str, table: str):
+    with engine().begin() as cx:
+        df = pd.read_sql(
+            text("""
+              SELECT 1
+              FROM information_schema.tables
+              WHERE table_schema=:s AND table_name=:t
+            """), cx, params={"s": schema, "t": table}
+        )
+    if df.empty:
+        raise RuntimeError(f"Required table {schema}.{table} is missing.")
+
+def _assert_cols(schema: str, table: str, required: List[str]):
+    have = set(_cols(schema, table))
+    miss = [c for c in required if c not in have]
+    if miss:
+        raise RuntimeError(f"{schema}.{table} missing required columns {miss}. Found: {sorted(have)}")
+
+def _tank_pair_parent_cols() -> Tuple[str, str]:
+    tp = _cols("public", "tank_pairs")
+    for a, b in (("mother_tank_id","father_tank_id"), ("tank_id_mother","tank_id_father")):
+        if a in tp and b in tp:
+            return a, b
+    raise RuntimeError(
+        "public.tank_pairs must have mother/father UUID columns. "
+        f"Expected (mother_tank_id,father_tank_id) or (tank_id_mother,tank_id_father). Found: {tp}"
+    )
+
+def _discover_tanks_fish_fk_col() -> str:
     """
-    Modernized search (no v_fish_unified).
-    Returns: fish_code, name, background, stage, genotype, live_tanks, live_tank_codes
+    Return the column in public.tanks that FK-references public.fish(id).
+    Require exactly one such column; error if 0 or >1.
     """
     sql = text("""
-      WITH gp AS (  -- genotype_pretty from v_fish_main (allele-named only)
+      WITH fk AS (
         SELECT
-          vm.fish_code,
+          con.oid,
+          con.conrelid  AS tbl_oid,
+          con.confrelid  AS ref_oid,
+          con.conkey     AS fk_cols
+        FROM pg_constraint con
+        WHERE con.contype='f'
+          AND con.conrelid='public.tanks'::regclass
+          AND con.confrelid='public.fish'::regclass
+      )
+      SELECT a.attname AS fk_col
+      FROM fk
+      JOIN LATERAL unnest(fk.fk_cols) WITH ORDINALITY k(attnum, ord) ON TRUE
+      JOIN pg_attribute a ON a.attrelid=fk.tbl_oid AND a.attnum=k.attnum
+      ORDER BY ord
+    """)
+    with engine().begin() as cx:
+        df = pd.read_sql(sql, cx)
+
+    if df.empty:
+        raise RuntimeError(
+            "No foreign key from public.tanks to public.fish(id) was found. "
+            "Expected exactly one FK column in public.tanks that references public.fish(id)."
+        )
+    cols = df["fk_col"].astype(str).tolist()
+    uniq = sorted(set(cols))
+    if len(uniq) != 1:
+        raise RuntimeError(
+            "Multiple FK columns in public.tanks reference public.fish(id); refusing to choose. "
+            f"Columns: {uniq}"
+        )
+    return uniq[0]
+
+def _verify_core_schema() -> dict:
+    # Tables must exist
+    for t in ("fish", "tanks", "tank_pairs", "join_fish_transgene_alleles", "transgene_alleles"):
+        _assert_table("public", t)
+
+    # tanks requirements
+    _assert_cols("public", "tanks", ["id", "tank_code", "status", "created_at"])
+    tanks_cols = _cols("public", "tanks")
+    fish_fk_col = _discover_tanks_fish_fk_col()
+    if fish_fk_col not in tanks_cols:
+        raise RuntimeError(f"FK column '{fish_fk_col}' referenced by constraint is not a column of public.tanks?! Found: {tanks_cols}")
+
+    # fish requirements (stage can be either of two exact names)
+    _assert_cols("public", "fish", ["id", "fish_code", "nickname", "genetic_background", "created_at"])
+    fish_cols = _cols("public", "fish")
+    if "line_building_stage" in fish_cols:
+        stage_col = "line_building_stage"
+    elif "in_breeding_stage" in fish_cols:
+        stage_col = "in_breeding_stage"
+    else:
+        raise RuntimeError(
+            "public.fish must include either 'line_building_stage' or 'in_breeding_stage'. "
+            f"Found: {fish_cols}"
+        )
+
+    # genotype linkage
+    _assert_cols("public", "join_fish_transgene_alleles", ["fish_id", "transgene_base_code", "allele_number"])
+    alle_cols = _cols("public", "transgene_alleles")
+    for c in ["transgene_base_code", "allele_number"]:
+        if c not in alle_cols:
+            raise RuntimeError(f"public.transgene_alleles missing required column '{c}'. Found: {alle_cols}")
+
+    # tank_pairs parent columns
+    mom_col, dad_col = _tank_pair_parent_cols()
+
+    return {
+        "tanks": {"id":"id","code":"tank_code","status":"status","created":"created_at","fish_fk":fish_fk_col},
+        "fish":  {"id":"id","code":"fish_code","nickname":"nickname","bg":"genetic_background","stage":stage_col,"created":"created_at"},
+        "tank_pairs": {"mom": mom_col, "dad": dad_col},
+    }
+
+# ------------------ queries (no views, no fallbacks) -------------------------
+@st.cache_data(show_spinner=False)
+def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
+    S = _verify_core_schema()
+    t, f = S["tanks"], S["fish"]
+
+    sql = text(f"""
+      WITH gp AS (
+        SELECT
+          f.{f['code']} AS fish_code,
           COALESCE(
             string_agg(
-              DISTINCT vm.transgene_base_code || '(' || vm.allele_name || ')',
-              ', ' ORDER BY vm.transgene_base_code || '(' || vm.allele_name || ')'
+              DISTINCT jfta.transgene_base_code || '(' ||
+                COALESCE(NULLIF(ta.allele_name,''), ta.allele_number::text) || ')',
+              ', ' ORDER BY jfta.transgene_base_code || '(' || COALESCE(NULLIF(ta.allele_name,''), ta.allele_number::text) || ')'
             ), ''
           ) AS genotype_pretty
-        FROM public.v_fish_main vm
-        WHERE vm.allele_name IS NOT NULL AND vm.allele_name <> ''
-        GROUP BY vm.fish_code
+        FROM public.fish f
+        LEFT JOIN public.join_fish_transgene_alleles jfta
+          ON jfta.fish_id = f.{f['id']}
+        LEFT JOIN public.transgene_alleles ta
+          ON ta.transgene_base_code = jfta.transgene_base_code
+         AND ta.allele_number       = jfta.allele_number
+        GROUP BY f.{f['code']}
       ),
       base AS (
         SELECT
-          f.fish_code,
-          f.nickname,
-          COALESCE(f.genetic_background,'')  AS genetic_background,
-          COALESCE(f.line_building_stage,'') AS line_building_stage,
-          COALESCE(gp.genotype_pretty,'')    AS genotype_pretty,
-          f.created_at
+          f.{f['code']}               AS fish_code,
+          f.{f['nickname']}           AS nickname,
+          COALESCE(f.{f['bg']},'')    AS genetic_background,
+          COALESCE(f.{f['stage']},'') AS stage,
+          COALESCE(gp.genotype_pretty,'') AS genotype_pretty,
+          f.{f['created']}            AS created_at
         FROM public.fish f
-        LEFT JOIN gp ON gp.fish_code = f.fish_code
+        LEFT JOIN gp ON gp.fish_code = f.{f['code']}
         WHERE (:q IS NULL)
            OR (
-                f.fish_code ILIKE :ql
-             OR COALESCE(f.nickname,'')            ILIKE :ql
-             OR COALESCE(f.genetic_background,'')  ILIKE :ql
-             OR COALESCE(f.line_building_stage,'') ILIKE :ql
-             OR COALESCE(gp.genotype_pretty,'')    ILIKE :ql
+                f.{f['code']}                 ILIKE :ql
+             OR COALESCE(f.{f['nickname']},'') ILIKE :ql
+             OR COALESCE(f.{f['bg']},'')       ILIKE :ql
+             OR COALESCE(f.{f['stage']},'')    ILIKE :ql
+             OR COALESCE(gp.genotype_pretty,'')ILIKE :ql
            )
-        ORDER BY f.created_at DESC NULLS LAST, f.fish_code
+        ORDER BY f.{f['created']} DESC NULLS LAST, f.{f['code']}
         LIMIT :lim
       ),
-      live AS (  -- active tank summary
+      live AS (
         SELECT
-          vt.fish_code,
-          COUNT(*)::int AS n_live,
-          STRING_AGG(DISTINCT vt.tank_code, ', ' ORDER BY vt.tank_code) AS live_tank_codes
-        FROM public.v_tanks vt
-        WHERE lower(trim(vt.status))='active'
-        GROUP BY vt.fish_code
+          f2.{f['code']} AS fish_code,
+          COUNT(*)::int  AS n_live,
+          STRING_AGG(DISTINCT t.{t['code']}, ', ' ORDER BY t.{t['code']}) AS live_tank_codes
+        FROM public.tanks t
+        JOIN public.fish f2 ON f2.{f['id']} = t.{t['fish_fk']}
+        WHERE lower(trim(t.{t['status']}))='active'
+        GROUP BY f2.{f['code']}
       )
       SELECT
         b.fish_code,
         b.nickname                        AS name,
         b.genetic_background              AS background,
-        b.line_building_stage             AS stage,
+        b.stage                           AS stage,
         b.genotype_pretty                 AS genotype,
         COALESCE(l.n_live,0)              AS live_tanks,
         COALESCE(l.live_tank_codes,'')    AS live_tank_codes
       FROM base b
       LEFT JOIN live l USING (fish_code)
     """)
+
     qnorm = (q or "").strip()
     params = {
         "q":  (qnorm if qnorm else None),
@@ -119,50 +230,97 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
         df[c] = df[c].astype("string").fillna("")
     return df
 
-# IMPORTANT: do NOT cache — must reflect latest tank state for selected parents
 def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     if not codes:
         return pd.DataFrame()
-    sql = text("""
-      WITH vm AS (
-        SELECT
-          f.fish_code,
-          MAX(vfm.genotype_pretty) AS genotype_pretty,
-          MAX(COALESCE(f.nickname,'')) AS nickname
-        FROM public.fish f
-        LEFT JOIN public.v_fish_main vfm
-          ON vfm.fish_code = f.fish_code
-        GROUP BY f.fish_code
-      )
+
+    S = _verify_core_schema()
+    t, f = S["tanks"], S["fish"]
+
+    sql = text(f"""
       SELECT
-        vt.fish_code,
-        vm.nickname                 AS fish_name,
-        vm.genotype_pretty          AS genotype,
-        vt.tank_code,
-        vt.tank_uuid::text          AS tank_id,
-        vt.status,
-        vt.created_at
-      FROM public.v_tanks vt
-      LEFT JOIN vm ON vm.fish_code = vt.fish_code
-      WHERE vt.fish_code = ANY(:codes)
-        AND lower(trim(vt.status))='active'
-      ORDER BY vt.fish_code, vt.created_at DESC
+        f2.{f['code']}                 AS fish_code,
+        COALESCE(f2.{f['nickname']},'') AS fish_name,
+        gp.genotype_pretty             AS genotype,
+        t.{t['code']}                  AS tank_code,
+        t.{t['id']}::text              AS tank_id,
+        t.{t['status']}                AS status,
+        t.{t['created']}               AS created_at
+      FROM public.tanks t
+      JOIN public.fish f2 ON f2.{f['id']} = t.{t['fish_fk']}
+      LEFT JOIN (
+        SELECT
+          f3.{f['code']} AS fish_code,
+          COALESCE(
+            string_agg(
+              DISTINCT j2.transgene_base_code || '(' ||
+                COALESCE(NULLIF(ta2.allele_name,''), ta2.allele_number::text) || ')',
+              ', ' ORDER BY j2.transgene_base_code || '(' || COALESCE(NULLIF(ta2.allele_name,''), ta2.allele_number::text) || ')'
+            ), ''
+          ) AS genotype_pretty
+        FROM public.fish f3
+        LEFT JOIN public.join_fish_transgene_alleles j2
+          ON j2.fish_id = f3.{f['id']}
+        LEFT JOIN public.transgene_alleles ta2
+          ON ta2.transgene_base_code = j2.transgene_base_code
+         AND ta2.allele_number       = j2.allele_number
+        GROUP BY f3.{f['code']}
+      ) gp ON gp.fish_code = f2.{f['code']}
+      WHERE f2.{f['code']} = ANY(:codes)
+        AND lower(trim(t.{t['status']}))='active'
+      ORDER BY f2.{f['code']}, t.{t['created']} DESC NULLS LAST
     """)
     with engine().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": codes})
     return df.fillna("")
 
-def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, note: str) -> Tuple[bool, str]:
+def _tank_pair_code_requirements() -> dict:
+    """
+    Verify tank_pair_code policy: is it present? nullable? defaulted?
+    Returns: {"exists": bool, "nullable": bool, "has_default": bool}
+    """
+    with engine().begin() as cx:
+        row = pd.read_sql(
+            text("""
+              SELECT
+                1 AS exists,
+                (is_nullable = 'YES') AS nullable,
+                (column_default IS NOT NULL) AS has_default
+              FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='tank_pairs' AND column_name='tank_pair_code'
+            """), cx
+        )
+    if row.empty:
+        return {"exists": False, "nullable": True, "has_default": False}
+    r = row.iloc[0]
+    return {"exists": True, "nullable": bool(r["nullable"]), "has_default": bool(r["has_default"])}
+
+def _generate_tank_pair_code(cx, prefix: str = "TP-") -> str:
+    """
+    Generate the next tank_pair_code like 'TP-000001'.
+    Uses a table lock to avoid duplicate codes under concurrency.
+    """
+    cx.execute(text("LOCK TABLE public.tank_pairs IN SHARE ROW EXCLUSIVE MODE"))
+    maxn = pd.read_sql(
+        text("""
+          SELECT COALESCE(
+            MAX( (regexp_matches(tank_pair_code, '(\\d+)$'))[1]::int ),
+            0
+          ) AS maxn
+          FROM public.tank_pairs
+          WHERE tank_pair_code ~ '\\d+$'
+        """),
+        cx
+    ).iloc[0]["maxn"] or 0
+    nextn = int(maxn) + 1
+    # 6 digits, adjust width if you prefer
+    padded = f"{nextn:06d}"
+    return f"{prefix}{padded}"
+
+def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, note: str):
     mom_col, dad_col = _tank_pair_parent_cols()
     with engine().begin() as cx:
-        cols = set(pd.read_sql(
-            text("""
-              SELECT column_name
-              FROM information_schema.columns
-              WHERE table_schema='public' AND table_name='tank_pairs'
-            """),
-            cx
-        )["column_name"].tolist())
+        cols = set(_cols("public", "tank_pairs"))
 
         row = pd.read_sql(
             text(f"""
@@ -176,35 +334,25 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
         if not row.empty:
             sets = []
             params = {"id": row.iloc[0]["id"], "note": note, "by": created_by}
-            if "updated_at" in cols:
-                sets.append("updated_at = now()")
-            if "note" in cols:
-                sets.append("note = COALESCE(NULLIF(:note,''), note)")
-            if "updated_by" in cols:
-                sets.append("updated_by = COALESCE(NULLIF(:by,''), updated_by)")
+            if "updated_at" in cols: sets.append("updated_at = now()")
+            if "note" in cols:       sets.append("note = COALESCE(NULLIF(:note,''), note)")
+            if "updated_by" in cols: sets.append("updated_by = COALESCE(NULLIF(:by,''), updated_by)")
             if sets:
                 cx.execute(text(f"UPDATE public.tank_pairs SET {', '.join(sets)} WHERE id = :id::uuid"), params)
             return False, str(row.iloc[0]["tank_pair_code"])
 
-        insert_cols: List[str] = [mom_col, dad_col]
-        placeholders: List[str] = [":m", ":d"]
+        insert_cols = [mom_col, dad_col]
+        placeholders = [":m", ":d"]
         params = {"m": mother_tank_id, "d": father_tank_id}
 
         if "created_by" in cols:
-            insert_cols.append("created_by")
-            placeholders.append(":by")
-            params["by"] = created_by
+            insert_cols.append("created_by"); placeholders.append(":by"); params["by"] = created_by
         if "note" in cols:
-            insert_cols.append("note")
-            placeholders.append(":note")
-            params["note"] = note
+            insert_cols.append("note");       placeholders.append(":note"); params["note"] = note
         if "status" in cols:
-            insert_cols.append("status")
-            placeholders.append(":st")
-            params["st"] = "selected"
+            insert_cols.append("status");     placeholders.append(":st"); params["st"] = "selected"
         if "created_at" in cols:
-            insert_cols.append("created_at")
-            placeholders.append("now()")
+            insert_cols.append("created_at"); placeholders.append("now()")
 
         sql = text(f"""
           INSERT INTO public.tank_pairs({', '.join(insert_cols)})
@@ -214,7 +362,7 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
         tp_code = cx.execute(sql, params).scalar()
         return True, str(tp_code)
 
-# ---- page -------------------------------------------------------------------
+# ------------------ UI -------------------------------------------------------
 with st.form("filters"):
     c1, c2 = st.columns([3,1])
     with c1:

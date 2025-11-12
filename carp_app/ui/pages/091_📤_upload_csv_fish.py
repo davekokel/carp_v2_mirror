@@ -431,15 +431,33 @@ for r in df.itertuples(index=False):
             elif base:
                 st.info(f"Skipped allele link for {ident}: '{base}' not found in plasmids/transgenes.")
 
-            # ensure active tank TANK(FSH-XXXXXXXX)#1
+            # ensure active tank TANK(FSH-XXXXXXXX)#1, owned by this fish
             fshort = _uuid_to_base36_8(fid)
             tcode = f"TANK({fshort})#1"
-            cx.execute(text("""
-              INSERT INTO public.tanks (tank_code, status)
-              SELECT :tc, 'active'
-              WHERE NOT EXISTS (SELECT 1 FROM public.tanks WHERE tank_code = :tc)
-            """), {"tc": tcode})
-            created_tanks.append(tcode)
+
+            # 1) if a row already exists for this tank_code, make sure it points to this fish
+            cx.execute(
+                text("""
+                UPDATE public.tanks
+                    SET fish_id = :fid
+                WHERE tank_code = :tc
+                    AND (fish_id IS NULL OR fish_id <> :fid)
+                """),
+                {"tc": tcode, "fid": fid}
+            )
+
+            # 2) if it still doesn't exist, create it with fish_id
+            ins = cx.execute(
+                text("""
+                INSERT INTO public.tanks (tank_code, fish_id, status)
+                SELECT :tc, :fid, 'active'
+                WHERE NOT EXISTS (SELECT 1 FROM public.tanks WHERE tank_code = :tc)
+                """),
+                {"tc": tcode, "fid": fid}
+            ).rowcount
+
+            if ins:
+                created_tanks.append(tcode)
 
     except Exception as ex:
         st.warning(f"Skipping row (transaction rolled back): {ident}\n{ex}")
