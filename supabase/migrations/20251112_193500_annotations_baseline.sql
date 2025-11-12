@@ -1,19 +1,17 @@
 BEGIN;
 
--- UUIDs (usually already enabled in Supabase)
+-- Keep for convenience; harmless if unused
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Base catalog of annotation kinds
 CREATE TABLE IF NOT EXISTS public.annotations (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  kind_code  text NOT NULL UNIQUE,       -- stable code you reference from app
-  label      text NOT NULL,              -- human-friendly label
-  value_kind text NOT NULL DEFAULT 'numeric',  -- 'numeric' | 'text' | 'bool'
+  kind_code  text NOT NULL UNIQUE,
+  label      text NOT NULL,
+  value_kind text NOT NULL DEFAULT 'numeric',
   units      text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Seed the kinds this page writes/reads
 INSERT INTO public.annotations (kind_code, label, value_kind, units)
 VALUES
   ('red_intensity',    'Red intensity',    'numeric', '1–100'),
@@ -24,21 +22,25 @@ VALUES
   ('notes',            'Notes',            'text',    NULL)
 ON CONFLICT (kind_code) DO NOTHING;
 
--- Optional helper: latest values per treated group (by kind)
--- The annotate page will use this if present; harmless otherwise.
-CREATE OR REPLACE VIEW public.v_annotations_latest_group AS
+-- Build latest-per-kind for treated_clutch without depending on annotation_id/target_type
+DROP VIEW IF EXISTS public.v_annotations_latest_group CASCADE;
+
+CREATE VIEW public.v_annotations_latest_group AS
 WITH ranked AS (
   SELECT
-    ja.target_id,
-    a.kind_code,
+    ja.target_id,              -- -> treated_clutches.id
+    tc.treated_clutch_code,    -- friendly group code
+    ja.kind_code,              -- e.g., 'red_intensity'
     ja.value_num,
     ja.value_text,
     ja.created_at,
-    ROW_NUMBER() OVER (PARTITION BY ja.target_id, a.kind_code
-                       ORDER BY ja.created_at DESC NULLS LAST) AS rn
+    ROW_NUMBER() OVER (
+      PARTITION BY ja.target_id, ja.kind_code
+      ORDER BY ja.created_at DESC NULLS LAST
+    ) AS rn
   FROM public.join_annotations ja
-  JOIN public.annotations a ON a.id = ja.annotation_id
-  WHERE ja.target_type = 'treated_clutch'
+  JOIN public.treated_clutches tc ON tc.id = ja.target_id
+  WHERE ja.target_kind = 'treated_clutch'
 )
 SELECT *
 FROM ranked
