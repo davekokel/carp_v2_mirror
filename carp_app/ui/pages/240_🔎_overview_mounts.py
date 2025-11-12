@@ -1,276 +1,189 @@
-# carp_app/ui/pages/024_🔎_overview_plates.py
-# 🔎 Overview Plates — drill-down (summary + treated clutches + layout + plate DB row)
+# carp_app/ui/pages/240_🔎_overview_mounts.py
+# 🔎 Overview — Plates (formerly mounts): browse plates and view well layouts
 from __future__ import annotations
 
 import sys, pathlib
-from typing import Optional, Set, List
+from typing import Any, Dict
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
+from sqlalchemy.sql.elements import TextClause
 
-# ── sys.path prime ────────────────────────────────────────────────────────────
+# --- project wiring -----------------------------------------------------------
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+    sys.path.append(str(ROOT))
 
-# ── auth + engine ────────────────────────────────────────────────────────────
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
-from carp_app.ui.lib.page_engine import engine  # standardized page engine
+from carp_app.ui.lib.page_engine import engine
 
-# ── page config ──────────────────────────────────────────────────────────────
+# --- auth / page --------------------------------------------------------------
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-st.set_page_config(page_title="CARP — 🔎 Overview Plates (drill-down)", page_icon="🔎", layout="wide")
-st.title("🔎 Overview Plates")
+st.set_page_config(page_title="CARP — 🔎 Overview: Plates", page_icon="🧫", layout="wide")
+st.title("🔎 Overview — Plates")
 
-# ── confirm DB wiring ────────────────────────────────────────────────────────
 with engine().begin() as cx:
     dbg = pd.read_sql(text("select current_database() db, inet_server_addr() host, current_user u"), cx)
 st.caption(f"DB: {dbg['db'][0]} @ {dbg['host'][0]} as {dbg['u'][0]}")
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-def _exists_view(qname: str) -> bool:
-    sch, name = qname.split(".", 1)
-    sql = text("""
-      SELECT 1 FROM information_schema.views WHERE table_schema=:s AND table_name=:n
-      UNION ALL
-      SELECT 1 FROM pg_catalog.pg_matviews WHERE schemaname=:s AND matviewname=:n
-      LIMIT 1
-    """)
-    with engine().begin() as cx:
-        return cx.execute(sql, {"s": sch, "n": name}).first() is not None
-
-def _exists_table(qname: str) -> bool:
-    sch, name = qname.split(".", 1)
-    sql = text("""
-      SELECT 1 FROM information_schema.tables
-      WHERE table_schema=:s AND table_name=:n
-      LIMIT 1
-    """)
-    with engine().begin() as cx:
-        return cx.execute(sql, {"s": sch, "n": name}).first() is not None
-
-V_LAYOUT   = "public.v_plate_layout"
+# --- objects we read ----------------------------------------------------------
 T_PLATES   = "public.plates"
-V_TCLUTCH  = "public.v_treated_clutches"   # optional
+T_FORMATS  = "public.plate_formats"
+V_LAYOUT   = "public.v_plate_layout"   # columns: plate_code, plate_nickname, format_code, n_rows, n_cols, ...
 
-# ── queries ──────────────────────────────────────────────────────────────────
-def _plates_for_day(day: Optional[pd.Timestamp]) -> pd.DataFrame:
-    """
-    One row per plate. If day is None → latest plates (limit 200).
-    If a date is provided → filter by DATE(created_at)=day.
-    """
-    if not _exists_table(T_PLATES):
-        return pd.DataFrame(columns=["plate_code","plate_name","format_code","created_by","created_at"])
-    params = {}
-    if day is not None:
-        sql = text(f"""
-          SELECT plate_code, plate_name, format_code, created_by, created_at
-          FROM {T_PLATES}
-          WHERE DATE(created_at) = :d
-          ORDER BY created_at DESC NULLS LAST, plate_code
-        """)
-        params["d"] = pd.Timestamp(day).date()
-    else:
-        sql = text(f"""
-          SELECT plate_code, plate_name, format_code, created_by, created_at
-          FROM {T_PLATES}
-          ORDER BY created_at DESC NULLS LAST, plate_code
-          LIMIT 200
-        """)
+# --- tiny helpers -------------------------------------------------------------
+def _exists_table(qualified: str) -> bool:
+    s, n = qualified.split(".", 1)
     with engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params=params)
-    for c in df.select_dtypes("object").columns:
-        df[c] = df[c].astype("string").fillna("")
-    return df
+        r = pd.read_sql(text("""
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema=:s AND table_name=:n LIMIT 1
+        """), cx, params={"s": s, "n": n})
+    return not r.empty
 
-def _plate_record(plate_code: str) -> pd.DataFrame:
-    """Raw DB row from public.plates for this plate."""
-    if not _exists_table(T_PLATES):
-        return pd.DataFrame()
+def _exists_view(qualified: str) -> bool:
+    s, n = qualified.split(".", 1)
     with engine().begin() as cx:
-        df = pd.read_sql(
-            text(f"SELECT * FROM {T_PLATES} WHERE plate_code=:p LIMIT 1"),
-            cx, params={"p": plate_code}
-        )
-    for c in df.select_dtypes("object").columns:
+        r = pd.read_sql(text("""
+          SELECT 1 FROM information_schema.views WHERE table_schema=:s AND table_name=:n
+          UNION ALL
+          SELECT 1 FROM pg_catalog.pg_matviews WHERE schemaname=:s AND matviewname=:n
+          LIMIT 1
+        """), cx, params={"s": s, "n": n})
+    return not r.empty
+
+def _safe(cx, q: str | TextClause, p: Dict[str, Any] | None = None) -> pd.DataFrame:
+    q = q if isinstance(q, TextClause) else text(q)
+    return pd.read_sql(q, cx, params=p or {})
+
+# --- guards -------------------------------------------------------------------
+missing = []
+if not _exists_table(T_PLATES):  missing.append(T_PLATES)
+if not _exists_table(T_FORMATS): missing.append(T_FORMATS)
+if not _exists_view(V_LAYOUT):   missing.append(V_LAYOUT)
+if missing:
+    st.error("Required object not found: " + ", ".join(missing))
+    st.stop()
+
+# --- loaders ------------------------------------------------------------------
+def _list_plates(q: str) -> pd.DataFrame:
+    sql = text(f"""
+      SELECT p.plate_code,
+             COALESCE(p.nickname,'') AS plate_nickname,
+             p.format_code,
+             pf.n_rows, pf.n_cols,
+             p.created_at
+      FROM {T_PLATES} p
+      LEFT JOIN {T_FORMATS} pf ON pf.code = p.format_code
+      WHERE (:q = '' OR
+             p.plate_code ILIKE :ql OR
+             COALESCE(p.nickname,'') ILIKE :ql OR
+             COALESCE(p.format_code,'') ILIKE :ql)
+      ORDER BY p.created_at DESC NULLS LAST, p.plate_code
+      LIMIT 1000
+    """)
+    with engine().begin() as cx:
+        df = _safe(cx, sql, {"q": q or "", "ql": f"%{q or ''}%"})
+    for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
     return df
 
 def _layout_for_plate(plate_code: str) -> pd.DataFrame:
-    if not _exists_view(V_LAYOUT):
-        return pd.DataFrame(columns=["well_label","treated_clutch_code","orientation"])
+    """
+    NOTE: v_plate_layout exposes plate_nickname (NOT plate_name).
+    """
     sql = text(f"""
-      SELECT plate_code, plate_name, format_code, n_rows, n_cols,
-             row_idx, col_idx, row_letter, well_label,
-             treated_clutch_id, treated_clutch_code, orientation, created_at
+      SELECT
+        plate_code,
+        COALESCE(plate_nickname,'') AS plate_nickname,
+        format_code, n_rows, n_cols,
+        row_idx, col_idx, row_letter, well_label,
+        treated_clutch_id, treated_clutch_code,
+        orientation, created_at
       FROM {V_LAYOUT}
       WHERE plate_code = :p
       ORDER BY row_idx, col_idx
     """)
     with engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"p": plate_code})
-    for c in df.select_dtypes("object").columns:
+        df = _safe(cx, sql, {"p": plate_code})
+    for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
     return df
 
-def _plate_summary_from_layout(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return pd.DataFrame([{
-            "n_wells": 0, "n_filled": 0, "n_groups": 0,
-            "treated_groups": "", "orientation_mode": ""
-        }])
-    n_wells  = df.shape[0]
-    filled   = df.loc[df["treated_clutch_code"] != ""]
-    n_filled = filled.shape[0]
-    codes = filled["treated_clutch_code"].unique().tolist()
-    n_groups = len(codes)
-    treated_groups = ", ".join(codes)
-    orient_counts = df.loc[df["orientation"] != "", "orientation"].value_counts()
-    orientation_mode = orient_counts.index[0] if not orient_counts.empty else ""
-    return pd.DataFrame([{
-        "n_wells": n_wells,
-        "n_filled": n_filled,
-        "n_groups": n_groups,
-        "treated_groups": treated_groups,
-        "orientation_mode": orientation_mode
-    }])
-
-def _treated_clutch_details(plate_layout: pd.DataFrame) -> pd.DataFrame:
-    codes = plate_layout.loc[plate_layout["treated_clutch_code"] != "", "treated_clutch_code"] \
-                        .dropna().astype(str).unique().tolist()
-    if not codes:
-        return pd.DataFrame(columns=["treated_clutch_code","clutch_code","offspring_genotype","tx_to_genotype"])
-    if not _exists_view(V_TCLUTCH):
-        return pd.DataFrame({"treated_clutch_code": codes})
-    sql = text(f"""
-      SELECT treated_clutch_code,
-             clutch_code,
-             COALESCE(clutch_genotype_pretty,'')    AS offspring_genotype,
-             COALESCE(treatment_genotype_group,'')  AS tx_to_genotype
-      FROM {V_TCLUTCH}
-      WHERE treated_clutch_code = ANY(:codes)
-      ORDER BY treated_clutch_code
-    """)
-    with engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"codes": codes})
-    for c in df.select_dtypes("object").columns:
-        df[c] = df[c].astype("string").fillna("")
-    return df
-
-# ── filters (NO default day) ─────────────────────────────────────────────────
+# --- filters / picker ---------------------------------------------------------
 with st.form("filters"):
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c1:
-        use_day = st.checkbox("Filter by day", value=False)
-    with c2:
-        day = st.date_input("Day", value=None) if use_day else None
-    with c3:
-        q = st.text_input("Search (plate/format/group/genotype contains)", value="")
+    c1, c2 = st.columns([3, 1])
+    qtxt = c1.text_input("Search plates (code / nickname / format)", value="")
+    limit = int(c2.number_input("Limit", min_value=10, max_value=2000, value=500, step=50))
     st.form_submit_button("Apply", use_container_width=True)
 
-# ── load plates (header) ─────────────────────────────────────────────────────
-plates = _plates_for_day(day)
-
-if q.strip():
-    _q = q.strip().lower()
-    plates = plates[
-        plates["plate_code"].fillna("").str.lower().str.contains(_q) |
-        plates["format_code"].fillna("").str.lower().str.contains(_q) |
-        plates["plate_name"].fillna("").str.lower().str.contains(_q)
-    ]
-
+plates = _list_plates(qtxt)
 if plates.empty:
-    st.info("No plates found for this filter.")
-    st.stop()
+    st.info("No plates found."); st.stop()
 
-# Checkbox table of plates
+# Show/choose plates
+st.subheader("Plates")
 grid = plates.copy()
-grid.insert(0, "✓ Select", False)
-picker = st.data_editor(
+if "✓ Select" not in grid.columns:
+    grid.insert(0, "✓ Select", False)
+
+grid = st.data_editor(
     grid,
     hide_index=True,
     use_container_width=True,
     num_rows="fixed",
     column_config={
-        "✓ Select":  st.column_config.CheckboxColumn("✓", default=False),
-        "created_at": st.column_config.DatetimeColumn("created_at", format="YYYY-MM-DD HH:mm"),
+        "✓ Select":        st.column_config.CheckboxColumn("✓", default=False),
+        "plate_code":      st.column_config.TextColumn("plate_code", disabled=True),
+        "plate_nickname":  st.column_config.TextColumn("nickname", disabled=True),
+        "format_code":     st.column_config.TextColumn("format", disabled=True),
+        "n_rows":          st.column_config.NumberColumn("rows", disabled=True),
+        "n_cols":          st.column_config.NumberColumn("cols", disabled=True),
+        "created_at":      st.column_config.DatetimeColumn("created_at", disabled=True),
     },
-    key="overview_plates_pick_v2",
+    key="plates_overview_grid_v1",
 )
 
-sel_series = picker.get("✓ Select", pd.Series(False, index=picker.index)).fillna(False)
-selected = plates[sel_series].reset_index(drop=True)
+sel = grid.get("✓ Select", pd.Series(False, index=grid.index)).fillna(False).astype(bool)
+picked_codes = grid.loc[sel, "plate_code"].astype(str).tolist()
 
-st.divider()
-st.subheader("Selected plate(s)")
+if not picked_codes:
+    st.info("Select a plate above to view its layout."); st.stop()
 
-if selected.empty:
-    st.info("Select one or more plates above to view details.")
+# --- layout viewer ------------------------------------------------------------
+pcode = picked_codes[0]
+layout_df = _layout_for_plate(pcode)
+if layout_df.empty:
+    st.warning("No layout rows for this plate.")
     st.stop()
 
-for _, prow in selected.iterrows():
-    pcode = str(prow["plate_code"])
-    st.markdown(f"### Plate **{pcode}** — {prow['format_code']}")
+st.subheader(f"Layout — {pcode}")
+meta = layout_df.iloc[0]
+st.caption(f"{meta['plate_code']} • {meta['plate_nickname']} • {meta['format_code']} • {int(meta['n_rows'])}×{int(meta['n_cols'])}")
 
-    layout_df = _layout_for_plate(pcode)
-    if layout_df.empty:
-        st.info("No layout for this plate (unexpected).")
-        continue
+# Pretty layout (well, clutch, orientation)
+show_cols = ["well_label", "treated_clutch_code", "orientation", "row_idx", "col_idx"]
+st.dataframe(layout_df[show_cols], hide_index=True, use_container_width=True)
 
-    # summary + raw DB plate record
-    summary_df = _plate_summary_from_layout(layout_df)
-    plate_row  = _plate_record(pcode)
-
-    cA, cB = st.columns([1,1])
-    with cA:
-        st.markdown("**Plate summary**")
-        info = pd.DataFrame([{
-            "plate_name": str(prow.get("plate_name") or ""),
-            "format_code": str(prow.get("format_code") or ""),
-            "created_by": str(prow.get("created_by") or ""),
-            "created_at": prow.get("created_at"),
-        }])
-        st.dataframe(info, hide_index=True, use_container_width=True)
-
-        # NEW: show the raw plate DB row
-        if not plate_row.empty:
-            st.markdown("**Plate (DB row)**")
-            st.dataframe(plate_row, hide_index=True, use_container_width=True)
-
-    with cB:
-        st.markdown("**Fill / groups / orientation**")
-        st.dataframe(summary_df, hide_index=True, use_container_width=True)
-
-    # treated clutch details
-    tdf = _treated_clutch_details(layout_df)
-    st.markdown("**Treated clutch summary**")
-    if tdf.empty:
-        st.caption("No treated clutch context for this plate.")
-    else:
-        st.dataframe(tdf, hide_index=True, use_container_width=True)
-
-    # layout (wells)
-    st.markdown("**Plate layout (wells)**")
-    st.dataframe(layout_df[["well_label","treated_clutch_code","orientation"]],
-                 hide_index=True, use_container_width=True, height=260)
-
-    # CSV export
-    csv_df = layout_df[["plate_code","plate_name","format_code","well_label","treated_clutch_code","orientation"]].copy()
-    st.download_button(
-        "⬇︎ Download layout CSV",
-        data=csv_df.to_csv(index=False).encode("utf-8"),
-        file_name=f"{pcode}_layout.csv",
-        mime="text/csv",
-        type="secondary",
-        use_container_width=True
+# Optional: quick counts
+st.markdown("**Counts**")
+counts = (
+    layout_df.assign(
+        has_code=layout_df["treated_clutch_code"].ne(""),
+        has_ori=layout_df["orientation"].ne("")
     )
-
-    st.markdown("---")
+)
+st.write({
+    "wells_total": int(layout_df.shape[0]),
+    "wells_with_code": int(counts["has_code"].sum()),
+    "wells_with_orientation": int(counts["has_ori"].sum()),
+})
