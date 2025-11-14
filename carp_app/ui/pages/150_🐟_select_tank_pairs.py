@@ -296,24 +296,19 @@ def _tank_pair_code_requirements() -> dict:
     return {"exists": True, "nullable": bool(r["nullable"]), "has_default": bool(r["has_default"])}
 
 def _generate_tank_pair_code(cx, prefix: str = "TP-") -> str:
-    """
-    Generate the next tank_pair_code like 'TP-000001'.
-    Uses a table lock to avoid duplicate codes under concurrency.
-    """
     cx.execute(text("LOCK TABLE public.tank_pairs IN SHARE ROW EXCLUSIVE MODE"))
     maxn = pd.read_sql(
         text("""
           SELECT COALESCE(
-            MAX( (regexp_matches(tank_pair_code, '(\\d+)$'))[1]::int ),
+            MAX(substring(tank_pair_code FROM '(\\d+)$')::int),
             0
           ) AS maxn
           FROM public.tank_pairs
           WHERE tank_pair_code ~ '\\d+$'
         """),
-        cx
+        cx,
     ).iloc[0]["maxn"] or 0
     nextn = int(maxn) + 1
-    # 6 digits, adjust width if you prefer
     padded = f"{nextn:06d}"
     return f"{prefix}{padded}"
 

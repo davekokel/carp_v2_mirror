@@ -129,24 +129,50 @@ def _load_or_seed_layout(plate_code: str) -> pd.DataFrame:
     return df
 
 def _fetch_treated_groups(q: str, limit:int=500) -> pd.DataFrame:
+    """
+    Pull treated clutch groups from v_treated_clutches_overview,
+    with useful genotype + fusions rollups for picking.
+    """
     if not _exists_view(V_TCL_OV):
         return pd.DataFrame(columns=[
-            "treated_clutch_code","clutch_code","clutch_genotype_pretty",
-            "treatment_genotype_group","group_created_at"
+            "treated_clutch_code","clutch_code","offspring_genotype",
+            "mom_genotype","dad_genotype","mom_fusions","dad_fusions",
+            "tx_names","group_created_at",
         ])
+
     where = []; p = {}
     if q.strip():
         p["q"] = f"%{q.strip()}%"
         where.append("""
-          (treated_clutch_code ILIKE :q OR clutch_code ILIKE :q OR
-           COALESCE(clutch_genotype,'') ILIKE :q OR
-           COALESCE(treatments_names_group,'') ILIKE :q)""")
+          (
+            treated_clutch_code ILIKE :q OR
+            clutch_code         ILIKE :q OR
+            COALESCE(mom_genotype,'')   ILIKE :q OR
+            COALESCE(dad_genotype,'')   ILIKE :q OR
+            COALESCE(mom_fusions,'')    ILIKE :q OR
+            COALESCE(dad_fusions,'')    ILIKE :q OR
+            COALESCE(treatments_names_group,'') ILIKE :q
+          )
+        """)
     wsql = ("WHERE " + " AND ".join(where)) if where else ""
+
     sql = text(f"""
-      SELECT treated_clutch_code, clutch_code,
-             COALESCE(clutch_genotype,'') AS clutch_genotype,
-             COALESCE(treatments_names_group,'') AS treatments_names_group,
-             group_created_at
+      SELECT
+        treated_clutch_code,
+        clutch_code,
+        -- offspring genotype = mom × dad
+        TRIM(
+          BOTH ' × ' FROM (
+            COALESCE(NULLIF(mom_genotype,''), '?') || ' × ' ||
+            COALESCE(NULLIF(dad_genotype,''), '?')
+          )
+        ) AS offspring_genotype,
+        COALESCE(mom_genotype,'')        AS mom_genotype,
+        COALESCE(dad_genotype,'')        AS dad_genotype,
+        COALESCE(mom_fusions,'')         AS mom_fusions,
+        COALESCE(dad_fusions,'')         AS dad_fusions,
+        COALESCE(treatments_names_group,'') AS tx_names,
+        group_created_at
       FROM {V_TCL_OV}
       {wsql}
       ORDER BY group_created_at DESC NULLS LAST, treated_clutch_code
@@ -155,12 +181,14 @@ def _fetch_treated_groups(q: str, limit:int=500) -> pd.DataFrame:
     p["lim"] = int(limit)
     with engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=p)
-    df["clutch_genotype_pretty"] = df["clutch_genotype"].fillna("")
-    df["treatment_genotype_group"] = df["treatments_names_group"].fillna("")
+
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
-    return df[["treated_clutch_code","clutch_code","clutch_genotype_pretty",
-               "treatment_genotype_group","group_created_at"]]
+    return df[[
+        "treated_clutch_code","clutch_code","offspring_genotype",
+        "mom_genotype","dad_genotype","mom_fusions","dad_fusions",
+        "tx_names","group_created_at"
+    ]]
 
 def _csv_bytes(df: pd.DataFrame) -> bytes:
     buf = io.StringIO()
@@ -244,22 +272,32 @@ groups = _fetch_treated_groups(group_q, 500)
 sel_codes_key = _skey(plate_code,"sel_codes")
 persisted_codes: List[str] = st.session_state.get(sel_codes_key, [])
 picked_codes: List[str] = []
+
 if groups.empty:
-    st.info("No treated groups match your search."); 
+    st.info("No treated groups match your search.")
 else:
-    gdf = groups[["treated_clutch_code","clutch_code","clutch_genotype_pretty","treatment_genotype_group"]].copy()
+    gdf = groups.copy()
     gdf.insert(0,"✓", False)
     gsel = st.data_editor(
-        gdf, hide_index=True, use_container_width=True, num_rows="fixed", height=260,
+        gdf,
+        hide_index=True,
+        use_container_width=True,
+        num_rows="fixed",
+        height=260,
         column_config={
-            "✓": st.column_config.CheckboxColumn("✓", default=False),
+            "✓":                   st.column_config.CheckboxColumn("✓", default=False),
             "treated_clutch_code": st.column_config.TextColumn("treated_clutch_code", disabled=True),
-            "clutch_code": st.column_config.TextColumn("clutch_code", disabled=True),
-            "clutch_genotype_pretty": st.column_config.TextColumn("offspring genotype", disabled=True),
-            "treatment_genotype_group": st.column_config.TextColumn("tx (names)", disabled=True),
+            "clutch_code":         st.column_config.TextColumn("clutch_code", disabled=True),
+            "offspring_genotype":  st.column_config.TextColumn("offspring genotype", disabled=True),
+            "mom_genotype":        st.column_config.TextColumn("mom genotype", disabled=True),
+            "dad_genotype":        st.column_config.TextColumn("dad genotype", disabled=True),
+            "mom_fusions":         st.column_config.TextColumn("mom fusions", disabled=True),
+            "dad_fusions":         st.column_config.TextColumn("dad fusions", disabled=True),
+            "tx_names":            st.column_config.TextColumn("tx (names)", disabled=True),
         },
-        key="tclutch_picker_v4")
-    now_picked = gsel.loc[gsel["✓"]==True,"treated_clutch_code"].astype(str).tolist()
+        key="tclutch_picker_v4",
+    )
+    now_picked = gsel.loc[gsel["✓"] == True, "treated_clutch_code"].astype(str).tolist()
     picked_codes = now_picked if now_picked else persisted_codes
     st.session_state[sel_codes_key] = picked_codes
 

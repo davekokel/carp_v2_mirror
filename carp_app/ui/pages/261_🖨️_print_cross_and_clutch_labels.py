@@ -49,39 +49,27 @@ def _eng() -> Engine:
     return _engine()
 
 # ── utils ────────────────────────────────────────────────────────────────────
-def _safe_dob(cross_date) -> str:
-    dt = pd.to_datetime(cross_date, errors="coerce")
-    if pd.isna(dt): return ""
-    return (dt + pd.Timedelta(days=1)).date().isoformat()
-
 _BASE_ONLY_RE = re.compile(r"\b(?:p[A-Za-z]{2,}\d{2,}|[A-Z]{2,}-\d{1,})\b")
 
 def _bases_from_genotype(geno: str) -> List[str]:
-    if not geno: return []
+    if not geno:
+        return []
     return sorted(set(_BASE_ONLY_RE.findall(str(geno))))
-
-@st.cache_data(show_spinner=False)
-def _fusion_names_for_bases(bases: List[str]) -> str:
-    if not bases: return ""
-    sql = text("""
-      WITH b AS (SELECT unnest(:codes) AS base_code)
-      SELECT COALESCE(string_agg(DISTINCT f.fusion_name, ', ' ORDER BY f.fusion_name), '') AS fus
-      FROM b
-      JOIN public.plasmids p               ON p.code = b.base_code
-      LEFT JOIN public.join_plasmid_fusions jpf ON jpf.plasmid_id = p.id
-      LEFT JOIN public.fusions f                ON f.id = jpf.fusion_id
-    """).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
-    with _eng().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"codes": bases})
-    return (df["fus"].iloc[0] or "") if not df.empty else ""
 
 @st.cache_data(show_spinner=False)
 def _fluor_names_for_bases(bases: List[str]) -> str:
     """Fluor rollup from plasmid→fusions→fluors for a list of base plasmid codes."""
-    if not bases: return ""
+    if not bases:
+        return ""
     sql = text("""
       WITH b AS (SELECT unnest(:codes) AS base_code)
-      SELECT COALESCE(string_agg(DISTINCT COALESCE(fl.fluor_name, fl.fluor_code), ', ' ORDER BY COALESCE(fl.fluor_name, fl.fluor_code)), '') AS fls
+      SELECT COALESCE(
+               string_agg(
+                 DISTINCT COALESCE(fl.fluor_name, fl.fluor_code),
+                 ', ' ORDER BY COALESCE(fl.fluor_name, fl.fluor_code)
+               ),
+               ''
+             ) AS fls
       FROM b
       JOIN public.plasmids p               ON p.code = b.base_code
       LEFT JOIN public.join_plasmid_fusions jpf ON jpf.plasmid_id = p.id
@@ -94,27 +82,46 @@ def _fluor_names_for_bases(bases: List[str]) -> str:
 
 @st.cache_data(show_spinner=False)
 def _fluors_for_ft_codes(codes: List[str]) -> str:
-    """Fluor rollup from ft_proteins for a list of FT codes."""
-    if not codes: return ""
+    """
+    Fluor rollup for a list of codes.
+
+    We no longer depend on ft_proteins (which does not exist in this schema).
+    Instead, we treat any code that matches a fluor_code or fluor_name in public.fluors
+    as a fluor and ignore non-fluor codes (plasmids, RNAs, etc.).
+    """
+    if not codes:
+        return ""
     sql = text("""
-      SELECT COALESCE(string_agg(DISTINCT COALESCE(fl.fluor_name, fp.fluor_code), ', ' ORDER BY COALESCE(fl.fluor_name, fp.fluor_code)), '') AS flu
-      FROM public.ft_proteins fp
-      LEFT JOIN public.fluors fl ON fl.fluor_code = fp.fluor_code
-      WHERE fp.ft_code = ANY(:codes)
+      WITH c AS (
+        SELECT unnest(:codes) AS code
+      )
+      SELECT COALESCE(
+               string_agg(
+                 DISTINCT COALESCE(fl.fluor_name, fl.fluor_code),
+                 ', ' ORDER BY COALESCE(fl.fluor_name, fl.fluor_code)
+               ),
+               ''
+             ) AS flu
+      FROM c
+      JOIN public.fluors fl
+        ON fl.fluor_code = c.code
+        OR fl.fluor_name = c.code
     """).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": codes})
     return (df["flu"].iloc[0] or "") if not df.empty else ""
 
 def _split_tx_codes(s: str) -> List[str]:
-    if not s: return []
+    if not s:
+        return []
     parts = [p.strip() for p in re.split(r"\s*\+\s*", s) if p.strip()]
     return parts
 
 def _dedup_rollup(*parts: List[str]) -> str:
     toks: List[str] = []
     for s in parts:
-        if not s: continue
+        if not s:
+            continue
         toks.extend([t.strip() for t in str(s).split(",") if t.strip()])
     return ", ".join(sorted(set(toks), key=str.lower))
 
@@ -141,88 +148,127 @@ def _parent_cols() -> Tuple[str, str]:
 
 # ── loaders ──────────────────────────────────────────────────────────────────
 def _load_crosses(q: Optional[str], d_from: Optional[date], d_to: Optional[date], limit: int) -> pd.DataFrame:
+    """
+    Cross rows with mom/dad tanks + genotypes + fusions.
+    Uses v_fish_overview for genotype/fusions and tank_pairs + tanks + fish for parents.
+    """
     mom_col, dad_col = _parent_cols()
     sql = text(f"""
       WITH fm AS (
-        SELECT vm.fish_code,
-               MAX(vm.genotype_pretty) AS genotype_pretty
-        FROM public.v_fish_main vm
-        GROUP BY vm.fish_code
+        SELECT
+          v.fish_code_raw        AS fish_code,
+          MAX(v.genotype_pretty) AS genotype_pretty,
+          MAX(v.fusions)         AS fusions
+        FROM public.v_fish_overview v
+        GROUP BY v.fish_code_raw
       )
       SELECT
         cr.id::uuid::text         AS cross_id,
-        cr.cross_run_code         AS cross_code,
-        cr.cross_date             AS cross_date,
-        cr.tank_pair_code         AS tank_pair_code,
-        vtm.tank_code             AS mom_tank_code,
-        vtf.tank_code             AS dad_tank_code,
+        -- DISPLAY cross code: stored cross_run_code or TP@date
+        COALESCE(
+          cr.cross_run_code,
+          tp.tank_pair_code || ' @ ' || cr.created_at::date::text
+        )                         AS cross_code,
+        cr.created_at::date       AS cross_date,
+        tp.tank_pair_code         AS tank_pair_code,
+        tm.tank_code              AS mom_tank_code,
+        tf.tank_code              AS dad_tank_code,
         COALESCE(fm_m.genotype_pretty,'') AS mom_genotype,
-        COALESCE(fm_f.genotype_pretty,'') AS dad_genotype
+        COALESCE(fm_f.genotype_pretty,'') AS dad_genotype,
+        COALESCE(fm_m.fusions,'')         AS mom_fusions,
+        COALESCE(fm_f.fusions,'')         AS dad_fusions
       FROM public.crosses cr
-      LEFT JOIN public.tank_pairs tp ON tp.tank_pair_code = cr.tank_pair_code
-      LEFT JOIN public.v_tanks vtm   ON vtm.tank_uuid = tp.{mom_col}
-      LEFT JOIN public.v_tanks vtf   ON vtf.tank_uuid = tp.{dad_col}
-      LEFT JOIN fm fm_m              ON fm_m.fish_code = vtm.fish_code
-      LEFT JOIN fm fm_f              ON fm_f.fish_code = vtf.fish_code
-      WHERE (:d1 IS NULL OR cr.cross_date >= :d1)
-        AND (:d2 IS NULL OR cr.cross_date <= :d2)
+      LEFT JOIN public.tank_pairs tp  ON tp.id = cr.tank_pair_id
+
+      -- mother tank + fish
+      LEFT JOIN public.tanks tm       ON tm.id = tp.{mom_col}
+      LEFT JOIN public.fish  f_m      ON f_m.id = tm.fish_id
+      LEFT JOIN fm         fm_m       ON fm_m.fish_code = f_m.fish_code
+
+      -- father tank + fish
+      LEFT JOIN public.tanks tf       ON tf.id = tp.{dad_col}
+      LEFT JOIN public.fish  f_f      ON f_f.id = tf.fish_id
+      LEFT JOIN fm         fm_f       ON fm_f.fish_code = f_f.fish_code
+
+      WHERE (:d1 IS NULL OR cr.created_at::date >= :d1)
+        AND (:d2 IS NULL OR cr.created_at::date <= :d2)
         AND (
           :q IS NULL OR
-          cr.cross_run_code ILIKE :ql OR
-          cr.tank_pair_code ILIKE :ql OR
-          COALESCE(vtm.tank_code,'') ILIKE :ql OR
-          COALESCE(vtf.tank_code,'') ILIKE :ql OR
+          COALESCE(cr.cross_run_code, '') ILIKE :ql OR
+          tp.tank_pair_code ILIKE :ql OR
+          COALESCE(tm.tank_code,'') ILIKE :ql OR
+          COALESCE(tf.tank_code,'') ILIKE :ql OR
           COALESCE(fm_m.genotype_pretty,'') ILIKE :ql OR
           COALESCE(fm_f.genotype_pretty,'') ILIKE :ql
         )
-      ORDER BY cr.cross_date DESC NULLS LAST, cr.cross_run_code
+      ORDER BY cr.created_at DESC NULLS LAST, cr.cross_run_code
       LIMIT :lim
     """)
+
+    qnorm = (q or "").strip()
     params = {
-        "q": (q if (q or "").strip() else None),
-        "ql": f"%{(q or '').strip()}%",
+        "q":  (qnorm if qnorm else None),
+        "ql": f"%{qnorm}%",
         "d1": (str(d_from) if d_from else None),
         "d2": (str(d_to) if d_to else None),
         "lim": int(limit),
     }
+
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
+
     for c in df.select_dtypes("object").columns:
         df[c] = df[c].astype("string").fillna("")
+
     return df
 
 def _load_treated_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
-    """All treated-clutch groups whose clutches belong to any selected cross (with offspring genotype)."""
+    """All treated-clutch groups whose clutches belong to any selected cross (with clutch genotype)."""
     if not cross_ids:
         return pd.DataFrame(columns=[
-            "group_code","clutch_code","dob","treatments_codes","treatments_names","tx_genotype","offspring_genotype","cross_id","cross_code"
+            "group_code","clutch_code","dob",
+            "treatments_codes","treatments_names",
+            "tx_genotype","offspring_genotype",
+            "cross_id","cross_code",
         ])
+
     sql = text("""
-      WITH picked AS (SELECT unnest(:ids) ::uuid AS cross_id),
+      WITH picked AS (
+        SELECT unnest(:ids)::uuid AS cross_id
+      ),
       cl AS (
-        SELECT cl.cross_instance_id AS cross_id, cl.clutch_instance_code AS clutch_code
-        FROM public.clutch_instances cl
-        WHERE cl.cross_instance_id = ANY(SELECT cross_id FROM picked)
+        SELECT
+          ci.id                    AS clutch_instance_id,
+          ci.clutch_instance_code  AS clutch_code,
+          ci.clutch_date           AS clutch_date,
+          ci.cross_instance_id     AS cross_id
+        FROM public.clutch_instances ci
+        WHERE ci.cross_instance_id = ANY(SELECT cross_id FROM picked)
       )
       SELECT
         vt.treated_clutch_code         AS group_code,
         vt.clutch_code                 AS clutch_code,
-        vt.clutch_birthday             AS dob,
-        COALESCE(vt.treatments_codes_group,'')   AS treatments_codes,
-        COALESCE(vt.treatments_names_group,'')   AS treatments_names,
-        COALESCE(vt.treatment_genotype_group,'') AS tx_genotype,
-        COALESCE(vt.clutch_genotype_pretty,'')   AS offspring_genotype,
+        cl.clutch_date                 AS dob,
+        COALESCE(vt.treatments_codes_group,'') AS treatments_codes,
+        COALESCE(vt.treatments_names_group,'') AS treatments_names,
+        ''::text                                AS tx_genotype,        -- no tx genotype rollup yet
+        COALESCE(vt.clutch_genotype,'')        AS offspring_genotype,  -- plain clutch_genotype from view
         cr.id::uuid::text              AS cross_id,
         cr.cross_run_code              AS cross_code
       FROM cl
-      JOIN public.v_treated_clutches vt ON vt.clutch_code = cl.clutch_code
-      JOIN public.crosses cr           ON cr.id = cl.cross_id
+      JOIN public.v_treated_clutches_overview vt
+           ON vt.clutch_instance_id::uuid = cl.clutch_instance_id   -- cast text -> uuid
+      JOIN public.crosses cr
+           ON cr.id = cl.cross_id
       ORDER BY vt.group_created_at DESC NULLS LAST, vt.treated_clutch_code
     """).bindparams(bindparam("ids", type_=ARRAY(UUID())))
+
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"ids": cross_ids})
+
     for c in df.select_dtypes("object").columns:
         df[c] = df[c].astype("string").fillna("")
+
     return df
 
 # ── filters ──────────────────────────────────────────────────────────────────
@@ -230,7 +276,7 @@ with st.form("filters", clear_on_submit=False):
     c1, c2, c3 = st.columns([2,1,1])
     q = c1.text_input("Search crosses (code / TP / parent genotypes)", "")
     d_from = c2.date_input("From", value=None)
-    d_to   = c3.date_input("To",   value=None)
+    d_to   = c3.date_input("To", value=None)
     limit = int(st.number_input("Limit", min_value=10, max_value=3000, value=500, step=50))
     st.form_submit_button("Apply", use_container_width=True)
 
@@ -306,12 +352,13 @@ cx_row = chosen_crosses.iloc[idx].to_dict()
 
 # CROSS preview
 mom_g, dad_g = cx_row.get("mom_genotype",""), cx_row.get("dad_genotype","")
-fusion_cross = _fusion_names_for_bases(sorted(set(_bases_from_genotype(mom_g) + _bases_from_genotype(dad_g))))
+fusion_cross = _dedup_rollup(cx_row.get("mom_fusions",""), cx_row.get("dad_fusions",""))
 _vert_table(
     f"CROSS {cx_row.get('cross_code','')}",
     [
         ("Cross code",   cx_row.get("cross_code","")),
         ("Date",         str(cx_row.get("cross_date") or "")),
+        ("Tank pair",    cx_row.get("tank_pair_code","")),
         ("Mother tank",  cx_row.get("mom_tank_code","")),
         ("Father tank",  cx_row.get("dad_tank_code","")),
         ("Mom genotype", mom_g),
@@ -321,30 +368,34 @@ _vert_table(
 )
 
 # CLUTCH preview (rollups across selected treated groups tied to THIS cross)
-tc_for_cross = chosen_treated.loc[chosen_treated["cross_code"] == cx_row.get("cross_code")]
+tc_for_cross = (
+    chosen_treated.loc[chosen_treated["cross_id"] == cx_row.get("cross_id")]
+    if not chosen_treated.empty else pd.DataFrame()
+)
 if not tc_for_cross.empty:
-    # 1) Codes rollup = treatments codes; Genotype row already shown (tx_genotype)
+    # 1) Codes rollup = treatments codes
     all_codes: List[str] = []
     for s in tc_for_cross["treatments_codes"].astype(str).tolist():
         all_codes.extend(_split_tx_codes(s))
     codes_rollup = " + ".join(sorted(set([c for c in all_codes if c])))
 
-    # 2) Fluor rollup = union of FT-code fluors + fluors from offspring genotype bases
+    # 2) Fluor rollup = union of fluor codes from tx codes + offspring genotype bases
     flu_from_tx   = _fluors_for_ft_codes(sorted(set([c for c in all_codes if c])))
-    # offspring genotype may list plasmid bases; include those fluor signals too
     bases_offspring: List[str] = []
     for s in tc_for_cross["offspring_genotype"].astype(str).tolist():
         bases_offspring.extend(_bases_from_genotype(s))
     flu_from_offspring = _fluor_names_for_bases(sorted(set(bases_offspring)))
-
     flu_rollup = _dedup_rollup(flu_from_tx, flu_from_offspring)
 
     tr = tc_for_cross.iloc[0].to_dict()
+    clutch_label   = tr.get("clutch_code") or tr.get("group_code") or ""
+    clutch_geno    = tr.get("offspring_genotype","")
+
     _vert_table(
-        f"CLUTCH {tr.get('clutch_code','')}  •  GROUP(S) {', '.join(tc_for_cross['group_code'].tolist())}",
+        f"CLUTCH · GROUP(S) {', '.join(tc_for_cross['group_code'].tolist())}",
         [
-            ("Clutch",            tr.get("clutch_code","")),
-            ("Genotype",          tr.get("tx_genotype","")),
+            ("Clutch",            clutch_label),
+            ("Genotype",          clutch_geno),
             ("DOB",               str(tr.get("dob") or "")),
             ("Tx codes (rollup)", codes_rollup),
             ("Fluors (rollup)",   flu_rollup),
@@ -366,17 +417,13 @@ for r in chosen_crosses.to_dict(orient="records"):
         "father_tank_code":  r.get("dad_tank_code"),
         "mom_genotype":      r.get("mom_genotype"),
         "dad_genotype":      r.get("dad_genotype"),
-        "fusions":           _fusion_names_for_bases(sorted(set(_bases_from_genotype(r.get("mom_genotype","")) + _bases_from_genotype(r.get("dad_genotype",""))))),
-        "clutch_instance_code": "",
-        "clutch_name": ""
     })
 
-# Treated clutch groups → petri labels (per group rows to print)
+# Treated clutch groups → petri labels
 petri_rows: List[Dict] = []
 for r in chosen_treated.to_dict(orient="records"):
     tx_codes  = _split_tx_codes(r.get("treatments_codes",""))
     tx_fluors = _fluors_for_ft_codes(tx_codes)
-    # add offspring-plasmid-derived fluors too for completeness on printed label
     offspring_bases = _bases_from_genotype(r.get("offspring_genotype",""))
     offspring_flu   = _fluor_names_for_bases(offspring_bases)
     petri_rows.append({

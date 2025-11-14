@@ -63,7 +63,7 @@ def _view_exists(schema: str, name: str) -> bool:
 _HAS_V_RNA = _view_exists("public", "v_rna_plasmids")
 if not _view_exists("public", "v_clutches_overview"):
     st.error("public.v_clutches_overview is missing; please apply that migration first."); st.stop()
-if not _table_exists("public","clutch_instances"):
+if not _table_exists("public", "clutch_instances"):
     st.error("Required table public.clutch_instances not found."); st.stop()
 
 # ── Data loaders / utils ─────────────────────────────────────────────────────
@@ -71,22 +71,27 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
     """
     Pull clutches from v_clutches_overview, include clutch_instance_id for resolution,
     and roll up treatments via treated_clutches -> join_clutch_treatments -> treatments.treat_code.
+
+    We build display values for clutch_code / cross_name_pretty / genotype summary,
+    and carry through context fields for the detail pivot.
     """
     where, params = [], {}
     if not most_recent:
         where.append("v.clutch_created_at::date BETWEEN :d1 AND :d2")
         params.update({"d1": d_from, "d2": d_to})
     if created_by.strip():
+        # placeholder; you don't have created_by on clutches yet
         where.append("TRUE")
     if q.strip():
         params["q"] = f"%{q.strip()}%"
         where.append("""(
             COALESCE(v.clutch_code,'')     ILIKE :q OR
             COALESCE(v.cross_code,'')      ILIKE :q OR
-            COALESCE(v.clutch_genotype,'') ILIKE :q OR
             COALESCE(v.tank_pair_code,'')  ILIKE :q OR
             COALESCE(v.mom_fish_code,'')   ILIKE :q OR
-            COALESCE(v.dad_fish_code,'')   ILIKE :q
+            COALESCE(v.dad_fish_code,'')   ILIKE :q OR
+            COALESCE(v.mom_genotype,'')    ILIKE :q OR
+            COALESCE(v.dad_genotype,'')    ILIKE :q
         )""")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
@@ -94,16 +99,38 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
       WITH base AS (
         SELECT
           v.clutch_instance_id,
-          v.clutch_code,
+          -- fallback clutch code: use existing code or CI-<idprefix>
+          COALESCE(
+            v.clutch_code,
+            'CI-' || LEFT(v.clutch_instance_id::text, 8)
+          ) AS clutch_code,
           v.clutch_created_at,
-          v.cross_code,
-          v.clutch_genotype
+          v.clutch_date           AS clutch_birthday,
+          v.tank_pair_code,
+          v.mom_fish_code,
+          v.dad_fish_code,
+          v.mom_genotype,
+          v.dad_genotype,
+          v.mom_fusions,
+          v.dad_fusions,
+          -- pretty cross label: cross_code if set, else TP@date
+          COALESCE(
+            v.cross_code,
+            v.tank_pair_code || ' @ ' || COALESCE(v.cross_date::text, '')
+          ) AS cross_name_pretty,
+          -- pretty genotype summary from parents
+          TRIM(
+            BOTH ' × ' FROM (
+              COALESCE(NULLIF(v.mom_genotype,''), '?') || ' × ' ||
+              COALESCE(NULLIF(v.dad_genotype,''), '?')
+            )
+          ) AS clutch_genotype_pretty
         FROM {CLUTCHES_VIEW} v
         {where_sql}
         ORDER BY v.clutch_created_at DESC NULLS LAST, v.clutch_code
         LIMIT 1000
       ),
-      -- Distinct treatment codes per clutch, then aggregate with ORDER BY (no DISTINCT inside string_agg)
+      -- Distinct treatment codes per clutch, then aggregate with ORDER BY
       tx_codes AS (
         SELECT
           s.clutch_instance_id,
@@ -113,8 +140,10 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
             tc.clutch_instance_id,
             NULLIF(t.treat_code,'') AS code
           FROM public.treated_clutches tc
-          JOIN public.join_clutch_treatments j ON j.treated_clutch_id = tc.id
-          LEFT JOIN public.treatments t         ON t.id = j.treatment_id
+          JOIN public.join_clutch_treatments j
+               ON j.treated_clutch_id = tc.id
+          LEFT JOIN public.treatments t
+               ON t.id = j.treatment_id
           WHERE NULLIF(t.treat_code,'') IS NOT NULL
         ) s
         GROUP BY s.clutch_instance_id
@@ -124,21 +153,31 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
           tc.clutch_instance_id,
           COUNT(t.id)::int AS n_effective
         FROM public.treated_clutches tc
-        JOIN public.join_clutch_treatments j ON j.treated_clutch_id = tc.id
-        LEFT JOIN public.treatments t         ON t.id = j.treatment_id
+        JOIN public.join_clutch_treatments j
+             ON j.treated_clutch_id = tc.id
+        LEFT JOIN public.treatments t
+             ON t.id = j.treatment_id
         GROUP BY tc.clutch_instance_id
       )
       SELECT
         b.clutch_instance_id,
         b.clutch_code,
-        NULL::date                     AS clutch_birthday,          -- not carried
-        COALESCE(b.cross_code,'')      AS cross_name_pretty,        -- fallback
-        COALESCE(b.clutch_genotype,'') AS clutch_genotype_pretty,
+        b.clutch_birthday,
+        b.cross_name_pretty,
+        b.clutch_genotype_pretty,
         COALESCE(c.n_effective,0)      AS treatments_count_effective,
         COALESCE(x.codes,'')           AS clutch_treatments_codes,
         ''::text                       AS treatment_genotype,
         ''::text                       AS created_by_instance,
-        b.clutch_created_at            AS created_at_instance
+        b.clutch_created_at            AS created_at_instance,
+        -- context for pivot
+        b.tank_pair_code,
+        b.mom_fish_code,
+        b.dad_fish_code,
+        b.mom_genotype,
+        b.dad_genotype,
+        b.mom_fusions,
+        b.dad_fusions
       FROM base b
       LEFT JOIN tx_count c ON c.clutch_instance_id = b.clutch_instance_id
       LEFT JOIN tx_codes x ON x.clutch_instance_id = b.clutch_instance_id
@@ -146,14 +185,22 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
 
-    df["treatments_count_effective"] = pd.to_numeric(df["treatments_count_effective"], errors="coerce").fillna(0).astype(int)
+    df["treatments_count_effective"] = (
+        pd.to_numeric(df["treatments_count_effective"], errors="coerce")
+          .fillna(0)
+          .astype(int)
+    )
 
     ui_cols = [
         "clutch_instance_id",
-        "clutch_code","clutch_birthday","cross_name_pretty",
-        "clutch_genotype_pretty","treatments_count_effective",
-        "clutch_treatments_codes","treatment_genotype",
-        "created_by_instance","created_at_instance",
+        "clutch_code", "clutch_birthday", "cross_name_pretty",
+        "clutch_genotype_pretty", "treatments_count_effective",
+        "clutch_treatments_codes", "treatment_genotype",
+        "created_by_instance", "created_at_instance",
+        "tank_pair_code",
+        "mom_fish_code","dad_fish_code",
+        "mom_genotype","dad_genotype",
+        "mom_fusions","dad_fusions",
     ]
     for c in ui_cols:
         if c not in df.columns:
@@ -183,7 +230,7 @@ def _load_rnas(search: str) -> pd.DataFrame:
             """
             where = "WHERE COALESCE(code,'') ILIKE :q OR COALESCE(name,'') ILIKE :q OR COALESCE(nickname,'') ILIKE :q" if s else ""
             return pd.read_sql(text(q.format(where=where)), cx, params=({"q": f"%{s}%"} if s else {}))
-        # fallback: public.rnas (your schema shows rna_code, nickname, notes, created_at — no rna_name)
+        # fallback: public.rnas (rna_code, nickname, notes, created_at — no rna_name)
         if s:
             return pd.read_sql(text("""
               SELECT
@@ -243,7 +290,6 @@ def _load_crisprs(search: str) -> pd.DataFrame:
 def _load_instance_treatments(clutch_instance_id: str) -> pd.DataFrame:
     """
     List treatments linked to this clutch via treated_clutches → join_clutch_treatments → treatments.
-    Do not reference non-existent cols on join_clutch_treatments / treated_clutches.
     """
     with _eng().begin() as cx:
         sql = text("""
@@ -271,7 +317,6 @@ def _insert_instance_treatments(clutch_instance_id: str, treated_clutch_id: str,
     """
     For each selected item, ensure a row exists in public.treatments(kind_code, treat_code, treat_text, created_by),
     then link it via public.join_clutch_treatments(treated_clutch_id, treatment_id, created_at).
-    We do NOT write columns that don't exist on join_clutch_treatments.
     """
     inserted, errs = 0, []
     with _eng().begin() as cx:
@@ -323,43 +368,68 @@ def _insert_instance_treatments(clutch_instance_id: str, treated_clutch_id: str,
 # Auto-create a treated-clutch group on every save
 def _create_autogroup(ci_id: str, clutch_code: str, who: str) -> dict:
     """
-    Always return a new treated group for this clutch:
-    - Ensure baseline "<base>#0" exists
-    - Create "<base>#N" where N is max existing + 1
+    Create a NEW treated_clutches group for this clutch_instance_id.
+
+    Schema: treated_clutches has UNIQUE (clutch_instance_id, treated_clutch_code),
+    so multiple groups per clutch are allowed as long as codes differ.
+
+    Strategy:
+      - Use base like CI-<first8 of clutch_instance_id> if clutch_code is missing.
+      - Ensure "<base>#0" exists (baseline / untreated group).
+      - Create "<base>#N" where N = max existing suffix + 1.
     """
     base = clutch_code.strip() if clutch_code else f"CI-{ci_id[:8]}"
     with _eng().begin() as cx:
-        # ensure baseline #0 exists
+        # 1) Ensure baseline <base>#0 exists (idempotent, uses ON CONFLICT on (clutch_instance_id, treated_clutch_code))
         cx.execute(
             text("""
-              INSERT INTO public.treated_clutches (clutch_instance_id, treated_clutch_code)
-              VALUES (CAST(:cid AS uuid), :code)
+              INSERT INTO public.treated_clutches (clutch_instance_id, treated_clutch_code, created_at)
+              VALUES (CAST(:cid AS uuid), :code, now())
               ON CONFLICT (clutch_instance_id, treated_clutch_code) DO NOTHING
             """),
-            {"cid": ci_id, "code": f"{base}#0"}
+            {"cid": ci_id, "code": f"{base}#0"},
         )
 
-        # compute next suffix
+        # 2) Find next numeric suffix for this clutch/base
         max_n = pd.read_sql(
             text("""
-              SELECT COALESCE(MAX( (regexp_match(treated_clutch_code, '#(\\d+)$'))[1]::int ), 0) AS n
+              SELECT COALESCE(
+                       MAX( (regexp_match(treated_clutch_code, '#(\\d+)$'))[1]::int ),
+                       0
+                     ) AS n
               FROM public.treated_clutches
               WHERE clutch_instance_id = CAST(:cid AS uuid)
                 AND treated_clutch_code LIKE :prefix || '%'
             """),
-            cx, params={"cid": ci_id, "prefix": f"{base}#"}
+            cx, params={"cid": ci_id, "prefix": f"{base}#"},
         ).iloc[0]["n"]
 
         new_code = f"{base}#{int(max_n) + 1}"
 
+        # 3) Insert the new group row
         m = cx.execute(
             text("""
-              INSERT INTO public.treated_clutches (clutch_instance_id, treated_clutch_code)
-              VALUES (CAST(:cid AS uuid), :code)
+              INSERT INTO public.treated_clutches (clutch_instance_id, treated_clutch_code, created_at)
+              VALUES (CAST(:cid AS uuid), :code, now())
+              ON CONFLICT (clutch_instance_id, treated_clutch_code) DO NOTHING
               RETURNING id::text AS treated_clutch_id, treated_clutch_code
             """),
-            {"cid": ci_id, "code": new_code}
+            {"cid": ci_id, "code": new_code},
         ).mappings().first()
+
+        # If a race created the same code concurrently, fetch it
+        if not m:
+            m = cx.execute(
+                text("""
+                  SELECT id::text AS treated_clutch_id, treated_clutch_code
+                  FROM public.treated_clutches
+                  WHERE clutch_instance_id   = CAST(:cid AS uuid)
+                    AND treated_clutch_code = :code
+                  LIMIT 1
+                """),
+                {"cid": ci_id, "code": new_code},
+            ).mappings().first()
+
     return dict(m)
 
 # ── Filters + picker ─────────────────────────────────────────────────────────
@@ -393,7 +463,7 @@ picker = st.data_editor(
     num_rows="fixed",
     column_config={
         "✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False),
-        "clutch_birthday": st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
+        "clutch_birthday":     st.column_config.DateColumn("clutch_birthday", disabled=True, format="YYYY-MM-DD"),
         "created_at_instance": st.column_config.DatetimeColumn("created_at_instance", disabled=True),
         "treatments_count_effective": st.column_config.NumberColumn("treatments_count_effective", format="%d"),
     },
@@ -415,6 +485,40 @@ if not clutch_instance_id:
     st.error("Selected row is missing clutch_instance_id; cannot proceed."); st.stop()
 selected_clutch_code = str(row.get("clutch_code","") or "").strip()
 st.session_state["last_ci"] = selected_clutch_code
+
+# Clutch context pivot
+st.subheader("Selected clutch — context")
+
+def _pivot(title: str, rows: list[tuple[str, object]]):
+    dfp = pd.DataFrame(rows, columns=["Field", "Value"])
+    st.dataframe(dfp, hide_index=True, use_container_width=True)
+
+col_a, col_b, col_c = st.columns(3)
+
+with col_a:
+    _pivot("Clutch", [
+        ("Clutch instance id", clutch_instance_id),
+        ("Clutch code",        selected_clutch_code),
+        ("Clutch birthday",    row.get("clutch_birthday")),
+        ("Cross",              row.get("cross_name_pretty")),
+        ("Tank pair code",     row.get("tank_pair_code")),
+        ("# treatments",       row.get("treatments_count_effective")),
+        ("Treatment codes",    row.get("clutch_treatments_codes")),
+    ])
+
+with col_b:
+    _pivot("Mother", [
+        ("Fish code",   row.get("mom_fish_code")),
+        ("Genotype",    row.get("mom_genotype")),
+        ("Fusions",     row.get("mom_fusions")),
+    ])
+
+with col_c:
+    _pivot("Father", [
+        ("Fish code",   row.get("dad_fish_code")),
+        ("Genotype",    row.get("dad_genotype")),
+        ("Fusions",     row.get("dad_fusions")),
+    ])
 
 # For context (not required for save), get cross id
 with _eng().begin() as cx:

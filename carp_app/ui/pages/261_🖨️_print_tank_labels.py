@@ -1,8 +1,9 @@
 # carp_app/ui/pages/260_🖨️_print_tank_labels.py
 from __future__ import annotations
 
-import os, sys, pathlib, re
+import os, sys, pathlib
 from typing import List, Dict, Tuple
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text, bindparam
@@ -46,62 +47,46 @@ def _eng() -> Engine:
         st.error("DB_URL not set"); st.stop()
     return _engine()
 
-# ── genotype → fusions helpers ───────────────────────────────────────────────
-_BASE_ONLY_RE = re.compile(r"\b(?:p[A-Za-z]{2,}\d{2,}|[A-Z]{2,}-\d{1,})\b")
-
-def _bases_from_genotype(geno: str) -> List[str]:
-    if not geno:
-        return []
-    return sorted(set(_BASE_ONLY_RE.findall(str(geno))))
-
-@st.cache_data(show_spinner=False)
-def _fusion_names_for_bases(bases: List[str]) -> str:
-    if not bases:
-        return ""
-    sql = text("""
-      WITH b AS (SELECT unnest(:codes) AS base_code)
-      SELECT COALESCE(string_agg(DISTINCT f.fusion_name, ', ' ORDER BY f.fusion_name), '') AS fus
-      FROM b
-      JOIN public.plasmids p               ON p.code = b.base_code
-      LEFT JOIN public.join_plasmid_fusions jpf ON jpf.plasmid_id = p.id
-      LEFT JOIN public.fusions f                ON f.id = jpf.fusion_id
-    """).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
-    with _eng().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"codes": bases})
-    return (df["fus"].iloc[0] or "") if not df.empty else ""
-
 # ── data loaders ─────────────────────────────────────────────────────────────
 def _load_fish(q: str | None, limit: int) -> pd.DataFrame:
     """
-    Fish registry with nickname, DOB, background, stage, and collapsed genotype.
-    (One row per fish_code.)
+    Fish registry with nickname, DOB, background, stage, genotype, and fusions.
+    One row per fish_code, using v_fish_overview.
     """
     sql = text("""
       WITH vm AS (
-        SELECT vm.fish_code,
-               MAX(vm.genotype_pretty) AS genotype_pretty
-        FROM public.v_fish_main vm
-        GROUP BY vm.fish_code
+        SELECT
+          v.fish_code_raw        AS fish_code,
+          MAX(v.genotype_pretty) AS genotype_pretty,
+          MAX(v.fusions)         AS fusions
+        FROM public.v_fish_overview v
+        GROUP BY v.fish_code_raw
       )
       SELECT
-        f.fish_code::text                 AS fish_code,
-        COALESCE(f.nickname,'')          AS nickname,
-        f.dob                             AS dob,
+        f.fish_code::text                  AS fish_code,
+        COALESCE(f.nickname,'')           AS nickname,
+        f.birthday                         AS dob,
         COALESCE(f.genetic_background,'') AS genetic_background,
-        COALESCE(f.line_building_stage,'') AS line_building_stage,
-        COALESCE(vm.genotype_pretty,'')   AS genotype_pretty
+        COALESCE(f.in_breeding_stage,'')  AS line_building_stage,
+        COALESCE(vm.genotype_pretty,'')   AS genotype_pretty,
+        COALESCE(vm.fusions,'')           AS fusions
       FROM public.fish f
       LEFT JOIN vm ON vm.fish_code = f.fish_code
       WHERE (:q IS NULL)
          OR f.fish_code ILIKE :ql
-         OR COALESCE(f.nickname,'') ILIKE :ql
+         OR COALESCE(f.nickname,'')       ILIKE :ql
          OR COALESCE(f.genetic_background,'') ILIKE :ql
-         OR COALESCE(f.line_building_stage,'') ILIKE :ql
-         OR COALESCE(vm.genotype_pretty,'') ILIKE :ql
+         OR COALESCE(f.in_breeding_stage,'')  ILIKE :ql
+         OR COALESCE(vm.genotype_pretty,'')   ILIKE :ql
       ORDER BY f.created_at DESC NULLS LAST, f.fish_code
       LIMIT :lim
     """)
-    params = {"q": (q if (q or "").strip() else None), "ql": f"%{(q or '').strip()}%", "lim": int(limit)}
+    qnorm = (q or "").strip()
+    params = {
+        "q":  (qnorm if qnorm else None),
+        "ql": f"%{qnorm}%",
+        "lim": int(limit),
+    }
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
     for c in df.select_dtypes(include="object").columns:
@@ -111,28 +96,38 @@ def _load_fish(q: str | None, limit: int) -> pd.DataFrame:
 def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
     """
     Tanks for the selected fish, plus fish metadata to preview labels.
+    Uses v_tanks_overview + v_fish_overview.
     """
     if not fish_codes:
-        return pd.DataFrame(columns=["tank_code","fish_code","nickname","dob","genetic_background","line_building_stage","genotype_pretty"])
+        return pd.DataFrame(columns=[
+            "tank_code","fish_code","nickname","dob",
+            "genetic_background","line_building_stage","genotype_pretty","fusions",
+        ])
     sql = text("""
-      WITH picked AS (SELECT unnest(:codes) AS fish_code),
-           vm AS (
-             SELECT vm.fish_code, MAX(vm.genotype_pretty) AS genotype_pretty
-             FROM public.v_fish_main vm
-             GROUP BY vm.fish_code
-           )
+      WITH picked AS (
+        SELECT unnest(:codes) AS fish_code
+      ),
+      vm AS (
+        SELECT
+          v.fish_code_raw        AS fish_code,
+          MAX(v.genotype_pretty) AS genotype_pretty,
+          MAX(v.fusions)         AS fusions
+        FROM public.v_fish_overview v
+        GROUP BY v.fish_code_raw
+      )
       SELECT
-        vt.tank_code::text                    AS tank_code,
-        vt.fish_code::text                    AS fish_code,
-        COALESCE(f.nickname,'')               AS nickname,
-        f.dob                                  AS dob,
-        COALESCE(f.genetic_background,'')     AS genetic_background,
-        COALESCE(f.line_building_stage,'')    AS line_building_stage,
-        COALESCE(vm.genotype_pretty,'')       AS genotype_pretty
-      FROM public.v_tanks vt
+        vt.tank_code::text                AS tank_code,
+        vt.fish_code::text                AS fish_code,
+        COALESCE(f.nickname,'')           AS nickname,
+        f.birthday                         AS dob,
+        COALESCE(f.genetic_background,'') AS genetic_background,
+        COALESCE(f.in_breeding_stage,'')  AS line_building_stage,
+        COALESCE(vm.genotype_pretty,'')   AS genotype_pretty,
+        COALESCE(vm.fusions,'')           AS fusions
+      FROM public.v_tanks_overview vt
       JOIN picked p           ON p.fish_code = vt.fish_code
       LEFT JOIN public.fish f ON f.fish_code = vt.fish_code
-      LEFT JOIN vm            ON vm.fish_code = vt.fish_code
+      LEFT JOIN vm           ON vm.fish_code = vt.fish_code
       ORDER BY vt.created_at DESC NULLS LAST, vt.tank_code
     """).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
     with _eng().begin() as cx:
@@ -166,7 +161,7 @@ if f_sel_col not in fish_view.columns:
     fish_view.insert(0, f_sel_col, False)
 
 fish_picker = st.data_editor(
-    fish_view[[f_sel_col, "fish_code", "nickname", "genetic_background", "line_building_stage", "dob", "genotype_pretty"]],
+    fish_view[[f_sel_col, "fish_code", "nickname", "genetic_background", "line_building_stage", "dob", "genotype_pretty", "fusions"]],
     hide_index=True,
     use_container_width=True,
     column_config={
@@ -177,6 +172,7 @@ fish_picker = st.data_editor(
         "line_building_stage":   st.column_config.TextColumn("Stage", disabled=True),
         "dob":                   st.column_config.DateColumn("DOB", disabled=True),
         "genotype_pretty":       st.column_config.TextColumn("Genotype", disabled=True, width="large"),
+        "fusions":               st.column_config.TextColumn("Fusions", disabled=True),
     },
     key="fish_picker_editor_v2",
 )
@@ -202,15 +198,16 @@ if t_sel_col not in t_view.columns:
     t_view.insert(0, t_sel_col, False)
 
 tank_picker = st.data_editor(
-    t_view[[t_sel_col, "tank_code", "fish_code", "nickname", "genotype_pretty"]],
+    t_view[[t_sel_col, "tank_code", "nickname", "genotype_pretty", "fusions"]],
     hide_index=True,
     use_container_width=True,
     column_config={
         t_sel_col:               st.column_config.CheckboxColumn("✓", default=False),
         "tank_code":             st.column_config.TextColumn("Tank", disabled=True),
-        "fish_code":             st.column_config.TextColumn("Fish", disabled=True),
+        # fish_code is intentionally omitted from the picker and labels
         "nickname":              st.column_config.TextColumn("Nickname", disabled=True),
         "genotype_pretty":       st.column_config.TextColumn("Genotype", disabled=True, width="large"),
+        "fusions":               st.column_config.TextColumn("Fusions", disabled=True),
     },
     key="tank_picker_editor_v5",
 )
@@ -221,7 +218,7 @@ st.caption(f"Selected tanks: {len(chosen_tanks)}")
 if chosen_tanks.empty:
     st.stop()
 
-# ── Step 3 — label preview (vertical tables; add Fusions; paginate) ──────────
+# ── Step 3 — label preview (vertical tables) ─────────────────────────────────
 st.subheader("3) Label preview (vertical tables)")
 
 # pagination control — one tank preview per page
@@ -232,21 +229,16 @@ if n > 1:
 idx = int(page) - 1
 row = chosen_tanks.iloc[idx].to_dict()
 
-# compute fusions from genotype
-bases = _bases_from_genotype(row.get("genotype_pretty",""))
-fusions = _fusion_names_for_bases(bases)
-
 _vert_table(
     f"TANK {row.get('tank_code','')}",
     [
         ("Tank code",           row.get("tank_code","")),
-        ("Fish code",           row.get("fish_code","")),
         ("Nickname",            row.get("nickname","")),
         ("Genetic background",  row.get("genetic_background","")),
-        ("Line-building stage", row.get("line_building_stage","")),
+        ("Line-building stage", row.get("line_building_stage")),
         ("DOB",                 str(row.get("dob") or "")),
         ("Genotype",            row.get("genotype_pretty","")),
-        ("Fusions",             fusions),
+        ("Fusions",             row.get("fusions","")),
     ]
 )
 
@@ -257,13 +249,12 @@ label_rows: List[Dict] = []
 for r in chosen_tanks.to_dict(orient="records"):
     label_rows.append({
         "tank_code":           r.get("tank_code"),
-        "fish_code":           r.get("fish_code"),
         "nickname":            r.get("nickname") or "",
         "genetic_background":  r.get("genetic_background") or "",
         "line_building_stage": r.get("line_building_stage") or "",
         "dob":                 r.get("dob"),
         "genotype":            r.get("genotype_pretty") or "",
-        "fusions":             _fusion_names_for_bases(_bases_from_genotype(r.get("genotype_pretty",""))),
+        "fusions":             r.get("fusions") or "",
     })
 
 if HAVE_PRINT_HELPER:

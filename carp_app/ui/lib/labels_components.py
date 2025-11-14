@@ -252,14 +252,16 @@ def build_petri_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
 def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     """
     2.4\" × 1.5\"; paddings L/R/T/B = 10/10/8/8 pt; QR = 40 pt; gap = 6 pt.
-    Lines (top→bottom):
-      header_name (nickname if set, else name)  (Helvetica-Bold, 10.5)
-      alias / short code                        (Helvetica-Oblique, 9.0)      [NEW]
-      tank_display (e.g., TANK(FSH-…)#N)        (Helvetica-Bold, 11.0)        [NEW]
-      genotype (mono 9.2)
-      genetic_background (Helvetica 8.2)
-      stage    (Helvetica 8.2)
-      dob      (Helvetica 8.2)
+
+    We intentionally show FUSIONS ONLY as the construct line (no genotype):
+
+      line 1: header / label        (nickname or label)
+      line 2: nickname              (if different from header; otherwise blank)
+      line 3: tank_display          (e.g. TANK(FSH-…)#1)
+      line 4: fusions               (e.g. tdmstaygold)
+      line 5: genetic_background
+      line 6: stage
+      line 7: dob
     """
     canvas, stringWidth, inch, mm, TTFont, pdfmetrics = _rl_or_none()
     W = 2.4 * 72.0
@@ -269,24 +271,38 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     TOP_PAD_FRAC = 0.82
     MIN_FS = 7.0
 
+    # Fallback if ReportLab isn't available: basic one-up PDF using our generic renderer
     if canvas is None:
         pages: List[List[str]] = []
         for r in rows:
-            header_name = _safe(r.get("label"))
+            header_name = _safe(r.get("label") or r.get("nickname") or r.get("tank_code"))
             nick = _safe(r.get("nickname"))
+            tankdisp = _safe(r.get("tank_display") or r.get("tank_code"))
+            fusions  = _safe(r.get("fusions"))
+            backgrnd = _safe(r.get("genetic_background"))
+            stage    = _safe(r.get("stage") or r.get("line_building_stage"))
+            dob      = _safe(r.get("dob"))
+
             lines = [header_name]
-            if nick:
+            # only add a second line if nickname isn't already used as header
+            if nick and nick != header_name:
                 lines.append(nick)
             lines += [
-                _safe(r.get("tank_display") or r.get("tank_code")),
-                _safe(r.get("genotype")),
-                _safe(r.get("genetic_background")),
-                _safe(r.get("stage")),
-                _safe(r.get("dob")),
+                tankdisp,
+                fusions,
+                backgrnd,
+                stage,
+                dob,
             ]
             pages.append(lines)
-        return _labels_pdf_pages(pages, 2.4, 1.5, header_pt=11.0, body_pt=8.2, leading_pt=9.0)
 
+        return _labels_pdf_pages(
+            pages=pages,
+            width_in=2.4, height_in=1.5,
+            header_pt=11.0, body_pt=8.2, leading_pt=9.0,
+        )
+
+    # ReportLab path
     mono_font_name = "Helvetica"
     try:
         pdfmetrics.registerFont(TTFont("LabelMono", "/Library/Fonts/SourceCodePro-Regular.ttf"))
@@ -340,24 +356,23 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
 
         qr_x, qr_y = x0 + w - QR_SIZE, y0
 
-        name      = _safe(r.get("name"))
+        # Header / nickname / tank / fusions / background / stage / dob
+        header    = _safe(r.get("label") or r.get("nickname") or r.get("tank_code"))
         nickname  = _safe(r.get("nickname"))
-        header    = _safe(r.get("label"))
-        # alias is not used anymore
         tankdisp  = _safe(r.get("tank_display") or r.get("tank_code"))
-        genotype  = _safe(r.get("genotype"))
+        fusions   = _safe(r.get("fusions"))
         backgrnd  = _safe(r.get("genetic_background"))
-        stage     = _safe(r.get("stage"))
+        stage     = _safe(r.get("stage") or r.get("line_building_stage"))
         dob       = _safe(r.get("dob"))
 
         lines = [
-            ("Helvetica-Bold",    10.5, header,   text_w_full),   # line 1: label
-            ("Helvetica",         10.0, nickname, text_w_full),   # line 2: nickname (blank if none)
-            ("Helvetica-Bold",    11.0, tankdisp, text_w_full),
-            (mono_font_name,       9.2, genotype, text_w_full),
-            ("Helvetica",          8.2, backgrnd, text_w_qr),
-            ("Helvetica",          8.2, stage,    text_w_qr),
-            ("Helvetica",          8.2, dob,      text_w_qr),
+            ("Helvetica-Bold", 10.5, header,   text_w_full),   # line 1: header (nickname/label)
+            ("Helvetica",      10.0, nickname if nickname != header else "", text_w_full),  # line 2: nickname if distinct
+            ("Helvetica-Bold", 11.0, tankdisp, text_w_full),   # line 3: tank display
+            (mono_font_name,    9.2, fusions,  text_w_full),   # line 4: FUSIONS ONLY
+            ("Helvetica",       8.2, backgrnd, text_w_qr),     # line 5: background
+            ("Helvetica",       8.2, stage,    text_w_qr),     # line 6: stage
+            ("Helvetica",       8.2, dob,      text_w_qr),     # line 7: dob
         ]
 
         lane_h = h / len(lines)
@@ -366,7 +381,7 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
         for idx, (fn, fs, txt, max_w) in enumerate(lines):
             if not txt:
                 continue
-            fs_lane = min(fs, max(MIN_FS, lane_h - 1.0))
+            fs_lane = max(MIN_FS, min(fs, lane_h - 1.0))
             fs_use = fs_lane
             if fn.endswith("Bold") and txt:
                 while fs_use > MIN_FS and _sw(txt, fn, fs_use) > max_w:
@@ -375,7 +390,7 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
             c.setFont(fn, fs_use)
             c.drawString(x0, y, _ellipsize(txt, fn, fs_use, max_w))
 
-        payload = _safe(r.get("tank_code") or r.get("fish_code") or r.get("label"))
+        payload = _safe(r.get("tank_code") or r.get("label"))
         if payload:
             _draw_qr(payload, qr_x, qr_y, QR_SIZE)
 
