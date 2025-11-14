@@ -319,9 +319,11 @@ def _generate_tank_pair_code(cx, prefix: str = "TP-") -> str:
 
 def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, note: str):
     mom_col, dad_col = _tank_pair_parent_cols()
+
     with engine().begin() as cx:
         cols = set(_cols("public", "tank_pairs"))
 
+        # 1) Check if this pair already exists
         row = pd.read_sql(
             text(f"""
               SELECT id::text, tank_pair_code
@@ -329,37 +331,65 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
               WHERE {mom_col} = :m AND {dad_col} = :d
               LIMIT 1
             """),
-            cx, params={"m": mother_tank_id, "d": father_tank_id}
+            cx,
+            params={"m": mother_tank_id, "d": father_tank_id},
         )
+
         if not row.empty:
             sets = []
             params = {"id": row.iloc[0]["id"], "note": note, "by": created_by}
-            if "updated_at" in cols: sets.append("updated_at = now()")
-            if "note" in cols:       sets.append("note = COALESCE(NULLIF(:note,''), note)")
-            if "updated_by" in cols: sets.append("updated_by = COALESCE(NULLIF(:by,''), updated_by)")
+            if "updated_at" in cols:
+                sets.append("updated_at = now()")
+            if "note" in cols:
+                sets.append("note = COALESCE(NULLIF(:note,''), note)")
+            if "updated_by" in cols:
+                sets.append("updated_by = COALESCE(NULLIF(:by,''), updated_by)")
             if sets:
-                cx.execute(text(f"UPDATE public.tank_pairs SET {', '.join(sets)} WHERE id = :id::uuid"), params)
+                cx.execute(
+                    text(f"UPDATE public.tank_pairs SET {', '.join(sets)} WHERE id = :id::uuid"),
+                    params,
+                )
             return False, str(row.iloc[0]["tank_pair_code"])
 
+        # 2) Build INSERT for a new pair
         insert_cols = [mom_col, dad_col]
         placeholders = [":m", ":d"]
         params = {"m": mother_tank_id, "d": father_tank_id}
 
         if "created_by" in cols:
-            insert_cols.append("created_by"); placeholders.append(":by"); params["by"] = created_by
+            insert_cols.append("created_by")
+            placeholders.append(":by")
+            params["by"] = created_by
         if "note" in cols:
-            insert_cols.append("note");       placeholders.append(":note"); params["note"] = note
+            insert_cols.append("note")
+            placeholders.append(":note")
+            params["note"] = note
         if "status" in cols:
-            insert_cols.append("status");     placeholders.append(":st"); params["st"] = "selected"
+            insert_cols.append("status")
+            placeholders.append(":st")
+            params["st"] = "selected"
         if "created_at" in cols:
-            insert_cols.append("created_at"); placeholders.append("now()")
+            insert_cols.append("created_at")
+            placeholders.append("now()")
+
+        # 3) Ensure we satisfy NOT NULL on tank_pair_code
+        tp_code = None
+        req = _tank_pair_code_requirements()  # {"exists", "nullable", "has_default"}
+        if req["exists"] and (not req["nullable"]) and (not req["has_default"]):
+            tp_code = _generate_tank_pair_code(cx)
+            insert_cols.append("tank_pair_code")
+            placeholders.append(":tp_code")
+            params["tp_code"] = tp_code
 
         sql = text(f"""
           INSERT INTO public.tank_pairs({', '.join(insert_cols)})
           VALUES ({', '.join(placeholders)})
           RETURNING tank_pair_code
         """)
-        tp_code = cx.execute(sql, params).scalar()
+        tp_code_db = cx.execute(sql, params).scalar()
+        if tp_code is None:
+            tp_code = tp_code_db
+
         return True, str(tp_code)
 
 # ------------------ UI -------------------------------------------------------
