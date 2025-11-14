@@ -1,6 +1,32 @@
 BEGIN;
 
-CREATE OR REPLACE VIEW public.v_clutches_overview AS
+CREATE VIEW public.v_clutches_overview AS
+WITH genos AS (
+  SELECT
+    ceg.clutch_instance_id,
+    string_agg(
+      DISTINCT COALESCE(
+        ceg.allele_label,
+        ceg.transgene_base_code || '(' || ceg.allele_number::text || ')'
+      ),
+      ' / ' ORDER BY COALESCE(
+        ceg.allele_label,
+        ceg.transgene_base_code || '(' || ceg.allele_number::text || ')'
+      )
+    ) AS clutch_genotype,
+    string_agg(
+      DISTINCT COALESCE(
+        ceg.allele_label,
+        ceg.transgene_base_code || '(' || ceg.allele_number::text || ')'
+      ),
+      ', ' ORDER BY COALESCE(
+        ceg.allele_label,
+        ceg.transgene_base_code || '(' || ceg.allele_number::text || ')'
+      )
+    ) AS clutch_genotype_pretty
+  FROM public.clutch_expected_genotypes ceg
+  GROUP BY ceg.clutch_instance_id
+)
 SELECT
   -- 1–4: clutch basics
   ci.id                   AS clutch_id,
@@ -47,9 +73,9 @@ SELECT
   -- 31: clutch_instance_id
   ci.id                   AS clutch_instance_id,
 
-  -- 32–33: clutch genotype summary (raw + pretty)
-  ci.clutch_genotype      AS clutch_genotype,
-  ci.clutch_genotype      AS clutch_genotype_pretty
+  -- 32–33: clutch genotype from expected-genotypes join table
+  COALESCE(genos.clutch_genotype, '')        AS clutch_genotype,
+  COALESCE(genos.clutch_genotype_pretty, '') AS clutch_genotype_pretty
 
 FROM public.clutch_instances ci
 JOIN public.crosses       cr  ON cr.id = ci.cross_instance_id
@@ -59,6 +85,7 @@ LEFT JOIN public.fish     mf  ON mf.id = mt.fish_id
 LEFT JOIN public.tanks    dt  ON dt.id = tp.father_tank_id
 LEFT JOIN public.fish     df  ON df.id = dt.fish_id
 LEFT JOIN public.v_fish_overview mfo ON mfo.fish_code_raw = mf.fish_code
-LEFT JOIN public.v_fish_overview dfo ON dfo.fish_code_raw = df.fish_code;
+LEFT JOIN public.v_fish_overview dfo ON dfo.fish_code_raw = df.fish_code
+LEFT JOIN genos ON genos.clutch_instance_id = ci.id;
 
 COMMIT;
