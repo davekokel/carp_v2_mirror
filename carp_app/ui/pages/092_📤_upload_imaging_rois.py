@@ -60,14 +60,14 @@ required_cols: List[str] = [
     "zf_male_genotype",
     "additional_plasmids_injected",
     "additional_mrnas_injected",
+    "additonal_proteins_injected",
     "additonal_dye_and_chemicals",
+    "date_born",
+    "time_mounted",
+    "mounting_orientation",
+    "date_screened_initial_feedback",
+    "date_imaged",
     "data_location",
-    "female_plasmid_base_code",
-    "female_allele",
-    "male_plasmid_base_code",
-    "male_allele",
-    "additional_plasmids_plasmid_base_code",
-    "additional_mrnas_plasmid_base_code",
 ]
 
 
@@ -106,7 +106,6 @@ if uploaded_file is not None:
             st.stop()
 
         inserted = 0
-        updated = 0
 
         with engine().begin() as cx:
             insert_raw_sql = text(
@@ -127,7 +126,13 @@ if uploaded_file is not None:
                   zf_male_genotype,
                   additional_plasmids_injected,
                   additional_mrnas_injected,
+                  additonal_proteins_injected,
                   additonal_dye_and_chemicals,
+                  date_born,
+                  time_mounted,
+                  mounting_orientation,
+                  date_screened_initial_feedback,
+                  date_imaged,
                   data_location,
                   female_plasmid_base_code,
                   female_allele,
@@ -152,7 +157,13 @@ if uploaded_file is not None:
                   :zf_male_genotype,
                   :additional_plasmids_injected,
                   :additional_mrnas_injected,
+                  :additonal_proteins_injected,
                   :additonal_dye_and_chemicals,
+                  :date_born,
+                  :time_mounted,
+                  :mounting_orientation,
+                  :date_screened_initial_feedback,
+                  :date_imaged,
                   :data_location,
                   :female_plasmid_base_code,
                   :female_allele,
@@ -180,7 +191,12 @@ if uploaded_file is not None:
                   mount_row_index_scored,
                   mount_id,
                   date_experiment,
-                  date_mount
+                  date_mount,
+                  date_born,
+                  time_mounted,
+                  mounting_orientation,
+                  date_screened_initial_feedback,
+                  date_imaged
                 )
                 VALUES (
                   :raw_id,
@@ -195,7 +211,12 @@ if uploaded_file is not None:
                   :mount_row_index_scored,
                   :mount_id,
                   :date_experiment,
-                  :date_mount
+                  :date_mount,
+                  :date_born,
+                  :time_mounted,
+                  :mounting_orientation,
+                  :date_screened_initial_feedback,
+                  :date_imaged
                 )
                 ON CONFLICT (fish_label, roi_index, dataset)
                 DO UPDATE SET
@@ -207,7 +228,12 @@ if uploaded_file is not None:
                   mount_row_index_scored = EXCLUDED.mount_row_index_scored,
                   mount_id = EXCLUDED.mount_id,
                   date_experiment = EXCLUDED.date_experiment,
-                  date_mount = EXCLUDED.date_mount
+                  date_mount = EXCLUDED.date_mount,
+                  date_born = EXCLUDED.date_born,
+                  time_mounted = EXCLUDED.time_mounted,
+                  mounting_orientation = EXCLUDED.mounting_orientation,
+                  date_screened_initial_feedback = EXCLUDED.date_screened_initial_feedback,
+                  date_imaged = EXCLUDED.date_imaged
                 """
             )
 
@@ -228,7 +254,13 @@ if uploaded_file is not None:
                     "zf_male_genotype": row.get("zf_male_genotype"),
                     "additional_plasmids_injected": row.get("additional_plasmids_injected"),
                     "additional_mrnas_injected": row.get("additional_mrnas_injected"),
+                    "additonal_proteins_injected": row.get("additonal_proteins_injected"),
                     "additonal_dye_and_chemicals": row.get("additonal_dye_and_chemicals"),
+                    "date_born": row.get("date_born"),
+                    "time_mounted": row.get("time_mounted"),
+                    "mounting_orientation": row.get("mounting_orientation"),
+                    "date_screened_initial_feedback": row.get("date_screened_initial_feedback"),
+                    "date_imaged": row.get("date_imaged"),
                     "data_location": row.get("data_location"),
                     "female_plasmid_base_code": row.get("female_plasmid_base_code"),
                     "female_allele": row.get("female_allele"),
@@ -258,6 +290,11 @@ if uploaded_file is not None:
                     "mount_id": row.get("mount_id"),
                     "date_experiment": row.get("date_experiment"),
                     "date_mount": row.get("date_mount"),
+                    "date_born": row.get("date_born"),
+                    "time_mounted": row.get("time_mounted"),
+                    "mounting_orientation": row.get("mounting_orientation"),
+                    "date_screened_initial_feedback": row.get("date_screened_initial_feedback"),
+                    "date_imaged": row.get("date_imaged"),
                 }
 
                 result = cx.execute(upsert_roi_sql, params_roi)

@@ -7,7 +7,6 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 
-# ---- path/bootstrap ---------------------------------------------------------
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -35,7 +34,7 @@ require_app_unlock()
 
 st.title("📷 Overview imaging ROIs")
 
-# ---- dataset / experiment summary (still from imaging_rois) -----------------
+# ---- dataset / experiment summary base data ---------------------------------
 try:
     with engine().begin() as cx:
         ds_rows = cx.execute(
@@ -61,9 +60,6 @@ if not ds_rows:
     st.stop()
 
 ds_df = pd.DataFrame(ds_rows)
-
-st.subheader("Dataset / experiment summary")
-st.dataframe(ds_df, use_container_width=True)
 
 # ---- sidebar filters --------------------------------------------------------
 st.sidebar.header("Filters")
@@ -114,6 +110,61 @@ if roi_search.strip():
 
 where_sql = " AND ".join(where_clauses)
 
+# ---- summary: grouped by treatment_codes > genotype_codes -------------------
+summary_sql = f"""
+SELECT
+  COALESCE(ir.treatments_codes_group, '')          AS treatments_codes_group,
+  COALESCE(ir.genotype_codes_group, '')            AS genotype_codes_group,
+  COALESCE(ir.treatment_vs_genotype_codes, '')     AS treatment_vs_genotype_codes,
+  COALESCE(ir.treatments_fusions_group, '')        AS treatments_fusions_group,
+  COALESCE(ir.genotype_fusions_group, '')          AS genotype_fusions_group,
+  COALESCE(ir.treatment_vs_genotype_fusions, '')   AS treatment_vs_genotype_fusions,
+  count(*) AS n_rois
+FROM public.v_roi_overview ir
+WHERE {where_sql}
+GROUP BY
+  COALESCE(ir.treatments_codes_group, ''),
+  COALESCE(ir.genotype_codes_group, ''),
+  COALESCE(ir.treatment_vs_genotype_codes, ''),
+  COALESCE(ir.treatments_fusions_group, ''),
+  COALESCE(ir.genotype_fusions_group, ''),
+  COALESCE(ir.treatment_vs_genotype_fusions, '')
+ORDER BY n_rois DESC, treatment_vs_genotype_codes;
+"""
+
+summary_params = {k: v for k, v in params.items() if k != "limit"}
+
+try:
+    with engine().begin() as cx:
+        summary_rows = cx.execute(text(summary_sql), summary_params).mappings().all()
+except Exception as e:
+    st.error("Error building treatment/genotype summary from v_roi_overview")
+    st.exception(e)
+    st.stop()
+
+st.subheader("Treatment vs genotype summary")
+
+summary_df = pd.DataFrame(summary_rows)
+if not summary_df.empty:
+    summary_cols = [
+        "treatments_codes_group",
+        "genotype_codes_group",
+        "treatment_vs_genotype_codes",
+        "treatments_fusions_group",
+        "genotype_fusions_group",
+        "treatment_vs_genotype_fusions",
+        "n_rois",
+    ]
+    existing_summary = [c for c in summary_cols if c in summary_df.columns]
+    summary_df = summary_df[existing_summary]
+    st.dataframe(summary_df, width="stretch")
+else:
+    st.info("No summary rows matched the current filters.")
+
+# ---- dataset / experiment summary -------------------------------------------
+st.subheader("Dataset / experiment summary")
+st.dataframe(ds_df, width="stretch")
+
 # ---- main query from v_roi_overview -----------------------------------------
 query_sql = f"""
 SELECT
@@ -121,29 +172,43 @@ SELECT
   ir.dataset,
   ir.experiment_name,
   ir.fish_label,
-  ir.fish_id,
   ir.roi_index,
   ir.roi_name,
   ir.roi_dir,
-  ir.data_location,
-  ir.mount_row_index_scored,
-  ir.mount_id,
-  ir.date_experiment,
-  ir.date_mount,
+
+  ir.date_mount                               AS legacy_date_mount,
+  ir.mount_id                                 AS legacy_mount_id,
+  r.zf_female_genotype                        AS legacy_zf_female_genotype,
+  r.zf_male_genotype                          AS legacy_zf_male_genotype,
+  r.additional_plasmids_injected              AS legacy_additional_plasmids_injected,
+  r.additional_mrnas_injected                 AS legacy_additional_mrnas_injected,
+  r.additonal_proteins_injected               AS legacy_additonal_proteins_injected,
+  r.additonal_dye_and_chemicals               AS legacy_additonal_dye_and_chemicals,
+  ir.date_born                                AS legacy_date_born,
+  ir.time_mounted                             AS legacy_time_mounted,
+  ir.mounting_orientation                     AS legacy_mounting_orientation,
+  ir.date_screened_initial_feedback           AS legacy_date_screened_initial_feedback,
+  ir.date_imaged                              AS legacy_date_imaged,
+  ir.data_location                            AS legacy_data_location,
+
+  ir.legacy_pair_code,
+  ir.legacy_clutch_code,
 
   ir.inj_plasmid_base_code,
-  ir.inj_plasmid_name,
   ir.inj_rna_base_code,
-  ir.inj_rna_name,
-  ir.inj_dye_base_code,
-  ir.inj_dye_name,
 
-  ir.genotype_codes_group,
-  ir.allele_names_rollup,
   ir.treatments_codes_group,
-  ir.treatments_names_group
+  ir.genotype_codes_group,
+  ir.treatment_vs_genotype_codes,
+  ir.treatments_fusions_group,
+  ir.genotype_fusions_group,
+  ir.treatment_vs_genotype_fusions,
+
+  ir.date_experiment
 
 FROM public.v_roi_overview ir
+JOIN raw.imaging_rois_raw r
+  ON r.id = ir.raw_id
 WHERE {where_sql}
 ORDER BY ir.dataset, ir.experiment_name, ir.fish_label, ir.roi_index
 LIMIT :limit
@@ -157,7 +222,7 @@ except Exception as e:
     st.exception(e)
     st.stop()
 
-# ---- main table -------------------------------------------------------------
+# ---- main table + download --------------------------------------------------
 st.subheader("ROIs")
 
 if not rows:
@@ -165,39 +230,59 @@ if not rows:
 else:
     df = pd.DataFrame(rows)
 
-    # Nice column order for visual sanity checking
     preferred_cols = [
+        # 14 legacy fields first, in the requested order
+        "legacy_date_mount",
+        "legacy_mount_id",
+        "legacy_zf_female_genotype",
+        "legacy_zf_male_genotype",
+        "legacy_additional_plasmids_injected",
+        "legacy_additional_mrnas_injected",
+        "legacy_additonal_proteins_injected",
+        "legacy_additonal_dye_and_chemicals",
+        "legacy_date_born",
+        "legacy_time_mounted",
+        "legacy_mounting_orientation",
+        "legacy_date_screened_initial_feedback",
+        "legacy_date_imaged",
+        "legacy_data_location",
+        # core identity
         "dataset",
         "experiment_name",
         "fish_label",
-        "fish_id",
         "roi_index",
         "roi_name",
-        "roi_dir",
-        "data_location",
-        "mount_row_index_scored",
-        "mount_id",
-        "date_experiment",
-        "date_mount",
+        # legacy pair/clutch + codes/fusions
+        "legacy_pair_code",
+        "legacy_clutch_code",
         "inj_plasmid_base_code",
-        "inj_plasmid_name",
         "inj_rna_base_code",
-        "inj_rna_name",
-        "inj_dye_base_code",
-        "inj_dye_name",
-        "genotype_codes_group",
-        "allele_names_rollup",
         "treatments_codes_group",
-        "treatments_names_group",
+        "genotype_codes_group",
+        "treatment_vs_genotype_codes",
+        "treatments_fusions_group",
+        "genotype_fusions_group",
+        "treatment_vs_genotype_fusions",
+        # misc
+        "roi_dir",
+        "date_experiment",
         "id",
     ]
-    existing_cols = [c for c in preferred_cols if c in df.columns]
-    df = df[existing_cols]
+    existing = [c for c in preferred_cols if c in df.columns]
+    df = df[existing]
 
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width="stretch")
+
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download filtered ROIs as CSV",
+        data=csv_bytes,
+        file_name="roi_overview_filtered.csv",
+        mime="text/csv",
+    )
 
     st.caption(
-        "Showing up to "
-        f"{len(df) if len(df) < limit else limit} rows "
+        "Showing "
+        f"{len(df)} rows (limit {limit}) "
         "from v_roi_overview with the current filters."
     )
