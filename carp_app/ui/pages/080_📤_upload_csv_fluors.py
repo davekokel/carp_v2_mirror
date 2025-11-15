@@ -1,15 +1,13 @@
 # carp_app/ui/pages/008_📤_upload_csv_fluors.py
 from __future__ import annotations
 
-import io, re, pathlib, sys, math
-from typing import Any, Dict, List, Optional
+import io, pathlib, sys
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
-from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-# ── bootstrap ────────────────────────────────────────────────────────────────
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -23,7 +21,13 @@ try:
 except Exception:
     def require_app_unlock(): ...
 
-# ── Auth / page ──────────────────────────────────────────────────────────────
+from carp_app.ui.lib.csv_loaders_fluors import (
+    load_fluors_from_df,
+    normalize_fluor_table,
+    build_fluor_rows,
+)
+
+# ── Auth / page ──────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
@@ -37,7 +41,6 @@ st.caption(
     "Aliases are normalized into the global **join_aliases** table (target_kind='fluor')."
 )
 
-# ── Engine ───────────────────────────────────────────────────────────────────
 _ENGINE: Optional[Engine] = None
 def _eng() -> Engine:
     global _ENGINE
@@ -45,45 +48,32 @@ def _eng() -> Engine:
         _ENGINE = get_engine()
     return _ENGINE
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
-def _is_blank(x: Any) -> bool:
-    if x is None: return True
-    if isinstance(x, float) and math.isnan(x): return True
-    s = str(x).strip().lower()
-    return s in {"", "nan", "none", "null"}
-
-def _to_smallint_or_none(v):
-    if v is None: return None
-    if isinstance(v, float) and math.isnan(v): return None
-    s = str(v).strip().lower()
-    if s in {"", "nan", "none", "null"}: return None
-    try:
-        iv = int(float(s))
-    except Exception:
-        return None
-    return None if iv == 0 else iv
-
-def _slug(s: Optional[str]) -> Optional[str]:
-    if not s:
-        return None
-    return re.sub(r"[^a-z0-9]+","-", str(s).strip().lower()).strip("-") or None
-
-def _split_alts(x: Any) -> List[str]:
-    if _is_blank(x): return []
-    parts = [p.strip() for p in re.split(r"[;,|/]", str(x)) if p.strip()]
-    seen, out = set(), []
-    for p in parts:
-        k = p.lower()
-        if k in seen: continue
-        seen.add(k); out.append(p)
-    return out
-
 def _example_csv() -> bytes:
-    df = pd.DataFrame([
-        {"fluor_name":"mStayGold","excitation_nm":506,"emission_nm":550,"alt_names":"mSG; tdmStayGold","notes":"example"},
-        {"fluor_name":"mChilada","excitation_nm":587,"emission_nm":610,"alt_names":"","notes":""},
-        {"fluor_name":"Halo","excitation_nm":"","emission_nm":"","alt_names":"HaloTag; HT7; HaloTag7","notes":"Self-labeling tag; fluoresces with JF dyes"},
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "fluor_name": "mStayGold",
+                "excitation_nm": 506,
+                "emission_nm": 550,
+                "alt_names": "mSG; tdmStayGold",
+                "notes": "example",
+            },
+            {
+                "fluor_name": "mChilada",
+                "excitation_nm": 587,
+                "emission_nm": 610,
+                "alt_names": "",
+                "notes": "",
+            },
+            {
+                "fluor_name": "Halo",
+                "excitation_nm": "",
+                "emission_nm": "",
+                "alt_names": "HaloTag; HT7; HaloTag7",
+                "notes": "Self-labeling tag; fluoresces with JF dyes",
+            },
+        ]
+    )
     return df.to_csv(index=False).encode("utf-8")
 
 st.download_button(
@@ -94,148 +84,57 @@ st.download_button(
     use_container_width=True,
 )
 
-# ── Upload file ──────────────────────────────────────────────────────────────
-uploaded = st.file_uploader("Upload fluors file (.csv or .xlsx)", type=["csv","xlsx"])
+# ── Upload file ──────────────────────────────────────────────────────
+uploaded = st.file_uploader("Upload fluors file (.csv or .xlsx)", type=["csv", "xlsx"])
 if not uploaded:
-    st.info("Choose a CSV/XLSX to begin."); st.stop()
+    st.info("Choose a CSV/XLSX to begin.")
+    st.stop()
 
 try:
     raw = io.BytesIO(uploaded.getbuffer())
     if uploaded.name.lower().endswith(".xlsx"):
-        df = pd.read_excel(raw, sheet_name=0, dtype=object)
+        df_raw = pd.read_excel(raw, sheet_name=0, dtype=object)
     else:
         try:
-            df = pd.read_csv(raw, dtype=object, encoding="utf-8")
+            df_raw = pd.read_csv(raw, dtype=object, encoding="utf-8")
         except UnicodeDecodeError:
             raw.seek(0)
-            df = pd.read_csv(raw, dtype=object, encoding="latin1")
+            df_raw = pd.read_csv(raw, dtype=object, encoding="latin1")
 except Exception as e:
-    st.error(f"Failed to read file: {e}"); st.stop()
+    st.error(f"Failed to read file: {e}")
+    st.stop()
 
-df = df.copy()
-df.columns = [str(c).strip().lower() for c in df.columns]
+try:
+    out, soft_warn = normalize_fluor_table(df_raw)
+except Exception as e:
+    st.error(str(e))
+    st.stop()
 
-# Map incoming headers -> canonical
-aliases: Dict[str, List[str]] = {
-    "fluor_name":    ["fluor_name","fluor_nickname","fluor","name","nickname"],
-    "excitation_nm": ["excitation_nm","ex_nm","exc","excitation"],
-    "emission_nm":   ["emission_nm","em_nm","emi","emission"],
-    "alt_names":     ["alt_names","aliases","aka","alts"],
-    "notes":         ["notes","note","description","desc"],
-}
-def pick(col: str) -> Optional[str]:
-    for c in aliases[col]:
-        if c in df.columns:
-            return c
-    return None
-
-col_nm = pick("fluor_name")
-col_ex = pick("excitation_nm")
-col_em = pick("emission_nm")
-col_al = pick("alt_names")
-col_nt = pick("notes")
-
-if not col_nm:
-    st.error("Missing required column: `fluor_name` (or `fluor_nickname`)."); st.stop()
-
-# Build normalized frame
-out = pd.DataFrame({
-    "fluor_name": df[col_nm].map(lambda v: None if _is_blank(v) else str(v).strip()),
-    "excitation_nm": df[col_ex] if col_ex else None,
-    "emission_nm":   df[col_em] if col_em else None,
-    "alt_names":     df[col_al] if col_al else "",
-    "notes":         df[col_nt] if col_nt else "",
-})
-
-out["excitation_nm"] = out["excitation_nm"].map(_to_smallint_or_none)
-out["emission_nm"]   = out["emission_nm"].map(_to_smallint_or_none)
-out = out.astype({"excitation_nm": "object", "emission_nm": "object"})
-out["fluor_code"]    = out["fluor_name"].map(_slug)
-
-# Soft QA (never blocking)
-soft_warn = []
-unusual = out[
-    (~out["excitation_nm"].isna() & ~out["excitation_nm"].between(250, 900)) |
-    (~out["emission_nm"].isna()   & ~out["emission_nm"].between(250, 900))
-]
-if not unusual.empty:
-    soft_warn.append(f"{len(unusual)} row(s) have wavelengths outside 250–900 nm (accepted).")
+rows = build_fluor_rows(out)
+if not rows:
+    st.info("Nothing to insert.")
+    st.stop()
 
 # Preview
 st.subheader("Preview")
 st.dataframe(
-    out[["fluor_name","excitation_nm","emission_nm","alt_names","notes","fluor_code"]].head(30),
-    use_container_width=True, hide_index=True
+    out[["fluor_name", "excitation_nm", "emission_nm", "alt_names", "notes", "fluor_code"]].head(
+        30
+    ),
+    use_container_width=True,
+    hide_index=True,
 )
 st.caption(f"{len(out)} rows")
 for w in soft_warn:
     st.info(w)
 
-# Build rows for upsert
-rows: List[Dict[str, Any]] = []
-for r in out.itertuples(index=False):
-    if not r.fluor_name or not r.fluor_code:
-        continue
-    ex = None if pd.isna(r.excitation_nm) else int(r.excitation_nm)
-    em = None if pd.isna(r.emission_nm)   else int(r.emission_nm)
-    rows.append({
-        "code":  r.fluor_code,
-        "name":  r.fluor_name,
-        "ex":    ex,
-        "em":    em,
-        "alts":  _split_alts(r.alt_names) if isinstance(r.alt_names, str) else None,
-        "notes": (r.notes if isinstance(r.notes, str) and r.notes.strip() else None),
-    })
-
-if not rows:
-    st.info("Nothing to insert."); st.stop()
-
 if not st.button("Process upload", type="primary", use_container_width=True):
     st.stop()
 
-# ── Upsert + alias writes (global join_aliases) ──────────────────────────────
 created = 0
 updated = 0
-
-stmt = text("""
-    INSERT INTO public.fluors (fluor_code, fluor_name, excitation_nm, emission_nm, alt_names, notes)
-    VALUES (:code, :name, :ex, :em, :alts, :notes)
-    ON CONFLICT (fluor_code) DO UPDATE
-    SET  fluor_name    = EXCLUDED.fluor_name,
-         excitation_nm = COALESCE(EXCLUDED.excitation_nm, public.fluors.excitation_nm),
-         emission_nm   = COALESCE(EXCLUDED.emission_nm,   public.fluors.emission_nm),
-         alt_names     = COALESCE(EXCLUDED.alt_names,     public.fluors.alt_names),
-         notes         = COALESCE(EXCLUDED.notes,         public.fluors.notes)
-    RETURNING id, (xmax = 0) AS inserted
-""")
-
-alias_stmt = text("""
-  INSERT INTO public.join_aliases (target_kind, target_id, alias)
-  VALUES ('fluor', :fid, :alias)
-  ON CONFLICT (target_kind, target_id, alias_norm) DO NOTHING
-""")
-
 with _eng().begin() as cx:
-    for params in rows:
-        m = cx.execute(stmt, params).mappings().first()
-        fid = m["id"]
-
-        if m and m.get("inserted"):
-            created += 1
-        else:
-            updated += 1
-
-        if params["name"]:
-            cx.execute(alias_stmt, {"fid": fid, "alias": params["name"].strip()})
-
-        # also accept the code itself as an alias (users often type codes)
-        if params["code"]:
-            cx.execute(alias_stmt, {"fid": fid, "alias": params["code"].strip()})
-
-        for alias in (params["alts"] or []):
-            alias = alias.strip()
-            if alias:
-                cx.execute(alias_stmt, {"fid": fid, "alias": alias})
+    created, updated, rows, soft_warn2 = load_fluors_from_df(df_raw, cx)
 
 st.success(f"Done. Fluors created: {created}, updated: {updated}")
 st.download_button(

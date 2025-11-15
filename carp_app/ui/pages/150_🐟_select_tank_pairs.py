@@ -130,15 +130,12 @@ def _verify_core_schema() -> dict:
     # fish requirements (stage can be either of two exact names)
     _assert_cols("public", "fish", ["id", "fish_code", "nickname", "genetic_background", "created_at"])
     fish_cols = _cols("public", "fish")
-    if "line_building_stage" in fish_cols:
-        stage_col = "line_building_stage"
-    elif "in_breeding_stage" in fish_cols:
-        stage_col = "in_breeding_stage"
-    else:
+    if "line_building_stage" not in fish_cols:
         raise RuntimeError(
-            "public.fish must include either 'line_building_stage' or 'in_breeding_stage'. "
+            "public.fish must include 'line_building_stage'. "
             f"Found: {fish_cols}"
         )
+    stage_col = "line_building_stage"
 
     # genotype linkage
     _assert_cols(

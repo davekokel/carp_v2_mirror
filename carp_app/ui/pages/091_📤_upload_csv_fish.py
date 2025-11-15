@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any
 import pandas as pd
 import streamlit as st
 import uuid
+from carp_app.ui.lib.csv_loaders_fish import load_fish_from_df
 from sqlalchemy import text, bindparam
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.engine import Engine
