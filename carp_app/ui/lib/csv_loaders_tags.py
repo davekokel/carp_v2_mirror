@@ -85,6 +85,7 @@ def upsert_tags(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
 
       public.tags(
         id uuid pk,
+        tag_code text NOT NULL,
         tag_name text,
         localization text,
         note text,
@@ -103,7 +104,6 @@ def upsert_tags(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
     created = 0
     updated = 0
 
-    # simple SELECT -> UPDATE / INSERT pattern (no ON CONFLICT)
     select_stmt = text(
         """
       SELECT id FROM public.tags
@@ -114,8 +114,8 @@ def upsert_tags(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
 
     insert_stmt = text(
         """
-      INSERT INTO public.tags (tag_name, localization, note, citation_link)
-      VALUES (:tag_name, NULLIF(:localization,''), NULLIF(:note,''), NULLIF(:citation_link,''))
+      INSERT INTO public.tags (tag_code, tag_name, localization, note, citation_link)
+      VALUES (:tag_code, :tag_name, NULLIF(:localization,''), NULLIF(:note,''), NULLIF(:citation_link,''))
       RETURNING id
     """
     )
@@ -144,6 +144,9 @@ def upsert_tags(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
         note = row["note"]
         citation_link = row["citation_link"]
 
+        # For now, use tag_name as tag_code (computed in loader, not from CSV)
+        tag_code = tag_name
+
         # 1) see if tag already exists
         existing = cx.execute(select_stmt, {"tag_name": tag_name}).mappings().first()
         if existing:
@@ -162,6 +165,7 @@ def upsert_tags(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
             new_row = cx.execute(
                 insert_stmt,
                 {
+                    "tag_code": tag_code,
                     "tag_name": tag_name,
                     "localization": localization,
                     "note": note,

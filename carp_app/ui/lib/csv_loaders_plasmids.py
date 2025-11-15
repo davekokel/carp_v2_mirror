@@ -1,69 +1,45 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Tuple
 
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 
-# Basic header aliasing; adjust to match your real plasmid CSVs/pages as needed.
-_HEADER_ALIASES: Dict[str, List[str]] = {
-    "code": ["code", "plasmid_code", "plasmid", "base_code", "plasmid_base_code"],
-    "name": ["name", "plasmid_name", "description", "desc"],
-    "nickname": ["nickname", "nick", "short_name", "alias"],
-    "notes": ["notes", "note", "comments", "comment"],
-}
-
-
-def _pick_header(df: pd.DataFrame, key: str) -> str | None:
-    for c in _HEADER_ALIASES[key]:
-        if c in df.columns:
-            return c
-    return None
-
-
 def normalize_plasmid_table(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
-    Normalize plasmid table into a simple shape:
+    Strict normalization for seed plasmids.csv.
 
-      columns: code, name, nickname, notes
-
-    If no explicit name/description column is present, we fall back to using `code`
-    as the display name.
+    Expected headers (exact, case-insensitive):
+      plasmid_base_code,nickname,notes
     """
     df = df_raw.copy()
     df.columns = [str(c).strip().lower() for c in df.columns]
 
-    col_code = _pick_header(df, "code")
-    col_name = _pick_header(df, "name")
-    col_nick = _pick_header(df, "nickname")
-    col_notes = _pick_header(df, "notes")
-
-    if not col_code:
-        raise ValueError("Plasmids CSV missing required column: code / plasmid_code / plasmid_base_code.")
-
-    # Fallback: if no name column, use code as name
-    if not col_name:
-        col_name = col_code
+    required = ["plasmid_base_code", "nickname", "notes"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"Plasmids CSV missing required column(s): {missing}")
 
     out = pd.DataFrame(
         {
-            "code": df[col_code].map(lambda v: "" if v is None else str(v).strip()),
-            "name": df[col_name].map(lambda v: "" if v is None else str(v).strip()),
-            "nickname": df[col_nick].map(lambda v: "" if v is None else str(v).strip())
-            if col_nick
-            else "",
-            "notes": df[col_notes].map(lambda v: "" if v is None else str(v).strip())
-            if col_notes
-            else "",
+            "code": df["plasmid_base_code"].map(lambda v: "" if v is None else str(v).strip()),
+            "nickname": df["nickname"].map(lambda v: "" if v is None else str(v).strip()),
+            "notes": df["notes"].map(
+                lambda v: ""
+                if v is None or str(v).strip().lower() in {"", "nan", "none", "null"}
+                else str(v).strip()
+            ),
         }
     )
+
+    # use base code as human-readable name for now
+    out["name"] = out["code"]
 
     # drop empty codes
     out = out[out["code"] != ""].copy()
 
-    # basic duplicate check
     if out["code"].duplicated().any():
         dup = out[out["code"].duplicated()]["code"].unique().tolist()
         raise ValueError(f"Duplicate plasmid codes in CSV: {dup}")
@@ -75,13 +51,11 @@ def upsert_plasmids(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
     """
     Upsert plasmids into public.plasmids.
 
-    Assumes a schema with at least:
+    Assumes schema with at least:
       - code (unique)
       - name
       - nickname (optional)
       - notes (optional)
-
-    Adjust column names in the SQL to match your real schema.
     """
     created = 0
     updated = 0

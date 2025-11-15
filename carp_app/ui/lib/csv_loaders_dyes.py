@@ -57,6 +57,7 @@ def upsert_dyes(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
 
       public.dyes(
         id uuid pk,
+        dye_code text NOT NULL,
         dye_name text,
         localization text,
         excitation_nm smallint,
@@ -64,7 +65,7 @@ def upsert_dyes(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
         ...
       )
 
-    We do NOT require or touch any 'dye_code' column at the DB level here.
+    We do NOT require or touch any 'dye_code' in the CSV; we compute it as dye_name.
     """
     created = 0
     updated = 0
@@ -76,8 +77,8 @@ def upsert_dyes(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
     """)
 
     insert_stmt = text("""
-      INSERT INTO public.dyes (dye_name, localization, excitation_nm, emission_nm)
-      VALUES (:dye_name, NULLIF(:localization,''), :excitation_nm, :emission_nm)
+      INSERT INTO public.dyes (dye_code, dye_name, localization, excitation_nm, emission_nm)
+      VALUES (:dye_code, :dye_name, NULLIF(:localization,''), :excitation_nm, :emission_nm)
       RETURNING id
     """)
 
@@ -94,6 +95,9 @@ def upsert_dyes(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
         localization = row["localization"]
         ex = row["excitation_nm"]
         em = row["emission_nm"]
+
+        # Compute dye_code in loader; mirror dye_name for now.
+        dye_code = dye_name
 
         existing = cx.execute(select_stmt, {"dye_name": dye_name}).mappings().first()
         if existing:
@@ -112,6 +116,7 @@ def upsert_dyes(df_norm: pd.DataFrame, cx: Connection) -> Tuple[int, int]:
             new_row = cx.execute(
                 insert_stmt,
                 {
+                    "dye_code": dye_code,
                     "dye_name": dye_name,
                     "localization": localization,
                     "excitation_nm": ex,
