@@ -228,7 +228,7 @@ if df.empty:
 
 # ── selection via checkbox on the table (no dropdown) ────────────────────────
 table_cols = [
-    "tank_pair_code","fish_pair_code","status","created_at","created_by",
+    "tank_pair_code","status","created_at",
     "mom_fish_code","mom_tank_code","mom_genotype",
     "dad_fish_code","dad_tank_code","dad_genotype",
 ]

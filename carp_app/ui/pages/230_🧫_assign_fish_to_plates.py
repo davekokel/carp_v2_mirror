@@ -128,67 +128,95 @@ def _load_or_seed_layout(plate_code: str) -> pd.DataFrame:
         df = _load_layout(plate_code)
     return df
 
-def _fetch_treated_groups(q: str, limit:int=500) -> pd.DataFrame:
+def _fetch_treated_groups(q: str, limit: int = 500) -> pd.DataFrame:
     """
     Pull treated clutch groups from v_treated_clutches_overview,
     with useful genotype + fusions rollups for picking.
     """
     if not _exists_view(V_TCL_OV):
-        return pd.DataFrame(columns=[
-            "treated_clutch_code","clutch_code","offspring_genotype",
-            "mom_genotype","dad_genotype","mom_fusions","dad_fusions",
-            "tx_names","group_created_at",
-        ])
+        return pd.DataFrame(
+            columns=[
+                "treated_clutch_code",
+                "clutch_code",
+                "offspring_genotype",
+                "mom_genotype",
+                "dad_genotype",
+                "mom_fusions",
+                "dad_fusions",
+                "tx_names",
+                "group_created_at",
+            ]
+        )
 
-    where = []; p = {}
+    where = []
+    p: Dict[str, Any] = {}
     if q.strip():
         p["q"] = f"%{q.strip()}%"
-        where.append("""
+        # UPDATED: use new treatment_names_rollup from the view
+        where.append(
+            """
           (
-            treated_clutch_code ILIKE :q OR
-            clutch_code         ILIKE :q OR
-            COALESCE(mom_genotype,'')   ILIKE :q OR
-            COALESCE(dad_genotype,'')   ILIKE :q OR
-            COALESCE(mom_fusions,'')    ILIKE :q OR
-            COALESCE(dad_fusions,'')    ILIKE :q OR
-            COALESCE(treatments_names_group,'') ILIKE :q
+            treated_clutch_code           ILIKE :q OR
+            clutch_code                   ILIKE :q OR
+            COALESCE(mom_genotype,'')     ILIKE :q OR
+            COALESCE(dad_genotype,'')     ILIKE :q OR
+            COALESCE(mom_fusions,'')      ILIKE :q OR
+            COALESCE(dad_fusions,'')      ILIKE :q OR
+            COALESCE(treatment_names_rollup,'') ILIKE :q
           )
-        """)
+        """
+        )
     wsql = ("WHERE " + " AND ".join(where)) if where else ""
 
-    sql = text(f"""
+    sql = text(
+        f"""
       SELECT
         treated_clutch_code,
         clutch_code,
-        -- offspring genotype = mom × dad
+
+        -- offspring genotype = mom × dad (for quick visual)
         TRIM(
           BOTH ' × ' FROM (
             COALESCE(NULLIF(mom_genotype,''), '?') || ' × ' ||
             COALESCE(NULLIF(dad_genotype,''), '?')
           )
         ) AS offspring_genotype,
-        COALESCE(mom_genotype,'')        AS mom_genotype,
-        COALESCE(dad_genotype,'')        AS dad_genotype,
-        COALESCE(mom_fusions,'')         AS mom_fusions,
-        COALESCE(dad_fusions,'')         AS dad_fusions,
-        COALESCE(treatments_names_group,'') AS tx_names,
+
+        COALESCE(mom_genotype,'')           AS mom_genotype,
+        COALESCE(dad_genotype,'')           AS dad_genotype,
+        COALESCE(mom_fusions,'')            AS mom_fusions,
+        COALESCE(dad_fusions,'')            AS dad_fusions,
+
+        -- UPDATED: treatment_names_rollup from the view
+        COALESCE(treatment_names_rollup,'') AS tx_names,
+
         group_created_at
       FROM {V_TCL_OV}
       {wsql}
       ORDER BY group_created_at DESC NULLS LAST, treated_clutch_code
       LIMIT :lim
-    """)
+    """
+    )
     p["lim"] = int(limit)
     with engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=p)
 
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
-    return df[[
-        "treated_clutch_code","clutch_code","offspring_genotype",
-        "mom_genotype","dad_genotype","mom_fusions","dad_fusions",
-        "tx_names","group_created_at"
-    ]]
+
+    return df[
+        [
+            "treated_clutch_code",
+            "clutch_code",
+            "offspring_genotype",
+            "mom_genotype",
+            "dad_genotype",
+            "mom_fusions",
+            "dad_fusions",
+            "tx_names",
+            "group_created_at",
+        ]
+    ]
 
 def _csv_bytes(df: pd.DataFrame) -> bytes:
     buf = io.StringIO()

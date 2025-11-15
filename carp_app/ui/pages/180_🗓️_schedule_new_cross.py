@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sys, pathlib, itertools, re
 from datetime import date
-from typing import List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple, Dict, Any
 
 import pandas as pd
 import streamlit as st
@@ -24,7 +24,7 @@ except Exception:
     def require_app_unlock(): ...
 from carp_app.ui.lib.page_engine import engine
 
-# ── Auth + page setup ────────────────────────────────────────────────────────
+# ── Auth / page setup ────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
@@ -48,13 +48,11 @@ def _cols(schema: str, rel: str) -> Set[str]:
     with engine().begin() as cx:
         df = _safe(
             cx,
-            text(
-                """
-            select column_name
-            from information_schema.columns
-            where table_schema=:s and table_name=:r
-            """
-            ),
+            text("""
+              select column_name
+              from information_schema.columns
+              where table_schema=:s and table_name=:r
+            """),
             {"s": schema, "r": rel},
         )
     return set(df["column_name"].tolist())
@@ -67,6 +65,10 @@ def _tank_pair_parent_cols() -> Tuple[str, str]:
     raise RuntimeError("public.tank_pairs must have mother/father UUID columns.")
 
 def list_tank_pairs(q: str, limit: int) -> pd.DataFrame:
+    """
+    Enriched tank pair list using v_fish_overview so humans can see genotype/fusions
+    directly in the picker.
+    """
     mom_col, dad_col = _tank_pair_parent_cols()
     tp_cols = _cols("public", "tank_pairs")
     order_clause = (
@@ -76,44 +78,105 @@ def list_tank_pairs(q: str, limit: int) -> pd.DataFrame:
         if "created_at" in tp_cols
         else "tp.tank_pair_code"
     )
-    like = f"%{q.strip()}%" if q and q.strip() else None
-    params = {"lim": int(limit)}
-    where_sql = ""
-    if like:
-        params["like"] = like
-        where_sql = (
-            "WHERE ("
-            "tp.tank_pair_code ILIKE :like OR "
-            "m.fish_code ILIKE :like OR "
-            "d.fish_code ILIKE :like OR "
-            "m.tank_code ILIKE :like OR "
-            "d.tank_code ILIKE :like)"
-        )
     created_sel = "tp.created_at" if "created_at" in tp_cols else "NULL::timestamptz"
+    like = f"%{q.strip()}%" if q and q.strip() else None
 
-    sql = text(
-        f"""
-        WITH t AS (
+    sql = text(f"""
+        WITH tm AS (
           SELECT t.id::uuid AS tank_id, t.tank_code, f.fish_code
           FROM public.tanks t
           JOIN public.fish  f ON f.id = t.fish_id
+        ),
+        mom AS (
+          SELECT
+            m.tank_id,
+            m.tank_code,
+            m.fish_code,
+            vo.genotype_pretty      AS genotype,
+            vo.fusions,
+            vo.fluors,
+            vo.tags,
+            vo.markers,
+            vo.nickname,
+            vo.genetic_background,
+            vo.line_building_stage,
+            vo.birthday
+          FROM tm m
+          LEFT JOIN public.v_fish_overview vo ON vo.fish_code_raw = m.fish_code
+        ),
+        dad AS (
+          SELECT
+            d.tank_id,
+            d.tank_code,
+            d.fish_code,
+            vo.genotype_pretty      AS genotype,
+            vo.fusions,
+            vo.fluors,
+            vo.tags,
+            vo.markers,
+            vo.nickname,
+            vo.genetic_background,
+            vo.line_building_stage,
+            vo.birthday
+          FROM tm d
+          LEFT JOIN public.v_fish_overview vo ON vo.fish_code_raw = d.fish_code
         )
         SELECT
           tp.id::text       AS tank_pair_id,
           tp.tank_pair_code AS tank_pair_code,
           {created_sel}     AS created_at,
-          m.fish_code       AS mom_fish_code,
-          d.fish_code       AS dad_fish_code,
-          m.tank_code       AS mom_tank_code,
-          d.tank_code       AS dad_tank_code
+
+          mom.fish_code           AS mom_fish_code,
+          mom.tank_code           AS mom_tank_code,
+          mom.genotype            AS mom_genotype,
+          mom.fusions             AS mom_fusions,
+          mom.fluors              AS mom_fluors,
+          mom.tags                AS mom_tags,
+          mom.markers             AS mom_markers,
+          mom.nickname            AS mom_nickname,
+          mom.genetic_background  AS mom_genetic_background,
+          mom.line_building_stage AS mom_line_building_stage,
+          mom.birthday            AS mom_birthday,
+
+          dad.fish_code           AS dad_fish_code,
+          dad.tank_code           AS dad_tank_code,
+          dad.genotype            AS dad_genotype,
+          dad.fusions             AS dad_fusions,
+          dad.fluors              AS dad_fluors,
+          dad.tags                AS dad_tags,
+          dad.markers             AS dad_markers,
+          dad.nickname            AS dad_nickname,
+          dad.genetic_background  AS dad_genetic_background,
+          dad.line_building_stage AS dad_line_building_stage,
+          dad.birthday            AS dad_birthday
+
         FROM public.tank_pairs tp
-        LEFT JOIN t AS m ON m.tank_id = tp.{mom_col}
-        LEFT JOIN t AS d ON d.tank_id = tp.{dad_col}
-        {where_sql}
+        LEFT JOIN mom ON mom.tank_id = tp.{mom_col}
+        LEFT JOIN dad ON dad.tank_id = tp.{dad_col}
+        { "WHERE " + " OR ".join([
+            "tp.tank_pair_code ILIKE :like",
+            "COALESCE(mom.fish_code,'')   ILIKE :like",
+            "COALESCE(dad.fish_code,'')   ILIKE :like",
+            "COALESCE(mom.tank_code,'')   ILIKE :like",
+            "COALESCE(dad.tank_code,'')   ILIKE :like",
+            "COALESCE(mom.genotype,'')    ILIKE :like",
+            "COALESCE(dad.genotype,'')    ILIKE :like",
+            "COALESCE(mom.fusions,'')     ILIKE :like",
+            "COALESCE(dad.fusions,'')     ILIKE :like",
+            "COALESCE(mom.fluors,'')      ILIKE :like",
+            "COALESCE(dad.fluors,'')      ILIKE :like",
+            "COALESCE(mom.tags,'')        ILIKE :like",
+            "COALESCE(dad.tags,'')        ILIKE :like",
+            "COALESCE(mom.markers,'')     ILIKE :like",
+            "COALESCE(dad.markers,'')     ILIKE :like"
+          ]) if like else "" }
         ORDER BY {order_clause}
         LIMIT :lim
-    """
-    )
+    """)
+    params = {"lim": int(limit)}
+    if like:
+        params["like"] = like
+
     with engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
     return df.fillna("")
@@ -123,8 +186,7 @@ def _get_possible_labels_for_fish(cx, fish_code: str) -> Set[str]:
         return set()
     df = _safe(
         cx,
-        text(
-            """
+        text("""
       select jfta.transgene_base_code as base_code,
              jfta.allele_number       as allele_number,
              coalesce(
@@ -138,8 +200,7 @@ def _get_possible_labels_for_fish(cx, fish_code: str) -> Set[str]:
         on ta.transgene_base_code = jfta.transgene_base_code
        and ta.allele_number       = jfta.allele_number
       where f.fish_code = :fc
-    """
-        ),
+    """),
         {"fc": fish_code},
     )
     if df.empty:
@@ -152,7 +213,7 @@ def expected_labels_for_parents(mom_fc: str, dad_fc: str) -> pd.DataFrame:
     Compute a set of suggested labels based on the parents' transgene alleles.
 
     Each label is a human-readable allele option. We store the options per clutch in
-    clutch_expected_genotypes and derive a summary string for clutch_instances.clutch_genotype.
+    public.clutch_expected_genotypes and derive summary strings in v_clutches_overview.
     """
     if not mom_fc and not dad_fc:
         return pd.DataFrame(columns=["label", "source"])
@@ -176,13 +237,12 @@ def _clutch_geno_rows_from_selected(df_sel: pd.DataFrame) -> List[str]:
         return []
     return [str(s) for s in df_sel["label"].astype(str).tolist() if s.strip()]
 
-# ---- genotype parsing helpers for join table --------------------------------
-_LABEL_PART_RE = re.compile(r"^\s*([A-Za-z0-9\-]+)\s*\(([^)]+)\)")
+# ---- genotype parsing helpers for join + patterns ---------------------------
+_LABEL_PART_RE = re.compile(r"^\s*([A-Za-z0-9_\-]+)\s*\(([^)]+)\)")
 
 def _parse_label_parts(label: str) -> List[str]:
     """Split a combined label like 'A(x) ; B(y)' into ['A(x)', 'B(y)']."""
-    parts = [p.strip() for p in re.split(r"\s*;\s*", label or "") if p.strip()]
-    return parts
+    return [p.strip() for p in re.split(r"\s*;\s*", label or "") if p.strip()]
 
 def _resolve_allele_number(cx, base: str, tok_txt: str) -> Optional[int]:
     """
@@ -195,9 +255,9 @@ def _resolve_allele_number(cx, base: str, tok_txt: str) -> Optional[int]:
           FROM public.transgene_alleles ta
           WHERE ta.transgene_base_code = :base
             AND (
-                 ta.allele_name      = :tok
-              OR ta.allele_nickname  = :tok
-              OR ta.allele_number::text = :tok
+                 lower(ta.allele_name)         = lower(:tok)
+              OR lower(ta.allele_nickname)     = lower(:tok)
+              OR ta.allele_number::text        = :tok
             )
           ORDER BY ta.allele_number
           LIMIT 1
@@ -206,11 +266,17 @@ def _resolve_allele_number(cx, base: str, tok_txt: str) -> Optional[int]:
     ).fetchone()
     return int(row[0]) if row else None
 
-def _insert_expected_alleles_for_label(cx, clutch_id: str, label: str, source: str) -> List[str]:
+def _insert_expected_alleles_for_label(
+    cx,
+    clutch_id: str,
+    label: str,
+    source: str,
+    pattern_index: int,
+) -> List[str]:
     """
     For a given label row and source ('mom'/'dad'/'double'), parse all allele parts and
-    insert rows into public.clutch_expected_genotypes. Returns a list of canonical
-    label strings like 'pDQM005(gu104)' that were successfully inserted.
+    insert rows into public.clutch_expected_genotypes for the given pattern_index.
+    Returns a list of canonical allele labels like 'pDQM005(gu104)' that were inserted.
     """
     canon: List[str] = []
     for part in _parse_label_parts(label):
@@ -225,15 +291,23 @@ def _insert_expected_alleles_for_label(cx, clutch_id: str, label: str, source: s
         if allele_num is None:
             continue
         canon_label = f"{base}({tok_txt})"
-
         cx.execute(
             text("""
               INSERT INTO public.clutch_expected_genotypes
-                (clutch_instance_id, transgene_base_code, allele_number, allele_label, source)
-              VALUES (:cid, :base, :anum, :lbl, NULLIF(:src,''))
-              ON CONFLICT (clutch_instance_id, transgene_base_code, allele_number) DO NOTHING
+                (clutch_instance_id, pattern_index,
+                 transgene_base_code, allele_number, allele_label, source)
+              VALUES (:cid, :pidx, :base, :anum, :lbl, NULLIF(:src,''))
+              ON CONFLICT (clutch_instance_id, pattern_index, transgene_base_code, allele_number)
+              DO NOTHING
             """),
-            {"cid": clutch_id, "base": base, "anum": allele_num, "lbl": canon_label, "src": source or None},
+            {
+                "cid":  clutch_id,
+                "pidx": int(pattern_index),
+                "base": base,
+                "anum": allele_num,
+                "lbl":  canon_label,
+                "src":  source or None,
+            },
         )
         canon.append(canon_label)
     return canon
@@ -245,8 +319,7 @@ def _insert_clutch(cx, cross_id: str, run_date: date) -> str:
     clutch_date is defined as one day after the cross run_date.
     """
     row = cx.execute(
-        text(
-            """
+        text("""
           INSERT INTO public.clutch_instances (id, cross_instance_id, clutch_date)
           VALUES (
             gen_random_uuid(),
@@ -254,8 +327,7 @@ def _insert_clutch(cx, cross_id: str, run_date: date) -> str:
             (CAST(:d AS date) + interval '1 day')::date
           )
           RETURNING id
-        """
-        ),
+        """),
         {"cid": cross_id, "d": str(run_date)},
     ).fetchone()
     return str(row[0])
@@ -263,7 +335,7 @@ def _insert_clutch(cx, cross_id: str, run_date: date) -> str:
 # ── UI: search & pick tank pair ──────────────────────────────────────────────
 with st.form("search"):
     c1, c2 = st.columns([3, 1])
-    q = c1.text_input("Search tank pairs (pair code / fish code / tank code)")
+    q = c1.text_input("Search tank pairs (code / fish / genotype / fusions / fluors / tags)")
     limit = int(c2.number_input("Limit", 50, 2000, 200))
     st.form_submit_button("Apply")
 
@@ -275,31 +347,86 @@ if pairs.empty:
 
 pairs = pairs.copy()
 pairs.insert(0, "✓", False)
+
+picker_cols = [
+    "tank_pair_code",
+    "mom_fish_code", "dad_fish_code",
+    "mom_genotype", "dad_genotype",
+    "mom_fusions", "dad_fusions",
+    "created_at",
+]
+picker_cols = [c for c in picker_cols if c in pairs.columns]
+
 sel = st.data_editor(
-    pairs[
-        [
-            "✓",
-            "tank_pair_code",
-            "mom_fish_code",
-            "dad_fish_code",
-            "mom_tank_code",
-            "dad_tank_code",
-            "created_at",
-        ]
-    ],
+    pairs[["✓"] + picker_cols],
     hide_index=True,
     use_container_width=True,
     column_config={"✓": st.column_config.CheckboxColumn("✓", default=False)},
+    key="tank_pair_picker",
 )
 chosen = sel.loc[sel["✓"]].head(1)
 if chosen.empty:
     st.stop()
 
-tp_code = chosen.iloc[0]["tank_pair_code"]
-mom_code = chosen.iloc[0]["mom_fish_code"]
-dad_code = chosen.iloc[0]["dad_fish_code"]
+row_id = pairs.index[sel["✓"]].tolist()[0]
+pair_row = pairs.iloc[row_id]
+
+tp_code = pair_row["tank_pair_code"]
+mom_code = pair_row["mom_fish_code"]
+dad_code = pair_row["dad_fish_code"]
 
 st.success(f"Selected {tp_code or '(no code)'} — {mom_code or '???'} × {dad_code or '???'}")
+
+# ── Mother / Father profile pivots (like overview tank pairs) ───────────────
+def _pivot_profile(title: str, d: Dict[str, Any]):
+    rows = [
+        {"Field": "Fish code",           "Value": d.get("fish_code","")},
+        {"Field": "Tank code",           "Value": d.get("tank_code","")},
+        {"Field": "Nickname",            "Value": d.get("nickname","")},
+        {"Field": "Genetic background",  "Value": d.get("genetic_background","")},
+        {"Field": "Line building stage", "Value": d.get("line_building_stage","")},
+        {"Field": "Birthday",            "Value": d.get("birthday","")},
+        {"Field": "Genotype",            "Value": d.get("genotype","")},
+        {"Field": "Fusions",             "Value": d.get("fusions","")},
+        {"Field": "Fluors",              "Value": d.get("fluors","")},
+        {"Field": "Tags",                "Value": d.get("tags","")},
+        {"Field": "Markers",             "Value": d.get("markers","")},
+    ]
+    st.subheader(title)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+mom_profile = {
+    "fish_code":           pair_row.get("mom_fish_code",""),
+    "tank_code":           pair_row.get("mom_tank_code",""),
+    "nickname":            pair_row.get("mom_nickname",""),
+    "genetic_background":  pair_row.get("mom_genetic_background",""),
+    "line_building_stage": pair_row.get("mom_line_building_stage",""),
+    "birthday":            pair_row.get("mom_birthday",""),
+    "genotype":            pair_row.get("mom_genotype",""),
+    "fusions":             pair_row.get("mom_fusions",""),
+    "fluors":              pair_row.get("mom_fluors",""),
+    "tags":                pair_row.get("mom_tags",""),
+    "markers":             pair_row.get("mom_markers",""),
+}
+dad_profile = {
+    "fish_code":           pair_row.get("dad_fish_code",""),
+    "tank_code":           pair_row.get("dad_tank_code",""),
+    "nickname":            pair_row.get("dad_nickname",""),
+    "genetic_background":  pair_row.get("dad_genetic_background",""),
+    "line_building_stage": pair_row.get("dad_line_building_stage",""),
+    "birthday":            pair_row.get("dad_birthday",""),
+    "genotype":            pair_row.get("dad_genotype",""),
+    "fusions":             pair_row.get("dad_fusions",""),
+    "fluors":              pair_row.get("dad_fluors",""),
+    "tags":                pair_row.get("dad_tags",""),
+    "markers":             pair_row.get("dad_markers",""),
+}
+
+c1, c2 = st.columns(2)
+with c1:
+    _pivot_profile("Mother — profile", mom_profile)
+with c2:
+    _pivot_profile("Father — profile", dad_profile)
 
 # ── Step 2: expected genotype (specific labels optional) ─────────────────────
 st.subheader("2) Choose expected genotype labels (optional)")
@@ -311,7 +438,8 @@ if rows.empty:
     chosen_labels: List[str] = []
 else:
     if "✓" not in rows.columns:
-        rows.insert(0, "✓", rows["source"].eq("mom"))
+        # default: all expected genotypes selected
+        rows.insert(0, "✓", True)
     edited = st.data_editor(
         rows,
         hide_index=True,
@@ -323,6 +451,7 @@ else:
             "source": st.column_config.TextColumn("from", disabled=True, width="small"),
         },
         height=260,
+        key="expected_labels_editor",
     )
     chosen_labels = _clutch_geno_rows_from_selected(edited.loc[edited["✓"]])
 st.caption(f"{len(chosen_labels)} specific label(s) selected")
@@ -337,9 +466,7 @@ if st.button("⏱ Schedule", type="primary"):
         with engine().begin() as cx:
             # resolve tank_pair_id from code
             tp_id = cx.execute(
-                text(
-                    "SELECT id FROM public.tank_pairs WHERE tank_pair_code=:tp LIMIT 1"
-                ),
+                text("SELECT id FROM public.tank_pairs WHERE tank_pair_code=:tp LIMIT 1"),
                 {"tp": tp_code},
             ).scalar()
 
@@ -348,8 +475,7 @@ if st.button("⏱ Schedule", type="primary"):
 
             # crosses has: id, cross_run_code, tank_pair_id, created_at
             row = cx.execute(
-                text(
-                    """
+                text("""
                   WITH ins AS (
                     INSERT INTO public.crosses (id, tank_pair_id, created_at)
                     SELECT gen_random_uuid(), :tp_id, CAST(:d AS date)
@@ -370,8 +496,7 @@ if st.button("⏱ Schedule", type="primary"):
                       AND NOT EXISTS (SELECT 1 FROM ins)
                   )
                   SELECT id, cross_run_code FROM sel LIMIT 1;
-                """
-                ),
+                """),
                 {"tp_id": tp_id, "d": str(run_date)},
             ).fetchone()
 
@@ -381,78 +506,91 @@ if st.button("⏱ Schedule", type="primary"):
             # 1 clutch per Save click
             clutch_id = _insert_clutch(cx, cross_id, run_date)
 
-            # Insert expected-genotype rows per label into clutch_expected_genotypes
-            canon_labels_set: Set[str] = set()
+            # Insert expected-genotype rows per pattern index
+            pattern_idx = 0
             if not edited.empty:
                 rows_sel = edited.loc[edited["✓"]] if "✓" in edited.columns else pd.DataFrame()
                 for _, r in rows_sel.iterrows():
                     lbl = str(r.get("label") or "").strip()
                     src = str(r.get("source") or "").strip()
-                    canon_labels_set.update(_insert_expected_alleles_for_label(cx, clutch_id, lbl, src))
+                    pattern_idx += 1
+                    _insert_expected_alleles_for_label(
+                        cx,
+                        clutch_id,
+                        lbl,
+                        src,
+                        pattern_index=pattern_idx,
+                    )
 
-            # Derive a short clutch_genotype summary string from canonical labels
-            summary = ""
-            if canon_labels_set:
-                labels_sorted = sorted(canon_labels_set)
-                if len(labels_sorted) == 1:
-                    summary = labels_sorted[0]
-                elif len(labels_sorted) <= 3:
-                    summary = " / ".join(labels_sorted)
-                else:
-                    summary = f"mixed ({len(labels_sorted)} alleles)"
-
-                cx.execute(
-                    text("""
-                      UPDATE public.clutch_instances
-                      SET clutch_genotype = :g
-                      WHERE id = :cid
-                    """),
-                    {"g": summary, "cid": clutch_id},
-                )
-
-            created = 1
-
-        st.success(f"Scheduled cross {cross_code or ''} with {created} clutch(es).")
+        st.success(f"Scheduled cross {cross_code or ''} with 1 clutch.")
     except Exception as e:
         st.error(f"Schedule failed: {e}")
 
-# ── Recent clutches for this tank pair ───────────────────────────────────────
+# ── Recently scheduled clutches for this pair ───────────────────────────────
 st.subheader("Recently scheduled clutches for this pair")
 with engine().begin() as cx:
     recent = _safe(
         cx,
         text("""
+      WITH base AS (
+        SELECT *
+        FROM public.v_clutches_overview v
+        WHERE v.tank_pair_code = :tp
+        ORDER BY v.clutch_created_at DESC
+        LIMIT 20
+      ),
+      allele_counts AS (
+        SELECT
+          ceg.clutch_instance_id,
+          COUNT(DISTINCT (ceg.transgene_base_code, ceg.allele_number))::int AS n_alleles
+        FROM public.clutch_expected_genotypes ceg
+        GROUP BY ceg.clutch_instance_id
+      ),
+      pattern_counts AS (
+        SELECT
+          ceg.clutch_instance_id,
+          COUNT(DISTINCT ceg.pattern_index)::int AS n_genotypes
+        FROM public.clutch_expected_genotypes ceg
+        WHERE ceg.pattern_index IS NOT NULL
+        GROUP BY ceg.clutch_instance_id
+      )
       SELECT
-        -- clutch code: stored code or CI-<idprefix> fallback
         COALESCE(
-          v.clutch_code,
-          'CI-' || LEFT(v.clutch_instance_id::text, 8)
+          b.clutch_code,
+          'CI-' || LEFT(b.clutch_instance_id::text, 8)
         ) AS clutch_code,
 
-        -- clutch_genotype summary from table; fallback to mom × dad for legacy rows
-        COALESCE(
-          NULLIF(v.clutch_genotype,''),
-          TRIM(
-            BOTH ' × ' FROM (
-              COALESCE(NULLIF(v.mom_genotype,''), '?') || ' × ' ||
-              COALESCE(NULLIF(v.dad_genotype,''), '?')
-            )
-          )
-        ) AS clutch_genotype,
+        COALESCE(ac.n_alleles, 0)    AS n_alleles,
+        COALESCE(pc.n_genotypes, 0)  AS n_genotypes,
 
-        -- cross label: cross_code if present, else TP-... @ date
+        CASE
+            WHEN ac.n_alleles IS NULL OR ac.n_alleles = 0 THEN
+                TRIM(
+                BOTH ' × ' FROM (
+                    COALESCE(NULLIF(b.mom_genotype,''), '?') || ' × ' ||
+                    COALESCE(NULLIF(b.dad_genotype,''), '?')
+                )
+                )
+            WHEN ac.n_alleles = 1 THEN
+                COALESCE(b.clutch_genotype_pretty, b.clutch_genotype)
+            WHEN ac.n_alleles = 2 THEN
+                REPLACE(COALESCE(b.clutch_genotype_pretty, b.clutch_genotype), ', ', ' + ')
+            ELSE
+                'mixed (' || ac.n_alleles || ' alleles)'
+            END AS alleles_rollup,
+
         COALESCE(
-          v.cross_code,
-          v.tank_pair_code || ' @ ' || COALESCE(v.cross_date::text, '')
+          b.cross_code,
+          b.tank_pair_code || ' @ ' || COALESCE(b.cross_date::text, '')
         ) AS cross_code,
 
-        v.cross_date,
-        v.clutch_created_at
-      FROM public.v_clutches_overview v
-      WHERE v.tank_pair_code = :tp
-      ORDER BY v.clutch_created_at DESC
-      LIMIT 20
-    """),
+        b.cross_date,
+        b.clutch_created_at
+      FROM base b
+      LEFT JOIN allele_counts  ac ON ac.clutch_instance_id = b.clutch_instance_id
+      LEFT JOIN pattern_counts pc ON pc.clutch_instance_id = b.clutch_instance_id
+      ORDER BY b.clutch_created_at DESC
+      """),
         {"tp": tp_code},
     )
 
@@ -460,7 +598,10 @@ if recent.empty:
     st.caption("No recent clutches for this pair.")
 else:
     st.dataframe(
-        recent[["clutch_code","clutch_genotype","cross_code","cross_date","clutch_created_at"]],
-        hide_index=True,
-        use_container_width=True,
-    )
+    recent[
+        ["clutch_code", "n_alleles", "n_genotypes", "alleles_rollup",
+         "cross_code", "cross_date", "clutch_created_at"]
+    ],
+    hide_index=True,
+    use_container_width=True,
+)

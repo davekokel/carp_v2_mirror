@@ -225,12 +225,19 @@ def _load_crosses(q: Optional[str], d_from: Optional[date], d_to: Optional[date]
 def _load_treated_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
     """All treated-clutch groups whose clutches belong to any selected cross (with clutch genotype)."""
     if not cross_ids:
-        return pd.DataFrame(columns=[
-            "group_code","clutch_code","dob",
-            "treatments_codes","treatments_names",
-            "tx_genotype","offspring_genotype",
-            "cross_id","cross_code",
-        ])
+        return pd.DataFrame(
+            columns=[
+                "group_code",
+                "clutch_code",
+                "dob",
+                "treatments_codes",
+                "treatments_names",
+                "tx_genotype",
+                "offspring_genotype",
+                "cross_id",
+                "cross_code",
+            ]
+        )
 
     sql = text("""
       WITH picked AS (
@@ -246,15 +253,18 @@ def _load_treated_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
         WHERE ci.cross_instance_id = ANY(SELECT cross_id FROM picked)
       )
       SELECT
-        vt.treated_clutch_code         AS group_code,
-        vt.clutch_code                 AS clutch_code,
-        cl.clutch_date                 AS dob,
-        COALESCE(vt.treatments_codes_group,'') AS treatments_codes,
-        COALESCE(vt.treatments_names_group,'') AS treatments_names,
+        vt.treated_clutch_code           AS group_code,
+        vt.clutch_code                   AS clutch_code,
+        cl.clutch_date                   AS dob,
+
+        -- UPDATED: use new rollup columns from v_treated_clutches_overview
+        COALESCE(vt.treatment_codes_rollup,'') AS treatments_codes,
+        COALESCE(vt.treatment_names_rollup,'') AS treatments_names,
+
         ''::text                                AS tx_genotype,        -- no tx genotype rollup yet
         COALESCE(vt.clutch_genotype,'')        AS offspring_genotype,  -- plain clutch_genotype from view
-        cr.id::uuid::text              AS cross_id,
-        cr.cross_run_code              AS cross_code
+        cr.id::uuid::text                      AS cross_id,
+        cr.cross_run_code                      AS cross_code
       FROM cl
       JOIN public.v_treated_clutches_overview vt
            ON vt.clutch_instance_id::uuid = cl.clutch_instance_id   -- cast text -> uuid

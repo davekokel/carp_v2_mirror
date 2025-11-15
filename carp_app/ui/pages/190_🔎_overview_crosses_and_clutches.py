@@ -64,13 +64,19 @@ w: List[str] = []
 if q_like and q_like.strip():
     params["q"] = f"%{q_like.strip()}%"
     w.append("""(
-        coalesce(tank_pair_code,'') ilike :q OR
-        coalesce(mom_fish_code,'')  ilike :q OR
-        coalesce(dad_fish_code,'')  ilike :q OR
-        coalesce(mom_tank_code,'')  ilike :q OR
-        coalesce(dad_tank_code,'')  ilike :q OR
-        coalesce(cross_code,'')     ilike :q OR
-        coalesce(clutch_code,'')    ilike :q
+        coalesce(tank_pair_code,'')    ilike :q OR
+        coalesce(mom_fish_code,'')     ilike :q OR
+        coalesce(dad_fish_code,'')     ilike :q OR
+        coalesce(mom_tank_code,'')     ilike :q OR
+        coalesce(dad_tank_code,'')     ilike :q OR
+        coalesce(mom_genotype,'')      ilike :q OR
+        coalesce(dad_genotype,'')      ilike :q OR
+        coalesce(mom_fusions,'')       ilike :q OR
+        coalesce(dad_fusions,'')       ilike :q OR
+        coalesce(clutch_genotype,'')   ilike :q OR
+        coalesce(clutch_genotype_pretty,'') ilike :q OR
+        coalesce(cross_code,'')        ilike :q OR
+        coalesce(clutch_code,'')       ilike :q
     )""")
 
 if d_from:
@@ -83,27 +89,66 @@ if d_to:
 WHERE = (" WHERE " + " AND ".join(w)) if w else ""
 
 SQL = f"""
+WITH base AS (
+  SELECT *
+  FROM public.v_clutches_overview
+  {WHERE}
+  ORDER BY cross_date DESC, clutch_created_at DESC NULLS LAST
+  LIMIT :lim
+),
+allele_counts AS (
+  SELECT
+    ceg.clutch_instance_id,
+    COUNT(DISTINCT (ceg.transgene_base_code, ceg.allele_number))::int AS n_alleles
+  FROM public.clutch_expected_genotypes ceg
+  GROUP BY ceg.clutch_instance_id
+),
+pattern_counts AS (
+  SELECT
+    ceg.clutch_instance_id,
+    COUNT(DISTINCT ceg.pattern_index)::int AS n_genotypes
+  FROM public.clutch_expected_genotypes ceg
+  WHERE ceg.pattern_index IS NOT NULL
+  GROUP BY ceg.clutch_instance_id
+)
 SELECT
   -- display clutch code: stored code or CI-<idprefix> fallback
   COALESCE(
-    clutch_code,
-    'CI-' || LEFT(clutch_instance_id::text, 8)
+    b.clutch_code,
+    'CI-' || LEFT(b.clutch_instance_id::text, 8)
   ) AS clutch_code_disp,
 
   -- display cross label: cross_code or TP@date
   COALESCE(
-    cross_code,
-    tank_pair_code || ' @ ' || COALESCE(cross_date::text, '')
+    b.cross_code,
+    b.tank_pair_code || ' @ ' || COALESCE(b.cross_date::text, '')
   ) AS cross_code_disp,
 
-  -- display clutch genotype: use ONLY the saved clutch_genotype; no fallback
-  clutch_genotype AS clutch_genotype_disp,
+  COALESCE(ac.n_alleles,   0) AS n_alleles,
+  COALESCE(pc.n_genotypes, 0) AS n_genotypes,
 
-  *
-FROM public.v_clutches_overview
-{WHERE}
-ORDER BY cross_date DESC, clutch_created_at DESC NULLS LAST
-LIMIT :lim
+  -- alleles rollup: use clutch_genotype* if present, otherwise mom×dad fallback
+  CASE
+    WHEN ac.n_alleles IS NULL OR ac.n_alleles = 0 THEN
+      TRIM(
+        BOTH ' × ' FROM (
+          COALESCE(NULLIF(b.mom_genotype,''), '?') || ' × ' ||
+          COALESCE(NULLIF(b.dad_genotype,''), '?')
+        )
+      )
+    WHEN ac.n_alleles = 1 THEN
+      COALESCE(b.clutch_genotype_pretty, b.clutch_genotype)
+    WHEN ac.n_alleles = 2 THEN
+      REPLACE(COALESCE(b.clutch_genotype_pretty, b.clutch_genotype), ', ', ' + ')
+    ELSE
+      'mixed (' || ac.n_alleles || ' alleles)'
+  END AS alleles_rollup,
+
+  b.*
+FROM base b
+LEFT JOIN allele_counts  ac ON ac.clutch_instance_id = b.clutch_instance_id
+LEFT JOIN pattern_counts pc ON pc.clutch_instance_id = b.clutch_instance_id
+ORDER BY b.cross_date DESC, b.clutch_created_at DESC NULLS LAST;
 """
 
 df = _safe(SQL, params)
@@ -127,7 +172,9 @@ display_cols = [
     "tank_pair_code",
     "mom_fish_code",
     "dad_fish_code",
-    "clutch_genotype_disp",
+    "n_alleles",
+    "n_genotypes",
+    "alleles_rollup",
     "mom_fusions",
     "dad_fusions",
     "clutch_created_at",
@@ -139,17 +186,19 @@ ro = st.data_editor(
     use_container_width=True,
     num_rows="fixed",
     column_config={
-        sel_col:                st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_code_disp":     st.column_config.TextColumn("Clutch code", disabled=True),
-        "cross_date":           st.column_config.DateColumn("Cross date", disabled=True, format="YYYY-MM-DD"),
-        "cross_code_disp":      st.column_config.TextColumn("Cross code", disabled=True),
-        "tank_pair_code":       st.column_config.TextColumn("TP code", disabled=True),
-        "mom_fish_code":        st.column_config.TextColumn("Mom FSH", disabled=True),
-        "dad_fish_code":        st.column_config.TextColumn("Dad FSH", disabled=True),
-        "clutch_genotype_disp": st.column_config.TextColumn("Clutch genotype", disabled=True),
-        "mom_fusions":          st.column_config.TextColumn("Mom fusions", disabled=True),
-        "dad_fusions":          st.column_config.TextColumn("Dad fusions", disabled=True),
-        "clutch_created_at":    st.column_config.DatetimeColumn("Clutch created", disabled=True),
+        sel_col:             st.column_config.CheckboxColumn("✓", default=False),
+        "clutch_code_disp":  st.column_config.TextColumn("Clutch code", disabled=True),
+        "cross_date":        st.column_config.DateColumn("Cross date", disabled=True, format="YYYY-MM-DD"),
+        "cross_code_disp":   st.column_config.TextColumn("Cross code", disabled=True),
+        "tank_pair_code":    st.column_config.TextColumn("TP code", disabled=True),
+        "mom_fish_code":     st.column_config.TextColumn("Mom FSH", disabled=True),
+        "dad_fish_code":     st.column_config.TextColumn("Dad FSH", disabled=True),
+        "n_alleles":         st.column_config.NumberColumn("n_alleles", disabled=True),
+        "n_genotypes":       st.column_config.NumberColumn("n_genotypes", disabled=True),
+        "alleles_rollup":    st.column_config.TextColumn("Alleles rollup", disabled=True, width="large"),
+        "mom_fusions":       st.column_config.TextColumn("Mom fusions", disabled=True),
+        "dad_fusions":       st.column_config.TextColumn("Dad fusions", disabled=True),
+        "clutch_created_at": st.column_config.DatetimeColumn("Clutch created", disabled=True),
     },
     key="v_clutches_overview_grid",
 )
@@ -208,10 +257,12 @@ else:
         ("Tank pair code",  sel.get("tank_pair_code")),
         ("Clutch code",     sel.get("clutch_code_disp")),
         ("Clutch created",  sel.get("clutch_created_at")),
-        ("Clutch genotype", sel.get("clutch_genotype_disp")),
-        ("Mother genotype", sel.get("mom_genotype")),
-        ("Father genotype", sel.get("dad_genotype")),
-        ("Mother fusions",  sel.get("mom_fusions")),
-        ("Father fusions",  sel.get("dad_fusions")),
+        ("n_alleles",         sel.get("n_alleles")),
+        ("n_genotypes",       sel.get("n_genotypes")),
+        ("Alleles rollup",    sel.get("alleles_rollup")),
+        ("Mother genotype",   sel.get("mom_genotype")),
+        ("Father genotype",   sel.get("dad_genotype")),
+        ("Mother fusions",    sel.get("mom_fusions")),
+        ("Father fusions",    sel.get("dad_fusions")),
     ]
     _pivot("Clutch / Cross — metadata", clutch_rows)
