@@ -557,7 +557,7 @@ with engine().begin() as cx:
       SELECT
         COALESCE(
           b.clutch_code,
-          'CI-' || LEFT(b.clutch_instance_id::text, 8)
+          'CL-' || LEFT(b.clutch_instance_id::text, 8)
         ) AS clutch_code,
 
         COALESCE(ac.n_alleles, 0)    AS n_alleles,
@@ -598,10 +598,17 @@ if recent.empty:
     st.caption("No recent clutches for this pair.")
 else:
     st.dataframe(
-    recent[
-        ["clutch_code", "n_alleles", "n_genotypes", "alleles_rollup",
-         "cross_code", "cross_date", "clutch_created_at"]
-    ],
-    hide_index=True,
-    use_container_width=True,
-)
+        recent[
+            [
+                "clutch_code",
+                "n_alleles",
+                "n_genotypes",
+                "alleles_rollup",
+                "cross_code",
+                "cross_date",
+                "clutch_created_at",
+            ]
+        ],
+        hide_index=True,
+        width="stretch",
+    )

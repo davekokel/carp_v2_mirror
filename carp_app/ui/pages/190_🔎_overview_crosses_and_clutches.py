@@ -115,7 +115,7 @@ SELECT
   -- display clutch code: stored code or CI-<idprefix> fallback
   COALESCE(
     b.clutch_code,
-    'CI-' || LEFT(b.clutch_instance_id::text, 8)
+    'CL-' || LEFT(b.clutch_instance_id::text, 8)
   ) AS clutch_code_disp,
 
   -- display cross label: cross_code or TP@date

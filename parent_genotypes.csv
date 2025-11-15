@@ -1,0 +1,42 @@
+parent_fish_name,plasmid_base_code,allele
+tandem mem:mStayGold,pDQM005,301
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),pDQM005,302
+casper/rnf,,
+ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082,315
+tdmScarlet3S2 (F1 of allele 325),pDQM136,325
+ef1a:2xLynk:tdm:mChilada,pDQM082,315
+membrane mChilada,pDQM082,315
+membrane Halo,Swinburne,Swinburne
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),pDQM005,301
+ef1a:H2B:Halo,Swinburne,Swinburne
+ef1a:2xLynk:tdm:mHalo,Swinburne,Swinburne
+ef1a:2xLynk:tdmSG(J) (F2 of allele 302),pDQM005,302
+csp/pIGLET 14a,,
+Dennis (F2 of allele 318),,381
+Jim (F2 of allele 316),,316
+Ben (F2 of allele 310),,310
+Ken (F2 of allele 320),,320
+Liam (F2 of allele 321),,321
+MGCO35 (F1 of allele 336),MGCO-35,336
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),pDQM005,301
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),pDQM034,310
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),pDQM034,310
+heatshock PhiC,pDQM112,
+tdmScarlet3S2:H2B-tol2 (F1 of allele 324),pDQM133,324
+memrane tdmScarlet3S2 (F1 of allele 325),pDQM136,325
+from Swinburne lab - tank ID 344 (F1 of allele 45385),Swinburne,Swinburne
+ef1a:2xLynk:tdm:Halo,Swinburne,Swinburne
+tdmScarlet3S2 (F2 of allele 325),pDQM136,325
+mem:tdmChilada,pDQM082,315
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),pDQM136,325
+ef1a:2xLynk:tdmSG(J) (F1 of allele 305),pDQM005,305
+ef1a:2xLynk:tdmSG(J) (F1 of allele 308),pDQM005,308
+memrane tdmScarlet3S2 (F1 of allele 327),pDQM136,327
+ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),pDQM036,313
+Abe (F2 of allele 309),pDQM034,309
+Isaac (F2 of allele 314),pDQM064,314
+Chris (F1 of allele 317),pDQM034,317
+ef1a:2xLynk:tdmSG(J) (F1 of allele 304),pDQM005,304
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 317),pDQM034,317
+tandem mem:mStayGold; tdmChilada:Histone,"pDQM005, pDQM104","301, n/a"
+tandem mem:mStayGold; tdmChilada(MAGPV):Histone,"pDQM005, pDQM104","301, n/a"

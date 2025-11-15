@@ -5,6 +5,7 @@ from __future__ import annotations
 import os, sys, pathlib, re
 from typing import List, Dict, Tuple, Optional
 from datetime import date
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text, bindparam
@@ -19,10 +20,12 @@ if str(ROOT) not in sys.path:
 # ── auth / engine / labels helpers ───────────────────────────────────────────
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
+
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
+
 from carp_app.ui.lib.page_engine import engine as _engine
 
 HAVE_PRINT_HELPER = False
@@ -45,23 +48,27 @@ st.title("🖨️ Cross & Clutch labels")
 def _eng() -> Engine:
     url = os.getenv("DB_URL", "")
     if not url:
-        st.error("DB_URL not set"); st.stop()
+        st.error("DB_URL not set")
+        st.stop()
     return _engine()
 
 # ── utils ────────────────────────────────────────────────────────────────────
 _BASE_ONLY_RE = re.compile(r"\b(?:p[A-Za-z]{2,}\d{2,}|[A-Z]{2,}-\d{1,})\b")
+
 
 def _bases_from_genotype(geno: str) -> List[str]:
     if not geno:
         return []
     return sorted(set(_BASE_ONLY_RE.findall(str(geno))))
 
+
 @st.cache_data(show_spinner=False)
 def _fluor_names_for_bases(bases: List[str]) -> str:
     """Fluor rollup from plasmid→fusions→fluors for a list of base plasmid codes."""
     if not bases:
         return ""
-    sql = text("""
+    sql = text(
+        """
       WITH b AS (SELECT unnest(:codes) AS base_code)
       SELECT COALESCE(
                string_agg(
@@ -75,10 +82,12 @@ def _fluor_names_for_bases(bases: List[str]) -> str:
       LEFT JOIN public.join_plasmid_fusions jpf ON jpf.plasmid_id = p.id
       LEFT JOIN public.fusions f                ON f.id = jpf.fusion_id
       LEFT JOIN public.fluors  fl               ON fl.id = f.fluor_id
-    """).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
+    """
+    ).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": bases})
     return (df["fls"].iloc[0] or "") if not df.empty else ""
+
 
 @st.cache_data(show_spinner=False)
 def _fluors_for_ft_codes(codes: List[str]) -> str:
@@ -91,7 +100,8 @@ def _fluors_for_ft_codes(codes: List[str]) -> str:
     """
     if not codes:
         return ""
-    sql = text("""
+    sql = text(
+        """
       WITH c AS (
         SELECT unnest(:codes) AS code
       )
@@ -106,16 +116,19 @@ def _fluors_for_ft_codes(codes: List[str]) -> str:
       JOIN public.fluors fl
         ON fl.fluor_code = c.code
         OR fl.fluor_name = c.code
-    """).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
+    """
+    ).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": codes})
     return (df["flu"].iloc[0] or "") if not df.empty else ""
+
 
 def _split_tx_codes(s: str) -> List[str]:
     if not s:
         return []
     parts = [p.strip() for p in re.split(r"\s*\+\s*", s) if p.strip()]
     return parts
+
 
 def _dedup_rollup(*parts: List[str]) -> str:
     toks: List[str] = []
@@ -125,35 +138,43 @@ def _dedup_rollup(*parts: List[str]) -> str:
         toks.extend([t.strip() for t in str(s).split(",") if t.strip()])
     return ", ".join(sorted(set(toks), key=str.lower))
 
+
 def _vert_table(title: str, rows: List[Tuple[str, str]]):
-    t = pd.DataFrame(rows, columns=["Field","Value"])
+    t = pd.DataFrame(rows, columns=["Field", "Value"])
     t["Field"] = t["Field"].astype("string")
     t["Value"] = t["Value"].astype("string").fillna("")
     st.markdown(f"**{title}**")
     st.dataframe(t, hide_index=True, use_container_width=True)
 
+
 # ── dynamic tank_pairs columns (mother/father) ───────────────────────────────
 @st.cache_data(show_spinner=False)
 def _parent_cols() -> Tuple[str, str]:
-    sql = text("""
+    sql = text(
+        """
       SELECT column_name FROM information_schema.columns
       WHERE table_schema='public' AND table_name='tank_pairs'
-    """)
+    """
+    )
     with _eng().begin() as cx:
         cols = pd.read_sql(sql, cx)["column_name"].tolist()
-    for a,b in (("mother_tank_id","father_tank_id"), ("tank_id_mother","tank_id_father")):
+    for a, b in (("mother_tank_id", "father_tank_id"), ("tank_id_mother", "tank_id_father")):
         if a in cols and b in cols:
-            return a,b
-    return "mother_tank_id","father_tank_id"
+            return a, b
+    return "mother_tank_id", "father_tank_id"
+
 
 # ── loaders ──────────────────────────────────────────────────────────────────
-def _load_crosses(q: Optional[str], d_from: Optional[date], d_to: Optional[date], limit: int) -> pd.DataFrame:
+def _load_crosses(
+    q: Optional[str], d_from: Optional[date], d_to: Optional[date], limit: int
+) -> pd.DataFrame:
     """
     Cross rows with mom/dad tanks + genotypes + fusions.
     Uses v_fish_overview for genotype/fusions and tank_pairs + tanks + fish for parents.
     """
     mom_col, dad_col = _parent_cols()
-    sql = text(f"""
+    sql = text(
+        f"""
       WITH fm AS (
         SELECT
           v.fish_code_raw        AS fish_code,
@@ -203,11 +224,12 @@ def _load_crosses(q: Optional[str], d_from: Optional[date], d_to: Optional[date]
         )
       ORDER BY cr.created_at DESC NULLS LAST, cr.cross_run_code
       LIMIT :lim
-    """)
+    """
+    )
 
     qnorm = (q or "").strip()
     params = {
-        "q":  (qnorm if qnorm else None),
+        "q": (qnorm if qnorm else None),
         "ql": f"%{qnorm}%",
         "d1": (str(d_from) if d_from else None),
         "d2": (str(d_to) if d_to else None),
@@ -221,6 +243,7 @@ def _load_crosses(q: Optional[str], d_from: Optional[date], d_to: Optional[date]
         df[c] = df[c].astype("string").fillna("")
 
     return df
+
 
 def _load_treated_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
     """All treated-clutch groups whose clutches belong to any selected cross (with clutch genotype)."""
@@ -239,7 +262,8 @@ def _load_treated_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
             ]
         )
 
-    sql = text("""
+    sql = text(
+        """
       WITH picked AS (
         SELECT unnest(:ids)::uuid AS cross_id
       ),
@@ -257,21 +281,21 @@ def _load_treated_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
         vt.clutch_code                   AS clutch_code,
         cl.clutch_date                   AS dob,
 
-        -- UPDATED: use new rollup columns from v_treated_clutches_overview
         COALESCE(vt.treatment_codes_rollup,'') AS treatments_codes,
         COALESCE(vt.treatment_names_rollup,'') AS treatments_names,
 
-        ''::text                                AS tx_genotype,        -- no tx genotype rollup yet
-        COALESCE(vt.clutch_genotype,'')        AS offspring_genotype,  -- plain clutch_genotype from view
+        ''::text                                AS tx_genotype,
+        COALESCE(vt.clutch_genotype,'')        AS offspring_genotype,
         cr.id::uuid::text                      AS cross_id,
         cr.cross_run_code                      AS cross_code
       FROM cl
       JOIN public.v_treated_clutches_overview vt
-           ON vt.clutch_instance_id::uuid = cl.clutch_instance_id   -- cast text -> uuid
+           ON vt.clutch_instance_id::uuid = cl.clutch_instance_id
       JOIN public.crosses cr
            ON cr.id = cl.cross_id
       ORDER BY vt.group_created_at DESC NULLS LAST, vt.treated_clutch_code
-    """).bindparams(bindparam("ids", type_=ARRAY(UUID())))
+    """
+    ).bindparams(bindparam("ids", type_=ARRAY(UUID())))
 
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"ids": cross_ids})
@@ -281,12 +305,13 @@ def _load_treated_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
 
     return df
 
+
 # ── filters ──────────────────────────────────────────────────────────────────
 with st.form("filters", clear_on_submit=False):
-    c1, c2, c3 = st.columns([2,1,1])
+    c1, c2, c3 = st.columns([2, 1, 1])
     q = c1.text_input("Search crosses (code / TP / parent genotypes)", "")
     d_from = c2.date_input("From", value=None)
-    d_to   = c3.date_input("To", value=None)
+    d_to = c3.date_input("To", value=None)
     limit = int(st.number_input("Limit", min_value=10, max_value=3000, value=500, step=50))
     st.form_submit_button("Apply", use_container_width=True)
 
@@ -301,17 +326,29 @@ if cx_sel not in cx_view.columns:
     cx_view.insert(0, cx_sel, False)
 
 cx_picker = st.data_editor(
-    cx_view[[cx_sel, "cross_code","cross_date","tank_pair_code","mom_tank_code","dad_tank_code","mom_genotype","dad_genotype"]],
-    hide_index=True, use_container_width=True,
+    cx_view[
+        [
+            cx_sel,
+            "cross_code",
+            "cross_date",
+            "tank_pair_code",
+            "mom_tank_code",
+            "dad_tank_code",
+            "mom_genotype",
+            "dad_genotype",
+        ]
+    ],
+    hide_index=True,
+    use_container_width=True,
     column_config={
-        cx_sel:               st.column_config.CheckboxColumn("✓", default=False),
-        "cross_code":         st.column_config.TextColumn("Cross code", disabled=True),
-        "cross_date":         st.column_config.DateColumn("Date", disabled=True),
-        "tank_pair_code":     st.column_config.TextColumn("Tank pair", disabled=True),
-        "mom_tank_code":      st.column_config.TextColumn("Mother tank", disabled=True),
-        "dad_tank_code":      st.column_config.TextColumn("Father tank", disabled=True),
-        "mom_genotype":       st.column_config.TextColumn("Mom genotype", disabled=True, width="large"),
-        "dad_genotype":       st.column_config.TextColumn("Dad genotype", disabled=True, width="large"),
+        cx_sel: st.column_config.CheckboxColumn("✓", default=False),
+        "cross_code": st.column_config.TextColumn("Cross code", disabled=True),
+        "cross_date": st.column_config.DateColumn("Date", disabled=True),
+        "tank_pair_code": st.column_config.TextColumn("Tank pair", disabled=True),
+        "mom_tank_code": st.column_config.TextColumn("Mother tank", disabled=True),
+        "dad_tank_code": st.column_config.TextColumn("Father tank", disabled=True),
+        "mom_genotype": st.column_config.TextColumn("Mom genotype", disabled=True, width="large"),
+        "dad_genotype": st.column_config.TextColumn("Dad genotype", disabled=True, width="large"),
     },
     key="cross_picker_editor_v6",
 )
@@ -324,29 +361,50 @@ if chosen_crosses.empty:
 # ── Step 2: ONLY treated clutches for selected crosses ───────────────────────
 st.subheader("2) Select treated clutch group(s) for selected cross(es)")
 cross_ids = chosen_crosses["cross_id"].astype(str).tolist()
-treat_df  = _load_treated_clutches_for_crosses(cross_ids)
+treat_df = _load_treated_clutches_for_crosses(cross_ids)
 
 tc_sel = "✓ Select treated"
 if not treat_df.empty and tc_sel not in treat_df.columns:
     treat_df.insert(0, tc_sel, False)
 
 treat_picker = st.data_editor(
-    treat_df[[tc_sel,"group_code","clutch_code","dob","treatments_codes","treatments_names","tx_genotype","offspring_genotype","cross_code"]] if not treat_df.empty else treat_df,
-    hide_index=True, use_container_width=True,
+    treat_df[
+        [
+            tc_sel,
+            "group_code",
+            "clutch_code",
+            "dob",
+            "treatments_codes",
+            "treatments_names",
+            "tx_genotype",
+            "offspring_genotype",
+            "cross_code",
+        ]
+    ]
+    if not treat_df.empty
+    else treat_df,
+    hide_index=True,
+    use_container_width=True,
     column_config={
-        tc_sel:                   st.column_config.CheckboxColumn("✓", default=False),
-        "group_code":             st.column_config.TextColumn("Group code", disabled=True),
-        "clutch_code":            st.column_config.TextColumn("Clutch", disabled=True),
-        "dob":                    st.column_config.DateColumn("DOB", disabled=True),
-        "treatments_codes":       st.column_config.TextColumn("Tx codes", disabled=True),
-        "treatments_names":       st.column_config.TextColumn("Tx names", disabled=True, width="large"),
-        "tx_genotype":            st.column_config.TextColumn("Tx → genotype", disabled=True, width="large"),
-        "offspring_genotype":     st.column_config.TextColumn("Offspring genotype", disabled=True, width="large"),
-        "cross_code":             st.column_config.TextColumn("Cross", disabled=True),
+        tc_sel: st.column_config.CheckboxColumn("✓", default=False),
+        "group_code": st.column_config.TextColumn("Group code", disabled=True),
+        "clutch_code": st.column_config.TextColumn("Clutch", disabled=True),
+        "dob": st.column_config.DateColumn("DOB", disabled=True),
+        "treatments_codes": st.column_config.TextColumn("Tx codes", disabled=True),
+        "treatments_names": st.column_config.TextColumn("Tx names", disabled=True, width="large"),
+        "tx_genotype": st.column_config.TextColumn("Tx → genotype", disabled=True, width="large"),
+        "offspring_genotype": st.column_config.TextColumn("Offspring genotype", disabled=True, width="large"),
+        "cross_code": st.column_config.TextColumn("Cross", disabled=True),
     },
     key="treated_clutch_picker_editor_rollup_v2",
 )
-treat_mask = treat_picker.get(tc_sel, pd.Series(False, index=treat_picker.index)).fillna(False).astype(bool) if not treat_df.empty else pd.Series(dtype=bool)
+treat_mask = (
+    treat_picker.get(tc_sel, pd.Series(False, index=treat_picker.index))
+    .fillna(False)
+    .astype(bool)
+    if not treat_df.empty
+    else pd.Series(dtype=bool)
+)
 chosen_treated = treat_df.loc[treat_mask].reset_index(drop=True) if not treat_df.empty else treat_df
 st.caption(f"Selected treated clutch groups: {len(chosen_treated)}")
 
@@ -356,60 +414,84 @@ st.subheader("3) Label preview")
 n_cross = len(chosen_crosses)
 page = 1
 if n_cross > 1:
-    page = st.number_input("Preview page (one cross + one clutch per page)", min_value=1, max_value=n_cross, value=1, step=1)
+    page = st.number_input(
+        "Preview page (one cross + one clutch per page)",
+        min_value=1,
+        max_value=n_cross,
+        value=1,
+        step=1,
+    )
 idx = int(page) - 1
 cx_row = chosen_crosses.iloc[idx].to_dict()
 
-# CROSS preview
-mom_g, dad_g = cx_row.get("mom_genotype",""), cx_row.get("dad_genotype","")
-fusion_cross = _dedup_rollup(cx_row.get("mom_fusions",""), cx_row.get("dad_fusions",""))
-_vert_table(
-    f"CROSS {cx_row.get('cross_code','')}",
-    [
-        ("Cross code",   cx_row.get("cross_code","")),
-        ("Date",         str(cx_row.get("cross_date") or "")),
-        ("Tank pair",    cx_row.get("tank_pair_code","")),
-        ("Mother tank",  cx_row.get("mom_tank_code","")),
-        ("Father tank",  cx_row.get("dad_tank_code","")),
-        ("Mom genotype", mom_g),
-        ("Dad genotype", dad_g),
-        ("Fusions",      fusion_cross),
-    ]
-)
-
-# CLUTCH preview (rollups across selected treated groups tied to THIS cross)
+# derive clutch preview data for this cross (used in BOTH previews)
 tc_for_cross = (
     chosen_treated.loc[chosen_treated["cross_id"] == cx_row.get("cross_id")]
-    if not chosen_treated.empty else pd.DataFrame()
+    if not chosen_treated.empty
+    else pd.DataFrame()
 )
+
+clutch_label: str = ""
+clutch_geno: str = ""
+codes_rollup: str = ""
+flu_rollup: str = ""
+
 if not tc_for_cross.empty:
-    # 1) Codes rollup = treatments codes
+    # Tx codes rollup
     all_codes: List[str] = []
     for s in tc_for_cross["treatments_codes"].astype(str).tolist():
         all_codes.extend(_split_tx_codes(s))
-    codes_rollup = " + ".join(sorted(set([c for c in all_codes if c])))
+    tx_codes_clean = [c for c in all_codes if c]
+    codes_rollup = " + ".join(sorted(set(tx_codes_clean)))
 
-    # 2) Fluor rollup = union of fluor codes from tx codes + offspring genotype bases
-    flu_from_tx   = _fluors_for_ft_codes(sorted(set([c for c in all_codes if c])))
+    # Fluors rollup: from Tx codes + offspring genotype bases
+    tx_fluors = _fluors_for_ft_codes(sorted(set(tx_codes_clean)))
     bases_offspring: List[str] = []
     for s in tc_for_cross["offspring_genotype"].astype(str).tolist():
         bases_offspring.extend(_bases_from_genotype(s))
     flu_from_offspring = _fluor_names_for_bases(sorted(set(bases_offspring)))
-    flu_rollup = _dedup_rollup(flu_from_tx, flu_from_offspring)
+    flu_rollup = _dedup_rollup(tx_fluors, flu_from_offspring)
 
     tr = tc_for_cross.iloc[0].to_dict()
-    clutch_label   = tr.get("clutch_code") or tr.get("group_code") or ""
-    clutch_geno    = tr.get("offspring_genotype","")
+    clutch_label = tr.get("clutch_code") or tr.get("group_code") or ""
+    clutch_geno = tr.get("offspring_genotype", "")
 
+# CROSS preview
+mom_g = cx_row.get("mom_genotype", "")
+dad_g = cx_row.get("dad_genotype", "")
+fusion_cross = _dedup_rollup(cx_row.get("mom_fusions", ""), cx_row.get("dad_fusions", ""))
+
+arrow_val = ""
+if clutch_label:
+    arrow_val = f"→ {clutch_label}"
+    if flu_rollup:
+        arrow_val += f" · {flu_rollup}"
+
+cross_rows_preview: List[Tuple[str, str]] = [
+    ("Cross code", cx_row.get("cross_code", "")),
+    ("Mother tank", cx_row.get("mom_tank_code", "")),
+    ("Father tank", cx_row.get("dad_tank_code", "")),
+    ("Mom genotype", mom_g),
+    ("Dad genotype", dad_g),
+    ("Fusions", fusion_cross),
+]
+if arrow_val:
+    cross_rows_preview.append(("→ Clutch / fluors", arrow_val))
+
+_vert_table(f"CROSS {cx_row.get('cross_code','')}", cross_rows_preview)
+
+# CLUTCH preview (only if there is at least one treated group for this cross)
+if not tc_for_cross.empty:
+    tr = tc_for_cross.iloc[0].to_dict()
     _vert_table(
         f"CLUTCH · GROUP(S) {', '.join(tc_for_cross['group_code'].tolist())}",
         [
-            ("Clutch",            clutch_label),
-            ("Genotype",          clutch_geno),
-            ("DOB",               str(tr.get("dob") or "")),
+            ("DOB", str(tr.get("dob") or "")),
+            ("Clutch", clutch_label),
+            ("Genotype", clutch_geno),
             ("Tx codes (rollup)", codes_rollup),
-            ("Fluors (rollup)",   flu_rollup),
-        ]
+            ("Fluors (rollup)", flu_rollup),
+        ],
     )
 else:
     st.info("No treated clutch group selected for this cross (choose one in Step 2 to preview).")
@@ -420,32 +502,74 @@ st.subheader("4) Download / print for selected")
 # Cross label rows
 cross_rows: List[Dict] = []
 for r in chosen_crosses.to_dict(orient="records"):
-    cross_rows.append({
-        "cross_code":        r.get("cross_code"),
-        "cross_date":        r.get("cross_date"),
-        "mother_tank_code":  r.get("mom_tank_code"),
-        "father_tank_code":  r.get("dad_tank_code"),
-        "mom_genotype":      r.get("mom_genotype"),
-        "dad_genotype":      r.get("dad_genotype"),
-    })
+    fusion_cross = _dedup_rollup(r.get("mom_fusions", ""), r.get("dad_fusions", ""))
+
+    # find treated clutches for this cross to drive the arrow row
+    tc_for_cross = (
+        chosen_treated.loc[chosen_treated["cross_id"] == r.get("cross_id")]
+        if not chosen_treated.empty
+        else pd.DataFrame()
+    )
+
+    clutch_label = ""
+    clutch_fluors = ""
+
+    if not tc_for_cross.empty:
+        # Tx codes rollup
+        all_codes: List[str] = []
+        for s in tc_for_cross["treatments_codes"].astype(str).tolist():
+            all_codes.extend(_split_tx_codes(s))
+        tx_codes_clean = [c for c in all_codes if c]
+        # Fluors rollup from Tx + offspring genotype
+        tx_flu = _fluors_for_ft_codes(sorted(set(tx_codes_clean)))
+        bases_offspring: List[str] = []
+        for s in tc_for_cross["offspring_genotype"].astype(str).tolist():
+            bases_offspring.extend(_bases_from_genotype(s))
+        flu_from_offspring = _fluor_names_for_bases(sorted(set(bases_offspring)))
+        clutch_fluors = _dedup_rollup(tx_flu, flu_from_offspring)
+
+        tr = tc_for_cross.iloc[0].to_dict()
+        clutch_label = tr.get("clutch_code") or tr.get("group_code") or ""
+
+    cross_rows.append(
+        {
+            "cross_code": r.get("cross_code"),
+            "mother_tank_code": r.get("mom_tank_code"),
+            "father_tank_code": r.get("dad_tank_code"),
+            "mom_genotype": r.get("mom_genotype"),
+            "dad_genotype": r.get("dad_genotype"),
+            "fusions": fusion_cross,
+            "clutch_label": clutch_label,
+            "clutch_fluors": clutch_fluors,
+        }
+    )
 
 # Treated clutch groups → petri labels
 petri_rows: List[Dict] = []
 for r in chosen_treated.to_dict(orient="records"):
-    tx_codes  = _split_tx_codes(r.get("treatments_codes",""))
-    tx_fluors = _fluors_for_ft_codes(tx_codes)
-    offspring_bases = _bases_from_genotype(r.get("offspring_genotype",""))
-    offspring_flu   = _fluor_names_for_bases(offspring_bases)
-    petri_rows.append({
-        "clutch_instance_code": r.get("treated_clutch_code") or r.get("group_code") or "",
-        "clutch_name": "",
-        "mom_code": "",
-        "dad_code": "",
-        "clutch_genotype": r.get("tx_genotype") or "",
-        "date_birth": str(r.get("dob") or ""),
-        "tx_codes":   " + ".join(tx_codes),
-        "tx_fluors":  _dedup_rollup(tx_fluors, offspring_flu),
-    })
+    tx_codes = _split_tx_codes(r.get("treatments_codes", ""))
+    tx_codes_clean = [c for c in tx_codes if c]
+    codes_rollup = " + ".join(sorted(set(tx_codes_clean)))
+
+    tx_fluors = _fluors_for_ft_codes(sorted(set(tx_codes_clean)))
+    offspring_bases = _bases_from_genotype(r.get("offspring_genotype", ""))
+    offspring_flu = _fluor_names_for_bases(offspring_bases)
+    flu_rollup = _dedup_rollup(tx_fluors, offspring_flu)
+
+    clutch_label = r.get("clutch_code") or r.get("group_code") or ""
+
+    petri_rows.append(
+        {
+            "clutch_instance_code": clutch_label,
+            "clutch_name": "",
+            "mom_code": "",
+            "dad_code": "",
+            "clutch_genotype": r.get("offspring_genotype") or "",
+            "date_birth": str(r.get("dob") or ""),
+            "tx_codes": codes_rollup,
+            "tx_fluors": flu_rollup,
+        }
+    )
 
 c1, c2 = st.columns(2)
 with c1:
@@ -454,7 +578,7 @@ with c1:
             rows=cross_rows,
             builder="crossing",
             file_prefix="cross_labels",
-            button_text="🖨️ Print / Download CROSS labels (ALL selected)"
+            button_text="🖨️ Print / Download CROSS labels (ALL selected)",
         )
     else:
         st.button("🖨️ Print / Download CROSS labels (ALL selected)", disabled=True)
@@ -465,7 +589,7 @@ with c2:
             rows=petri_rows,
             builder="petri",
             file_prefix="clutch_labels",
-            button_text="🖨️ Print / Download CLUTCH labels (ALL selected)"
+            button_text="🖨️ Print / Download CLUTCH labels (ALL selected)",
         )
     else:
         st.button("🖨️ Print / Download CLUTCH labels (ALL selected)", disabled=True)

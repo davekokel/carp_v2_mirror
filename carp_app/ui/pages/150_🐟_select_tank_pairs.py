@@ -1,6 +1,6 @@
 # carp_app/ui/pages/150_🐟_select_tank_pairs.py
 from __future__ import annotations
-import sys, pathlib, os
+import sys, pathlib, os, uuid          # ← add uuid here
 from typing import List, Optional, Tuple
 
 import pandas as pd
@@ -37,7 +37,9 @@ def _cols(schema: str, table: str) -> List[str]:
               FROM information_schema.columns
               WHERE table_schema=:s AND table_name=:t
               ORDER BY ordinal_position
-            """), cx, params={"s": schema, "t": table}
+            """),
+            cx,
+            params={"s": schema, "t": table},
         )
     return df["column_name"].tolist()
 
@@ -48,7 +50,9 @@ def _assert_table(schema: str, table: str):
               SELECT 1
               FROM information_schema.tables
               WHERE table_schema=:s AND table_name=:t
-            """), cx, params={"s": schema, "t": table}
+            """),
+            cx,
+            params={"s": schema, "t": table},
         )
     if df.empty:
         raise RuntimeError(f"Required table {schema}.{table} is missing.")
@@ -61,7 +65,7 @@ def _assert_cols(schema: str, table: str, required: List[str]):
 
 def _tank_pair_parent_cols() -> Tuple[str, str]:
     tp = _cols("public", "tank_pairs")
-    for a, b in (("mother_tank_id","father_tank_id"), ("tank_id_mother","tank_id_father")):
+    for a, b in (("mother_tank_id", "father_tank_id"), ("tank_id_mother", "tank_id_father")):
         if a in tp and b in tp:
             return a, b
     raise RuntimeError(
@@ -119,7 +123,9 @@ def _verify_core_schema() -> dict:
     tanks_cols = _cols("public", "tanks")
     fish_fk_col = _discover_tanks_fish_fk_col()
     if fish_fk_col not in tanks_cols:
-        raise RuntimeError(f"FK column '{fish_fk_col}' referenced by constraint is not a column of public.tanks?! Found: {tanks_cols}")
+        raise RuntimeError(
+            f"FK column '{fish_fk_col}' referenced by constraint is not a column of public.tanks?! Found: {tanks_cols}"
+        )
 
     # fish requirements (stage can be either of two exact names)
     _assert_cols("public", "fish", ["id", "fish_code", "nickname", "genetic_background", "created_at"])
@@ -135,7 +141,11 @@ def _verify_core_schema() -> dict:
         )
 
     # genotype linkage
-    _assert_cols("public", "join_fish_transgene_alleles", ["fish_id", "transgene_base_code", "allele_number"])
+    _assert_cols(
+        "public",
+        "join_fish_transgene_alleles",
+        ["fish_id", "transgene_base_code", "allele_number"],
+    )
     alle_cols = _cols("public", "transgene_alleles")
     for c in ["transgene_base_code", "allele_number"]:
         if c not in alle_cols:
@@ -145,8 +155,15 @@ def _verify_core_schema() -> dict:
     mom_col, dad_col = _tank_pair_parent_cols()
 
     return {
-        "tanks": {"id":"id","code":"tank_code","status":"status","created":"created_at","fish_fk":fish_fk_col},
-        "fish":  {"id":"id","code":"fish_code","nickname":"nickname","bg":"genetic_background","stage":stage_col,"created":"created_at"},
+        "tanks": {"id": "id", "code": "tank_code", "status": "status", "created": "created_at", "fish_fk": fish_fk_col},
+        "fish": {
+            "id": "id",
+            "code": "fish_code",
+            "nickname": "nickname",
+            "bg": "genetic_background",
+            "stage": stage_col,
+            "created": "created_at",
+        },
         "tank_pairs": {"mom": mom_col, "dad": dad_col},
     }
 
@@ -156,7 +173,8 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
     S = _verify_core_schema()
     t, f = S["tanks"], S["fish"]
 
-    sql = text(f"""
+    sql = text(
+        f"""
       WITH gp AS (
         SELECT
           f.{f['code']} AS fish_code,
@@ -216,11 +234,12 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
         COALESCE(l.live_tank_codes,'')    AS live_tank_codes
       FROM base b
       LEFT JOIN live l USING (fish_code)
-    """)
+    """
+    )
 
     qnorm = (q or "").strip()
     params = {
-        "q":  (qnorm if qnorm else None),
+        "q": (qnorm if qnorm else None),
         "ql": (f"%{qnorm}%" if qnorm else None),
         "lim": int(limit),
     }
@@ -237,7 +256,8 @@ def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     S = _verify_core_schema()
     t, f = S["tanks"], S["fish"]
 
-    sql = text(f"""
+    sql = text(
+        f"""
       SELECT
         f2.{f['code']}                 AS fish_code,
         COALESCE(f2.{f['nickname']},'') AS fish_name,
@@ -269,50 +289,19 @@ def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
       WHERE f2.{f['code']} = ANY(:codes)
         AND lower(trim(t.{t['status']}))='active'
       ORDER BY f2.{f['code']}, t.{t['created']} DESC NULLS LAST
-    """)
+    """
+    )
     with engine().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": codes})
     return df.fillna("")
 
-def _tank_pair_code_requirements() -> dict:
-    """
-    Verify tank_pair_code policy: is it present? nullable? defaulted?
-    Returns: {"exists": bool, "nullable": bool, "has_default": bool}
-    """
-    with engine().begin() as cx:
-        row = pd.read_sql(
-            text("""
-              SELECT
-                1 AS exists,
-                (is_nullable = 'YES') AS nullable,
-                (column_default IS NOT NULL) AS has_default
-              FROM information_schema.columns
-              WHERE table_schema='public' AND table_name='tank_pairs' AND column_name='tank_pair_code'
-            """), cx
-        )
-    if row.empty:
-        return {"exists": False, "nullable": True, "has_default": False}
-    r = row.iloc[0]
-    return {"exists": True, "nullable": bool(r["nullable"]), "has_default": bool(r["has_default"])}
-
-def _generate_tank_pair_code(cx, prefix: str = "TP-") -> str:
-    cx.execute(text("LOCK TABLE public.tank_pairs IN SHARE ROW EXCLUSIVE MODE"))
-    maxn = pd.read_sql(
-        text("""
-          SELECT COALESCE(
-            MAX(substring(tank_pair_code FROM '(\\d+)$')::int),
-            0
-          ) AS maxn
-          FROM public.tank_pairs
-          WHERE tank_pair_code ~ '\\d+$'
-        """),
-        cx,
-    ).iloc[0]["maxn"] or 0
-    nextn = int(maxn) + 1
-    padded = f"{nextn:06d}"
-    return f"{prefix}{padded}"
-
 def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, note: str):
+    """
+    If a tank pair (mother, father) already exists, update metadata and return its code.
+    Otherwise, insert a new row with:
+      id             = generated UUID
+      tank_pair_code = 'TP-' || first 8 chars of that UUID
+    """
     mom_col, dad_col = _tank_pair_parent_cols()
 
     with engine().begin() as cx:
@@ -320,12 +309,14 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
 
         # 1) Check if this pair already exists
         row = pd.read_sql(
-            text(f"""
+            text(
+                f"""
               SELECT id::text, tank_pair_code
               FROM public.tank_pairs
               WHERE {mom_col} = :m AND {dad_col} = :d
               LIMIT 1
-            """),
+            """
+            ),
             cx,
             params={"m": mother_tank_id, "d": father_tank_id},
         )
@@ -346,10 +337,13 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 )
             return False, str(row.iloc[0]["tank_pair_code"])
 
-        # 2) Build INSERT for a new pair
-        insert_cols = [mom_col, dad_col]
-        placeholders = [":m", ":d"]
-        params = {"m": mother_tank_id, "d": father_tank_id}
+        # 2) Build INSERT for a new pair, explicitly setting id and tank_pair_code
+        new_id = str(uuid.uuid4())
+        new_code = f"TP-{new_id[:8]}"
+
+        insert_cols = ["id", mom_col, dad_col]
+        placeholders = [":id", ":m", ":d"]
+        params = {"id": new_id, "m": mother_tank_id, "d": father_tank_id}
 
         if "created_by" in cols:
             insert_cols.append("created_by")
@@ -367,29 +361,23 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
             insert_cols.append("created_at")
             placeholders.append("now()")
 
-        # 3) Ensure we satisfy NOT NULL on tank_pair_code
-        tp_code = None
-        req = _tank_pair_code_requirements()  # {"exists", "nullable", "has_default"}
-        if req["exists"] and (not req["nullable"]) and (not req["has_default"]):
-            tp_code = _generate_tank_pair_code(cx)
-            insert_cols.append("tank_pair_code")
-            placeholders.append(":tp_code")
-            params["tp_code"] = tp_code
+        insert_cols.append("tank_pair_code")
+        placeholders.append(":tp_code")
+        params["tp_code"] = new_code
 
-        sql = text(f"""
+        sql = text(
+            f"""
           INSERT INTO public.tank_pairs({', '.join(insert_cols)})
           VALUES ({', '.join(placeholders)})
           RETURNING tank_pair_code
-        """)
+        """
+        )
         tp_code_db = cx.execute(sql, params).scalar()
-        if tp_code is None:
-            tp_code = tp_code_db
-
-        return True, str(tp_code)
+        return True, str(tp_code_db)
 
 # ------------------ UI -------------------------------------------------------
 with st.form("filters"):
-    c1, c2 = st.columns([3,1])
+    c1, c2 = st.columns([3, 1])
     with c1:
         q = st.text_input("Filter by code / nickname / background / genotype", "")
     with c2:
@@ -398,7 +386,8 @@ with st.form("filters"):
 
 df = search_fish(q, limit)
 if df.empty:
-    st.info("No fish match filters."); st.stop()
+    st.info("No fish match filters.")
+    st.stop()
 
 # Step 1 — pick two parent fish
 st.subheader("Step 1 — Select parents (from fish registry)")
@@ -410,13 +399,13 @@ pick = st.data_editor(
     use_container_width=True,
     hide_index=True,
     column_config={
-        "✓ Parent":  st.column_config.CheckboxColumn("✓", default=False),
+        "✓ Parent": st.column_config.CheckboxColumn("✓", default=False),
         "fish_code": st.column_config.TextColumn("fish_code", disabled=True),
-        "name":      st.column_config.TextColumn("name", disabled=True),
-        "background":st.column_config.TextColumn("background", disabled=True),
-        "stage":     st.column_config.TextColumn("stage", disabled=True),
-        "genotype":  st.column_config.TextColumn("genotype", disabled=True),
-        "live_tanks":st.column_config.NumberColumn("live tanks"),
+        "name": st.column_config.TextColumn("name", disabled=True),
+        "background": st.column_config.TextColumn("background", disabled=True),
+        "stage": st.column_config.TextColumn("stage", disabled=True),
+        "genotype": st.column_config.TextColumn("genotype", disabled=True),
+        "live_tanks": st.column_config.NumberColumn("live tanks"),
         "live_tank_codes": st.column_config.TextColumn("live tank codes", disabled=True),
     },
 )
@@ -424,7 +413,8 @@ pick = st.data_editor(
 parents = pick.loc[pick["✓ Parent"], "fish_code"].dropna().astype(str).tolist() if not pick.empty else []
 parents = list(dict.fromkeys(parents))[:2]
 if len(parents) < 2:
-    st.info("Select two parents above to continue."); st.stop()
+    st.info("Select two parents above to continue.")
+    st.stop()
 
 st.success(f"Selected parents: {parents[0]} × {parents[1]}")
 
@@ -432,47 +422,56 @@ st.success(f"Selected parents: {parents[0]} × {parents[1]}")
 st.subheader("Step 2 — Choose Mother and Father tanks (active only)")
 live = load_active_tanks_for_fish(parents)
 if live.empty:
-    st.warning("No active tanks for selected parents."); st.stop()
+    st.warning("No active tanks for selected parents.")
+    st.stop()
 
 # Mother candidates = ALL active tanks for BOTH fish
 st.subheader("Mother")
 m_candidates = live.copy()
 m_candidates.insert(0, "✓ Mother", False)
 m_sel = st.data_editor(
-    m_candidates[["✓ Mother","fish_code","fish_name","genotype","tank_code","tank_id","status","created_at"]],
+    m_candidates[
+        ["✓ Mother", "fish_code", "fish_name", "genotype", "tank_code", "tank_id", "status", "created_at"]
+    ],
     key="mother_table",
     use_container_width=True,
     hide_index=True,
 )
 m_pick = m_sel.loc[m_sel["✓ Mother"]] if not m_sel.empty else pd.DataFrame()
 if m_pick.empty:
-    st.info("Pick a Mother tank to continue."); st.stop()
+    st.info("Pick a Mother tank to continue.")
+    st.stop()
 
-mother_row     = m_pick.iloc[0]
-mother_fish    = str(mother_row["fish_code"])
+mother_row = m_pick.iloc[0]
+mother_fish = str(mother_row["fish_code"])
 mother_tank_id = str(mother_row["tank_id"])
 
 # Father candidates = ALL remaining active tanks for the OTHER fish
 other_fish = next(f for f in parents if f != mother_fish)
 f_candidates = live[live["fish_code"] == other_fish].copy()
 if f_candidates.empty:
-    st.warning(f"No active tanks for father fish {other_fish}."); st.stop()
+    st.warning(f"No active tanks for father fish {other_fish}.")
+    st.stop()
 
 st.subheader("Father")
 f_candidates.insert(0, "✓ Father", False)
 f_sel = st.data_editor(
-    f_candidates[["✓ Father","fish_code","fish_name","genotype","tank_code","tank_id","status","created_at"]],
+    f_candidates[
+        ["✓ Father", "fish_code", "fish_name", "genotype", "tank_code", "tank_id", "status", "created_at"]
+    ],
     key="father_table",
     use_container_width=True,
     hide_index=True,
 )
 f_pick = f_sel.loc[f_sel["✓ Father"]] if not f_sel.empty else pd.DataFrame()
 if f_pick.empty:
-    st.info("Pick a Father tank to continue."); st.stop()
+    st.info("Pick a Father tank to continue.")
+    st.stop()
 
 father_tank_id = str(f_pick.iloc[0]["tank_id"])
 if mother_tank_id == father_tank_id:
-    st.error("Mother and Father cannot be the same tank."); st.stop()
+    st.error("Mother and Father cannot be the same tank.")
+    st.stop()
 
 # Step 3 — save pairing
 st.subheader("Step 3 — Save tank pairing")

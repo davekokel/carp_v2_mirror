@@ -163,44 +163,52 @@ def _labels_pdf_pages(
 def build_crossing_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     """
     2.4" × 1.0"; header/body/leading = 9.2 / 7.0 / 7.2
-    Lines (with genotypes if available; capped to fit):
+
+    Lines:
       CROSS {cross_code}
-      {weekday YYYY-MM-DD}
       M: {mother_tank}
       D: {father_tank}
       M geno: {mom_genotype}      [optional]
       D geno: {dad_genotype}      [optional]
-      ↓
-      {clutch_instance_code}
+      ↓ {clutch_label} · {clutch_fluors}   [optional arrow row]
     """
     pages: List[List[str]] = []
     for r in rows:
         cross_code = _safe(r.get("cross_code"))
-        cross_date = r.get("cross_date")
-        wk = cross_date.strftime("%a %Y-%m-%d") if isinstance(cross_date, (date, _dt)) else _safe(cross_date)
         mom_tank = _safe(r.get("mother_tank_label") or r.get("mother_tank_code"))
         dad_tank = _safe(r.get("father_tank_label") or r.get("father_tank_code"))
-        mom_g    = _safe(r.get("mom_genotype"))
-        dad_g    = _safe(r.get("dad_genotype"))
-        clutch_inst = _safe(r.get("clutch_instance_code"))
+        mom_g = _safe(r.get("mom_genotype"))
+        dad_g = _safe(r.get("dad_genotype"))
+        clutch_label = _safe(r.get("clutch_label"))
+        clutch_fluors = _safe(r.get("clutch_fluors"))
+
+        arrow_line = ""
+        if clutch_label or clutch_fluors:
+            arrow_line = f"↓ {clutch_label}"
+            if clutch_fluors:
+                arrow_line += f" · {clutch_fluors}"
 
         lines = [
             f"CROSS {cross_code}",
-            wk,
             f"M: {mom_tank}",
             f"D: {dad_tank}",
         ]
-        if mom_g: lines.append(f"M geno: {mom_g}")
-        if dad_g: lines.append(f"D geno: {dad_g}")
-        lines.extend(["↓", clutch_inst])
+        if mom_g:
+            lines.append(f"M geno: {mom_g}")
+        if dad_g:
+            lines.append(f"D geno: {dad_g}")
+        if arrow_line:
+            lines.append(arrow_line)
 
         pages.append(lines)
 
     return _labels_pdf_pages(
         pages=pages,
         width_in=2.4, height_in=1.0,
-        header_pt=9.2, body_pt=7.0, leading_pt=7.2,
-        line_limit=8,  # ensure it fits the 2.4×1.0
+        header_pt=9.0,   # slightly smaller header
+        body_pt=7.0,
+        leading_pt=7.8,  # more vertical spacing between lines
+        line_limit=8,
     )
 
 # --------------------------------------------------------------------
@@ -210,39 +218,48 @@ def build_crossing_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
 def build_petri_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     """
     2.4" × 0.75"; header/body/leading = 10.5 / 7.0 / 7.1
-    Lines (adds clutch genotype when available; capped to fit):
+
+    Lines (mirrors clutch preview fields):
       {clutch_instance_code}
-      {clutch_name}
-      {mom_code} × {dad_code}
+      {DOB}
       {clutch_genotype}            [optional]
-      {DOB or 'DOB TBD'}
+      Tx: {tx_codes}               [optional]
+      Flu: {tx_fluors}             [optional]
     """
     pages: List[List[str]] = []
     for r in rows:
         clutch_inst = _safe(r.get("clutch_instance_code"))
-        clutch_name = _safe(r.get("clutch_name"))
-        mom_code    = _safe(r.get("mom_code"))
-        dad_code    = _safe(r.get("dad_code"))
-        clutch_g    = _safe(r.get("clutch_genotype"))
-        dob         = r.get("date_birth")
-        dob_text    = dob.strftime("%Y-%m-%d") if isinstance(dob, (date, _dt)) else (_safe(dob) or "DOB TBD")
+        clutch_g = _safe(r.get("clutch_genotype"))
 
-        lines = [
-            clutch_inst,
-            clutch_name,
-            f"{mom_code} × {dad_code}",
-        ]
+        dob = r.get("date_birth")
+        dob_text = (
+            dob.strftime("%Y-%m-%d")
+            if isinstance(dob, (date, _dt))
+            else _safe(dob)
+        )
+
+        tx_codes = _safe(r.get("tx_codes"))
+        tx_flu = _safe(r.get("tx_fluors"))
+
+        lines = [clutch_inst]
+        if dob_text:
+            lines.append(dob_text)
         if clutch_g:
             lines.append(clutch_g)
-        lines.append(dob_text)
+        if tx_codes:
+            lines.append(f"Tx: {tx_codes}")
+        if tx_flu:
+            lines.append(f"Flu: {tx_flu}")
 
         pages.append(lines)
 
     return _labels_pdf_pages(
         pages=pages,
         width_in=2.4, height_in=0.75,
-        header_pt=10.5, body_pt=7.0, leading_pt=7.1,
-        line_limit=5,   # fits 0.75" height
+        header_pt=10.0,  # a bit smaller headline
+        body_pt=7.0,
+        leading_pt=7.6,  # more spacing between lines
+        line_limit=5,
     )
 
 # --------------------------------------------------------------------

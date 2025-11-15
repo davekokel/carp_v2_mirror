@@ -121,7 +121,7 @@ def _load_clutches(d_from, d_to, created_by: str, q: str, most_recent: bool) -> 
       WITH base AS (
         SELECT
           v.clutch_instance_id,
-          COALESCE(v.clutch_code, 'CI-' || LEFT(v.clutch_instance_id::text, 8)) AS clutch_code,
+          COALESCE(v.clutch_code, 'CL-' || LEFT(v.clutch_instance_id::text, 8)) AS clutch_code,
           v.clutch_date                     AS clutch_birthday,
           COALESCE(v.cross_code, v.tank_pair_code || ' @ ' || COALESCE(v.cross_date::text,'')) AS cross_name_pretty,
           COALESCE(v.clutch_genotype_pretty, v.clutch_genotype, '') AS clutch_genotype_pretty,
@@ -795,7 +795,7 @@ def _preview_from_state() -> pd.DataFrame:
             ]
         )
     out = pd.concat(frames, ignore_index=True)
-    out.insert(0, "treated_clutch_code", f"T({selected_clutch_code or ('CI-' + clutch_instance_id[:8])})-next")
+    out.insert(0, "treated_clutch_code", f"T({selected_clutch_code or ('CL-' + clutch_instance_id[:8])})-next")
     out.insert(1, "created_at", pd.Timestamp.utcnow())
     out["created_by"] = (
         os.environ.get("USER") or os.environ.get("USERNAME") or (getattr(user, "email", "") or "system")

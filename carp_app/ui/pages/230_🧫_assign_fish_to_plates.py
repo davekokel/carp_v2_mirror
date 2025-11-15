@@ -86,12 +86,14 @@ def _ensure_plate_slots(plate_code: str) -> None:
 
 def _create_plate(format_code: str, created_by: str) -> str:
     """
-    Let DB trigger generate short plate_code (format001, format002, ...).
+    Create a plate with an explicit plate_code:
+    - plate_code: PL-<8-char uuid chunk>
+    - format_code: chosen format
     nickname is set later (Step 5) via UPDATE.
     """
     sql = text(f"""
-      INSERT INTO {T_PLATES} (format_code, nickname, created_by)
-      VALUES (:fmt, NULL, :by)
+      INSERT INTO {T_PLATES} (plate_code, format_code, nickname, created_by)
+      VALUES ('PL-' || LEFT(gen_random_uuid()::text, 8), :fmt, NULL, :by)
       RETURNING plate_code
     """)
     with engine().begin() as cx:
