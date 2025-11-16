@@ -1,7 +1,9 @@
+# carp_app/ui/pages/???_📷_overview_imaging_rois.py
 from __future__ import annotations
 
 import sys
 import pathlib
+import re
 
 import pandas as pd
 import streamlit as st
@@ -110,7 +112,7 @@ if roi_search.strip():
 
 where_sql = " AND ".join(where_clauses)
 
-# ---- main ROI query from v_roi_overview + raw.imaging_rois_raw --------------
+# ---- main ROI query from v_roi_overview + imaging_rois ----------------------
 query_sql = f"""
 SELECT
   ir.imaging_roi_id        AS id,
@@ -121,39 +123,36 @@ SELECT
   ir.roi_name,
   ir.roi_dir,
 
-  ir.date_mount                               AS legacy_date_mount,
-  ir.mount_id                                 AS legacy_mount_id,
-  r.zf_female_genotype                        AS legacy_zf_female_genotype,
-  r.zf_male_genotype                          AS legacy_zf_male_genotype,
-  r.additional_plasmids_injected              AS legacy_additional_plasmids_injected,
-  r.additional_mrnas_injected                 AS legacy_additional_mrnas_injected,
-  r.additonal_proteins_injected               AS legacy_additonal_proteins_injected,
-  r.additonal_dye_and_chemicals               AS legacy_additonal_dye_and_chemicals,
-  ir.date_born                                AS legacy_date_born,
-  ir.time_mounted                             AS legacy_time_mounted,
-  ir.mounting_orientation                     AS legacy_mounting_orientation,
-  ir.date_screened_initial_feedback           AS legacy_date_screened_initial_feedback,
-  ir.date_imaged                              AS legacy_date_imaged,
-  ir.data_location                            AS legacy_data_location,
+  -- legacy-ish scalar fields from imaging_rois
+  iro.date_mount                               AS legacy_date_mount,
+  iro.mount_id                                 AS legacy_mount_id,
+  iro.zf_female_genotype                       AS legacy_zf_female_genotype,
+  iro.zf_male_genotype                         AS legacy_zf_male_genotype,
+  iro.additional_plasmids_injected             AS legacy_additional_plasmids_injected,
+  iro.additional_mrnas_injected                AS legacy_additional_mrnas_injected,
+  iro.additonal_proteins_injected              AS legacy_additonal_proteins_injected,
+  iro.additonal_dye_and_chemicals              AS legacy_additonal_dye_and_chemicals,
+  iro.date_born                                AS legacy_date_born,
+  iro.time_mounted                             AS legacy_time_mounted,
+  iro.mounting_orientation                     AS legacy_mounting_orientation,
+  iro.date_screened_initial_feedback           AS legacy_date_screened_initial_feedback,
+  iro.date_imaged                              AS legacy_date_imaged,
+  iro.data_location                            AS legacy_data_location,
 
-  ir.legacy_pair_code,
-  ir.legacy_clutch_code,
-
+  -- genotype / treatment / fluor rollups from the view
   ir.inj_plasmid_base_code,
   ir.inj_rna_base_code,
-
+  ir.genotype_alleles_rollup,
+  ir.allele_names_rollup,
   ir.treatments_codes_group,
-  ir.genotype_codes_group,
-  ir.treatment_vs_genotype_codes,
-  ir.treatments_fusions_group,
-  ir.genotype_fusions_group,
-  ir.treatment_vs_genotype_fusions,
+  ir.treatments_names_group,
+  ir.fluors_rollup,
 
   ir.date_experiment
 
 FROM public.v_roi_overview ir
-JOIN raw.imaging_rois_raw r
-  ON r.id = ir.raw_id
+JOIN public.imaging_rois iro
+  ON iro.id = ir.imaging_roi_id
 WHERE {where_sql}
 ORDER BY ir.dataset, ir.experiment_name, ir.fish_label, ir.roi_index
 LIMIT :limit
@@ -172,7 +171,56 @@ if not rows:
     st.stop()
 
 df = pd.DataFrame(rows)
+def _split_tokens(value: object) -> list[str]:
+    """
+    Split a string on commas/semicolons, trim, drop blanks and literal 'NaN'.
+    """
+    if value is None:
+        return []
+    tokens: list[str] = []
+    for t in re.split(r"[;,]", str(value)):
+        t = t.strip()
+        if not t or t.lower() == "nan":
+            continue
+        tokens.append(t)
+    return tokens
 
+def _build_fluors_rollup(row: pd.Series) -> str:
+    """
+    TRUE fusions only: use genotype_fusions_rollup.
+    (These are the genotype-side fusion descriptors.)
+    """
+    tokens = _split_tokens(row.get("genotype_fusions_rollup"))
+    seen = set()
+    uniq: list[str] = []
+    for t in tokens:
+        if t not in seen:
+            seen.add(t)
+            uniq.append(t)
+    return "; ".join(uniq)
+
+def _build_markers_rollup(row: pd.Series) -> str:
+    """
+    All fluorescent markers:
+    genotype fusions + treatment/dye names (from treatments_names_group).
+    """
+    tokens: list[str] = []
+    for col in ("genotype_fusions_rollup", "treatments_names_group"):
+        tokens.extend(_split_tokens(row.get(col)))
+    seen = set()
+    uniq: list[str] = []
+    for t in tokens:
+        if t not in seen:
+            seen.add(t)
+            uniq.append(t)
+    return "; ".join(uniq)
+
+# Build the two rollup fields
+df["fluors_rollup"] = df.apply(_build_fluors_rollup, axis=1)
+df["markers_rollup"] = df.apply(_build_markers_rollup, axis=1)
+
+if "genotype_fusions_rollup" in df.columns or "treatments_names_group" in df.columns:
+    df["fluors_rollup"] = df.apply(_build_fluors_rollup, axis=1)
 # ---- summary / group filters (drive ROI table below) ------------------------
 st.subheader("Summary and group filters")
 
@@ -181,14 +229,12 @@ candidate_group_cols = [
     for c in [
         "dataset",
         "experiment_name",
+        "genotype_alleles_rollup",
+        "allele_names_rollup",
         "treatments_codes_group",
-        "treatments_fusions_group",
-        "genotype_codes_group",
-        "genotype_fusions_group",
-        "treatment_vs_genotype_codes",
-        "treatment_vs_genotype_fusions",
-        "legacy_pair_code",
-        "legacy_clutch_code",
+        "treatments_names_group",
+        "fluors_rollup",    # true fusions (genotype)
+        "markers_rollup",   # all markers: genotype + treatments/dyes
     ]
     if c in df.columns
 ]
@@ -206,6 +252,7 @@ else:
         num_rows="fixed",
         hide_index=True,
         use_container_width=True,
+        column_order=["include", "field"],
         column_config={
             "field": st.column_config.TextColumn("Group/filter by field", disabled=True),
             "include": st.column_config.CheckboxColumn("Show table", default=False),
@@ -232,6 +279,7 @@ else:
             )
             base.insert(0, "include", False)
 
+            st.markdown(f"##### Groups for `{field}`")
             edited = st.data_editor(
                 base,
                 key=f"roi_group_values_{field}",
@@ -278,16 +326,14 @@ preferred_cols = [
     "fish_label",
     "roi_index",
     "roi_name",
-    "legacy_pair_code",
-    "legacy_clutch_code",
     "inj_plasmid_base_code",
     "inj_rna_base_code",
+    "genotype_alleles_rollup",
+    "allele_names_rollup",
     "treatments_codes_group",
-    "genotype_codes_group",
-    "treatment_vs_genotype_codes",
-    "treatments_fusions_group",
-    "genotype_fusions_group",
-    "treatment_vs_genotype_fusions",
+    "treatments_names_group",
+    "fluors_rollup",
+    "markers_rollup",
     "roi_dir",
     "date_experiment",
     "id",
@@ -308,5 +354,5 @@ st.download_button(
 st.caption(
     "Showing "
     f"{len(df_display)} rows (limit {limit}) "
-    "from v_roi_overview with the current filters and group selections."
+    "from v_roi_overview + imaging_rois with the current filters and group selections."
 )

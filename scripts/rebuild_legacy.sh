@@ -28,8 +28,14 @@ PAIRS="$DIR/local_legacy_pairs_${TS}.csv"
 CLUTCHES="$DIR/local_legacy_clutches_${TS}.csv"
 ROIS="$DIR/local_legacy_imaging_rois_${TS}.csv"
 
+# NEW: mapping CSVs (no timestamp, live in the same DIR)
+PARENTS_MAP="$DIR/Unique_parent_names__mom_dad_combined__preview_.csv"
+INJ_PLASMID_MAP="$DIR/Unique_injected_plasmid__preview_.csv"
+INJ_RNA_MAP="$DIR/Unique_injected_rna__preview_.csv"
+
 missing=0
-for f in "$PAIRS" "$CLUTCHES" "$ROIS"; do
+for f in "$PAIRS" "$CLUTCHES" "$ROIS" \
+         "$PARENTS_MAP" "$INJ_PLASMID_MAP" "$INJ_RNA_MAP"; do
   if [ ! -f "$f" ]; then
     echo "Missing CSV: $f" >&2
     missing=1
@@ -42,6 +48,9 @@ if [ "$missing" -ne 0 ]; then
   echo "  $PAIRS" >&2
   echo "  $CLUTCHES" >&2
   echo "  $ROIS" >&2
+  echo "  $PARENTS_MAP" >&2
+  echo "  $INJ_PLASMID_MAP" >&2
+  echo "  $INJ_RNA_MAP" >&2
   exit 1
 fi
 
@@ -52,7 +61,8 @@ fi
 
 # Check that legacy tables exist before we try to truncate/copy
 tables_missing=()
-for t in legacy_pairs legacy_clutches imaging_rois; do
+for t in legacy_pairs legacy_clutches imaging_rois \
+         legacy_parent_to_allele legacy_injected_plasmids_map legacy_injected_rnas_map; do
   exists=$(psql "$DB_URL" -Atc "SELECT to_regclass('public.$t')" || echo "")
   if [ -z "$exists" ] || [ "$exists" = "" ]; then
     tables_missing+=("$t")
@@ -73,9 +83,19 @@ TRUNCATE TABLE public.imaging_rois RESTART IDENTITY CASCADE;
 TRUNCATE TABLE public.legacy_clutches RESTART IDENTITY CASCADE;
 TRUNCATE TABLE public.legacy_pairs RESTART IDENTITY CASCADE;
 
+-- also truncate mapping tables
+TRUNCATE TABLE public.legacy_parent_to_allele RESTART IDENTITY CASCADE;
+TRUNCATE TABLE public.legacy_injected_plasmids_map RESTART IDENTITY CASCADE;
+TRUNCATE TABLE public.legacy_injected_rnas_map     RESTART IDENTITY CASCADE;
+
 -- reload pairs & clutches directly
 \COPY public.legacy_pairs    FROM '${PAIRS}'    CSV HEADER;
 \COPY public.legacy_clutches FROM '${CLUTCHES}' CSV HEADER;
+
+-- reload mapping tables from seed kit CSVs
+\COPY public.legacy_parent_to_allele      (parent_fish_name, plasmid_base_code, allele_nickname) FROM '${PARENTS_MAP}'     CSV HEADER;
+\COPY public.legacy_injected_plasmids_map (injected_plasmid, plasmid_base_code)                  FROM '${INJ_PLASMID_MAP}' CSV HEADER;
+\COPY public.legacy_injected_rnas_map     (injected_rna,     plasmid_base_code)                  FROM '${INJ_RNA_MAP}'     CSV HEADER;
 
 -- temp import table for imaging_rois to match CSV header exactly
 DROP TABLE IF EXISTS public._legacy_imaging_rois_import;
@@ -178,5 +198,11 @@ psql "$DB_URL" -Atc "
   UNION ALL
   SELECT 'legacy_clutches', COUNT(*) FROM public.legacy_clutches
   UNION ALL
-  SELECT 'imaging_rois' AS table, COUNT(*) FROM public.imaging_rois;
+  SELECT 'imaging_rois' AS table, COUNT(*) FROM public.imaging_rois
+  UNION ALL
+  SELECT 'legacy_parent_to_allele', COUNT(*) FROM public.legacy_parent_to_allele
+  UNION ALL
+  SELECT 'legacy_injected_plasmids_map', COUNT(*) FROM public.legacy_injected_plasmids_map
+  UNION ALL
+  SELECT 'legacy_injected_rnas_map', COUNT(*) FROM public.legacy_injected_rnas_map;
 "

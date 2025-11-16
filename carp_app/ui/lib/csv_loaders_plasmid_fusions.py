@@ -43,7 +43,6 @@ def normalize_plasmid_fusions_table(df_raw: pd.DataFrame) -> pd.DataFrame:
             "fluor": df["fluor"].map(lambda v: "" if v is None else str(v).strip()),
             "tag": df["tag"].map(lambda v: "" if v is None else str(v).strip()),
             "tag_pos": df["tag_pos"].map(lambda v: "" if v is None else str(v).strip()),
-            # token is optional; we don't need it for validation
         }
     )
 
@@ -51,19 +50,131 @@ def normalize_plasmid_fusions_table(df_raw: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _resolve_plasmid_id(cx: Connection, base_code: str) -> str | None:
+    return cx.execute(
+        text("SELECT id::text FROM public.plasmids WHERE code = :c LIMIT 1"),
+        {"c": base_code},
+    ).scalar()
+
+
+def _resolve_fluor_id(cx: Connection, name_or_alias: str) -> str | None:
+    # direct match
+    row = cx.execute(
+        text(
+            """
+        SELECT id::text
+        FROM public.fluors
+        WHERE fluor_name = :c OR fluor_code = :c
+        LIMIT 1
+      """
+        ),
+        {"c": name_or_alias},
+    ).scalar()
+    if row:
+        return row
+    # alias
+    return cx.execute(
+        text(
+            """
+        SELECT target_id::text
+        FROM public.join_aliases
+        WHERE target_kind = 'fluor'
+          AND alias_norm = lower(trim(:c))
+        LIMIT 1
+      """
+        ),
+        {"c": name_or_alias},
+    ).scalar()
+
+
+def _resolve_tag_id(cx: Connection, name_or_alias: str) -> str | None:
+    row = cx.execute(
+        text(
+            """
+        SELECT id::text
+        FROM public.tags
+        WHERE tag_name = :c OR tag_code = :c
+        LIMIT 1
+      """
+        ),
+        {"c": name_or_alias},
+    ).scalar()
+    if row:
+        return row
+    return cx.execute(
+        text(
+            """
+        SELECT target_id::text
+        FROM public.join_aliases
+        WHERE target_kind = 'tag'
+          AND alias_norm = lower(trim(:c))
+        LIMIT 1
+      """
+        ),
+        {"c": name_or_alias},
+    ).scalar()
+
+
+def _normalize_tag_pos(raw: str | None) -> str | None:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    if s.lower() in {"nan", "none", "null"}:
+        return None
+    return s
+
+
+def _get_or_create_fusion(
+    cx: Connection, fluor_id: str, tag_id: str | None, tag_pos: str
+) -> str:
+    pos_norm = _normalize_tag_pos(tag_pos)
+
+    row = cx.execute(
+        text(
+            """
+        SELECT id::text
+        FROM public.fusions
+        WHERE fluor_id = :fid
+          AND (
+                (tag_id IS NULL AND :tid IS NULL) OR
+                (tag_id = :tid)
+              )
+          AND COALESCE(tag_pos,'') = COALESCE(:pos,'')
+        LIMIT 1
+      """
+        ),
+        {"fid": fluor_id, "tid": tag_id, "pos": pos_norm or ""},
+    ).mappings().first()
+    if row:
+        return row["id"]
+
+    row = cx.execute(
+        text(
+            """
+        INSERT INTO public.fusions (fluor_id, tag_id, tag_pos)
+        VALUES (:fid, :tid, NULLIF(:pos,''))
+        RETURNING id::text
+      """
+        ),
+        {"fid": fluor_id, "tid": tag_id, "pos": pos_norm or ""},
+    ).scalar()
+    return str(row)
+
+
 def load_plasmid_fusions_from_df(
     df_raw: pd.DataFrame, cx: Connection
 ) -> Tuple[int, List[str]]:
     """
-    Validate plasmid_fusions against plasmids, fluors, and tags.
+    Validate and load plasmid fusions:
 
-    Checks each row:
-      - plasmid_base_code exists in public.plasmids.code
-      - fluor exists in public.fluors (fluor_name or fluor_code)
-      - tag exists in public.tags.tag_name
+      - resolve plasmid_base_code -> plasmid_id
+      - resolve fluor via name or alias
+      - resolve optional tag via name or alias
+      - find or create fusion(fluor_id, tag_id, tag_pos)
+      - insert join_plasmid_fusions(plasmid_id, fusion_id)
 
     Returns:
-      (valid_rows_count, warnings)
+      (valid_rows_loaded, warnings)
     """
     df = normalize_plasmid_fusions_table(df_raw)
     warnings: List[str] = []
@@ -73,36 +184,39 @@ def load_plasmid_fusions_from_df(
         pcode = row["plasmid_base_code"]
         fluor = row["fluor"]
         tag = row["tag"]
+        pos = row["tag_pos"]
 
-        pid = cx.execute(
-            text("SELECT id FROM public.plasmids WHERE code = :c LIMIT 1"),
-            {"c": pcode},
-        ).scalar()
+        pid = _resolve_plasmid_id(cx, pcode)
         if not pid:
             warnings.append(f"Plasmid fusion row skipped: plasmid '{pcode}' not found.")
             continue
 
-        fid = cx.execute(
-            text(
-                """
-              SELECT id FROM public.fluors
-              WHERE fluor_name = :c OR fluor_code = :c
-              LIMIT 1
-            """
-            ),
-            {"c": fluor},
-        ).scalar()
+        fid = _resolve_fluor_id(cx, fluor)
         if not fid:
             warnings.append(f"Plasmid fusion row skipped: fluor '{fluor}' not found.")
             continue
 
-        tid = cx.execute(
-            text("SELECT id FROM public.tags WHERE tag_name = :c LIMIT 1"),
-            {"c": tag},
-        ).scalar()
-        if not tid:
-            warnings.append(f"Plasmid fusion row skipped: tag '{tag}' not found.")
-            continue
+        t_raw = (tag or "").strip()
+        tid: str | None = None
+        if t_raw and t_raw.lower() not in {"nan", "none", "null"}:
+            tid = _resolve_tag_id(cx, t_raw)
+            if not tid:
+                warnings.append(f"Plasmid fusion row skipped: tag '{tag}' not found.")
+                continue
+        # else: fluor-only fusion
+
+        fusion_id = _get_or_create_fusion(cx, fid, tid, pos)
+
+        cx.execute(
+            text(
+                """
+          INSERT INTO public.join_plasmid_fusions (plasmid_id, fusion_id, created_at)
+          VALUES (:pid, :fid, now())
+          ON CONFLICT DO NOTHING
+        """
+            ),
+            {"pid": pid, "fid": fusion_id},
+        )
 
         valid += 1
 

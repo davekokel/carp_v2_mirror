@@ -8,21 +8,36 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
-
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PGUUID
 
 # --- Nickname & placeholder helpers (copied from upload_csv_fish) ------------
 
 _NUMERIC_NICK_RE = re.compile(r"^\d+(?:\.0+)?$")
 
+
 def _is_numeric_nick(s: str | None) -> bool:
     return bool(_NUMERIC_NICK_RE.fullmatch((s or "").strip()))
 
-_PLACEHOLDER_NICKS = {"", "unknown", "unk", "n/a", "na", "?", "-", "none"}
+
+_PLACEHOLDER_NICKS = {"", "unknown", "unk", "n/a", "na", "?", "-", "none", "nan", "null"}
+
 
 def _norm_allele_nick(s: str | None) -> str:
-    v = (s or "").strip()
-    return "" if v.lower() in _PLACEHOLDER_NICKS or _is_numeric_nick(v) else v
+    """
+    Normalize allele nickname from CSV for autoload:
+
+    - Always treat as a string (even if it's "306").
+    - Strip whitespace.
+    - Drop only obvious placeholder values like 'unknown', 'nan', etc.
+    - Do NOT discard numeric-only strings.
+    """
+    if s is None:
+        return ""
+    v = str(s).strip()
+    if v.lower() in _PLACEHOLDER_NICKS:
+        return ""
+    return v
+
 
 # zygosity normalizer
 _ZYG_MAP = {
@@ -42,14 +57,17 @@ _ZYG_MAP = {
     "": "",
 }
 
+
 def _norm_zygosity(s: Optional[str]) -> Optional[str]:
     if not s:
         return None
     return _ZYG_MAP.get(str(s).strip().lower(), None) or None
 
+
 # base-36 short code from UUID (lower 40 bits)
 def _uuid_to_base36_8(uuid_str: str) -> str:
     import uuid as _uuid
+
     alpha = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     try:
         n = _uuid.UUID(str(uuid_str)).int & ((1 << 40) - 1)
@@ -60,6 +78,7 @@ def _uuid_to_base36_8(uuid_str: str) -> str:
         out.append(alpha[n % 36])
         n //= 36
     return "FSH-" + "".join(reversed(out))
+
 
 # Excel numeric dates → date
 def _parse_birthday(x) -> Optional[date]:
@@ -80,11 +99,14 @@ def _parse_birthday(x) -> Optional[date]:
         pass
     try:
         from dateutil import parser
+
         return parser.parse(s).date()
     except Exception:
         return None
 
+
 # table existence / function existence / base-code check ----------------------
+
 
 def _table_exists(cx: Connection, schema: str, table: str) -> bool:
     q = text(
@@ -95,6 +117,24 @@ def _table_exists(cx: Connection, schema: str, table: str) -> bool:
     )"""
     )
     return bool(cx.execute(q, {"s": schema, "t": table}).scalar())
+
+
+def _plasmid_exists(cx, base: str) -> bool:
+    """
+    Check whether a plasmid with this code exists. Used only for warnings,
+    not for gating transgene creation.
+    """
+    if not base:
+        return False
+    if not _table_exists(cx, "public", "plasmids"):
+        return True  # nothing to check against, don't block
+    return bool(
+        cx.execute(
+            text("SELECT 1 FROM public.plasmids WHERE code = :b LIMIT 1"),
+            {"b": base.strip()},
+        ).scalar()
+    )
+
 
 def _fn_exists(cx: Connection, schema: str, name: str) -> bool:
     q = text(
@@ -108,20 +148,26 @@ def _fn_exists(cx: Connection, schema: str, name: str) -> bool:
     )
     return bool(cx.execute(q, {"s": schema, "n": name}).scalar())
 
-def _is_valid_transgene_base(cx: Connection, base: str) -> bool:
-    if not base:
+
+_PLACEHOLDER_BASES = {"", "nan", "none", "null", "n/a", "na", "?", "-"}
+
+
+def _is_valid_transgene_base(cx, base: str) -> bool:
+    """
+    For fish import, any non-empty, non-placeholder tg_base_code is considered valid.
+    We do NOT require it to already exist in transgenes or plasmids, because
+    transgenes are defined by (fish, base_code, allele) and are created on demand.
+
+    We still keep a separate warning if the base_code isn't present in plasmids,
+    but that should NOT block transgene/allele creation.
+    """
+    if base is None:
         return False
-    if cx.execute(
-        text("select 1 from public.transgenes where transgene_base_code=:b limit 1"),
-        {"b": base},
-    ).scalar():
-        return True
-    if _table_exists(cx, "public", "plasmids"):
-        if cx.execute(
-            text("select 1 from public.plasmids where code=:b limit 1"), {"b": base}
-        ).scalar():
-            return True
-    return False
+    s = str(base).strip()
+    if s.lower() in _PLACEHOLDER_BASES:
+        return False
+    return s != ""
+
 
 # header aliases / normalization / identity key --------------------------------
 
@@ -155,6 +201,7 @@ ALIASES: Dict[str, List[str]] = {
     "ft_text": ["ft_text", "treatment_text", "mix_text"],
 }
 
+
 def _normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df.columns = [("" if c is None else str(c)).strip().lower() for c in df.columns]
@@ -169,6 +216,7 @@ def _normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
     if ren:
         df = df.rename(columns=ren)
     return df
+
 
 def _identity_key(row: pd.Series) -> str:
     bday = row.get("birthday")
@@ -189,7 +237,9 @@ def _identity_key(row: pd.Series) -> str:
     ]
     return " | ".join(parts)
 
+
 # upsert fish / allele (function or fallback) ---------------------------------
+
 
 def _upsert_fish(
     cx: Connection,
@@ -276,76 +326,118 @@ def _upsert_fish(
     ).mappings().first()
     return dict(row or {})
 
+
 def _upsert_allele(cx: Connection, base_code: str, csv_nickname: str) -> Optional[Dict[str, Any]]:
+    """
+    Ensure a transgene + allele exist for the given base_code and allele_nickname.
+
+    Behavior:
+
+    - allele_nickname is treated as a free string (after placeholder filtering).
+    - If an allele with (base_code, allele_nickname) already exists, reuse it.
+    - Otherwise, if the base_code is known (as a transgene or plasmid), ensure a
+      transgene row exists, then mint a new global allele_number from
+      public.transgene_allele_global, set allele_name = 'gu' || allele_number, and:
+        * allele_nickname = CSV nickname if present
+        * else allele_nickname = allele_name
+    """
     base = (base_code or "").strip()
     nick = _norm_allele_nick(csv_nickname)
     if not base:
         return None
 
-    with cx.begin_nested():
-        try:
-            cx.execute(
-                text(
-                    "INSERT INTO public.transgenes(transgene_base_code) VALUES (:b) ON CONFLICT DO NOTHING"
-                ),
-                {"b": base},
-            )
-        except Exception:
-            return None
+    # Guard: only proceed if base is considered valid
+    if not _is_valid_transgene_base(cx, base):
+        return None
 
+    with cx.begin_nested():
+        # 0) ensure a transgene row exists, naming it from plasmids if possible
+        cx.execute(
+            text(
+                """
+              INSERT INTO public.transgenes (transgene_base_code, name)
+              VALUES (
+                :b,
+                COALESCE(
+                  (SELECT nickname FROM public.plasmids WHERE code = :b LIMIT 1),
+                  (SELECT name     FROM public.plasmids WHERE code = :b LIMIT 1),
+                  :b
+                )
+              )
+              ON CONFLICT (transgene_base_code) DO UPDATE
+                SET name = COALESCE(public.transgenes.name, EXCLUDED.name)
+            """
+            ),
+            {"b": base},
+        )
+
+        # 1) If we have a nickname, try to reuse an existing allele for (base, nick)
         if nick:
             got = cx.execute(
                 text(
                     """
-                SELECT transgene_base_code, allele_number, allele_name, allele_nickname
-                FROM public.transgene_alleles
-                WHERE transgene_base_code = :b
-                  AND lower(allele_nickname) = lower(:n)
-                LIMIT 1
-            """
+                    SELECT transgene_base_code, allele_number, allele_name, allele_nickname
+                    FROM public.transgene_alleles
+                    WHERE transgene_base_code = :b
+                      AND lower(allele_nickname) = lower(:n)
+                    LIMIT 1
+                    """
                 ),
                 {"b": base, "n": nick},
             ).mappings().first()
             if got:
                 return dict(got)
 
+        # 2) Ensure the global sequence exists
         cx.execute(
             text(
                 """
-            DO $$
-            BEGIN
-              IF NOT EXISTS (
-                SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-                WHERE c.relkind='S' AND n.nspname='public' AND c.relname='transgene_allele_global'
-              ) THEN
-                CREATE SEQUENCE public."transgene_allele_global";
-              END IF;
-            END$$;
-        """
+                DO $$
+                BEGIN
+                  IF NOT EXISTS (
+                    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE c.relkind='S' AND n.nspname='public' AND c.relname='transgene_allele_global'
+                  ) THEN
+                    CREATE SEQUENCE public."transgene_allele_global";
+                  END IF;
+                END$$;
+                """
             )
         )
 
+        # 3) Mint a new global allele_number and insert allele
         while True:
             new_no = cx.execute(
                 text('SELECT nextval(\'public."transgene_allele_global"\')::int')
             ).scalar()
-            gu = f"gu{new_no}"
+            allele_number = int(new_no)
+            allele_name = f"gu{allele_number}"
+            allele_nickname = nick or allele_name
+
             ins = cx.execute(
                 text(
                     """
-                INSERT INTO public.transgene_alleles
-                  (transgene_base_code, allele_number, allele_name, allele_nickname)
-                VALUES (:b, :n, :aname, :nnick)
-                ON CONFLICT DO NOTHING
-                RETURNING transgene_base_code, allele_number, allele_name, allele_nickname
-            """
+                    INSERT INTO public.transgene_alleles
+                      (transgene_base_code, allele_number, allele_name, allele_nickname)
+                    VALUES (:b, :n, :aname, :nnick)
+                    ON CONFLICT (transgene_base_code, allele_number) DO NOTHING
+                    RETURNING transgene_base_code, allele_number, allele_name, allele_nickname
+                    """
                 ),
-                {"b": base, "n": new_no, "aname": gu, "nnick": (nick or gu)},
+                {
+                    "b": base,
+                    "n": allele_number,
+                    "aname": allele_name,
+                    "nnick": allele_nickname,
+                },
             ).mappings().first()
+
             if ins:
                 return dict(ins)
 
+
 # prepare df (normalize headers, parse birthday, strip text, identity_key) -----
+
 
 def prepare_fish_df(df_raw: pd.DataFrame) -> pd.DataFrame:
     df = _normalize_headers(df_raw)
@@ -379,7 +471,9 @@ def prepare_fish_df(df_raw: pd.DataFrame) -> pd.DataFrame:
     df["identity_key"] = df.apply(_identity_key, axis=1)
     return df
 
+
 # main loader ---------------------------------------------------------------
+
 
 def load_fish_from_df(
     df_raw: pd.DataFrame,
@@ -400,7 +494,11 @@ def load_fish_from_df(
         "linked_rows": [ ... ],
         "created_tanks": [ ... ],
         "warnings": [str, ...],
+        "reused_identity_keys": int,
       }
+
+    Each entry in "inserted" and "linked_rows" includes a "row_idx" field
+    giving the 0-based index into the prepared DataFrame used for this row.
     """
     df = prepare_fish_df(df_raw)
 
@@ -410,8 +508,8 @@ def load_fish_from_df(
     warnings: List[str] = []
     reused = 0
 
-    # main loop copied from upload_csv_fish (without Streamlit calls)
-    for r in df.itertuples(index=False):
+    # iterate with row index so downstream code can map to fluor rows
+    for row_idx, r in enumerate(df.itertuples(index=False), start=0):
         birthday = r.birthday
         bg = getattr(r, "genetic_background", "") or ""
         stage = getattr(r, "in_breeding_stage", "") or ""
@@ -446,25 +544,30 @@ def load_fish_from_df(
                     raise RuntimeError("missing fish id/code")
 
                 inserted.append(
-                    {"fish_id": str(fid), "fish_code": fcode_raw, "identity_key": ident}
+                    {
+                        "row_idx": row_idx,
+                        "fish_id": str(fid),
+                        "fish_code": fcode_raw,
+                        "identity_key": ident,
+                    }
                 )
                 if list(df["identity_key"]).count(ident) > 1:
                     reused += 1
 
-                # allele link only if base exists
+                # allele link if we have a non-placeholder base_code
                 if base and _is_valid_transgene_base(cx, base):
                     up = _upsert_allele(cx, base, csv_nick)
                     if up:
                         cx.execute(
                             text(
                                 """
-                        INSERT INTO public.join_fish_transgene_alleles
-                          (fish_id, transgene_base_code, allele_number, zygosity)
-                        VALUES (:fid, :b, :n, :zyg)
-                        ON CONFLICT (fish_id, transgene_base_code, allele_number)
-                        DO UPDATE SET zygosity =
-                           COALESCE(EXCLUDED.zygosity, public.join_fish_transgene_alleles.zygosity)
-                    """
+                                INSERT INTO public.join_fish_transgene_alleles
+                                (fish_id, transgene_base_code, allele_number, zygosity)
+                                VALUES (:fid, :b, :n, :zyg)
+                                ON CONFLICT (fish_id, transgene_base_code, allele_number)
+                                DO UPDATE SET zygosity =
+                                COALESCE(EXCLUDED.zygosity, public.join_fish_transgene_alleles.zygosity)
+                            """
                             ),
                             {
                                 "fid": fid,
@@ -475,6 +578,7 @@ def load_fish_from_df(
                         )
                         linked_rows.append(
                             {
+                                "row_idx": row_idx,
                                 "fish_code": fcode_raw,
                                 "transgene_base_code": up["transgene_base_code"],
                                 "allele_nickname": up.get("allele_nickname"),
@@ -483,10 +587,17 @@ def load_fish_from_df(
                                 "zygosity": zyg or "",
                             }
                         )
+
+                        # optional: warn if this base isn't in plasmids, but do NOT skip
+                        if not _plasmid_exists(cx, base):
+                            warnings.append(
+                                f"[row {row_idx}] Linked transgene for {ident} with base '{base}', "
+                                f"but no matching plasmid.code was found."
+                            )
+
                 elif base:
-                    warnings.append(
-                        f"Skipped allele link for {ident}: '{base}' not found in plasmids/transgenes."
-                    )
+                    # base is a placeholder / empty; silently ignore
+                    pass
 
                 # ensure active tank TANK(FSH-XXXXXXXX)#1
                 fshort = _uuid_to_base36_8(fid)
@@ -521,7 +632,9 @@ def load_fish_from_df(
                     created_tanks.append(tcode)
 
         except Exception as ex:
-            warnings.append(f"Skipping row (transaction rolled back): {ident} -> {ex}")
+            warnings.append(
+                f"Skipping row {row_idx} ({ident}): transaction rolled back -> {ex}"
+            )
             continue
 
     return {

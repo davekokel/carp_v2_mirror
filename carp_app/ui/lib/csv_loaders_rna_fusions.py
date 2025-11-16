@@ -8,12 +8,6 @@ from sqlalchemy.engine import Connection
 
 
 def normalize_rna_fusions_table(df_raw: pd.DataFrame) -> pd.DataFrame:
-    """
-    Strict normalization for seed rna_fusions.csv.
-
-    Expected headers (exact, case-insensitive):
-      rna_base_code,nickname,n_fluors_per_rna,fluor,tag,tag_pos,token
-    """
     df = df_raw.copy()
     df.columns = [str(c).strip().lower() for c in df.columns]
 
@@ -50,19 +44,138 @@ def normalize_rna_fusions_table(df_raw: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _resolve_rna_id(cx: Connection, base_code: str) -> str | None:
+    return cx.execute(
+        text("SELECT id::text FROM public.rnas WHERE rna_code = :c LIMIT 1"),
+        {"c": base_code},
+    ).scalar()
+
+
+def _resolve_fluor_id(cx: Connection, name_or_alias: str) -> str | None:
+    # Direct match on name/code
+    row = cx.execute(
+        text(
+            """
+        SELECT id::text
+        FROM public.fluors
+        WHERE fluor_name = :c OR fluor_code = :c
+        LIMIT 1
+      """
+        ),
+        {"c": name_or_alias},
+    ).scalar()
+    if row:
+        return row
+    # Alias via join_aliases
+    return cx.execute(
+        text(
+            """
+        SELECT target_id::text
+        FROM public.join_aliases
+        WHERE target_kind = 'fluor'
+          AND alias_norm = lower(trim(:c))
+        LIMIT 1
+      """
+        ),
+        {"c": name_or_alias},
+    ).scalar()
+
+
+def _resolve_tag_id(cx: Connection, name_or_alias: str) -> str | None:
+    # Direct match
+    row = cx.execute(
+        text(
+            """
+        SELECT id::text
+        FROM public.tags
+        WHERE tag_name = :c OR tag_code = :c
+        LIMIT 1
+      """
+        ),
+        {"c": name_or_alias},
+    ).scalar()
+    if row:
+        return row
+    # Alias via join_aliases
+    return cx.execute(
+        text(
+            """
+        SELECT target_id::text
+        FROM public.join_aliases
+        WHERE target_kind = 'tag'
+          AND alias_norm = lower(trim(:c))
+        LIMIT 1
+      """
+        ),
+        {"c": name_or_alias},
+    ).scalar()
+
+
+def _normalize_tag_pos(raw: str | None) -> str | None:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    if s.lower() in {"nan", "none", "null"}:
+        return None
+    return s
+
+
+def _get_or_create_fusion(
+    cx: Connection, fluor_id: str, tag_id: str | None, tag_pos: str
+) -> str:
+    """
+    Find or create a fusion row for (fluor_id, tag_id, tag_pos).
+
+    tag_id and tag_pos may be NULL/empty.
+    """
+    pos_norm = _normalize_tag_pos(tag_pos)
+
+    row = cx.execute(
+        text(
+            """
+        SELECT id::text
+        FROM public.fusions
+        WHERE fluor_id = :fid
+          AND (
+                (tag_id IS NULL AND :tid IS NULL) OR
+                (tag_id = :tid)
+              )
+          AND COALESCE(tag_pos,'') = COALESCE(:pos,'')
+        LIMIT 1
+      """
+        ),
+        {"fid": fluor_id, "tid": tag_id, "pos": pos_norm or ""},
+    ).mappings().first()
+    if row:
+        return row["id"]
+
+    row = cx.execute(
+        text(
+            """
+        INSERT INTO public.fusions (fluor_id, tag_id, tag_pos)
+        VALUES (:fid, :tid, NULLIF(:pos,''))
+        RETURNING id::text
+      """
+        ),
+        {"fid": fluor_id, "tid": tag_id, "pos": pos_norm or ""},
+    ).scalar()
+    return str(row)
+
+
 def load_rna_fusions_from_df(
     df_raw: pd.DataFrame, cx: Connection
 ) -> Tuple[int, List[str]]:
     """
-    Validate rna_fusions against RNAs, fluors, and tags.
+    Validate and load RNA fusions:
 
-    Checks each row:
-      - rna_base_code exists in public.rnas.rna_code
-      - fluor exists in public.fluors (fluor_name or fluor_code)
-      - tag exists in public.tags.tag_name
+      - resolve rna_base_code -> rna_id
+      - resolve fluor via name or alias
+      - resolve optional tag via name or alias
+      - find or create fusion(fluor_id, tag_id, tag_pos)
+      - insert join_rna_fusions(rna_id, fusion_id)
 
     Returns:
-      (valid_rows_count, warnings)
+      (valid_rows_loaded, warnings)
     """
     df = normalize_rna_fusions_table(df_raw)
     warnings: List[str] = []
@@ -72,38 +185,40 @@ def load_rna_fusions_from_df(
         rcode = row["rna_base_code"]
         fluor = row["fluor"]
         tag = row["tag"]
+        pos = row["tag_pos"]
 
-        rid = cx.execute(
-            text("SELECT id FROM public.rnas WHERE rna_code = :c LIMIT 1"),
-            {"c": rcode},
-        ).scalar()
+        rid = _resolve_rna_id(cx, rcode)
         if not rid:
             warnings.append(f"RNA fusion row skipped: RNA '{rcode}' not found.")
             continue
 
-        fid = cx.execute(
-            text(
-                """
-              SELECT id FROM public.fluors
-              WHERE fluor_name = :c OR fluor_code = :c
-              LIMIT 1
-            """
-            ),
-            {"c": fluor},
-        ).scalar()
+        fid = _resolve_fluor_id(cx, fluor)
         if not fid:
             warnings.append(f"RNA fusion row skipped: fluor '{fluor}' not found.")
             continue
 
-        tid = cx.execute(
-            text("SELECT id FROM public.tags WHERE tag_name = :c LIMIT 1"),
-            {"c": tag},
-        ).scalar()
-        if not tid:
-            warnings.append(f"RNA fusion row skipped: tag '{tag}' not found.")
-            continue
+        t_raw = (tag or "").strip()
+        tid: str | None = None
+        if t_raw and t_raw.lower() not in {"nan", "none", "null"}:
+            tid = _resolve_tag_id(cx, t_raw)
+            if not tid:
+                warnings.append(f"RNA fusion row skipped: tag '{tag}' not found.")
+                continue
+        # else: no tag → tag_id stays None; allowed
 
-        # All checks passed
+        fusion_id = _get_or_create_fusion(cx, fid, tid, pos)
+
+        cx.execute(
+            text(
+                """
+          INSERT INTO public.join_rna_fusions (rna_id, fusion_id, created_at)
+          VALUES (:rid, :fid, now())
+          ON CONFLICT DO NOTHING
+        """
+            ),
+            {"rid": rid, "fid": fusion_id},
+        )
+
         valid += 1
 
     return valid, warnings
