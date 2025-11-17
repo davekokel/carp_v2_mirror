@@ -1,0 +1,40 @@
+genotype_code,genotype_name,genetic_background,source_system,notes
+GT_STD_MGCO_35_336,MGCO-35 336,casper,standard,"from standard fish.xlsx; sample nicknames: MGCO35 (F1 of allele 336), Mito mScarlet3S2 (ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2)"
+GT_STD_pDQM005_301,pDQM005 301,casper,standard,"from standard fish.xlsx; sample nicknames: ef1a:2xLynk:tdmSG(J) (F1 of allele 301), ef1a:2xLynk:tdmSG(J) (F2 of allele 301), mem-tdmSG-8m"
+GT_STD_pDQM005_302,pDQM005 302,casper,standard,"from standard fish.xlsx; sample nicknames: ef1a:2xLynk:tdmSG(J) (F1 of allele 302), ef1a:2xLynk:tdmSG(J) (F2 of allele 302), mem-tdmSG-11m"
+GT_STD_pDQM005_303,pDQM005 303,casper,standard,from standard fish.xlsx; sample nicknames: membrane tandem mSG (ef1a:2xLynk:tdmStayGold)
+GT_STD_pDQM005_304,pDQM005 304,casper,standard,from standard fish.xlsx; sample nicknames: ef1a:2xLynk:tdmSG(J) (F1 of allele 304)
+GT_STD_pDQM005_305,pDQM005 305,casper,standard,from standard fish.xlsx; sample nicknames: membrane tandem mSG (ef1a:2xLynk:tdmStayGold)
+GT_STD_pDQM005_306,pDQM005 306,casper,standard,from standard fish.xlsx; sample nicknames: membrane tandem mSG (ef1a:2xLynk:tdmStayGold)
+GT_STD_pDQM005_308,pDQM005 308,casper,standard,from standard fish.xlsx; sample nicknames: ef1a:2xLynk:tdmSG(J) (F1 of allele 308)
+GT_STD_pDQM034_309,pDQM034 309,casper,standard,"from standard fish.xlsx; sample nicknames: Abe (F2 of allele 309), ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309), skittlez 5 FP (ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1)"
+GT_STD_pDQM034_310,pDQM034 310,casper,standard,"from standard fish.xlsx; sample nicknames: Ben (F2 of allele 310), ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310), skittlez 5 FP (ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1)"
+GT_STD_pDQM034_317,pDQM034 317,casper,standard,from standard fish.xlsx; sample nicknames: Chris (F1 of allele 317)
+GT_STD_pDQM036_318,pDQM036 318,casper,standard,"from standard fish.xlsx; sample nicknames: Dennis (F2 of allele 318), skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1)"
+GT_STD_pDQM036_319,pDQM036 319,casper,standard,from standard fish.xlsx; sample nicknames: skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1)
+GT_STD_pDQM059_316,pDQM059 316,casper,standard,from standard fish.xlsx; sample nicknames: Jim (F2 of allele 316)
+GT_STD_pDQM059_320,pDQM059 320,casper,standard,"from standard fish.xlsx; sample nicknames: Ken (F2 of allele 320), skittlez 4 FP (ef1a:<exorH:GFP>mKate2/Electra2/mKOK/mTFP1)"
+GT_STD_pDQM059_321,pDQM059 321,casper,standard,"from standard fish.xlsx; sample nicknames: Liam (F2 of allele 321), skittlez 4 FP (ef1a:<exorH:GFP>mKate2/Electra2/mKOK/mTFP1)"
+GT_STD_pDQM063_311,pDQM063 311,casper,standard,from standard fish.xlsx; sample nicknames: skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1)
+GT_STD_pDQM063_312,pDQM063 312,casper,standard,from standard fish.xlsx; sample nicknames: skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1)
+GT_STD_pDQM063_313,pDQM063 313,casper,standard,"from standard fish.xlsx; sample nicknames: ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313), skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1)"
+GT_STD_pDQM063_314,pDQM063 314,casper,standard,"from standard fish.xlsx; sample nicknames: Isaac (F2 of allele 314), skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1)"
+GT_STD_pDQM065_338,pDQM065 338,casper,standard,from standard fish.xlsx; sample nicknames: membrane tandem mSG; mChilada H2B (ef1a:2xlynk:tdmSG-tPT2A:tdmChilada:H2B)
+GT_STD_pDQM082_315,pDQM082 315,casper,standard,"from standard fish.xlsx; sample nicknames: ef1a:2xLynk:tdmChilada (F1 of allele 315), membrane tandem mChilada (ef1a:2xLynk:tdmChilada)"
+GT_STD_pDQM094_339,pDQM094 339,casper,standard,from standard fish.xlsx; sample nicknames: membrane tandem mSG: mChilada H2B (ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B)
+GT_STD_pDQM112_322,pDQM112 322,casper,standard,from standard fish.xlsx; sample nicknames: inducible phiC (hsp:phiCNLS; exorh:mScarlet)
+GT_STD_pDQM112_323,pDQM112 323,casper,standard,from standard fish.xlsx; sample nicknames: inducible phiC (hsp:phiCNLS; exorh:mScarlet)
+GT_STD_pDQM133_324,pDQM133 324,casper,standard,"from standard fish.xlsx; sample nicknames: tandem mScarlet3-S2 H2B (ef1a-ext:tdmSc3s2:H2B), tdmScarlet3S2:H2B-tol2 (F1 of allele 324)"
+GT_STD_pDQM136_325,pDQM136 325,casper,standard,"from standard fish.xlsx; sample nicknames: ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325), membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2)"
+GT_STD_pDQM136_327,pDQM136 327,casper,standard,from standard fish.xlsx; sample nicknames: membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2)
+GT_STD_pDQM137_329,pDQM137 329,casper,standard,from standard fish.xlsx; sample nicknames: skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1)
+GT_STD_pDQM137_330,pDQM137 330,casper,standard,from standard fish.xlsx; sample nicknames: skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1)
+GT_STD_pDQM137_331,pDQM137 331,casper,standard,from standard fish.xlsx; sample nicknames: skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1)
+GT_STD_pDQM137_332,pDQM137 332,casper,standard,from standard fish.xlsx; sample nicknames: skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1)
+GT_STD_pDQM137_333,pDQM137 333,casper,standard,from standard fish.xlsx; sample nicknames: skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1)
+GT_STD_pDQM137_337,pDQM137 337,casper,standard,from standard fish.xlsx; sample nicknames: skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1)
+GT_STD_pDQM151_340,pDQM151 340,casper,standard,from standard fish.xlsx; sample nicknames: mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1)
+GT_STD_pDQM151_341,pDQM151 341,casper,standard,from standard fish.xlsx; sample nicknames: mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1)
+GT_STD_pJWL001_343,pJWL001 343,casper,standard,from standard fish.xlsx; sample nicknames: membrane tandem mScarlet3-S2 (p24b;ef1a-ext:2x:Lynk:tdmScarlet3S2)
+GT_STD_pMNM002_342,pMNM002 342,casper,standard,from standard fish.xlsx; sample nicknames: membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2)
+GT_STD_swin01_swinborne,swin01 swinborne,casper,standard,from standard fish.xlsx; sample nicknames: membrane tandem Halo (ef1a:2xLynk:tdHalo)
