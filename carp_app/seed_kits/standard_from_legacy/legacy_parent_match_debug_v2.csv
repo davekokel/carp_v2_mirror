@@ -1,0 +1,42 @@
+parent_fish_name,raw_plasmid_base_code,norm_plasmid_base_code,allele_nickname,n_matching_alleles,n_matching_fish,mapped_fish_id,mapped_fish_code
+tandem mem:mStayGold,pDQM005,PDQM-5,301,1,8,6d7bae16-0dcc-453b-b11b-5cea7ddde545,FSH-6d7bae16
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),pDQM005,PDQM-5,302,1,9,2ee8087a-c30b-49cc-ad6d-ccf0322c09f9,FSH-2ee8087a
+casper/rnf,,,,0,122,4ade11dc-951f-4566-83a2-5b5c20ac9270,FSH-4ade11dc
+ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082,PDQM-82,315,1,7,2301c20e-c275-49fe-8b10-308fb2662f6d,FSH-2301c20e
+tdmScarlet3S2 (F1 of allele 325),pDQM136,PDQM-136,325,1,6,0440d41b-8386-42fd-b052-1a93201c2e2e,FSH-0440d41b
+ef1a:2xLynk:tdm:mChilada,pDQM082,PDQM-82,315,1,7,2301c20e-c275-49fe-8b10-308fb2662f6d,FSH-2301c20e
+membrane mChilada,pDQM082,PDQM-82,315,1,7,2301c20e-c275-49fe-8b10-308fb2662f6d,FSH-2301c20e
+membrane Halo,Swinburne,SWINBURNE,Swinburne,0,0,,
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),pDQM005,PDQM-5,301,1,8,6d7bae16-0dcc-453b-b11b-5cea7ddde545,FSH-6d7bae16
+ef1a:H2B:Halo,Swinburne,SWINBURNE,Swinburne,0,0,,
+ef1a:2xLynk:tdm:mHalo,Swinburne,SWINBURNE,Swinburne,0,0,,
+ef1a:2xLynk:tdmSG(J) (F2 of allele 302),pDQM005,PDQM-5,302,1,9,2ee8087a-c30b-49cc-ad6d-ccf0322c09f9,FSH-2ee8087a
+csp/pIGLET 14a,,,,0,0,,
+Dennis (F2 of allele 318),pDQM036,PDQM-36,318,1,3,3847a8c3-37b3-465c-bc1c-89868530a3dd,FSH-3847a8c3
+Jim (F2 of allele 316),pDQM059,PDQM-59,316,1,1,c5c8435e-33d4-43e1-b890-1a79f6a59c2d,FSH-c5c8435e
+Ben (F2 of allele 310),pDQM034,PDQM-34,310,1,3,98a9b0c5-0f55-4733-90ef-1bbd2facf767,FSH-98a9b0c5
+Ken (F2 of allele 320),pDQM059,PDQM-59,320,1,2,3486bc28-def9-464e-9897-7e1311631df6,FSH-3486bc28
+Liam (F2 of allele 321),pDQM059,PDQM-59,321,1,2,5e541b4a-bc17-4dfd-b065-bad090b25e09,FSH-5e541b4a
+MGCO35 (F1 of allele 336),MGCO-35,MGCO-35,336,1,3,1b348553-9b02-4e72-86b3-6444cecbf956,FSH-1b348553
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),pDQM005,PDQM-5,301,1,8,6d7bae16-0dcc-453b-b11b-5cea7ddde545,FSH-6d7bae16
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),pDQM034,PDQM-34,310,1,3,98a9b0c5-0f55-4733-90ef-1bbd2facf767,FSH-98a9b0c5
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),pDQM034,PDQM-34,310,1,3,98a9b0c5-0f55-4733-90ef-1bbd2facf767,FSH-98a9b0c5
+heatshock PhiC,pDQM112,PDQM-112,,0,0,,
+tdmScarlet3S2:H2B-tol2 (F1 of allele 324),pDQM133,PDQM-133,324,1,2,5e1d15d9-33d0-466b-9058-08ca5ae1984a,FSH-5e1d15d9
+memrane tdmScarlet3S2 (F1 of allele 325),pDQM136,PDQM-136,325,1,6,0440d41b-8386-42fd-b052-1a93201c2e2e,FSH-0440d41b
+from Swinburne lab - tank ID 344 (F1 of allele 45385),Swinburne,SWINBURNE,Swinburne,0,0,,
+ef1a:2xLynk:tdm:Halo,Swinburne,SWINBURNE,Swinburne,0,0,,
+tdmScarlet3S2 (F2 of allele 325),pDQM136,PDQM-136,325,1,6,0440d41b-8386-42fd-b052-1a93201c2e2e,FSH-0440d41b
+mem:tdmChilada,pDQM082,PDQM-82,315,1,7,2301c20e-c275-49fe-8b10-308fb2662f6d,FSH-2301c20e
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),pDQM136,PDQM-136,325,1,6,0440d41b-8386-42fd-b052-1a93201c2e2e,FSH-0440d41b
+ef1a:2xLynk:tdmSG(J) (F1 of allele 305),pDQM005,PDQM-5,305,1,2,44adf6f7-422d-4c8e-a395-e16341fa5b82,FSH-44adf6f7
+ef1a:2xLynk:tdmSG(J) (F1 of allele 308),pDQM005,PDQM-5,308,1,1,e138a613-4a9d-4f61-91fd-d456f04ddf37,FSH-e138a613
+memrane tdmScarlet3S2 (F1 of allele 327),pDQM136,PDQM-136,327,1,2,8bb7e9ad-3b8b-448a-80e5-8f9feb1d908e,FSH-8bb7e9ad
+ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),pDQM036,PDQM-36,318,1,3,3847a8c3-37b3-465c-bc1c-89868530a3dd,FSH-3847a8c3
+Abe (F2 of allele 309),pDQM034,PDQM-34,309,1,3,a1c68fb5-ba84-44af-8dea-b066f0303e1f,FSH-a1c68fb5
+Isaac (F2 of allele 314),pDQM064,PDQM-64,314,0,0,,
+Chris (F1 of allele 317),pDQM034,PDQM-34,317,1,2,6703f1ec-33f0-4dab-9dfa-b7c4d7bdaeff,FSH-6703f1ec
+ef1a:2xLynk:tdmSG(J) (F1 of allele 304),pDQM005,PDQM-5,304,1,1,aa10b25b-b90e-4d35-b5f0-7155c19def6c,FSH-aa10b25b
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 317),pDQM034,PDQM-34,317,1,2,6703f1ec-33f0-4dab-9dfa-b7c4d7bdaeff,FSH-6703f1ec
+tandem mem:mStayGold; tdmChilada:Histone,"pDQM005, pDQM104","PDQM005, PDQM104","301, n/a",0,0,,
+tandem mem:mStayGold; tdmChilada(MAGPV):Histone,"pDQM005, pDQM104","PDQM005, PDQM104","301, n/a",0,0,,

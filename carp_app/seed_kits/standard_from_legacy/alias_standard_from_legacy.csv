@@ -1,0 +1,96 @@
+alias_text,canonical_code
+2xCox8A:mSG,MGCO-01;MGCO-35
+2xCox8A:mScarlet3S2,MGCO-35
+2xLynk:mChilada,pDQM092
+2xLynk:mSG,pDQM047;pdQM047
+2xLynk:mScarlet3-S2,pDQM136
+Abe (F2 of allele 309),pDQM034
+Ben (F2 of allele 310),
+Chris (F1 of allele 317),pDQM034
+Dennis (F2 of allele 318),
+HC-10 4x-Cox8:mStayGold,HC-10
+HC-2 2:NLS-mScarlet3,HC-2
+HC-9 Lifeact:mStayGold,HC-9
+Isaac (F2 of allele 314),pDQM064
+Jim (F2 of allele 316),
+Ken (F2 of allele 320),
+LAMP1:mSG,MGCO-15
+Liam (F2 of allele 321),
+Lifeact:Halo,MGCO-24
+Lifeact:mSG,MGCO-23
+MGCO-28,MGCO-28
+MGCO-49,MGCO-49
+MGCO-51,MGCO-51
+MGCO-52,MGCO-52
+MGCO-53,MGCO-53
+MGCO-55,MGCO-55
+MGCO-56,MGCO-56
+MGCO01,MGCO-01
+MGCO28,MGCO-28
+MGCO34,MGCO-34
+MGCO35 (F1 of allele 336),MGCO-35
+MGCO50,MGCO-50
+MGCO54,MGCO-54
+Skittles-lite (ef1a:mTFP1 / ef1a:mChilada / ef1a:miRFP670-2),
+TGN:mSG,MGCO-10
+Vimentin:Halo,MGCO-22
+casper/rnf,
+csp/pIGLET 14a,
+ef1a-extended:2xCox8A:Halo,MGCO-39
+ef1a-extended:2xCox8A:mScarlet3S2,MGCO-35
+ef1a-extended:2xCox8A:mStayGold,MGCO-28
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),pDQM136
+ef1a-extended:Halo:sec61b,MGCO-40
+ef1a-extended:LAMP1:mStayGold,MGCO-31
+ef1a-extended:TNG46:mStayGold,MGCO-30
+ef1a-extended:alphatubulin:mStayGold,MGCO-32
+ef1a-extended:mScarlet3S2:sec61b,MGCO-36
+ef1a-extended:mStayGold:sec61b,MGCO-27
+ef1a:2xLynk:tdm:Halo,Swinburne
+ef1a:2xLynk:tdm:mChilada,pDQM082
+ef1a:2xLynk:tdm:mHalo,Swinburne
+ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),pDQM005
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),pDQM005
+ef1a:2xLynk:tdmSG(J) (F1 of allele 304),pDQM005
+ef1a:2xLynk:tdmSG(J) (F1 of allele 305),pDQM005
+ef1a:2xLynk:tdmSG(J) (F1 of allele 308),pDQM005
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),pDQM005
+ef1a:2xLynk:tdmSG(J) (F2 of allele 302),pDQM005
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),pDQM034
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),pDQM034
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 317),pDQM034
+ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),pDQM036
+ef1a:E2Crimson (iCodon),pDQM144
+ef1a:H2B:Halo,Swinburne
+ef1a:linker:mKate2:linker-attB,pDQM085
+ef1a:mCardinal (iCodon),pDQM145
+ef1a:mGold2s,pDQM140
+ef1a:mGold2t,pDQM141
+ef1a:mTFP1 and ef1a:mBeRFP,
+from Swinburne lab - tank ID 344 (F1 of allele 45385),Swinburne
+heatshock PhiC,pDQM112
+mChilada:H2B,pDQM104
+mChilada:H2B (80 and 120 pg),pDQM104
+mChilada:H2B (80 pg),pDQM104
+mSG:MYH10,MGCO-25
+mSG:alpha-tub,MGCO-19
+mSG:sec61b,MGCO-04
+mScarlet3-S2:H2B,pDQM117
+mScarlet3S2:sec61b,MGCO-36
+mYH:H2B,pDQM105
+mYH:H2B (80 and 120 pg),pDQM105
+mYH:H2B (80 pg),pDQM105
+mem:tdmChilada,pDQM082
+membrane Halo,Swinburne
+membrane mChilada,pDQM082
+memrane tdmScarlet3S2 (F1 of allele 325),pDQM136
+memrane tdmScarlet3S2 (F1 of allele 327),pDQM136
+pDQM172 SP6-2x-cox8A-mSG,pDQM172
+tandem mem:mStayGold,pDQM005
+tandem mem:mStayGold; tdmChilada(MAGPV):Histone,"pDQM005, pDQM104"
+tandem mem:mStayGold; tdmChilada:Histone,"pDQM005, pDQM104"
+tdmChilada:PCNA,pDQM037
+tdmScarlet3S2 (F1 of allele 325),pDQM136
+tdmScarlet3S2 (F2 of allele 325),pDQM136
+tdmScarlet3S2:H2B-tol2 (F1 of allele 324),pDQM133

@@ -1,0 +1,42 @@
+parent_fish_name,raw_plasmid_base_code,norm_plasmid_base_code,allele_nickname,n_matching_alleles,n_matching_fish
+tandem mem:mStayGold,pDQM005,pDQM005,301,0,0
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),pDQM005,pDQM005,302,0,0
+casper/rnf,,,,0,0
+ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082,pDQM082,315,0,0
+tdmScarlet3S2 (F1 of allele 325),pDQM136,pDQM136,325,0,0
+ef1a:2xLynk:tdm:mChilada,pDQM082,pDQM082,315,0,0
+membrane mChilada,pDQM082,pDQM082,315,0,0
+membrane Halo,Swinburne,Swinburne,Swinburne,0,0
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),pDQM005,pDQM005,301,0,0
+ef1a:H2B:Halo,Swinburne,Swinburne,Swinburne,0,0
+ef1a:2xLynk:tdm:mHalo,Swinburne,Swinburne,Swinburne,0,0
+ef1a:2xLynk:tdmSG(J) (F2 of allele 302),pDQM005,pDQM005,302,0,0
+csp/pIGLET 14a,,,,0,0
+Dennis (F2 of allele 318),pDQM036,pDQM036,318,0,0
+Jim (F2 of allele 316),pDQM059,pDQM059,316,0,0
+Ben (F2 of allele 310),pDQM034,pDQM034,310,0,0
+Ken (F2 of allele 320),pDQM059,pDQM059,320,0,0
+Liam (F2 of allele 321),pDQM059,pDQM059,321,0,0
+MGCO35 (F1 of allele 336),MGCO-35,MGCO-35,336,1,3
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),pDQM005,pDQM005,301,0,0
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),pDQM034,pDQM034,310,0,0
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),pDQM034,pDQM034,310,0,0
+heatshock PhiC,pDQM112,pDQM112,,0,0
+tdmScarlet3S2:H2B-tol2 (F1 of allele 324),pDQM133,pDQM133,324,0,0
+memrane tdmScarlet3S2 (F1 of allele 325),pDQM136,pDQM136,325,0,0
+from Swinburne lab - tank ID 344 (F1 of allele 45385),Swinburne,Swinburne,Swinburne,0,0
+ef1a:2xLynk:tdm:Halo,Swinburne,Swinburne,Swinburne,0,0
+tdmScarlet3S2 (F2 of allele 325),pDQM136,pDQM136,325,0,0
+mem:tdmChilada,pDQM082,pDQM082,315,0,0
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),pDQM136,pDQM136,325,0,0
+ef1a:2xLynk:tdmSG(J) (F1 of allele 305),pDQM005,pDQM005,305,0,0
+ef1a:2xLynk:tdmSG(J) (F1 of allele 308),pDQM005,pDQM005,308,0,0
+memrane tdmScarlet3S2 (F1 of allele 327),pDQM136,pDQM136,327,0,0
+ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),pDQM036,pDQM036,318,0,0
+Abe (F2 of allele 309),pDQM034,pDQM034,309,0,0
+Isaac (F2 of allele 314),pDQM064,pDQM064,314,0,0
+Chris (F1 of allele 317),pDQM034,pDQM034,317,0,0
+ef1a:2xLynk:tdmSG(J) (F1 of allele 304),pDQM005,pDQM005,304,0,0
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 317),pDQM034,pDQM034,317,0,0
+tandem mem:mStayGold; tdmChilada:Histone,"pDQM005, pDQM104","pDQM005, pDQM104","301, n/a",0,0
+tandem mem:mStayGold; tdmChilada(MAGPV):Histone,"pDQM005, pDQM104","pDQM005, pDQM104","301, n/a",0,0

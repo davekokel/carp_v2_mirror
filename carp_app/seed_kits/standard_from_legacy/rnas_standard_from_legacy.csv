@@ -1,0 +1,33 @@
+rna_base_code,rna_name,description,notes
+HC-10,HC-10 4x-Cox8:mStayGold,,from Unique_injected_rna__preview_.csv
+HC-2,HC-2 2:NLS-mScarlet3,,from Unique_injected_rna__preview_.csv
+HC-9,HC-9 Lifeact:mStayGold,,from Unique_injected_rna__preview_.csv
+MGCO-01,2xCox8A:mSG,,from Unique_injected_rna__preview_.csv
+MGCO-01,MGCO01,,from Unique_injected_rna__preview_.csv
+MGCO-04,mSG:sec61b,,from Unique_injected_rna__preview_.csv
+MGCO-10,TGN:mSG,,from Unique_injected_rna__preview_.csv
+MGCO-15,LAMP1:mSG,,from Unique_injected_rna__preview_.csv
+MGCO-19,mSG:alpha-tub,,from Unique_injected_rna__preview_.csv
+MGCO-22,Vimentin:Halo,,from Unique_injected_rna__preview_.csv
+MGCO-23,Lifeact:mSG,,from Unique_injected_rna__preview_.csv
+MGCO-24,Lifeact:Halo,,from Unique_injected_rna__preview_.csv
+MGCO-25,mSG:MYH10,,from Unique_injected_rna__preview_.csv
+MGCO-28,MGCO28,,from Unique_injected_rna__preview_.csv
+MGCO-35,2xCox8A:mSG,,from Unique_injected_rna__preview_.csv
+MGCO-35,2xCox8A:mScarlet3S2,,from Unique_injected_rna__preview_.csv
+MGCO-36,ef1a-extended:mScarlet3S2:sec61b,,from Unique_injected_rna__preview_.csv
+MGCO-36,mScarlet3S2:sec61b,,from Unique_injected_rna__preview_.csv
+MGCO-40,ef1a-extended:Halo:sec61b,,from Unique_injected_rna__preview_.csv
+pDQM037,tdmChilada:PCNA,,from Unique_injected_rna__preview_.csv
+pDQM047,2xLynk:mSG,,from Unique_injected_rna__preview_.csv
+pDQM092,2xLynk:mChilada,,from Unique_injected_rna__preview_.csv
+pDQM104,mChilada:H2B,,from Unique_injected_rna__preview_.csv
+pDQM104,mChilada:H2B (80 and 120 pg),,from Unique_injected_rna__preview_.csv
+pDQM104,mChilada:H2B (80 pg),,from Unique_injected_rna__preview_.csv
+pDQM105,mYH:H2B,,from Unique_injected_rna__preview_.csv
+pDQM105,mYH:H2B (80 and 120 pg),,from Unique_injected_rna__preview_.csv
+pDQM105,mYH:H2B (80 pg),,from Unique_injected_rna__preview_.csv
+pDQM117,mScarlet3-S2:H2B,,from Unique_injected_rna__preview_.csv
+pDQM136,2xLynk:mScarlet3-S2,,from Unique_injected_rna__preview_.csv
+pDQM172,pDQM172 SP6-2x-cox8A-mSG,,from Unique_injected_rna__preview_.csv
+pdQM047,2xLynk:mSG,,from Unique_injected_rna__preview_.csv

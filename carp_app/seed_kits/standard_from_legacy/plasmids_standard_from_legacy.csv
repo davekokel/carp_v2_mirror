@@ -1,0 +1,58 @@
+plasmid_base_code,plasmid_name,description,notes
+MGCO-27,ef1a-extended:mStayGold:sec61b,,from Unique_injected_plasmid__preview_.csv
+MGCO-28,MGCO-28,,from Unique_injected_plasmid__preview_.csv
+MGCO-28,ef1a-extended:2xCox8A:mStayGold,,from Unique_injected_plasmid__preview_.csv
+MGCO-30,ef1a-extended:TNG46:mStayGold,,from Unique_injected_plasmid__preview_.csv
+MGCO-31,ef1a-extended:LAMP1:mStayGold,,from Unique_injected_plasmid__preview_.csv
+MGCO-32,ef1a-extended:alphatubulin:mStayGold,,from Unique_injected_plasmid__preview_.csv
+MGCO-34,MGCO34,,from Unique_injected_plasmid__preview_.csv
+MGCO-35,MGCO35 (F1 of allele 336),,from Unique_parent_names__mom_dad_combined__preview_.csv
+MGCO-35,ef1a-extended:2xCox8A:mScarlet3S2,,from Unique_injected_plasmid__preview_.csv
+MGCO-36,ef1a-extended:mScarlet3S2:sec61b,,from Unique_injected_plasmid__preview_.csv
+MGCO-39,ef1a-extended:2xCox8A:Halo,,from Unique_injected_plasmid__preview_.csv
+MGCO-49,MGCO-49,,from Unique_injected_plasmid__preview_.csv
+MGCO-50,MGCO50,,from Unique_injected_plasmid__preview_.csv
+MGCO-51,MGCO-51,,from Unique_injected_plasmid__preview_.csv
+MGCO-52,MGCO-52,,from Unique_injected_plasmid__preview_.csv
+MGCO-53,MGCO-53,,from Unique_injected_plasmid__preview_.csv
+MGCO-54,MGCO54,,from Unique_injected_plasmid__preview_.csv
+MGCO-55,MGCO-55,,from Unique_injected_plasmid__preview_.csv
+MGCO-56,MGCO-56,,from Unique_injected_plasmid__preview_.csv
+Swinburne,ef1a:2xLynk:tdm:Halo,,from Unique_parent_names__mom_dad_combined__preview_.csv
+Swinburne,ef1a:2xLynk:tdm:mHalo,,from Unique_parent_names__mom_dad_combined__preview_.csv
+Swinburne,ef1a:H2B:Halo,,from Unique_parent_names__mom_dad_combined__preview_.csv
+Swinburne,from Swinburne lab - tank ID 344 (F1 of allele 45385),,from Unique_parent_names__mom_dad_combined__preview_.csv
+Swinburne,membrane Halo,,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM005,ef1a:2xLynk:tdmSG(J) (F1 of allele 301),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM005,ef1a:2xLynk:tdmSG(J) (F1 of allele 302),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM005,ef1a:2xLynk:tdmSG(J) (F1 of allele 304),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM005,ef1a:2xLynk:tdmSG(J) (F1 of allele 305),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM005,ef1a:2xLynk:tdmSG(J) (F1 of allele 308),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM005,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM005,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM005,tandem mem:mStayGold,,from Unique_parent_names__mom_dad_combined__preview_.csv
+"pDQM005, pDQM104",tandem mem:mStayGold; tdmChilada(MAGPV):Histone,,from Unique_parent_names__mom_dad_combined__preview_.csv
+"pDQM005, pDQM104",tandem mem:mStayGold; tdmChilada:Histone,,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM034,Abe (F2 of allele 309),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM034,Chris (F1 of allele 317),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM034,ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM034,ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM034,ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 317),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM036,ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM064,Isaac (F2 of allele 314),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM082,ef1a:2xLynk:tdm:mChilada,,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM082,ef1a:2xLynk:tdmChilada (F1 of allele 315),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM082,mem:tdmChilada,,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM082,membrane mChilada,,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM085,ef1a:linker:mKate2:linker-attB,,from Unique_injected_plasmid__preview_.csv
+pDQM112,heatshock PhiC,,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM133,tdmScarlet3S2:H2B-tol2 (F1 of allele 324),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM136,ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM136,memrane tdmScarlet3S2 (F1 of allele 325),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM136,memrane tdmScarlet3S2 (F1 of allele 327),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM136,tdmScarlet3S2 (F1 of allele 325),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM136,tdmScarlet3S2 (F2 of allele 325),,from Unique_parent_names__mom_dad_combined__preview_.csv
+pDQM140,ef1a:mGold2s,,from Unique_injected_plasmid__preview_.csv
+pDQM141,ef1a:mGold2t,,from Unique_injected_plasmid__preview_.csv
+pDQM144,ef1a:E2Crimson (iCodon),,from Unique_injected_plasmid__preview_.csv
+pDQM145,ef1a:mCardinal (iCodon),,from Unique_injected_plasmid__preview_.csv

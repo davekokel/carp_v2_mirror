@@ -1,0 +1,31 @@
+legacy_parent_name,plasmid_base_code_raw,allele_raw,transgene_base_code,allele_number,candidate_genotype_code,candidate_genotype_name,candidate_source_system,n_shared_alleles,n_alleles_in_genotype,match_ratio
+Abe (F2 of allele 309),pDQM034,309,PDQM-34,1,GT_STD_pDQM034_309,pDQM034 309,standard,1,1,1.0
+Ben (F2 of allele 310),pDQM034,310,PDQM-34,2,GT_STD_pDQM034_310,pDQM034 310,standard,1,1,1.0
+Chris (F1 of allele 317),pDQM034,317,PDQM-34,3,GT_STD_pDQM034_317,pDQM034 317,standard,1,1,1.0
+Dennis (F2 of allele 318),pDQM036,318,PDQM-36,1,GT_STD_pDQM036_318,pDQM036 318,standard,1,1,1.0
+Jim (F2 of allele 316),pDQM059,316,PDQM-59,1,GT_STD_pDQM059_316,pDQM059 316,standard,1,1,1.0
+Ken (F2 of allele 320),pDQM059,320,PDQM-59,2,GT_STD_pDQM059_320,pDQM059 320,standard,1,1,1.0
+Liam (F2 of allele 321),pDQM059,321,PDQM-59,3,GT_STD_pDQM059_321,pDQM059 321,standard,1,1,1.0
+MGCO35 (F1 of allele 336),MGCO-35,336,MGCO-35,1,GT_STD_MGCO_35_336,MGCO-35 336,standard,1,1,1.0
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),pDQM136,325,PDQM-136,1,GT_STD_pDQM136_325,pDQM136 325,standard,1,1,1.0
+ef1a:2xLynk:tdm:mChilada,pDQM082,315,PDQM-82,1,GT_STD_pDQM082_315,pDQM082 315,standard,1,1,1.0
+ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082,315,PDQM-82,1,GT_STD_pDQM082_315,pDQM082 315,standard,1,1,1.0
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),pDQM005,301,PDQM-5,1,GT_STD_pDQM005_301,pDQM005 301,standard,1,1,1.0
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),pDQM005,302,PDQM-5,2,GT_STD_pDQM005_302,pDQM005 302,standard,1,1,1.0
+ef1a:2xLynk:tdmSG(J) (F1 of allele 304),pDQM005,304,PDQM-5,4,GT_STD_pDQM005_304,pDQM005 304,standard,1,1,1.0
+ef1a:2xLynk:tdmSG(J) (F1 of allele 305),pDQM005,305,PDQM-5,5,GT_STD_pDQM005_305,pDQM005 305,standard,1,1,1.0
+ef1a:2xLynk:tdmSG(J) (F1 of allele 308),pDQM005,308,PDQM-5,7,GT_STD_pDQM005_308,pDQM005 308,standard,1,1,1.0
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),pDQM005,301,PDQM-5,1,GT_STD_pDQM005_301,pDQM005 301,standard,1,1,1.0
+ef1a:2xLynk:tdmSG(J) (F2 of allele 302),pDQM005,302,PDQM-5,2,GT_STD_pDQM005_302,pDQM005 302,standard,1,1,1.0
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),pDQM034,310,PDQM-34,2,GT_STD_pDQM034_310,pDQM034 310,standard,1,1,1.0
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),pDQM034,310,PDQM-34,2,GT_STD_pDQM034_310,pDQM034 310,standard,1,1,1.0
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 317),pDQM034,317,PDQM-34,3,GT_STD_pDQM034_317,pDQM034 317,standard,1,1,1.0
+ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),pDQM036,318,PDQM-36,1,GT_STD_pDQM036_318,pDQM036 318,standard,1,1,1.0
+mem:tdmChilada,pDQM082,315,PDQM-82,1,GT_STD_pDQM082_315,pDQM082 315,standard,1,1,1.0
+membrane mChilada,pDQM082,315,PDQM-82,1,GT_STD_pDQM082_315,pDQM082 315,standard,1,1,1.0
+memrane tdmScarlet3S2 (F1 of allele 325),pDQM136,325,PDQM-136,1,GT_STD_pDQM136_325,pDQM136 325,standard,1,1,1.0
+memrane tdmScarlet3S2 (F1 of allele 327),pDQM136,327,PDQM-136,2,GT_STD_pDQM136_327,pDQM136 327,standard,1,1,1.0
+tandem mem:mStayGold,pDQM005,301,PDQM-5,1,GT_STD_pDQM005_301,pDQM005 301,standard,1,1,1.0
+tdmScarlet3S2 (F1 of allele 325),pDQM136,325,PDQM-136,1,GT_STD_pDQM136_325,pDQM136 325,standard,1,1,1.0
+tdmScarlet3S2 (F2 of allele 325),pDQM136,325,PDQM-136,1,GT_STD_pDQM136_325,pDQM136 325,standard,1,1,1.0
+tdmScarlet3S2:H2B-tol2 (F1 of allele 324),pDQM133,324,PDQM-133,1,GT_STD_pDQM133_324,pDQM133 324,standard,1,1,1.0

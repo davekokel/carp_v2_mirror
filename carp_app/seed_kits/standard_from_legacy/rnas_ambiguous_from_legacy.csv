@@ -1,0 +1,10 @@
+injected_rna,raw_code_field,reason
+phiC,,no canonical code
+phiC mRNA (120 pg),,no canonical code
+phiC-NLS,,no canonical code
+phiC-NLS mRNA (120 pg),,no canonical code
+"phiC-NLS,, 2xLynk:mSG",,no canonical code
+"phiC-NLS,, 2xLynk:mSG,, mChilada:H2B","pDQM047, pDQM104",mismatched name/code counts
+"phiC-NLS,, phiC",,no canonical code
+"phiC,, 2xLynk:mSG",pDQM047,mismatched name/code counts
+tol2 mRNA (40 pg),,no canonical code

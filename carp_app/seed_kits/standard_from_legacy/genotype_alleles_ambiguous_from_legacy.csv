@@ -1,0 +1,4 @@
+parent_fish_name,plasmid_base_code,allele_raw,reason
+casper/rnf,,,missing plasmid_base_code
+csp/pIGLET 14a,,,missing plasmid_base_code
+heatshock PhiC,pDQM112,,missing allele_nickname

@@ -1,0 +1,18 @@
+injected_rna,raw_code_field,reason
+"2xCox8A:mSG,, 2xLynk:mChilada","MGCO-35, pDQM092",multiple canonical codes
+"2xLynk:mChilada,, 2xLynk:mSG","pDQM092, pDQM047",multiple canonical codes
+"2xLynk:mChilada,, 2xLynk:mSG,, Lifeact:Halo","pDQM092, pDQM047, MGCO-24",multiple canonical codes
+2xLynk:mSG; mChilada:H2B,"pDQM047, pDQM104",multiple canonical codes
+2xLynk:mSG; mYH:H2B,"pdQM047, pDQM105",multiple canonical codes
+"LAMP1:mSG,, 2xLynk:mChilada","MGCO-15, pDQM092",multiple canonical codes
+"LAMP1:mSG,, 2xLynk:mScarlet3-S2",MGCO-15; pDQM136,multiple canonical codes
+"Lifeact:Halo,, 2xLynk:mSG","MGCO-24, pDQM047",multiple canonical codes
+phiC,,no canonical code and not dye-like
+phiC mRNA (120 pg),,no canonical code and not dye-like
+phiC-NLS,,no canonical code and not dye-like
+phiC-NLS mRNA (120 pg),,no canonical code and not dye-like
+"phiC-NLS,, 2xLynk:mSG",,no canonical code and not dye-like
+"phiC-NLS,, 2xLynk:mSG,, mChilada:H2B","pDQM047, pDQM104",multiple canonical codes
+"phiC-NLS,, phiC",,no canonical code and not dye-like
+tol2 mRNA (40 pg),,no canonical code and not dye-like
+"Vimentin:Halo,, 2xLynk:mScarlet3-S2","MGCO-22, pDQM136",multiple canonical codes

@@ -1,0 +1,12 @@
+legacy_parent_name,plasmid_base_code_raw,allele_raw,base_norm,allele_norm,reason
+casper/rnf,,,,,missing_or_weird_plasmid_base_code
+membrane Halo,Swinburne,Swinburne,SWINBURNE,Swinburne,no_matching_transgene_alleles_in_DB
+ef1a:H2B:Halo,Swinburne,Swinburne,SWINBURNE,Swinburne,no_matching_transgene_alleles_in_DB
+ef1a:2xLynk:tdm:mHalo,Swinburne,Swinburne,SWINBURNE,Swinburne,no_matching_transgene_alleles_in_DB
+csp/pIGLET 14a,,,,,missing_or_weird_plasmid_base_code
+heatshock PhiC,pDQM112,,PDQM-112,,missing_allele_nickname
+from Swinburne lab - tank ID 344 (F1 of allele 45385),Swinburne,Swinburne,SWINBURNE,Swinburne,no_matching_transgene_alleles_in_DB
+ef1a:2xLynk:tdm:Halo,Swinburne,Swinburne,SWINBURNE,Swinburne,no_matching_transgene_alleles_in_DB
+Isaac (F2 of allele 314),pDQM064,314,PDQM-64,314,no_matching_transgene_alleles_in_DB
+tandem mem:mStayGold; tdmChilada:Histone,"pDQM005, pDQM104","301, n/a","PDQM005, PDQM104","301, n/a",multi_allele_in_single_row
+tandem mem:mStayGold; tdmChilada(MAGPV):Histone,"pDQM005, pDQM104","301, n/a","PDQM005, PDQM104","301, n/a",multi_allele_in_single_row
