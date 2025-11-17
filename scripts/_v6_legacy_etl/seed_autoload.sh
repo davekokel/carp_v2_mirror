@@ -9,7 +9,7 @@ if [ -z "${DB_URL:-}" ]; then
   exit 1
 fi
 
-SEED_DIR="${1:-$ROOT/carp_app/seed_kits/2025-11-15-121231-autoload}"
+SEED_DIR="${1:-$ROOT/seed_kits/2025-11-15-121231-autoload}"
 
 python - <<PY
 from pathlib import Path

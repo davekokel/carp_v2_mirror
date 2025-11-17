@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 from carp_app.etl.code_normalization import normalize_base_code
 
-CSV_PATH = ROOT / "carp_app" / "seed_kits" / "2025-11-15-121231-autoload" / "plasmid_fusions.csv"
+CSV_PATH = ROOT / "seed_kits" / "2025-11-15-121231-autoload" / "plasmid_fusions.csv"
 
 
 def get_engine() -> Engine:

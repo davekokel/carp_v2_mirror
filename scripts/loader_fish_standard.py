@@ -14,7 +14,7 @@ from carp_app.etl.loader_fish_standard import load_fish_standard_from_xlsx
 
 
 def main(argv: list[str] | None = None) -> int:
-    base = Path("carp_app/seed_kits/2025-11-15-121231-autoload")
+    base = Path("seed_kits/2025-11-15-121231-autoload")
     fish_xlsx = base / "fish.xlsx"
 
     engine = get_engine_from_env()

@@ -14,7 +14,7 @@ from carp_app.etl.loader_transgenes import seed_transgenes_from_genotype_alleles
 
 
 def main(argv: list[str] | None = None) -> int:
-    base = Path("carp_app/seed_kits/2025-11-15-121231-autoload")
+    base = Path("seed_kits/2025-11-15-121231-autoload")
     geno_alleles_csv = base / "genotype_alleles_from_standard_fish.csv"
 
     engine = get_engine_from_env()

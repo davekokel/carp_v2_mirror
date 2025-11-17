@@ -17,7 +17,7 @@ from carp_app.etl.loaders import (
 
 
 def main(argv: list[str] | None = None) -> int:
-    base = Path("carp_app/seed_kits/2025-11-15-121231-autoload")
+    base = Path("seed_kits/2025-11-15-121231-autoload")
 
     genotypes_csv = base / "genotypes_from_standard_fish.csv"
     genotype_alleles_csv = base / "genotype_alleles_from_standard_fish.csv"

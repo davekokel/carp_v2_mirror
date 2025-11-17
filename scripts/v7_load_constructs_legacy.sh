@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 . scripts/use_db.sh
 use_local
 
-LEGACY_STD_DIR="carp_app/seed_kits/standard_from_legacy"
+LEGACY_STD_DIR="seed_kits/standard_from_legacy"
 
 python scripts/v7_load_constructs_from_csv.py \
   --plasmids "$LEGACY_STD_DIR/plasmids_standard_from_legacy.csv" \

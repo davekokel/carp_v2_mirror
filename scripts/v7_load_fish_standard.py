@@ -22,7 +22,7 @@ def main(argv: list[str] | None = None) -> int:
         "--fish-xlsx",
         type=str,
         required=True,
-        help="Path to standard fish Excel file (e.g. carp_app/seed_kits/.../fish.xlsx)",
+        help="Path to standard fish Excel file (e.g. seed_kits/.../fish.xlsx)",
     )
     args = parser.parse_args(argv)
 

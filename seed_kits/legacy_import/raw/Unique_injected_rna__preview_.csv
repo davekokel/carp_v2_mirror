@@ -1,0 +1,45 @@
+injected_rna,plasmid_base_code
+2xCox8A:mScarlet3S2,MGCO-35
+2xCox8A:mSG,MGCO-01
+"2xCox8A:mSG,, 2xLynk:mChilada","MGCO-35, pDQM092"
+"2xLynk:mChilada,, 2xLynk:mSG","pDQM092, pDQM047"
+"2xLynk:mChilada,, 2xLynk:mSG,, Lifeact:Halo","pDQM092, pDQM047, MGCO-24"
+2xLynk:mSG; mChilada:H2B,"pDQM047, pDQM104"
+2xLynk:mSG; mYH:H2B,"pdQM047, pDQM105"
+ef1a-extended:Halo:sec61b,MGCO-40
+ef1a-extended:mScarlet3S2:sec61b,MGCO-36
+HC-10 4x-Cox8:mStayGold,HC-10
+HC-2 2:NLS-mScarlet3,HC-2
+HC-9 Lifeact:mStayGold,HC-9
+JF635 3uM,n/a
+LAMP1:mSG,MGCO-15
+"LAMP1:mSG,, 2xLynk:mChilada","MGCO-15, pDQM092"
+"LAMP1:mSG,, 2xLynk:mScarlet3-S2",MGCO-15; pDQM136
+"Lifeact:Halo,, 2xLynk:mSG","MGCO-24, pDQM047"
+Lifeact:mSG,MGCO-23
+mChilada:H2B (80 and 120 pg),pDQM104
+mChilada:H2B (80 pg),pDQM104
+MGCO01,MGCO-01
+MGCO28,MGCO-28
+mScarlet3-S2:H2B,pDQM117
+mScarlet3S2:sec61b,MGCO-36
+mSG:alpha-tub,MGCO-19
+mSG:MYH10,MGCO-25
+mSG:sec61b,MGCO-04
+mYH:H2B,pDQM105
+mYH:H2B (80 and 120 pg),pDQM105
+mYH:H2B (80 pg),pDQM105
+None,n/a
+pDQM172 SP6-2x-cox8A-mSG,pDQM172
+phiC,n/a
+phiC mRNA (120 pg),n/a
+phiC-NLS,n/a
+phiC-NLS mRNA (120 pg),n/a
+"phiC-NLS,, 2xLynk:mSG",n/a
+"phiC-NLS,, 2xLynk:mSG,, mChilada:H2B","pDQM047, pDQM104"
+"phiC-NLS,, phiC",n/a
+"phiC,, 2xLynk:mSG",pDQM047
+tdmChilada:PCNA,pDQM037
+TGN:mSG,MGCO-10
+tol2 mRNA (40 pg),n/a
+"Vimentin:Halo,, 2xLynk:mScarlet3-S2","MGCO-22, pDQM136"

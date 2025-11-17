@@ -25,7 +25,7 @@ def is_real_token(s: str) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    base = Path("carp_app/seed_kits/2025-11-15-121231-autoload")
+    base = Path("seed_kits/2025-11-15-121231-autoload")
     fish_path = base / "fish.xlsx"
 
     if not fish_path.exists():

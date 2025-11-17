@@ -14,7 +14,7 @@ from carp_app.etl.loader_imaging_legacy import load_imaging_from_legacy_standard
 
 
 def main(argv: list[str] | None = None) -> int:
-    base = Path("carp_app/seed_kits/standard_from_legacy")
+    base = Path("seed_kits/standard_from_legacy")
     slots_csv = base / "imaging_slots_standard_from_legacy.csv"
     rois_csv = base / "imaging_rois_standard_from_legacy.csv"
 
