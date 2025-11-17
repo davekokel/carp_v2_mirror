@@ -1,7 +1,7 @@
 parent_fish_name,raw_plasmid_base_code,norm_plasmid_base_code,allele_nickname,n_matching_alleles,n_matching_fish,mapped_fish_id,mapped_fish_code
 tandem mem:mStayGold,pDQM005,PDQM-5,301,1,8,6d7bae16-0dcc-453b-b11b-5cea7ddde545,FSH-6d7bae16
 ef1a:2xLynk:tdmSG(J) (F1 of allele 302),pDQM005,PDQM-5,302,1,9,2ee8087a-c30b-49cc-ad6d-ccf0322c09f9,FSH-2ee8087a
-casper/rnf,,,,0,122,4ade11dc-951f-4566-83a2-5b5c20ac9270,FSH-4ade11dc
+casper/rnf,,,,0,244,8a4526ef-beda-4896-b267-88988ba540a1,FSH-0J1HCAG3
 ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082,PDQM-82,315,1,7,2301c20e-c275-49fe-8b10-308fb2662f6d,FSH-2301c20e
 tdmScarlet3S2 (F1 of allele 325),pDQM136,PDQM-136,325,1,6,0440d41b-8386-42fd-b052-1a93201c2e2e,FSH-0440d41b
 ef1a:2xLynk:tdm:mChilada,pDQM082,PDQM-82,315,1,7,2301c20e-c275-49fe-8b10-308fb2662f6d,FSH-2301c20e
