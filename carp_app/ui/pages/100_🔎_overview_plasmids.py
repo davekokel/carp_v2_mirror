@@ -118,9 +118,8 @@ def main():
 
     st.subheader(f"Plasmids ({len(df)} rows)")
 
-    # Show only user-relevant columns in the main table
-    table_cols = ["code", "nickname", "resistance", "fluors", "fusions", "n_fusions", "created_at"]
-    table = df[table_cols]
+    # Show all columns from the view so we can inspect everything
+    table = df.copy()
 
     st.dataframe(table, width="stretch", hide_index=True)
 

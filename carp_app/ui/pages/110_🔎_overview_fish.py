@@ -1,4 +1,3 @@
-# carp_app/ui/pages/110_🔎_overview_fish.py
 from __future__ import annotations
 
 import os
@@ -42,10 +41,8 @@ st.set_page_config(
 
 @st.cache_resource(show_spinner=False)
 def _cached_engine() -> Engine:
-    # Use the same engine wiring as the rest of the app
     url = os.getenv("DB_URL", "")
     if not url:
-        # Fallback to page_engine if DB_URL isn't set via app_ctx
         return _direct_engine()
     return _create_engine()
 
@@ -81,31 +78,29 @@ def _load_fish_overview(q: Optional[str], limit: int) -> pd.DataFrame:
     Load fish from v_fish_overview.
 
     v_fish_overview is the canonical fish view and is responsible for:
-      - genotype_pretty      = Tg(base)allele_name (allele_name = 'gu' || allele_number)
-      - transgene_canonical  = Tg(base)allele_name
-      - transgene_nickname   = Tg(base)allele_nickname
-
-    This page does not reimplement transgene logic; it only filters and displays.
+      - genotype_pretty
+      - genotype_alleles_pretty
+      - genotype_alleles_priority_pretty
+      - genotype_fluors / all_fluors
     """
     sql = text("""
       SELECT *
       FROM public.v_fish_overview v
       WHERE (:q IS NULL)
          OR (
-              v.fish_code_raw        ILIKE :q
-           OR v.fish_code_display    ILIKE :q
-           OR v.nickname             ILIKE :q
-           OR v.genetic_background   ILIKE :q
-           OR v.line_building_stage  ILIKE :q
-           OR v.genotype_pretty      ILIKE :q
-           OR v.transgene_canonical  ILIKE :q
-           OR v.transgene_nickname   ILIKE :q
-           OR v.markers              ILIKE :q
-           OR v.fluors               ILIKE :q
-           OR v.tags                 ILIKE :q
-           OR v.fusions              ILIKE :q
+              v.fish_code               ILIKE :q
+           OR v.nickname                ILIKE :q
+           OR v.genetic_background      ILIKE :q
+           OR v.line_building_stage     ILIKE :q
+           OR v.genotype_pretty         ILIKE :q
+           OR v.genotype_alleles_pretty ILIKE :q
+           OR v.genotype_base_codes     ILIKE :q
+           OR v.genotype_fluors         ILIKE :q
+           OR v.treatment_base_codes    ILIKE :q
+           OR v.all_base_codes          ILIKE :q
+           OR v.all_fluors              ILIKE :q
          )
-      ORDER BY v.created_at DESC NULLS LAST, v.fish_code_raw
+      ORDER BY v.created_at DESC NULLS LAST, v.fish_code
       LIMIT :lim
     """)
     params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
@@ -116,8 +111,7 @@ def _load_fish_overview(q: Optional[str], limit: int) -> pd.DataFrame:
 def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
     """
     Given a list of tank container UUIDs, return enriched tank records including:
-      - genotype / transgene_pretty = v_fish_overview.genotype_pretty (canonical Tg(base)allele_name)
-      - genotype_nickname           = v_fish_overview.transgene_nickname
+      - genotype / transgene_pretty = v_fish_overview.genotype_pretty
     """
     ids = [x for x in (container_ids or []) if x]
     if not ids:
@@ -143,14 +137,14 @@ def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
       ),
       vf AS (
         SELECT
-            v.fish_code_raw              AS fish_code,
+            v.fish_code                  AS fish_code,
             COALESCE(v.nickname,'')      AS nickname,
-            COALESCE(v.genetic_background,'') AS genetic_background,
-            COALESCE(v.line_building_stage,'') AS stage,
+            COALESCE(v.genetic_background,'')    AS genetic_background,
+            COALESCE(v.line_building_stage,'')   AS stage,
             v.birthday::date             AS dob,
-            COALESCE(v.genotype_pretty,'')     AS genotype,
-            COALESCE(v.genotype_pretty,'')     AS transgene_pretty,
-            COALESCE(v.transgene_nickname,'')  AS genotype_nickname
+            COALESCE(v.genotype_pretty,'')             AS genotype,
+            COALESCE(v.genotype_alleles_pretty,'')     AS transgene_pretty,
+            ''::text                              AS genotype_nickname
         FROM public.v_fish_overview v
       )
       SELECT
@@ -229,9 +223,8 @@ def main():
         st.info("No fish match your search.")
         return
 
-    cols = [c for c in df.columns if c not in ("fish_code_raw",)]
     st.subheader(f"Fish ({len(df)} rows)")
-    table = df[cols].copy()
+    table = df.copy()
     table.insert(0, "✓ Select", False)
 
     fish_table = st.data_editor(
@@ -243,7 +236,7 @@ def main():
 
     st.subheader("Tanks for selected fish")
     selected_codes = (
-        fish_table.loc[fish_table["✓ Select"], "fish_code_display"]
+        fish_table.loc[fish_table["✓ Select"], "fish_code"]
         .dropna()
         .astype(str)
         .tolist()
@@ -303,7 +296,7 @@ def main():
 
     st.dataframe(tidy, width="stretch", hide_index=True)
     st.download_button(
-        "⬇︎ Download pivot (CSV)",
+        "⬇︎ Download tank field pivot",
         data=tidy.to_csv(index=False).encode("utf-8"),
         file_name=f"tanks_field_pivot_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
         type="secondary",
