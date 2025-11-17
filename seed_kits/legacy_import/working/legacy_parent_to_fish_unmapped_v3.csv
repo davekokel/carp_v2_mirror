@@ -1,0 +1,12 @@
+legacy_parent_name,raw_plasmid_base_code,norm_plasmid_base_code,allele_nickname,n_matching_alleles,n_matching_fish,mapped_fish_id,mapped_fish_code
+parent_fish_name,plasmid_base_code,PLASMID_BASE_CODE,allele,0,0,,
+membrane Halo,Swinburne,SWINBURNE,Swinburne,0,0,,
+ef1a:H2B:Halo,Swinburne,SWINBURNE,Swinburne,0,0,,
+ef1a:2xLynk:tdm:mHalo,Swinburne,SWINBURNE,Swinburne,0,0,,
+csp/pIGLET 14a,nan,,nan,0,0,,
+heatshock PhiC,PDQM-112,PDQM-112,nan,0,0,,
+from Swinburne lab - tank ID 344 (F1 of allele 45385),Swinburne,SWINBURNE,Swinburne,0,0,,
+ef1a:2xLynk:tdm:Halo,Swinburne,SWINBURNE,Swinburne,0,0,,
+Isaac (F2 of allele 314),PDQM-64,PDQM-64,314,0,0,,
+tandem mem:mStayGold; tdmChilada:Histone,"pDQM005, pDQM104","PDQM005, PDQM104","301, n/a",0,0,,
+tandem mem:mStayGold; tdmChilada(MAGPV):Histone,"pDQM005, pDQM104","PDQM005, PDQM104","301, n/a",0,0,,

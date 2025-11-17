@@ -7,7 +7,7 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from carp_app.etl.loaders import get_engine_from_env, normalize_base_code
+from carp_app.etl.util import get_engine_from_env, normalize_base_code
 
 
 def load_genotypes_from_csv(csv_path: str | Path, engine: Optional[Engine] = None) -> dict:

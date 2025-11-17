@@ -1,0 +1,24 @@
+genotype_code,genotype_name,genetic_background,source_system,notes
+GT_LEG_MGCO_35_336,MGCO-35 336,casper,legacy,parents: MGCO35 (F1 of allele 336)
+GT_LEG_PDQM_112_nan,PDQM-112 nan,casper,legacy,parents: heatshock PhiC
+GT_LEG_PDQM_133_324,PDQM-133 324,casper,legacy,parents: tdmScarlet3S2:H2B-tol2 (F1 of allele 324)
+GT_LEG_PDQM_136_325,PDQM-136 325,casper,legacy,parents: ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325); memrane tdmScarlet3S2 (F1 of allele 325); tdmScarlet3S2 (F1 of allele 325); tdmScarlet3S2 (F2 of allele 325)
+GT_LEG_PDQM_136_327,PDQM-136 327,casper,legacy,parents: memrane tdmScarlet3S2 (F1 of allele 327)
+GT_LEG_PDQM_34_309,PDQM-34 309,casper,legacy,parents: Abe (F2 of allele 309)
+GT_LEG_PDQM_34_310,PDQM-34 310,casper,legacy,parents: Ben (F2 of allele 310); ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309); ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310)
+GT_LEG_PDQM_34_317,PDQM-34 317,casper,legacy,parents: Chris (F1 of allele 317); ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 317)
+GT_LEG_PDQM_36_318,PDQM-36 318,casper,legacy,parents: Dennis (F2 of allele 318); ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313)
+GT_LEG_PDQM_59_316,PDQM-59 316,casper,legacy,parents: Jim (F2 of allele 316)
+GT_LEG_PDQM_59_320,PDQM-59 320,casper,legacy,parents: Ken (F2 of allele 320)
+GT_LEG_PDQM_59_321,PDQM-59 321,casper,legacy,parents: Liam (F2 of allele 321)
+GT_LEG_PDQM_5_301,PDQM-5 301,casper,legacy,parents: ef1a:2xLynk:tdmSG(J) (F1 of allele 301); ef1a:2xLynk:tdmSG(J) (F2 of allele 301); tandem mem:mStayGold
+GT_LEG_PDQM_5_302,PDQM-5 302,casper,legacy,parents: ef1a:2xLynk:tdmSG(J) (F1 of allele 302); ef1a:2xLynk:tdmSG(J) (F2 of allele 302)
+GT_LEG_PDQM_5_304,PDQM-5 304,casper,legacy,parents: ef1a:2xLynk:tdmSG(J) (F1 of allele 304)
+GT_LEG_PDQM_5_305,PDQM-5 305,casper,legacy,parents: ef1a:2xLynk:tdmSG(J) (F1 of allele 305)
+GT_LEG_PDQM_5_308,PDQM-5 308,casper,legacy,parents: ef1a:2xLynk:tdmSG(J) (F1 of allele 308)
+GT_LEG_PDQM_64_314,PDQM-64 314,casper,legacy,parents: Isaac (F2 of allele 314)
+GT_LEG_PDQM_82_315,PDQM-82 315,casper,legacy,parents: ef1a:2xLynk:tdm:mChilada; ef1a:2xLynk:tdmChilada (F1 of allele 315); mem:tdmChilada; membrane mChilada
+GT_LEG_Swinburne_Swinburne,Swinburne Swinburne,casper,legacy,parents: ef1a:2xLynk:tdm:Halo; ef1a:2xLynk:tdm:mHalo; ef1a:H2B:Halo; from Swinburne lab - tank ID 344 (F1 of allele 45385); membrane Halo
+GT_LEG_nan_nan,nan nan,casper,legacy,parents: casper/rnf; csp/pIGLET 14a
+"GT_LEG_pDQM005, pDQM104_301, n/a","pDQM005, pDQM104 301, n/a",casper,legacy,parents: tandem mem:mStayGold; tdmChilada(MAGPV):Histone; tandem mem:mStayGold; tdmChilada:Histone
+GT_LEG_plasmid_base_code_allele,plasmid_base_code allele,casper,legacy,parents: parent_fish_name

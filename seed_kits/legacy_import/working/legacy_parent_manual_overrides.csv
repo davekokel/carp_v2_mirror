@@ -1,0 +1,11 @@
+legacy_parent_name,raw_plasmid_base_code,norm_plasmid_base_code,allele_nickname,n_matching_alleles,n_matching_fish,mapped_fish_code,override_fish_code,notes
+csp/pIGLET 14a,,,,WT-ish parent? No constructs in preview; decide which fish_instance (if any) to map this to.,enter an allele for this fish
+ef1a:2xLynk:tdm:Halo,Swinburne,SWINBURNE,Swinburne,"Swinburne line; no v7 construct. Either define a construct + load a fish, or map to a surrogate fish.",get plasmid_base_code and allele_number
+ef1a:2xLynk:tdm:mHalo,Swinburne,SWINBURNE,Swinburne,Swinburne line; same issue as above.,get plasmid_base_code and allele_number
+ef1a:H2B:Halo,Swinburne,SWINBURNE,Swinburne,Swinburne line; same issue as above.,get plasmid_base_code and allele_number
+from Swinburne lab - tank ID 344 (F1 of allele 45385),Swinburne,SWINBURNE,Swinburne,Swinburne tank reference; no canonical allele in v7.,get plasmid_base_code and allele_number
+membrane Halo,Swinburne,SWINBURNE,Swinburne,Swinburne line; decide what this should map to.,get plasmid_base_code and allele_number
+heatshock PhiC,PDQM-112,PDQM-112,nan,PDQM-112 with missing allele_nickname; specify which allele (and fish_code) this parent should mean.,get accurate allele_number/ allle_nickname
+Isaac (F2 of allele 314),PDQM-64,PDQM-64,314,"Allele PDQM-64 / 314 exists, but no standard fish carries it; choose a surrogate fish_code or add/load that fish.","if 314 is confirmed, then add this fish"
+tandem mem:mStayGold; tdmChilada:Histone,"pDQM005, pDQM104","PDQM005, PDQM104","301, n/a",Two constructs in one parent; decide which construct/allele actually defines the parent and pick a fish_code.,confirm both plasmids were injected simultaneously
+tandem mem:mStayGold; tdmChilada(MAGPV):Histone,"pDQM005, pDQM104","PDQM005, PDQM104","301, n/a",Same tandem-construct situation as above; needs a manual mapping.,

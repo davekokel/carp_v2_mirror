@@ -1,7 +1,7 @@
-canonical_code,alias_text
-mYongHong,mYH
-mYongHong,mScarlet3-H
-mStayGold,mSG
-tdmStayGold,tdmSG
-tdmScarlet3S2,tdmSc3S2
-tdmYongHong,tdmYH
+target_kind,target_key,alias
+fluor,mYongHong,mYH
+fluor,mYongHong,mScarlet3-H
+fluor,mStayGold,mSG
+fluor,tdmStayGold,tdmSG
+fluor,tdmScarlet3S2,tdmSc3S2
+fluor,tdmYongHong,tdmYH

@@ -1,0 +1,28 @@
+rna_base_code,name,notes
+HC-10,HC-10 4x-Cox8:mStayGold,
+HC-2,HC-2 2:NLS-mScarlet3,
+HC-9,HC-9 Lifeact:mStayGold,nan
+MGCO-1,ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2,nan
+MGCO-10,ef1a-TGN46-linker-mStayGold-SV40-attb-tol2,nan
+MGCO-15,ef1a-LAMP1-linker-mStayGold-SV40-attb-tol2,nan
+MGCO-15; pDQM136,"LAMP1:mSG,, 2xLynk:mScarlet3-S2",
+MGCO-19,ef1a-linker-mStayGold-C4linker-alphatubulin-SV40-attb-tol2,nan
+MGCO-22,ef1a-vimentin-linker-Halo-linker-SV40-attb-tol2,nan
+MGCO-23,ef1a-lifeact-linker-mStayGold-SV40-attb-tol2,nan
+MGCO-24,ef1a-lifeact-linker-Halo-linker-SV40-attb-tol2,nan
+MGCO-25,ef1a-linker-mStayGold-C4linker-MYH10-SV40-attb-tol2,nan
+MGCO-28,ef1a-extended-2Xcox8A-linker-mStayGold-SV40-attb-tol2,nan
+MGCO-35,ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2,nan
+MGCO-36,ef1a-extended-linker-mScarlet3S2-sec61b-SV40-attb-tol2,nan
+MGCO-4,ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2,nan
+MGCO-40,ef1a-extended-linker-Halo-sec61b-SV40-attb-tol2,nan
+PDQM-104,2xLynk:mSG; mChilada:H2B,"other injected labels: mChilada:H2B (80 and 120 pg); mChilada:H2B (80 pg); phiC-NLS,, 2xLynk:mSG,, mChilada:H2B"
+PDQM-105,2xLynk:mSG; mYH:H2B,other injected labels: mYH:H2B; mYH:H2B (80 and 120 pg); mYH:H2B (80 pg)
+PDQM-117,mScarlet3-S2:H2B,
+PDQM-136,"Vimentin:Halo,, 2xLynk:mScarlet3-S2",
+PDQM-172,pDQM172 SP6-2x-cox8A-mSG,
+PDQM-37,tdmChilada:PCNA,
+PDQM-47,"2xLynk:mChilada,, 2xLynk:mSG","other injected labels: 2xLynk:mChilada,, 2xLynk:mSG,, Lifeact:Halo; 2xLynk:mSG; mChilada:H2B; 2xLynk:mSG; mYH:H2B; Lifeact:Halo,, 2xLynk:mSG; phiC,, 2xLynk:mSG; phiC-NLS,, 2xLynk:mSG,, mChilada:H2B"
+PDQM-92,"2xCox8A:mSG,, 2xLynk:mChilada","other injected labels: 2xLynk:mChilada,, 2xLynk:mSG; 2xLynk:mChilada,, 2xLynk:mSG,, Lifeact:Halo; LAMP1:mSG,, 2xLynk:mChilada"
+nan,JF635 3uM,"other injected labels: nan; phiC; phiC mRNA (120 pg); phiC-NLS; phiC-NLS mRNA (120 pg); phiC-NLS,, 2xLynk:mSG; phiC-NLS,, phiC; tol2 mRNA (40 pg)"
+plasmid_base_code,injected_rna,
