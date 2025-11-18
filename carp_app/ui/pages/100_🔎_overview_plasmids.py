@@ -52,12 +52,12 @@ def _load_plasmids_overview(q: Optional[str], limit: int) -> pd.DataFrame:
     """
     Load plasmids from v_plasmids_overview.
 
-    We keep `name` and `tag_codes` available for search, but we don't show or edit
-    them in the main grids; the user-facing fields are:
+    We keep `name`, `tag_codes`, and fusion rollups available for search, but we don't
+    show or edit them all in the main grids; the user-facing fields are:
       - code
       - nickname
-      - resistance
       - fluors (rolled up)
+      - tag_codes (rolled up)
       - fusions (rolled up)
       - n_fusions
       - created_at
@@ -67,7 +67,6 @@ def _load_plasmids_overview(q: Optional[str], limit: int) -> pd.DataFrame:
         code,
         name,
         nickname,
-        resistance,
         fluors,
         tag_codes,
         fusions,
@@ -76,13 +75,12 @@ def _load_plasmids_overview(q: Optional[str], limit: int) -> pd.DataFrame:
       FROM public.v_plasmids_overview v
       WHERE (:q IS NULL)
          OR (
-              v.code       ILIKE :q
-           OR v.name       ILIKE :q
-           OR v.nickname   ILIKE :q
-           OR v.resistance ILIKE :q
-           OR v.fluors     ILIKE :q
-           OR v.tag_codes  ILIKE :q
-           OR v.fusions    ILIKE :q
+              v.code      ILIKE :q
+           OR v.name      ILIKE :q
+           OR v.nickname  ILIKE :q
+           OR v.fluors    ILIKE :q
+           OR v.tag_codes ILIKE :q
+           OR v.fusions   ILIKE :q
          )
       ORDER BY v.created_at DESC NULLS LAST, v.code
       LIMIT :lim
@@ -104,7 +102,7 @@ def main():
         c1, c2 = st.columns([3, 1])
         with c1:
             q = st.text_input(
-                "Search (code / nickname / resistance / fluors / fusions)",
+                "Search (code / nickname / fluors / tags / fusions)",
                 ""
             )
         with c2:
@@ -126,10 +124,9 @@ def main():
     st.divider()
     st.subheader("Edit selection")
 
-    # Only allow editing of nickname + resistance here
+    # Only allow editing of nickname here (no resistance column in schema)
     editable_map = {
-        "nickname":   "Nickname",
-        "resistance": "Resistance",
+        "nickname": "Nickname",
     }
     edit_choice = st.multiselect(
         "Choose which columns are editable",

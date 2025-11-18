@@ -37,14 +37,11 @@ st.title("🧬 Overview transgenes & alleles")
 # ---- summary query ----------------------------------------------------------
 summary_sql = """
 SELECT
-  t.transgene_base_code,
-  COALESCE(t.name, '')    AS transgene_name,
-  COUNT(ta.*)             AS n_alleles
-FROM public.transgenes t
-LEFT JOIN public.transgene_alleles ta
-  ON ta.transgene_base_code = t.transgene_base_code
-GROUP BY t.transgene_base_code, t.name
-ORDER BY t.transgene_base_code;
+  transgene_base_code,
+  transgene_name,
+  n_alleles
+FROM public.v_transgenes_overview
+ORDER BY transgene_base_code;
 """
 
 try:
@@ -64,7 +61,6 @@ if summary_df.empty:
 else:
     st.subheader("Transgene summary")
 
-    # Add a selection column for drill-down
     summary_view = summary_df.copy()
     if "✓ Select" not in summary_view.columns:
         summary_view.insert(0, "✓ Select", False)
@@ -89,15 +85,18 @@ else:
         key="transgene_summary_editor",
     )
 
-    sel_mask = (
-        summary_edited.get("✓ Select", pd.Series(False, index=summary_edited.index))
-        .fillna(False)
-        .astype(bool)
-    )
+    # Robust selection mask (avoid .get returning weird types)
+    if isinstance(summary_edited, pd.DataFrame) and "✓ Select" in summary_edited.columns:
+        sel_series = summary_edited["✓ Select"]
+        if not isinstance(sel_series, pd.Series):
+            sel_series = pd.Series(sel_series, index=summary_edited.index)
+    else:
+        sel_series = pd.Series(False, index=summary_df.index)
+
+    sel_mask = sel_series.fillna(False).astype(bool)
     selected_rows = summary_edited.loc[sel_mask]
 
     if not selected_rows.empty:
-        # if multiple are checked, just take the first
         selected_base_code = str(
             selected_rows.iloc[0]["transgene_base_code"]
         ).strip() or None
@@ -126,17 +125,16 @@ params: Dict[str, Any] = {"limit": int(limit)}
 where_clauses = ["1=1"]
 
 if selected_base_code:
-    # Drill-down selection takes precedence over the free-text base_code filter
-    where_clauses.append("ta.transgene_base_code = :selected_base_code")
+    where_clauses.append("transgene_base_code = :selected_base_code")
     params["selected_base_code"] = selected_base_code
 elif base_code_filter.strip():
-    where_clauses.append("ta.transgene_base_code ILIKE :base_code")
+    where_clauses.append("transgene_base_code ILIKE :base_code")
     params["base_code"] = f"%{base_code_filter.strip()}%"
 
 if allele_number_filter.strip():
     try:
         params["allele_number"] = int(allele_number_filter.strip())
-        where_clauses.append("ta.allele_number = :allele_number")
+        where_clauses.append("allele_number = :allele_number")
     except ValueError:
         st.warning("Allele number filter must be an integer.")
         st.stop()
@@ -146,16 +144,14 @@ where_sql = " AND ".join(where_clauses)
 # ---- main query -------------------------------------------------------------
 query_sql = f"""
 SELECT
-  ta.transgene_base_code,
-  COALESCE(t.name, '')             AS transgene_name,
-  ta.allele_number,
-  COALESCE(ta.allele_name, '')     AS allele_name,
-  COALESCE(ta.allele_nickname, '') AS allele_nickname
-FROM public.transgene_alleles ta
-LEFT JOIN public.transgenes t
-  ON t.transgene_base_code = ta.transgene_base_code
+  transgene_base_code,
+  transgene_name,
+  allele_number,
+  allele_name,
+  allele_nickname
+FROM public.v_transgene_alleles_overview
 WHERE {where_sql}
-ORDER BY ta.transgene_base_code, ta.allele_number
+ORDER BY transgene_base_code, allele_number
 LIMIT :limit;
 """
 
@@ -200,5 +196,5 @@ else:
     st.caption(
         "Showing "
         f"{len(df)} rows (limit {limit}) "
-        "from transgene_alleles with the current filters."
+        "from v_transgene_alleles_overview with the current filters."
     )

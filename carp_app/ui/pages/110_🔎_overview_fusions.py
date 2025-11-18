@@ -1,5 +1,4 @@
 # carp_app/ui/pages/110_🧬_overview_fusions.py
-from __future__ import annotations
 import os, sys, pathlib, shlex
 from typing import List, Optional
 
@@ -53,7 +52,7 @@ def _load_refdata() -> tuple[list[str], list[str], list[str]]:
     tag_positions = ["", "N", "C", "N-term", "C-term", "internal"]
     return fluors, tags, tag_positions
 
-# ───────── query builder (no view; compute display name) ─────────
+# ───────── query builder (use canonical v_fusion_labels) ─────────
 def _build_query(q: str, limit: int) -> tuple[str, dict]:
     tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
     params: dict = {"lim": int(limit)}
@@ -62,7 +61,7 @@ def _build_query(q: str, limit: int) -> tuple[str, dict]:
     c_fluor = "fluor"
     c_tag   = "tag"
     c_pos   = "tag_pos"
-    c_name  = "fusion_name"  # computed
+    c_name  = "fusion_name"  # from v_fusion_labels
 
     field_map = {"fluor": c_fluor, "tag": c_tag, "pos": c_pos, "name": c_name}
     haystack = f"concat_ws(' ', {c_fluor}, {c_tag}, {c_pos}, {c_name})"
@@ -89,9 +88,9 @@ def _build_query(q: str, limit: int) -> tuple[str, dict]:
     WITH agg AS (
       SELECT
         f.id,
-        concat_ws('::', COALESCE(fl.fluor_code,''), COALESCE(tg.tag_code,'')) AS fusion_name,
-        COALESCE(fl.fluor_code,'')   AS fluor,
-        COALESCE(tg.tag_code,'')     AS tag,
+        vfl.fusion_label          AS fusion_name,
+        COALESCE(fl.fluor_code,'') AS fluor,
+        COALESCE(tg.tag_code,'')   AS tag,
         COALESCE(f.tag_pos::text,'') AS tag_pos,
         COUNT(DISTINCT jpf.plasmid_id) AS n_plasmids,
         COUNT(DISTINCT jrf.rna_id)     AS n_rnas,
@@ -99,9 +98,10 @@ def _build_query(q: str, limit: int) -> tuple[str, dict]:
       FROM public.fusions f
       LEFT JOIN public.fluors fl ON fl.id = f.fluor_id
       LEFT JOIN public.tags   tg ON tg.id = f.tag_id
+      LEFT JOIN public.v_fusion_labels vfl ON vfl.fusion_id = f.id
       LEFT JOIN public.join_plasmid_fusions jpf ON jpf.fusion_id = f.id
       LEFT JOIN public.join_rna_fusions     jrf ON jrf.fusion_id = f.id
-      GROUP BY f.id, fl.fluor_code, tg.tag_code, f.tag_pos, f.created_at
+      GROUP BY f.id, fl.fluor_code, tg.tag_code, f.tag_pos, vfl.fusion_label, f.created_at
     )
     SELECT id, fusion_name, fluor, tag, tag_pos, n_plasmids, n_rnas, created_at
     FROM agg
@@ -135,7 +135,11 @@ def _update_fusions(ids: List[str], tag_pos: Optional[str]) -> int:
         return res.rowcount or 0
 
 def _ensure_fusion(fluor_code: Optional[str], tag_code: Optional[str],
-                   tag_pos: Optional[str], fusion_name: Optional[str]) -> str:
+                   tag_pos: Optional[str]) -> str:
+    """
+    Ensure a fusion row exists for (fluor_code, tag_code, tag_pos) and return its id.
+    Naming is handled centrally via v_fusion_labels; this function does not store names.
+    """
     if not fluor_code and not tag_code:
         raise ValueError("at least one of fluor_code or tag_code is required")
     with _eng().begin() as cx:
@@ -226,9 +230,8 @@ if len(selected_ids) == 1:
             text("""
                 SELECT
                   p.code,
-                  COALESCE(p.name,'')       AS name,
-                  COALESCE(p.nickname,'')   AS nickname,
-                  COALESCE(p.resistance,'') AS resistance,
+                  COALESCE(p.name,'')     AS name,
+                  COALESCE(p.nickname,'') AS nickname,
                   p.created_at
                 FROM public.join_plasmid_fusions jpf
                 JOIN public.plasmids p ON p.id = jpf.plasmid_id
@@ -244,7 +247,7 @@ if len(selected_ids) == 1:
         st.info("No plasmids are currently linked to this fusion.")
     else:
         st.dataframe(
-            plasmids_df[["code","name","nickname","resistance","created_at"]],
+            plasmids_df[["code","name","nickname","created_at"]],
             width="stretch",
             hide_index=True
         )
@@ -294,7 +297,7 @@ st.subheader("Add new fusion(s)")
 fluors, tags, tag_positions = _load_refdata()
 if "new_fusions_df" not in st.session_state:
     st.session_state.new_fusions_df = pd.DataFrame(
-        [{"fluor_code":"", "tag_code":"", "tag_pos":"", "name":""}]
+        [{"fluor_code":"", "tag_code":"", "tag_pos":""}]
     )
 
 add_df = st.data_editor(
@@ -306,7 +309,6 @@ add_df = st.data_editor(
         "fluor_code": st.column_config.SelectboxColumn("fluor_code", options=fluors, required=False),
         "tag_code":   st.column_config.SelectboxColumn("tag_code",   options=tags,   required=False),
         "tag_pos":    st.column_config.SelectboxColumn("tag_pos",    options=tag_positions, required=False),
-        "name":       st.column_config.TextColumn("name (optional)"),
     },
     key="new_fusions_editor",
 )
@@ -317,15 +319,14 @@ if st.button("Insert fusion rows", type="primary"):
         f = (r.get("fluor_code") or "").strip() or None
         t = (r.get("tag_code") or "").strip() or None
         p = (r.get("tag_pos") or "").strip()
-        n = (r.get("name") or "").strip() or None
         if not f and not t:
             continue
         try:
-            _ensure_fusion(f, t, p, n)
-            rows.append((f, t, p, n))
+            _ensure_fusion(f, t, p)
+            rows.append((f, t, p))
         except Exception as e:
-            st.error(f"Row skipped [{f},{t},{p},{n}]: {e}")
+            st.error(f"Row skipped [{f},{t},{p}]: {e}")
     st.success(f"Inserted/ensured {len(rows)} fusion(s).")
     st.session_state.new_fusions_df = pd.DataFrame(
-        [{"fluor_code":"", "tag_code":"", "tag_pos":"", "name":""}]
+        [{"fluor_code":"", "tag_code":"", "tag_pos":""}]
     )

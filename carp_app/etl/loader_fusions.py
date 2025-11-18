@@ -56,22 +56,35 @@ def _resolve_tag_id(cx, name: Optional[str]) -> Optional[str]:
     return row
 
 
-def _clean_tag_pos(raw, warnings: List[str], context: str) -> Optional[str]:
+def _clean_tag_pos(raw, has_tag: bool, context: str) -> str | None:
     """
-    Normalize tag_pos to satisfy ck_fusions_tag_pos.
+    Normalize tag_pos.
 
-    Valid:
-      - 'N' or 'C' (any case)
-    Everything else (including NaN, empty, weird strings) -> None, with optional warning.
+    Rules (v7 contract):
+      - If there is no tag (has_tag=False), tag_pos is ignored → always returns None.
+      - If there *is* a tag (has_tag=True):
+          * empty / NaN tag_pos → hard error (fail the load)
+          * allowed values: 'N', 'C' (case-insensitive)
+          * anything else → hard error so the CSV gets fixed.
+
+    This forces the seed kit to be explicit about tag positions, and prevents
+    creating fusions with tags but no tag_pos.
     """
     s = str(raw or "").strip()
-    if not s or s.lower() == "nan":
+    if not has_tag:
+        # No tag, position doesn't matter
         return None
+
+    if not s or s.lower() == "nan":
+        raise ValueError(f"Missing tag_pos for tagged fusion in {context} (CSV must specify N or C).")
+
     u = s.upper()
     if u in ("N", "C"):
         return u
-    warnings.append(f"Unknown tag_pos {s!r} for {context}; storing NULL.")
-    return None
+
+    raise ValueError(
+        f"Unknown tag_pos {s!r} for {context}; expected 'N' or 'C' (update the seed CSV to use only N/C)."
+    )
 
 
 def _get_or_create_fusion(

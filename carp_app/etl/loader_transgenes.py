@@ -7,7 +7,7 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from carp_app.etl.loaders import get_engine_from_env, normalize_base_code
+from carp_app.etl.util import get_engine_from_env, normalize_base_code
 
 
 def seed_transgenes_from_genotype_alleles(

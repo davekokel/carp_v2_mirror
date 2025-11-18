@@ -14,7 +14,7 @@ from carp_app.etl.loaders import (
     load_fluors_from_csv,
     load_tags_from_excel,
 )
-from carp_app.etl.fusions_loaders import (
+from carp_app.etl.loader_fusions import (
     load_plasmid_fusions_from_csv,
     load_rna_fusions_from_csv,
 )

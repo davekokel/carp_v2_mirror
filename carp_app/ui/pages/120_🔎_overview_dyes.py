@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys, pathlib, os
 from typing import Optional, List
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
@@ -35,7 +36,8 @@ st.title("🧪 Overview: Dyes")
 def _eng() -> Engine:
     url = os.getenv("DB_URL", "")
     if not url:
-        st.error("DB_URL is not set"); st.stop()
+        st.error("DB_URL is not set")
+        st.stop()
     return get_engine()
 
 def _normalize_q(s: str | None) -> Optional[str]:
@@ -44,48 +46,46 @@ def _normalize_q(s: str | None) -> Optional[str]:
 
 # ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters", clear_on_submit=False):
-    c1, c2 = st.columns([3,1])
+    c1, c2 = st.columns([3, 1])
     with c1:
-        q_raw = st.text_input("Search (name / alt_names / notes / localization)", "")
+        q_raw = st.text_input(
+            "Search (base code / name / notes)",
+            "",
+        )
     with c2:
-        lim = int(st.number_input("Limit", min_value=50, max_value=5000, value=1000, step=50))
+        lim = int(
+            st.number_input(
+                "Limit",
+                min_value=50,
+                max_value=5000,
+                value=1000,
+                step=50,
+            )
+        )
     _ = st.form_submit_button("Apply")
 
 q = _normalize_q(q_raw)
 
-# ── Query ────────────────────────────────────────────────────────────────────
-sql = text("""
-  SELECT
-    id::text                          AS id,
-    dye_name                          AS name,
-    COALESCE(excitation_nm,0)::int    AS excitation_nm,
-    COALESCE(emission_nm,0)::int      AS emission_nm,
-    COALESCE(localization,'')         AS localization,
-    COALESCE(
-      CASE
-        WHEN pg_typeof(alt_names)::text = 'text[]'
-          THEN array_to_string(alt_names, ', ')
-        ELSE alt_names::text
-      END, ''
-    )                                  AS alt_names,
-    COALESCE(notes,'')                 AS notes
-  FROM public.dyes
-  WHERE (
-    :q IS NULL
-    OR dye_name ILIKE :ql
-    OR COALESCE(localization,'') ILIKE :ql
-    OR COALESCE(notes,'')        ILIKE :ql
-    OR COALESCE(
-         CASE
-           WHEN pg_typeof(alt_names)::text = 'text[]'
-             THEN array_to_string(alt_names, ',')
-           ELSE alt_names::text
-         END,''
-       ) ILIKE :ql
-  )
-  ORDER BY dye_name
-  LIMIT :lim
-""")
+# ── Query via view ───────────────────────────────────────────────────────────
+sql = text(
+    """
+    SELECT
+      id::text       AS id,
+      dye_base_code,
+      name,
+      notes,
+      created_at
+    FROM public.v_dyes_overview
+    WHERE (
+      :q IS NULL
+      OR COALESCE(dye_base_code,'') ILIKE :ql
+      OR COALESCE(name,'')         ILIKE :ql
+      OR COALESCE(notes,'')        ILIKE :ql
+    )
+    ORDER BY dye_base_code, name
+    LIMIT :lim
+    """
+)
 params = {"q": q, "ql": f"%{q}%" if q else None, "lim": lim}
 
 with _eng().begin() as cx:
@@ -94,7 +94,6 @@ with _eng().begin() as cx:
 st.caption(f"{len(df)} dye(s)")
 
 # ── Read-only overview with row selector ─────────────────────────────────────
-# Add a selection column the user must check before any editing is enabled.
 ro = df.copy()
 ro.insert(0, "✓ Select", False)
 
@@ -105,12 +104,10 @@ ro_view = st.data_editor(
     hide_index=True,
     column_config={
         "id":            st.column_config.TextColumn("ID", disabled=True),
+        "dye_base_code": st.column_config.TextColumn("Dye base code", disabled=True),
         "name":          st.column_config.TextColumn("Name", disabled=True),
-        "excitation_nm": st.column_config.NumberColumn("Excitation (nm)", step=1, min_value=0, disabled=True),
-        "emission_nm":   st.column_config.NumberColumn("Emission (nm)", step=1, min_value=0, disabled=True),
-        "localization":  st.column_config.TextColumn("Localization", disabled=True),
-        "alt_names":     st.column_config.TextColumn("Alt names (comma-separated)", disabled=True),
         "notes":         st.column_config.TextColumn("Notes", disabled=True),
+        "created_at":    st.column_config.DatetimeColumn("Created at", disabled=True),
         "✓ Select":      st.column_config.CheckboxColumn("✓ Select"),
     },
 )
@@ -128,7 +125,7 @@ with col_left:
     st.caption("1) Choose which columns are editable")
     editable_cols = st.multiselect(
         "Editable columns",
-        ["name", "excitation_nm", "emission_nm", "localization", "alt_names", "notes"],
+        ["name", "notes"],
         default=[],
     )
 with col_right:
@@ -136,23 +133,30 @@ with col_right:
     st.write(f"Selected rows: **{len(selected_ids)}**")
 
 if not selected_ids or not editable_cols:
-    st.info("Select at least one row in the table above **and** choose one or more editable columns.")
+    st.info(
+        "Select at least one row in the table above **and** choose one or more editable columns."
+    )
 else:
-    # Build an editor for only the selected rows; mark non-selected columns disabled.
+    # only selected rows
     to_edit = df[df["id"].isin(selected_ids)].reset_index(drop=True)
 
-    # Column config with dynamic disabling
     colcfg = {
         "id":            st.column_config.TextColumn("ID", disabled=True),
-        "name":          st.column_config.TextColumn("Name", disabled=("name" not in editable_cols)),
-        "excitation_nm": st.column_config.NumberColumn("Excitation (nm)", step=1, min_value=0, disabled=("excitation_nm" not in editable_cols)),
-        "emission_nm":   st.column_config.NumberColumn("Emission (nm)", step=1, min_value=0, disabled=("emission_nm" not in editable_cols)),
-        "localization":  st.column_config.TextColumn("Localization", disabled=("localization" not in editable_cols)),
-        "alt_names":     st.column_config.TextColumn("Alt names (comma-separated)", disabled=("alt_names" not in editable_cols)),
-        "notes":         st.column_config.TextColumn("Notes", disabled=("notes" not in editable_cols)),
+        "dye_base_code": st.column_config.TextColumn("Dye base code", disabled=True),
+        "name":          st.column_config.TextColumn(
+            "Name",
+            disabled=("name" not in editable_cols),
+        ),
+        "notes":         st.column_config.TextColumn(
+            "Notes",
+            disabled=("notes" not in editable_cols),
+        ),
+        "created_at":    st.column_config.DatetimeColumn("Created at", disabled=True),
     }
 
-    st.caption("3) Edit the selected rows in this editor (changes are not persisted; export to CSV below)")
+    st.caption(
+        "3) Edit the selected rows in this editor (changes are not persisted; export to CSV below)"
+    )
     edited = st.data_editor(
         to_edit,
         key="dyes_overview_editor",
@@ -161,7 +165,6 @@ else:
         column_config=colcfg,
     )
 
-    # Export the edited subset
     st.download_button(
         "⬇︎ Download Edited Rows (CSV)",
         data=edited.to_csv(index=False).encode("utf-8"),
