@@ -7,7 +7,7 @@ BEGIN;
 --   - Prefer cl.observed_genotype_code when present
 --   - Otherwise fall back to cr.expected_genotype_code
 --
--- This view is read-only and depends on:
+-- Depends on:
 --   - clutches (observed_genotype_code, cross_id)
 --   - crosses (expected_genotype_code)
 --   - genotype_transgene_alleles (genotype_code → alleles)
