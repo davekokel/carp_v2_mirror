@@ -1,8 +1,7 @@
 BEGIN;
 
-DROP VIEW IF EXISTS public.v_imaging_clutches_treatments;
 
-CREATE VIEW public.v_imaging_clutches_treatments AS
+CREATE OR REPLACE VIEW public.v_imaging_clutches_treatments AS
 SELECT
     c.id                      AS clutch_id,
     t.id                      AS treatment_id,

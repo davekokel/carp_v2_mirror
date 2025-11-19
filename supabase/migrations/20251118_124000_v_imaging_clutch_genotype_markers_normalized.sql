@@ -1,8 +1,7 @@
 BEGIN;
 
-DROP VIEW IF EXISTS public.v_imaging_clutch_genotype_markers;
 
-CREATE VIEW public.v_imaging_clutch_genotype_markers AS
+CREATE OR REPLACE VIEW public.v_imaging_clutch_genotype_markers AS
 WITH clutch_genotypes AS (
     SELECT
         c.id AS clutch_id,
