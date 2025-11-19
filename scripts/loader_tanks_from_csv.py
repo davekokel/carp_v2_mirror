@@ -37,6 +37,9 @@ def main(csv_path: Optional[str] = None, import_batch_id: Optional[str] = None) 
 
     with engine.begin() as cx:
         fish_codes = df["fish_code"].dropna().unique().tolist()
+        if not fish_codes:
+            raise SystemExit("[ERROR] No fish_code values found in CSV; nothing to do.")
+
         rows = cx.execute(
             text(
                 """
@@ -49,12 +52,23 @@ def main(csv_path: Optional[str] = None, import_batch_id: Optional[str] = None) 
         ).mappings().all()
         code_to_id = {row["fish_code"]: row["id"] for row in rows}
 
-        print(f"[INFO] Resolved {len(code_to_id)} fish_code(s) to fish_id(s).")
+        if not code_to_id:
+            raise SystemExit(
+                "[ERROR] No fish_code values from tanks.csv could be resolved in public.fish_instance. "
+                "Check that v7_load_fish_standard.py ran and that fish_code matches."
+            )
+
         unknown = sorted(set(fish_codes) - set(code_to_id))
         if unknown:
-            print(f"[WARN] {len(unknown)} fish_code(s) not found in fish_instance; skipping those rows.")
+            msg_lines = [
+                f"[ERROR] {len(unknown)} fish_code(s) in tanks.csv are missing in public.fish_instance.",
+                "They must be fixed before seeding tanks. Examples:",
+            ]
             for code in unknown[:20]:
-                print(f"  - {code}")
+                msg_lines.append(f"  - {code}")
+            raise SystemExit("\n".join(msg_lines))
+
+        print(f"[INFO] All {len(fish_codes)} fish_code(s) resolved in public.fish_instance.")
 
         cx.execute(
             text(
@@ -80,8 +94,9 @@ def main(csv_path: Optional[str] = None, import_batch_id: Optional[str] = None) 
         for _, row in df.iterrows():
             fish_code = row.get("fish_code")
             fish_id = code_to_id.get(fish_code)
+            # we already enforced that all fish_code are known, so this is just a sanity check
             if fish_id is None:
-                continue
+                raise SystemExit(f"[ERROR] fish_code {fish_code!r} unexpectedly missing in resolution map.")
 
             payload = {
                 "tank_code": row.get("tank_code"),

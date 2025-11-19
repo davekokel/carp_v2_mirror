@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE public.clutches
+ALTER COLUMN clutch_date DROP NOT NULL;
+
+COMMIT;

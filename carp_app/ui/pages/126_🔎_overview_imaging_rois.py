@@ -55,12 +55,9 @@ with st.form("roi_filters", clear_on_submit=False):
     c1, c2, c3 = st.columns([3, 2, 1])
     with c1:
         q_raw = st.text_input(
-            "Search (plate / slot / fish / ROI / genotype / markers)",
+            "Search (plate / slot / fish / ROI / markers)",
             "",
-            help=(
-                "Matches plate_id_filled, slot_id_filled, fish_code, roi_name, "
-                "genotype_pretty, all_marker_fluor_codes"
-            ),
+            help="Matches plate_id_filled, slot_id_filled, fish_code, roi_name, all_marker_fluor_codes",
         )
     with c2:
         plate_filter = st.text_input("Plate ID contains", "")
@@ -83,17 +80,16 @@ plate_filter = _normalize_q(plate_filter)
 sql = text(
     """
     SELECT
-      roi_code             AS imaging_roi_id,
-      plate_id_filled      AS plate_code,
-      slot_id_filled       AS slot_label,
+      roi_code                AS imaging_roi_id,
+      plate_id_filled         AS plate_code,
+      slot_id_filled          AS slot_label,
       fish_code,
       roi_name,
-      genotype_pretty,
-      all_marker_fluor_codes,
       parent_female,
       parent_male,
       birthday,
       genetic_background,
+      all_marker_fluor_codes,
       data_path
     FROM public.v_roi_overview
     WHERE
@@ -104,7 +100,6 @@ sql = text(
         OR COALESCE(slot_id_filled,'')         ILIKE :ql
         OR COALESCE(fish_code,'')              ILIKE :ql
         OR COALESCE(roi_name,'')               ILIKE :ql
-        OR COALESCE(genotype_pretty,'')        ILIKE :ql
         OR COALESCE(all_marker_fluor_codes,'') ILIKE :ql
       )
     ORDER BY
@@ -148,12 +143,11 @@ else:
             "slot_label":        st.column_config.TextColumn("Slot", disabled=True),
             "fish_code":         st.column_config.TextColumn("Fish code", disabled=True),
             "roi_name":          st.column_config.TextColumn("ROI name", disabled=True),
-            "genotype_pretty":   st.column_config.TextColumn("Genotype (pretty)", disabled=True),
-            "all_marker_fluor_codes": st.column_config.TextColumn("Markers (fluors)", disabled=True),
             "parent_female":     st.column_config.TextColumn("Female parent", disabled=True),
             "parent_male":       st.column_config.TextColumn("Male parent", disabled=True),
             "birthday":          st.column_config.TextColumn("Birthday", disabled=True),
-            "genetic_background":st.column_config.TextColumn("Genetic background", disabled=True),
+            "genetic_background": st.column_config.TextColumn("Genetic background", disabled=True),
+            "all_marker_fluor_codes": st.column_config.TextColumn("Markers (fluors)", disabled=True),
             "data_path":         st.column_config.TextColumn("Data path", disabled=True),
         },
     )

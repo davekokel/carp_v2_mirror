@@ -1,0 +1,82 @@
+clutch_code,parent_female,parent_male,date_born,roi_count,legacy_clutch_group
+LCL-0001,Ben (F2 of allele 310),Abe (F2 of allele 309),2025-06-17,23,Ben (F2 of allele 310)|Abe (F2 of allele 309)|2025-06-17
+LCL-0002,Ben (F2 of allele 310),Abe (F2 of allele 309),2025-06-24,17,Ben (F2 of allele 310)|Abe (F2 of allele 309)|2025-06-24
+LCL-0003,Dennis (F2 of allele 318),Abe (F2 of allele 309),2025-05-20,5,Dennis (F2 of allele 318)|Abe (F2 of allele 309)|2025-05-20
+LCL-0004,Dennis (F2 of allele 318),Abe (F2 of allele 309),2025-06-04,21,Dennis (F2 of allele 318)|Abe (F2 of allele 309)|2025-06-04
+LCL-0005,Dennis (F2 of allele 318),Abe (F2 of allele 309),2025-06-11,10,Dennis (F2 of allele 318)|Abe (F2 of allele 309)|2025-06-11
+LCL-0006,Dennis (F2 of allele 318),Abe (F2 of allele 309),2025-06-18,8,Dennis (F2 of allele 318)|Abe (F2 of allele 309)|2025-06-18
+LCL-0007,Jim (F2 of allele 316),Ben (F2 of allele 310),2025-05-28,22,Jim (F2 of allele 316)|Ben (F2 of allele 310)|2025-05-28
+LCL-0008,Jim (F2 of allele 316),Ben (F2 of allele 310),2025-06-05,23,Jim (F2 of allele 316)|Ben (F2 of allele 310)|2025-06-05
+LCL-0009,Jim (F2 of allele 316),Dennis (F2 of allele 318),2025-06-12,12,Jim (F2 of allele 316)|Dennis (F2 of allele 318)|2025-06-12
+LCL-0010,Ken (F2 of allele 320),Isaac (F2 of allele 314),2025-06-23,5,Ken (F2 of allele 320)|Isaac (F2 of allele 314)|2025-06-23
+LCL-0011,Liam (F2 of allele 321),Chris (F1 of allele 317),2025-06-02,18,Liam (F2 of allele 321)|Chris (F1 of allele 317)|2025-06-02
+LCL-0012,casper/rnf,casper/rnf,2025-10-16,3,casper/rnf|casper/rnf|2025-10-16
+LCL-0013,casper/rnf,ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),2025-09-03,5,casper/rnf|ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325)|2025-09-03
+LCL-0014,casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-08-25,5,casper/rnf|ef1a:2xLynk:tdmChilada (F1 of allele 315)|2025-08-25
+LCL-0015,casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-08-27,14,casper/rnf|ef1a:2xLynk:tdmChilada (F1 of allele 315)|2025-08-27
+LCL-0016,casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-09-24,16,casper/rnf|ef1a:2xLynk:tdmChilada (F1 of allele 315)|2025-09-24
+LCL-0017,casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-10-22,3,casper/rnf|ef1a:2xLynk:tdmChilada (F1 of allele 315)|2025-10-22
+LCL-0018,casper/rnf,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),2025-05-30,1,casper/rnf|ef1a:2xLynk:tdmSG(J) (F2 of allele 302)|2025-05-30
+LCL-0019,casper/rnf,from Swinburne lab - tank ID 344 (F1 of allele 45385),2025-09-23,25,casper/rnf|from Swinburne lab - tank ID 344 (F1 of allele 45385)|2025-09-23
+LCL-0020,casper/rnf,mem:tdmChilada,2025-08-18,33,casper/rnf|mem:tdmChilada|2025-08-18
+LCL-0021,casper/rnf,mem:tdmChilada,2025-08-20,15,casper/rnf|mem:tdmChilada|2025-08-20
+LCL-0022,casper/rnf,mem:tdmChilada,2025-08-25,8,casper/rnf|mem:tdmChilada|2025-08-25
+LCL-0023,casper/rnf,mem:tdmChilada,2025-09-02,10,casper/rnf|mem:tdmChilada|2025-09-02
+LCL-0024,casper/rnf,memrane tdmScarlet3S2 (F1 of allele 325),2025-10-27,10,casper/rnf|memrane tdmScarlet3S2 (F1 of allele 325)|2025-10-27
+LCL-0025,casper/rnf,memrane tdmScarlet3S2 (F1 of allele 325),2025-10-28,1,casper/rnf|memrane tdmScarlet3S2 (F1 of allele 325)|2025-10-28
+LCL-0026,casper/rnf,memrane tdmScarlet3S2 (F1 of allele 325),2025-10-29,1,casper/rnf|memrane tdmScarlet3S2 (F1 of allele 325)|2025-10-29
+LCL-0027,casper/rnf,tdmScarlet3S2 (F1 of allele 325),2025-09-19,17,casper/rnf|tdmScarlet3S2 (F1 of allele 325)|2025-09-19
+LCL-0028,casper/rnf,tdmScarlet3S2 (F1 of allele 325),2025-10-20,7,casper/rnf|tdmScarlet3S2 (F1 of allele 325)|2025-10-20
+LCL-0029,casper,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-11-04,35,casper|ef1a:2xLynk:tdmChilada (F1 of allele 315)|2025-11-04
+LCL-0030,casper,memrane tdmScarlet3S2 (F1 of allele 325),2025-11-08,13,casper|memrane tdmScarlet3S2 (F1 of allele 325)|2025-11-08
+LCL-0031,casper,memrane tdmScarlet3S2 (F1 of allele 325),2025-11-10,9,casper|memrane tdmScarlet3S2 (F1 of allele 325)|2025-11-10
+LCL-0032,ef1a:2xLynk:tdmChilada (F1 of allele 315),casper/rnf,2025-10-08,13,ef1a:2xLynk:tdmChilada (F1 of allele 315)|casper/rnf|2025-10-08
+LCL-0033,ef1a:2xLynk:tdmChilada (F1 of allele 315),casper/rnf,2025-10-09,1,ef1a:2xLynk:tdmChilada (F1 of allele 315)|casper/rnf|2025-10-09
+LCL-0034,ef1a:2xLynk:tdmChilada (F1 of allele 315),casper/rnf,2025-10-13,1,ef1a:2xLynk:tdmChilada (F1 of allele 315)|casper/rnf|2025-10-13
+LCL-0035,ef1a:2xLynk:tdmChilada (F1 of allele 315),casper/rnf,2025-10-20,14,ef1a:2xLynk:tdmChilada (F1 of allele 315)|casper/rnf|2025-10-20
+LCL-0036,ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-09-09,56,ef1a:2xLynk:tdmChilada (F1 of allele 315)|ef1a:2xLynk:tdmChilada (F1 of allele 315)|2025-09-09
+LCL-0037,ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-09-15,47,ef1a:2xLynk:tdmChilada (F1 of allele 315)|ef1a:2xLynk:tdmChilada (F1 of allele 315)|2025-09-15
+LCL-0038,ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-09-17,23,ef1a:2xLynk:tdmChilada (F1 of allele 315)|ef1a:2xLynk:tdmChilada (F1 of allele 315)|2025-09-17
+LCL-0039,ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-09-30,11,ef1a:2xLynk:tdmSG(J) (F1 of allele 301)|tdmScarlet3S2:H2B-tol2 (F1 of allele 324)|2025-09-30
+LCL-0040,ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-09,16,ef1a:2xLynk:tdmSG(J) (F1 of allele 301)|tdmScarlet3S2:H2B-tol2 (F1 of allele 324)|2025-10-09
+LCL-0041,ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-17,20,ef1a:2xLynk:tdmSG(J) (F1 of allele 301)|tdmScarlet3S2:H2B-tol2 (F1 of allele 324)|2025-10-17
+LCL-0042,ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-11-08,6,ef1a:2xLynk:tdmSG(J) (F1 of allele 301)|tdmScarlet3S2:H2B-tol2 (F1 of allele 324)|2025-11-08
+LCL-0043,ef1a:2xLynk:tdmSG(J) (F1 of allele 302),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-13,22,ef1a:2xLynk:tdmSG(J) (F1 of allele 302)|tdmScarlet3S2:H2B-tol2 (F1 of allele 324)|2025-10-13
+LCL-0044,ef1a:2xLynk:tdmSG(J) (F1 of allele 302),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-21,31,ef1a:2xLynk:tdmSG(J) (F1 of allele 302)|tdmScarlet3S2:H2B-tol2 (F1 of allele 324)|2025-10-21
+LCL-0045,ef1a:2xLynk:tdmSG(J) (F1 of allele 302),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-28,2,ef1a:2xLynk:tdmSG(J) (F1 of allele 302)|tdmScarlet3S2:H2B-tol2 (F1 of allele 324)|2025-10-28
+LCL-0046,ef1a:2xLynk:tdmSG(J) (F1 of allele 302),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-29,2,ef1a:2xLynk:tdmSG(J) (F1 of allele 302)|tdmScarlet3S2:H2B-tol2 (F1 of allele 324)|2025-10-29
+LCL-0047,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-04-26,2,ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|2025-04-26
+LCL-0048,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-06-09,9,ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|2025-06-09
+LCL-0049,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-06-16,6,ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|2025-06-16
+LCL-0050,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-07-14,21,ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|2025-07-14
+LCL-0051,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-07-26,2,ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|2025-07-26
+LCL-0052,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-08-01,3,ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|2025-08-01
+LCL-0053,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),,4,ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|ef1a:2xLynk:tdmSG(J) (F2 of allele 301)|nan
+LCL-0054,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F2 of allele 302),2025-05-27,3,ef1a:2xLynk:tdmSG(J) (F2 of allele 302)|ef1a:2xLynk:tdmSG(J) (F2 of allele 302)|2025-05-27
+LCL-0055,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F2 of allele 302),2025-05-28,3,ef1a:2xLynk:tdmSG(J) (F2 of allele 302)|ef1a:2xLynk:tdmSG(J) (F2 of allele 302)|2025-05-28
+LCL-0056,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F2 of allele 302),,5,ef1a:2xLynk:tdmSG(J) (F2 of allele 302)|ef1a:2xLynk:tdmSG(J) (F2 of allele 302)|nan
+LCL-0057,membrane Halo,membrane Halo,2025-04-29,8,membrane Halo|membrane Halo|2025-04-29
+LCL-0058,membrane Halo,membrane Halo,2025-07-21,14,membrane Halo|membrane Halo|2025-07-21
+LCL-0059,membrane Halo,membrane Halo,2025-07-22,1,membrane Halo|membrane Halo|2025-07-22
+LCL-0060,membrane Halo,membrane Halo,2025-08-04,12,membrane Halo|membrane Halo|2025-08-04
+LCL-0061,membrane mChilada,membrane mChilada,2025-07-21,12,membrane mChilada|membrane mChilada|2025-07-21
+LCL-0062,membrane mChilada,membrane mChilada,2025-08-07,21,membrane mChilada|membrane mChilada|2025-08-07
+LCL-0063,,ef1a:2xLynk:tdm:Halo,2025-09-12,18,nan|ef1a:2xLynk:tdm:Halo|2025-09-12
+LCL-0064,,,2025-05-13,44,nan|nan|2025-05-13
+LCL-0065,,,2025-05-21,19,nan|nan|2025-05-21
+LCL-0066,,,2025-05-27,2,nan|nan|2025-05-27
+LCL-0067,,,2025-06-20,1,nan|nan|2025-06-20
+LCL-0068,,,2025-06-25,10,nan|nan|2025-06-25
+LCL-0069,,,2025-06-27,12,nan|nan|2025-06-27
+LCL-0070,,,2025-07-21,5,nan|nan|2025-07-21
+LCL-0071,,,2025-07-22,1,nan|nan|2025-07-22
+LCL-0072,,,2025-07-23,4,nan|nan|2025-07-23
+LCL-0073,,,2025-08-01,1,nan|nan|2025-08-01
+LCL-0074,,,2025-10-01,31,nan|nan|2025-10-01
+LCL-0075,,,2025-10-05,25,nan|nan|2025-10-05
+LCL-0076,,,2025-10-07,4,nan|nan|2025-10-07
+LCL-0077,,,2025-10-09,1,nan|nan|2025-10-09
+LCL-0078,,,2025-10-28,2,nan|nan|2025-10-28
+LCL-0079,,,2025-10-29,8,nan|nan|2025-10-29
+LCL-0080,,,2025-11-04,1,nan|nan|2025-11-04
+LCL-0081,,,,0,nan|nan|NaT
