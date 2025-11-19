@@ -83,34 +83,34 @@ plate_filter = _normalize_q(plate_filter)
 sql = text(
     """
     SELECT
-      roi_code                       AS imaging_roi_id,
-      plate_id_filled                AS plate_code,
-      slot_id_filled                 AS slot_label,
-      fish                           AS fish_code,
-      roi_index_within_slot          AS roi_index,
+      roi_code             AS imaging_roi_id,
+      plate_id_filled      AS plate_code,
+      slot_id_filled       AS slot_label,
+      fish_code,
       roi_name,
       genotype_pretty,
       all_marker_fluor_codes,
       parent_female,
       parent_male,
-      date_born                      AS birthday,
-      NULL::text                     AS genetic_background,
-      roi_dir                        AS data_path
+      birthday,
+      genetic_background,
+      data_path
     FROM public.v_roi_overview
     WHERE
       (:plate_filter IS NULL OR COALESCE(plate_id_filled,'') ILIKE :plate_like)
       AND (
         :q IS NULL
-        OR COALESCE(plate_id_filled,'')         ILIKE :ql
-        OR COALESCE(slot_id_filled,'')          ILIKE :ql
-        OR COALESCE(fish,'')                    ILIKE :ql
-        OR COALESCE(roi_name,'')                ILIKE :ql
-        OR COALESCE(genotype_pretty,'')         ILIKE :ql
-        OR COALESCE(all_marker_fluor_codes,'')  ILIKE :ql
+        OR COALESCE(plate_id_filled,'')        ILIKE :ql
+        OR COALESCE(slot_id_filled,'')         ILIKE :ql
+        OR COALESCE(fish_code,'')              ILIKE :ql
+        OR COALESCE(roi_name,'')               ILIKE :ql
+        OR COALESCE(genotype_pretty,'')        ILIKE :ql
+        OR COALESCE(all_marker_fluor_codes,'') ILIKE :ql
       )
-    ORDER BY plate_id_filled NULLS LAST,
-             slot_id_filled NULLS LAST,
-             roi_index_within_slot NULLS LAST
+    ORDER BY
+      plate_id_filled NULLS LAST,
+      slot_id_filled  NULLS LAST,
+      imaging_roi_id  NULLS LAST
     LIMIT :lim
     """
 )
@@ -147,7 +147,6 @@ else:
             "plate_code":        st.column_config.TextColumn("Plate", disabled=True),
             "slot_label":        st.column_config.TextColumn("Slot", disabled=True),
             "fish_code":         st.column_config.TextColumn("Fish code", disabled=True),
-            "roi_index":         st.column_config.NumberColumn("ROI idx", disabled=True),
             "roi_name":          st.column_config.TextColumn("ROI name", disabled=True),
             "genotype_pretty":   st.column_config.TextColumn("Genotype (pretty)", disabled=True),
             "all_marker_fluor_codes": st.column_config.TextColumn("Markers (fluors)", disabled=True),
