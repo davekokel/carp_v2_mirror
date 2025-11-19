@@ -75,32 +75,27 @@ def _table_exists(schema: str, table: str) -> bool:
 # ───────── data loaders ─────────
 def _load_fish_overview(q: Optional[str], limit: int) -> pd.DataFrame:
     """
-    Load fish from v_fish_overview.
+    v8: Load fish directly from public.fish_instance.
 
-    v_fish_overview is the canonical fish view and is responsible for:
-      - genotype_pretty
-      - genotype_alleles_pretty
-      - genotype_alleles_priority_pretty
-      - genotype_fluors / all_fluors
+    We no longer rely on public.v_fish_overview; this keeps the page
+    working even when v_fish_overview is absent.
     """
     sql = text("""
-      SELECT *
-      FROM public.v_fish_overview v
+      SELECT
+        id::text           AS fish_id,
+        fish_code,
+        nickname,
+        genetic_background,
+        line_building_stage,
+        birthday,
+        created_at
+      FROM public.fish_instance
       WHERE (:q IS NULL)
-         OR (
-              v.fish_code               ILIKE :q
-           OR v.nickname                ILIKE :q
-           OR v.genetic_background      ILIKE :q
-           OR v.line_building_stage     ILIKE :q
-           OR v.genotype_pretty         ILIKE :q
-           OR v.genotype_alleles_pretty ILIKE :q
-           OR v.genotype_base_codes     ILIKE :q
-           OR v.genotype_fluors         ILIKE :q
-           OR v.treatment_base_codes    ILIKE :q
-           OR v.all_base_codes          ILIKE :q
-           OR v.all_fluors              ILIKE :q
-         )
-      ORDER BY v.created_at DESC NULLS LAST, v.fish_code
+         OR fish_code              ILIKE :q
+         OR COALESCE(nickname,'')  ILIKE :q
+         OR COALESCE(genetic_background,'') ILIKE :q
+         OR COALESCE(line_building_stage,'') ILIKE :q
+      ORDER BY created_at DESC NULLS LAST, fish_code
       LIMIT :lim
     """)
     params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
@@ -110,8 +105,11 @@ def _load_fish_overview(q: Optional[str], limit: int) -> pd.DataFrame:
 
 def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
     """
-    Given a list of tank container UUIDs, return enriched tank records including:
-      - genotype / transgene_pretty = v_fish_overview.genotype_pretty
+    Given a list of tank container UUIDs, return enriched tank records.
+
+    v8: join back to public.fish_instance instead of v_fish_overview to
+    avoid depending on a missing view. Genotype-related fields are
+    currently left empty.
     """
     ids = [x for x in (container_ids or []) if x]
     if not ids:
@@ -137,15 +135,15 @@ def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
       ),
       vf AS (
         SELECT
-            v.fish_code                  AS fish_code,
-            COALESCE(v.nickname,'')      AS nickname,
-            COALESCE(v.genetic_background,'')    AS genetic_background,
-            COALESCE(v.line_building_stage,'')   AS stage,
-            v.birthday::date             AS dob,
-            COALESCE(v.genotype_pretty,'')             AS genotype,
-            COALESCE(v.genotype_alleles_pretty,'')     AS transgene_pretty,
-            ''::text                              AS genotype_nickname
-        FROM public.v_fish_overview v
+            f.fish_code                         AS fish_code,
+            COALESCE(f.nickname,'')             AS nickname,
+            COALESCE(f.genetic_background,'')   AS genetic_background,
+            COALESCE(f.line_building_stage,'')  AS stage,
+            f.birthday::date                    AS dob,
+            ''::text                            AS genotype,
+            ''::text                            AS transgene_pretty,
+            ''::text                            AS genotype_nickname
+        FROM public.fish_instance f
       )
       SELECT
         p.container_id::text AS container_id,
