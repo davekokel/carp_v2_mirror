@@ -1,21 +1,21 @@
 rna_base_code,name,notes
 HC-10,HC-10 4x-Cox8:mStayGold,
 HC-2,HC-2 2:NLS-mScarlet3,
-HC-9,HC-9 Lifeact:mStayGold,nan
-MGCO-1,ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2,nan
-MGCO-10,ef1a-TGN46-linker-mStayGold-SV40-attb-tol2,nan
-MGCO-15,ef1a-LAMP1-linker-mStayGold-SV40-attb-tol2,nan
+HC-9,HC-9 Lifeact:mStayGold,
+MGCO-1,2xCox8A:mSG,other injected labels: MGCO01
+MGCO-10,TGN:mSG,
+MGCO-15,LAMP1:mSG,"other injected labels: LAMP1:mSG,, 2xLynk:mChilada"
 MGCO-15; pDQM136,"LAMP1:mSG,, 2xLynk:mScarlet3-S2",
-MGCO-19,ef1a-linker-mStayGold-C4linker-alphatubulin-SV40-attb-tol2,nan
-MGCO-22,ef1a-vimentin-linker-Halo-linker-SV40-attb-tol2,nan
-MGCO-23,ef1a-lifeact-linker-mStayGold-SV40-attb-tol2,nan
-MGCO-24,ef1a-lifeact-linker-Halo-linker-SV40-attb-tol2,nan
-MGCO-25,ef1a-linker-mStayGold-C4linker-MYH10-SV40-attb-tol2,nan
-MGCO-28,ef1a-extended-2Xcox8A-linker-mStayGold-SV40-attb-tol2,nan
-MGCO-35,ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2,nan
-MGCO-36,ef1a-extended-linker-mScarlet3S2-sec61b-SV40-attb-tol2,nan
-MGCO-4,ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2,nan
-MGCO-40,ef1a-extended-linker-Halo-sec61b-SV40-attb-tol2,nan
+MGCO-19,mSG:alpha-tub,
+MGCO-22,"Vimentin:Halo,, 2xLynk:mScarlet3-S2",
+MGCO-23,Lifeact:mSG,
+MGCO-24,"2xLynk:mChilada,, 2xLynk:mSG,, Lifeact:Halo","other injected labels: Lifeact:Halo,, 2xLynk:mSG"
+MGCO-25,mSG:MYH10,
+MGCO-28,MGCO28,
+MGCO-35,"2xCox8A:mSG,, 2xLynk:mChilada",other injected labels: 2xCox8A:mScarlet3S2
+MGCO-36,ef1a-extended:mScarlet3S2:sec61b,other injected labels: mScarlet3S2:sec61b
+MGCO-4,mSG:sec61b,
+MGCO-40,ef1a-extended:Halo:sec61b,
 PDQM-104,2xLynk:mSG; mChilada:H2B,"other injected labels: mChilada:H2B (80 and 120 pg); mChilada:H2B (80 pg); phiC-NLS,, 2xLynk:mSG,, mChilada:H2B"
 PDQM-105,2xLynk:mSG; mYH:H2B,other injected labels: mYH:H2B; mYH:H2B (80 and 120 pg); mYH:H2B (80 pg)
 PDQM-117,mScarlet3-S2:H2B,

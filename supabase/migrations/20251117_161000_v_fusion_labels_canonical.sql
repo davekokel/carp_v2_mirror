@@ -1,8 +1,9 @@
 BEGIN;
 
-DROP VIEW IF EXISTS public.v_fusion_labels;
 
-CREATE VIEW public.v_fusion_labels AS
+
+
+CREATE OR REPLACE VIEW public.v_tag_poss AS
 SELECT
   f.id AS fusion_id,
   fl.fluor_code,
@@ -27,7 +28,7 @@ SELECT
         WHEN f.tag_pos IS NULL OR f.tag_pos = '' THEN ''
         ELSE '(' || f.tag_pos::text || ')'
       END
-  END AS fusion_label,
+  END AS tag_pos,
   f.created_at
 FROM public.fusions f
 LEFT JOIN public.fluors fl ON fl.id = f.fluor_id

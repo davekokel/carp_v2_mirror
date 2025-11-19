@@ -16,13 +16,13 @@ MGCO-53,MGCO53,MGCO-53,
 MGCO-54,MGCO54,MGCO54,
 MGCO-55,MGCO55,MGCO-55,
 MGCO-56,MGCO56,MGCO-56,
-PDQM-106,PDQM106,efa1:linker:miRFP670-2:linker-attB,Clone 2
-PDQM-120,PDQM120,ef1a:linker:mBeRFP:linker-attB,Clone 1
-PDQM-140,PDQM140,ef1a:linker:mGold2s:linker-attB (tol2),clones 1-3
-PDQM-141,PDQM141,ef1a:linker:mGold2t:linker-attB (tol2),clones 2-3
-PDQM-144,PDQM144,ef1a:E2Crimson (iCodon),Clones 1-4
-PDQM-145,PDQM145,ef1a:mCardinal (iCodon),Clones 1-4
-PDQM-85,PDQM85,ef1a:linker:mKate2:linker-attB,Clone 14-2
-PDQM-87,PDQM87,ef1a:linker:mTFP1:linker-attB,Clone 16-1
-PDQM-89,PDQM89,ef1a:linker:mChilada:linker-attB,Clone 23-3
+PDQM-106,PDQM106,Skittles-lite (ef1a:mTFP1 / ef1a:mChilada / ef1a:miRFP670-2),
+PDQM-120,PDQM120,ef1a:mTFP1 and ef1a:mBeRFP,
+PDQM-140,PDQM140,ef1a:mGold2s,
+PDQM-141,PDQM141,ef1a:mGold2t,
+PDQM-144,PDQM144,ef1a:E2Crimson (iCodon),
+PDQM-145,PDQM145,ef1a:mCardinal (iCodon),
+PDQM-85,PDQM85,ef1a:linker:mKate2:linker-attB,
+PDQM-87,PDQM87,Skittles-lite (ef1a:mTFP1 / ef1a:mChilada / ef1a:miRFP670-2),other injected labels: ef1a:mTFP1 and ef1a:mBeRFP
+PDQM-89,PDQM89,Skittles-lite (ef1a:mTFP1 / ef1a:mChilada / ef1a:miRFP670-2),
 plasmid_base_code,plasmid_base_code,injected_plasmid,

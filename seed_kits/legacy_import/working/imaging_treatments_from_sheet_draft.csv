@@ -1,0 +1,54 @@
+treatment_code,source_system,plasmid_base_codes,plasmid_tokens_raw,rna_tokens_raw,protein_tokens_raw,dye_tokens_raw,unmapped_plasmid_tokens,unmapped_rna_tokens
+IMG_TRT_001,imaging_backfill,pDQM105,,2xLynk:mSG; mChilada:H2B; mYH:H2B,,,,2xLynk:mSG; mChilada:H2B
+IMG_TRT_002,imaging_backfill,"pDQM087,pDQM089,pDQM106",Skittles-lite (ef1a:mTFP1 / ef1a:mChilada / ef1a:miRFP670-2),tol2 mRNA (40 pg),,,,tol2 mRNA (40 pg)
+IMG_TRT_003,imaging_backfill,"pDQM087,pDQM089,pDQM104,pDQM105,pDQM106",Skittles-lite (ef1a:mTFP1 / ef1a:mChilada / ef1a:miRFP670-2),mChilada:H2B (80 pg); mYH:H2B (80 pg); tol2 mRNA (40 pg),,,,tol2 mRNA (40 pg)
+IMG_TRT_004,imaging_backfill,"pDQM104,pDQM105",,mChilada:H2B (80 pg); mYH:H2B (80 pg),,,,
+IMG_TRT_005,imaging_backfill,pDQM104,,mChilada:H2B (80 pg),,,,
+IMG_TRT_006,imaging_backfill,pDQM105,,mYH:H2B (80 and 120 pg),,,,
+IMG_TRT_007,imaging_backfill,"pDQM104,pDQM105",,mChilada:H2B (80 and 120 pg); mYH:H2B (80 and 120 pg),,,,
+IMG_TRT_008,imaging_backfill,,,JF635 3uM,,,,JF635 3uM
+IMG_TRT_009,imaging_backfill,pDQM105,,mYH:H2B,,,,
+IMG_TRT_010,imaging_backfill,,,2xLynk:mSG; phiC,,,,2xLynk:mSG; phiC
+IMG_TRT_011,imaging_backfill,"pDQM087,pDQM117,pDQM120",ef1a:mTFP1 and ef1a:mBeRFP,mScarlet3-S2:H2B,,,,
+IMG_TRT_012,imaging_backfill,,,phiC,,,,phiC
+IMG_TRT_013,imaging_backfill,pDQM117,,mScarlet3-S2:H2B,,,,
+IMG_TRT_014,imaging_backfill,,,phiC; phiC-NLS,,,,phiC; phiC-NLS
+IMG_TRT_015,imaging_backfill,"MGCO-01,MGCO-15",,2xCox8A:mSG; 2xLynk:mChilada; LAMP1:mSG,,,,2xLynk:mChilada
+IMG_TRT_016,imaging_backfill,"pDQM140,pDQM141",ef1a:mGold2s; ef1a:mGold2t,,,,,
+IMG_TRT_017,imaging_backfill,pDQM140,ef1a:mGold2s,,,,,
+IMG_TRT_018,imaging_backfill,MGCO-15,,2xLynk:mScarlet3-S2; LAMP1:mSG; Vimentin:Halo,,,,2xLynk:mScarlet3-S2; Vimentin:Halo
+IMG_TRT_019,imaging_backfill,,,2xLynk:mSG; Lifeact:Halo,,,,2xLynk:mSG; Lifeact:Halo
+IMG_TRT_020,imaging_backfill,,,2xLynk:mChilada; 2xLynk:mSG,,,,2xLynk:mChilada; 2xLynk:mSG
+IMG_TRT_021,imaging_backfill,,,2xLynk:mChilada; 2xLynk:mSG; Lifeact:Halo,,,,2xLynk:mChilada; 2xLynk:mSG; Lifeact:Halo
+IMG_TRT_022,imaging_backfill,,,phiC-NLS,,,,phiC-NLS
+IMG_TRT_023,imaging_backfill,,,,,,,
+IMG_TRT_024,imaging_backfill,,,2xLynk:mSG; mChilada:H2B; phiC-NLS,,,,2xLynk:mSG; mChilada:H2B; phiC-NLS
+IMG_TRT_025,imaging_backfill,,,2xLynk:mSG; phiC-NLS,,,,2xLynk:mSG; phiC-NLS
+IMG_TRT_026,imaging_backfill,,,2xLynk:mSG; phiC-NLS,this cross is very good,,,2xLynk:mSG; phiC-NLS
+IMG_TRT_027,imaging_backfill,,,2xLynk:mSG; phiC-NLS,this cross is high in 514; which causes difficulty for mSG channel,,,2xLynk:mSG; phiC-NLS
+IMG_TRT_028,imaging_backfill,"MGCO-35,MGCO-36,MGCO-39,MGCO-40",ef1a-extended:2xCox8A:Halo; ef1a-extended:2xCox8A:mScarlet3S2,ef1a-extended:Halo:sec61b; ef1a-extended:mScarlet3S2:sec61b,,JF 635,,
+IMG_TRT_029,imaging_backfill,MGCO-04,,mSG:sec61b,,JF 635,,
+IMG_TRT_030,imaging_backfill,MGCO-01,,2xCox8A:mSG,,,,
+IMG_TRT_031,imaging_backfill,MGCO-04,,mSG:sec61b,,,,
+IMG_TRT_032,imaging_backfill,pDQM037,,tdmChilada:PCNA,,,,
+IMG_TRT_033,imaging_backfill,"MGCO-01,MGCO-23",,2xCox8A:mSG; Lifeact:mSG,,,,
+IMG_TRT_034,imaging_backfill,"MGCO-01,MGCO-15",,2xCox8A:mSG; LAMP1:mSG,,,,
+IMG_TRT_035,imaging_backfill,"pDQM085,pDQM145",ef1a:linker:mKate2:linker-attB; ef1a:mCardinal (iCodon),,,,,
+IMG_TRT_036,imaging_backfill,"MGCO-01,MGCO-04",,2xCox8A:mSG; mSG:sec61b,,,,
+IMG_TRT_037,imaging_backfill,pDQM145,ef1a:mCardinal (iCodon),,,,,
+IMG_TRT_038,imaging_backfill,"MGCO-01,MGCO-25",,2xCox8A:mSG; mSG:MYH10,,,,
+IMG_TRT_039,imaging_backfill,"MGCO-27,MGCO-28",ef1a-extended:2xCox8A:mStayGold; ef1a-extended:mStayGold:sec61b,,,,,
+IMG_TRT_040,imaging_backfill,MGCO-23,,Lifeact:mSG,,,,
+IMG_TRT_041,imaging_backfill,"MGCO-01,MGCO-19",,2xCox8A:mSG; mSG:alpha-tub,,,,
+IMG_TRT_042,imaging_backfill,,MGCO34(lifeact-mStayGold),,,,MGCO34(lifeact-mStayGold),
+IMG_TRT_043,imaging_backfill,HC-9,,HC-9 Lifeact:mStayGold,,,,
+IMG_TRT_044,imaging_backfill,HC-2,,HC-2 2:NLS-mScarlet3,,,,
+IMG_TRT_045,imaging_backfill,MGCO-01,,MGCO01,,,,
+IMG_TRT_046,imaging_backfill,"MGCO-01,MGCO-28",,MGCO01; MGCO28,,,,
+IMG_TRT_047,imaging_backfill,,MGCO-28(ef1a-extended-2Xcox8A-linker-mStayGold-SV40-attb-tol2),,,,MGCO-28(ef1a-extended-2Xcox8A-linker-mStayGold-SV40-attb-tol2),
+IMG_TRT_048,imaging_backfill,,MGCO50(microtubule-A2UCOE-attb_entire+pDQM147-EB3-mStayGold); MGCO54(nuclearenvelope-A2UCOE-attb_entire+pDQM147-LEMD2-mStayGold),,,,MGCO50(microtubule-A2UCOE-attb_entire+pDQM147-EB3-mStayGold); MGCO54(nuclearenvelope-A2UCOE-attb_entire+pDQM147-LEMD2-mStayGold),
+IMG_TRT_049,imaging_backfill,,MGCO-53-ER-A2UCOE-attb_entire+pDQM147-calnexin-mStayGold,,,,MGCO-53-ER-A2UCOE-attb_entire+pDQM147-calnexin-mStayGold,
+IMG_TRT_050,imaging_backfill,,MGCO-51-lamellipodia-A2UCOE-attb_entire+PDQM148-mStayGold-C4-cortactin,,,,MGCO-51-lamellipodia-A2UCOE-attb_entire+PDQM148-mStayGold-C4-cortactin,
+IMG_TRT_051,imaging_backfill,MGCO-01,MGCO-49_peroxisome-A2UCOE-ef1aextra-mStayGold-SKL; MGCO-52-peroxisome-A2UCOE-attb_entire+pDQM147-ABCDpmp70-mStayGold,2xCox8A:mSG,,,MGCO-49_peroxisome-A2UCOE-ef1aextra-mStayGold-SKL; MGCO-52-peroxisome-A2UCOE-attb_entire+pDQM147-ABCDpmp70-mStayGold,
+IMG_TRT_052,imaging_backfill,,MGCO-01(ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2),,,,MGCO-01(ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2),
+IMG_TRT_053,imaging_backfill,,MGCO-01(ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2); MGCO-60-Factin-A2UCOE-attb_entire+PDQM148-mStayGold-C4-moesin,,,,MGCO-01(ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2); MGCO-60-Factin-A2UCOE-attb_entire+PDQM148-mStayGold-C4-moesin,

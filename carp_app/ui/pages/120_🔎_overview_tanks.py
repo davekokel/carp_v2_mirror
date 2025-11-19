@@ -1,7 +1,7 @@
-# carp_app/ui/pages/091_🔎_overview_tanks.py
+# carp_app/ui/pages/120_🔎_overview_tanks.py
 from __future__ import annotations
+
 import os, sys, pathlib
-from datetime import datetime, timezone
 from typing import Optional
 
 import pandas as pd
@@ -9,241 +9,208 @@ import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-# repo root on sys.path
+# ── repo root on sys.path ─────────────────────────────────────────────────────
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from carp_app.ui.lib.app_ctx import get_engine as _create_engine
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
-from carp_app.ui.lib.app_ctx import get_engine as _create_engine
-from carp_app.lib.time import utc_now
 
-# ───────── auth & page ─────────
+# ── auth & page setup ─────────────────────────────────────────────────────────
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-st.set_page_config(page_title="CARP — Overview Tanks", page_icon="🔎", layout="wide")
+st.set_page_config(
+    page_title="CARP — Overview tanks",
+    page_icon="🔎",
+    layout="wide",
+)
 st.title("🔎 Overview tanks")
 
-# ───────── engine ─────────
+# ── engine (cached) ───────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
-def _cached_engine() -> Engine:
+def engine() -> Engine:
     url = os.getenv("DB_URL", "")
     if not url:
-        raise RuntimeError("DB_URL not set")
+        st.error("DB_URL is not set")
+        st.stop()
     return _create_engine()
 
-def _get_engine() -> Engine:
-    return _cached_engine()
+def _normalize_q(s: str | None) -> Optional[str]:
+    s = (s or "").strip()
+    return s or None
 
-# ───────── helpers ─────────
-def _since_days(ts) -> Optional[float]:
-    if not ts:
-        return None
-    if isinstance(ts, str):
-        try:
-            ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        except Exception:
-            return None
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    return round((utc_now() - ts).total_seconds() / 86400, 1)
-
-def _load_statuses() -> list[str]:
-    sql = text("SELECT DISTINCT COALESCE(status,'') AS s FROM public.v_tanks_overview ORDER BY 1")
-    with _get_engine().begin() as cx:
-        vals = [r["s"] for r in cx.execute(sql).mappings().all()]
-    preferred = ["active", "to_kill", "inactive"]
-    return [s for s in preferred if s in vals] + [s for s in vals if s not in preferred]
-
-# ───────── data loader ─────────
-def _load_tanks_overview(q: Optional[str], status_filter: str, limit: int) -> pd.DataFrame:
-    where = ["1=1"]
-    params = {"lim": int(limit)}
-
-    if q and q.strip():
-        params["ql"] = f"%{q.strip()}%"
-        where.append(
-            "("
-            "COALESCE(tank_code,'') ILIKE :ql OR "
-            "COALESCE(fish_code,'') ILIKE :ql OR "
-            "COALESCE(status,'') ILIKE :ql OR "
-            "COALESCE(location,'') ILIKE :ql OR "
-            "COALESCE(genotype_pretty,'') ILIKE :ql OR "
-            "COALESCE(all_base_codes,'') ILIKE :ql OR "
-            "COALESCE(all_fluors,'') ILIKE :ql"
-            ")"
+# ── filters ───────────────────────────────────────────────────────────────────
+with st.form("tank_filters", clear_on_submit=False):
+    c1, c2, c3 = st.columns([3, 1, 1])
+    with c1:
+        q_raw = st.text_input(
+            "Search (tank_code / fish_code / nickname / background / genotype / base_codes / fluors / notes)",
+            "",
         )
-    if status_filter and status_filter != "All":
-        params["st"] = status_filter
-        where.append("COALESCE(status,'') = :st")
-
-    sql = text(f"""
-      SELECT
-        id,
-        tank_code,
-        location,
-        status,
-        volume_l,
-        tank_notes,
-        created,
-        fish_id,
-        fish_code,
-        started_at,
-        ended_at,
-        role,
-        genotype_pretty,
-        genotype_alleles_pretty,
-        genotype_alleles_priority_pretty,
-        genotype_base_codes,
-        genotype_fluors,
-        treatment_base_codes,
-        treatment_rna_codes,
-        treatment_fluors,
-        all_base_codes,
-        all_fluors
-      FROM public.v_tanks_overview
-      WHERE {' AND '.join(where)}
-      ORDER BY created DESC NULLS LAST, tank_code
-      LIMIT :lim
-    """)
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params=params)
-
-    # normalize created → created_at for downstream use
-    if "created_at" not in df.columns and "created" in df.columns:
-        df = df.rename(columns={"created": "created_at"})
-
-    for c in df.select_dtypes(include=["object", "string"]).columns:
-        df[c] = df[c].astype("string").fillna("")
-    return df
-
-# ───────── renderer ─────────
-def _render_tanks(df: pd.DataFrame) -> None:
-    if df.empty:
-        st.info("No rows match your filters.")
-        return
-
-    out = df.copy()
-    out["Since (days)"] = [_since_days(ts) for ts in out.get("created_at", [])]
-
-    out = out.rename(columns={
-        "tank_code":                     "Tank code",
-        "fish_code":                     "Fish code",
-        "location":                      "Location",
-        "status":                        "Status",
-        "volume_l":                      "Volume (L)",
-        "tank_notes":                    "Tank notes",
-        "created_at":                    "Created",
-        "id":                            "ID",
-        "role":                          "Role",
-        "genotype_pretty":               "Genotype",
-        "genotype_alleles_pretty":       "Genotype alleles",
-        "genotype_alleles_priority_pretty": "Genotype alleles (priority)",
-        "genotype_base_codes":           "Genotype base codes",
-        "genotype_fluors":               "Genotype fluors",
-        "treatment_base_codes":          "Tx base codes",
-        "treatment_rna_codes":           "Tx RNA codes",
-        "treatment_fluors":              "Tx fluors",
-        "all_base_codes":                "All base codes",
-        "all_fluors":                    "All fluors",
-    })
-
-    # main columns to show by default (subset, ordered)
-    preferred_cols = [
-        "Tank code",
-        "Fish code",
-        "Genotype",
-        "All fluors",
-        "Status",
-        "Location",
-        "Volume (L)",
-        "Role",
-        "Since (days)",
-        "Created",
-        "Tank notes",
-        "ID",
-    ]
-    cols = [c for c in preferred_cols if c in out.columns]
-
-    st.caption(f"{len(out)} matches")
-    st.dataframe(out[cols], width="stretch", hide_index=True)
-
-# ───────── page ─────────
-def main():
-    statuses = _load_statuses() or ["active", "to_kill", "inactive"]
-
-    with st.form("filters", clear_on_submit=False):
-        c1, c2, c3 = st.columns([3, 1, 1])
-        with c1:
-            q_raw = st.text_input(
-                "Search (tank_code / fish_code / status / genotype / base_codes / fluors)",
-                ""
+    with c2:
+        status = st.selectbox(
+            "Status",
+            options=["active", "inactive", "all"],
+            index=0,
+        )
+    with c3:
+        lim = int(
+            st.number_input(
+                "Limit",
+                min_value=50,
+                max_value=5000,
+                value=500,
+                step=50,
             )
-        with c2:
-            status = st.selectbox("Status", statuses + ["All"], index=0)
-        with c3:
-            limit = int(st.number_input("Limit", min_value=1, max_value=5000, value=500, step=100))
-        _ = st.form_submit_button("Apply")
+        )
+    _ = st.form_submit_button("Apply")
 
-    q = (q_raw or "").strip()
-    try:
-        df = _load_tanks_overview(q=q, status_filter=status, limit=limit)
-    except Exception as e:
-        st.error(f"Query error: {type(e).__name__}: {e}")
-        with st.expander("Debug"):
-            st.code(str(e))
-        return
+q = _normalize_q(q_raw)
 
-    _render_tanks(df)
+# ── query v_tanks_overview + fish_instance ────────────────────────────────────
+sql = text(
+    """
+    SELECT
+      t.id                AS tank_id,
+      t.tank_code,
+      t.fish_code,
+      f.nickname,
+      f.birthday,
+      f.genetic_background,
+      f.line_building_stage,
+      t.genotype_pretty,
+      t.genotype_alleles_pretty,
+      t.genotype_alleles_priority_pretty,
+      t.genotype_base_codes,
+      t.genotype_fluors,
+      t.treatment_base_codes,
+      t.treatment_rna_codes,
+      t.treatment_fluors,
+      t.all_base_codes,
+      t.all_fluors,
+      t.status,
+      t.location,
+      t.volume_l,
+      t.role,
+      t.since_days,
+      t.started_at,
+      t.ended_at,
+      t.created,
+      t.tank_notes
+    FROM public.v_tanks_overview t
+    LEFT JOIN public.fish_instance f
+      ON f.id = t.fish_id
+    WHERE
+      (:status = 'all' OR t.status = :status)
+      AND (
+        :q IS NULL
+        OR COALESCE(t.tank_code, '')              ILIKE :ql
+        OR COALESCE(t.fish_code, '')              ILIKE :ql
+        OR COALESCE(f.nickname, '')               ILIKE :ql
+        OR COALESCE(f.genetic_background, '')     ILIKE :ql
+        OR COALESCE(t.genotype_pretty, '')        ILIKE :ql
+        OR COALESCE(t.genotype_base_codes, '')    ILIKE :ql
+        OR COALESCE(t.genotype_fluors, '')        ILIKE :ql
+        OR COALESCE(t.all_base_codes, '')         ILIKE :ql
+        OR COALESCE(t.all_fluors, '')             ILIKE :ql
+        OR COALESCE(t.tank_notes, '')             ILIKE :ql
+      )
+    ORDER BY t.status, t.tank_code
+    LIMIT :lim
+    """
+)
 
-    with st.expander("Debug"):
-        try:
-            with _get_engine().connect() as cx:
-                cnt = cx.execute(text("SELECT count(*) FROM public.v_tanks_overview")).scalar()
-                sample = pd.read_sql(
-                    text("""
-                      SELECT
-                        id,
-                        tank_code,
-                        location,
-                        status,
-                        volume_l,
-                        tank_notes,
-                        created,
-                        fish_id,
-                        fish_code,
-                        started_at,
-                        ended_at,
-                        role,
-                        genotype_pretty,
-                        genotype_alleles_pretty,
-                        genotype_alleles_priority_pretty,
-                        genotype_base_codes,
-                        genotype_fluors,
-                        treatment_base_codes,
-                        treatment_rna_codes,
-                        treatment_fluors,
-                        all_base_codes,
-                        all_fluors
-                      FROM public.v_tanks_overview
-                      ORDER BY created DESC NULLS LAST
-                      LIMIT 10
-                    """),
-                    cx,
-                )
-            if "created_at" not in sample.columns and "created" in sample.columns:
-                sample = sample.rename(columns={"created": "created_at"})
-            st.write({"view": "public.v_tanks_overview", "rows_in_view": int(cnt)})
-            st.dataframe(sample, width="stretch", hide_index=True)
-        except Exception as e:
-            st.write({"view_check_error": str(e)})
+params = {
+    "q": q,
+    "ql": f"%{q}%" if q else None,
+    "status": status,
+    "lim": lim,
+}
 
-if __name__ == "__main__":
-    main()
+with engine().begin() as cx:
+    df = pd.read_sql(sql, cx, params=params)
+
+st.caption(f"{len(df)} match(es)")
+
+# ── main table ────────────────────────────────────────────────────────────────
+if df.empty:
+    st.info("No rows match your filters.")
+else:
+    preferred_cols = [
+        "tank_code",
+        "fish_code",
+        "nickname",
+        "genetic_background",
+        "birthday",
+        "line_building_stage",
+        "genotype_pretty",
+        "genotype_alleles_pretty",
+        "genotype_alleles_priority_pretty",
+        "genotype_base_codes",
+        "genotype_fluors",
+        "treatment_base_codes",
+        "treatment_rna_codes",
+        "treatment_fluors",
+        "all_base_codes",
+        "all_fluors",
+        "status",
+        "location",
+        "volume_l",
+        "role",
+        "since_days",
+        "started_at",
+        "ended_at",
+        "created",
+        "tank_notes",
+    ]
+    cols = [c for c in preferred_cols if c in df.columns] + [
+        c for c in df.columns if c not in preferred_cols
+    ]
+    df = df[cols]
+
+    st.data_editor(
+        df,
+        key="tanks_overview",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "tank_code":          st.column_config.TextColumn("Tank code"),
+            "fish_code":          st.column_config.TextColumn("Fish code"),
+            "nickname":           st.column_config.TextColumn("Nickname"),
+            "genetic_background": st.column_config.TextColumn("Background"),
+            "birthday":           st.column_config.DateColumn("Birthday"),
+            "line_building_stage": st.column_config.TextColumn("Line stage"),
+            "genotype_pretty":    st.column_config.TextColumn("Genotype (pretty)"),
+            "genotype_alleles_pretty": st.column_config.TextColumn("Alleles (pretty)"),
+            "genotype_alleles_priority_pretty": st.column_config.TextColumn("Alleles (priority pretty)"),
+            "genotype_base_codes": st.column_config.TextColumn("Genotype base codes"),
+            "genotype_fluors":    st.column_config.TextColumn("Genotype fluors"),
+            "treatment_base_codes": st.column_config.TextColumn("Treatment base codes"),
+            "treatment_rna_codes":  st.column_config.TextColumn("Treatment RNA codes"),
+            "treatment_fluors":   st.column_config.TextColumn("Treatment fluors"),
+            "all_base_codes":     st.column_config.TextColumn("All base codes"),
+            "all_fluors":         st.column_config.TextColumn("All fluors"),
+            "status":             st.column_config.TextColumn("Status"),
+            "location":           st.column_config.TextColumn("Location"),
+            "volume_l":           st.column_config.NumberColumn("Volume (L)"),
+            "role":               st.column_config.TextColumn("Role"),
+            "since_days":         st.column_config.NumberColumn("Since (days)"),
+            "started_at":         st.column_config.DatetimeColumn("Started at"),
+            "ended_at":           st.column_config.DatetimeColumn("Ended at"),
+            "created":            st.column_config.DatetimeColumn("Tank created"),
+            "tank_notes":         st.column_config.TextColumn("Tank notes"),
+        },
+    )
+
+# ── debug ─────────────────────────────────────────────────────────────────────
+with st.expander("Debug", expanded=False):
+    st.write("Preview of raw data frame:")
+    st.dataframe(df.head(50), use_container_width=True)

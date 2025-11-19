@@ -1,0 +1,7 @@
+treat_code,treat_text,female_parents,male_parents,suggested_plasmid_code,suggested_plasmid_name
+IMG_TRT_047,MGCO-28(ef1a-extended-2Xcox8A-linker-mStayGold-SV40-attb-tol2),ef1a:2xLynk:tdmChilada (F1 of allele 315),casper/rnf,MGCO-28,ef1a-extended-2Xcox8A-linker-mStayGold-SV40-attb-tol2
+IMG_TRT_048,MGCO50(microtubule-A2UCOE-attb_entire+pDQM147-EB3-mStayGold); MGCO54(nuclearenvelope-A2UCOE-attb_entire+pDQM147-LEMD2-mStayGold),casper/rnf,casper/rnf,pDQM147,ef1a-extended:linker:mStayGold:linker-attB (tol2)
+IMG_TRT_049,MGCO-53-ER-A2UCOE-attb_entire+pDQM147-calnexin-mStayGold,casper/rnf,casper/rnf,pDQM147,ef1a-extended:linker:mStayGold:linker-attB (tol2)
+IMG_TRT_051,MGCO-49_peroxisome-A2UCOE-ef1aextra-mStayGold-SKL; MGCO-52-peroxisome-A2UCOE-attb_entire+pDQM147-ABCDpmp70-mStayGold,casper/rnf,memrane tdmScarlet3S2 (F1 of allele 325),pDQM147,ef1a-extended:linker:mStayGold:linker-attB (tol2)
+IMG_TRT_052,MGCO-01(ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2),casper,memrane tdmScarlet3S2 (F1 of allele 325),MGCO-01,ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2
+IMG_TRT_053,MGCO-01(ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2); MGCO-60-Factin-A2UCOE-attb_entire+PDQM148-mStayGold-C4-moesin,casper,memrane tdmScarlet3S2 (F1 of allele 325),MGCO-01,ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2

@@ -1,0 +1,288 @@
+plasmid_code,plasmid_name,plasmid_nickname,resistance,plasmid_notes,used_for_injection_plasmid,used_for_injection_rna,used_for_injection_crispr,n_fluors_per_plasmid,fluor_code,tag_code,tag_pos
+pDQM001,CMV-SP6-mSG(J) IDT opt,CMV-SP6-mSG(J) IDT opt,Amp,"IDT optimized, for mRNA production with SP6 - clone 2",FALSE,FALSE,FALSE,1,mSG,,
+pDQM002,CMV-SP6-mSG(J) IDT opt,CMV-SP6-mSG(J) IDT opt,Amp,"IDT optimized, for mRNA production with SP6 - clone 5",FALSE,FALSE,FALSE,1,mSG,,
+pDQM005,ef1a-tdmSG(J),ef1a-tdmSG(J),Amp,iCodon optimized for tol2 insertions - clone 4,FALSE,FALSE,FALSE,1,tdmSG,,
+pDQM006,ef1a-tdmSG-syntrons(J),ef1a-tdmSG-syntrons(J),Amp,each mStayGold contains a 51bp syntron to boost expression - clone 6,FALSE,FALSE,FALSE,1,tdmSG,,
+pDQM007,ef1a-tdmSG-syntrons(J),ef1a-tdmSG-syntrons(J),Amp,each mStayGold contains a 51bp syntron to boost expression - clone 3,FALSE,FALSE,FALSE,1,tdmSG,,
+pDQM008,ef1a-tdmSG-syntrons(J),ef1a-tdmSG-syntrons(J),Amp,each mStayGold contains a 51bp syntron to boost expression - clone 8,FALSE,FALSE,FALSE,1,tdmSG,,
+pDQM009,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK1,FALSE,FALSE,FALSE,5,mScarlet,,
+pDQM009,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK1,FALSE,FALSE,FALSE,5,mKate2,,
+pDQM009,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK1,FALSE,FALSE,FALSE,5,Electra2,,
+pDQM009,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK1,FALSE,FALSE,FALSE,5,mKOK,,
+pDQM009,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK1,FALSE,FALSE,FALSE,5,mTFP1,,
+pDQM010,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK4,FALSE,FALSE,FALSE,5,mScarlet,,
+pDQM010,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK4,FALSE,FALSE,FALSE,5,mKate2,,
+pDQM010,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK4,FALSE,FALSE,FALSE,5,Electra2,,
+pDQM010,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK4,FALSE,FALSE,FALSE,5,mKOK,,
+pDQM010,skittles2.0-4FP,skittles2.0-4FP,Amp,iCodon optimized - contains cryaa:mScarlet-AttP-mKate2-Electra2-mKOK-mTFP1 (missing mCitrine) - clone SK4,FALSE,FALSE,FALSE,5,mTFP1,,
+pDQM011,pCM268_ccdB-Electra2,pCM268_ccdB-Electra2,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,Electra2,,
+pDQM012,pCM268_ccdB-Electra2,pCM268_ccdB-Electra2,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,Electra2,,
+pDQM013,pCM268_ccdB-mKOK,pCM268_ccdB-mKOK,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mKOK,,
+pDQM014,pCM268_ccdB-mKate2,pCM268_ccdB-mKate2,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mKate2,,
+pDQM015,pCM268_ccdB-mKate2,pCM268_ccdB-mKate2,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mKate2,,
+pDQM016,pCM268_ccdB-mTFP1,pCM268_ccdB-mTFP1,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mTFP1,,
+pDQM017,pCM268_ccdB-mTFP1,pCM268_ccdB-mTFP1,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mTFP1,,
+pDQM018,pCM268_ccdB-miRFP670-2,pCM268_ccdB-miRFP670-2,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,miRFP670,,
+pDQM019,pCM268_ccdB-miRFP670-2,pCM268_ccdB-miRFP670-2,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,miRFP670,,
+pDQM020,pCM268_ccdB-mLychee,pCM268_ccdB-mLychee,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mLychee,,
+pDQM021,pCM268_ccdB-mLychee,pCM268_ccdB-mLychee,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mLychee,,
+pDQM022,pCM268_ccdB-mChilada,pCM268_ccdB-mChilada,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mChilada,,
+pDQM023,pCM268_ccdB-mChilada,pCM268_ccdB-mChilada,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mChilada,,
+pDQM024,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single base change (frame shift) in mKate2,FALSE,FALSE,FALSE,5,mScarlet,,
+pDQM024,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single base change (frame shift) in mKate2,FALSE,FALSE,FALSE,5,mKate2,,
+pDQM024,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single base change (frame shift) in mKate2,FALSE,FALSE,FALSE,5,Electra2,,
+pDQM024,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single base change (frame shift) in mKate2,FALSE,FALSE,FALSE,5,mKOK,,
+pDQM024,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single base change (frame shift) in mKate2,FALSE,FALSE,FALSE,5,mTFP1,,
+pDQM025,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single deletion (frame shift) in mTFP1,FALSE,FALSE,FALSE,5,mScarlet,,
+pDQM025,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single deletion (frame shift) in mTFP1,FALSE,FALSE,FALSE,5,mKate2,,
+pDQM025,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single deletion (frame shift) in mTFP1,FALSE,FALSE,FALSE,5,Electra2,,
+pDQM025,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single deletion (frame shift) in mTFP1,FALSE,FALSE,FALSE,5,mKOK,,
+pDQM025,skittles2.0-5FP-mutation,skittles2.0-5FP-mutation,Amp,single deletion (frame shift) in mTFP1,FALSE,FALSE,FALSE,5,mTFP1,,
+pDQM026,pCM268_ccdB-dhb-tdmSG-tPT2A-tdmChilada-pcna,pCM268_ccdB-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,promoterless,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM026,pCM268_ccdB-dhb-tdmSG-tPT2A-tdmChilada-pcna,pCM268_ccdB-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,promoterless,FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM027,pTwist-SP6-2xLynk:mSG(J)-iCodon,pTwist-SP6-2xLynk:mSG(J)-iCodon,Amp,for mRNA,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM028,pTwist-SP6-2xLynk:mSG(B)-iCodon,pTwist-SP6-2xLynk:mSG(B)-iCodon,Amp,for mRNA,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM029,pTwist-SP6-2xLynk:mBaoJin-iCodon,pTwist-SP6-2xLynk:mBaoJin-iCodon,Amp,for mRNA,FALSE,FALSE,FALSE,1,mBaoJin,2xLynk,N
+pDQM030,pTwist-SP6-2xLynk:mYongHong-iCodon,pTwist-SP6-2xLynk:mYongHong-iCodon,Amp,for mRNA - clone 1,FALSE,FALSE,FALSE,1,mYongHong,2xLynk,N
+pDQM031,pTwist-SP6-2xLynk:mYongHong-iCodon,pTwist-SP6-2xLynk:mYongHong-iCodon,Amp,for mRNA - clone 2,FALSE,FALSE,FALSE,1,mYongHong,2xLynk,N
+pDQM032,pCM268_ccdB-mYongHong,pCM268_ccdB-mYongHong,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mYongHong,,
+pDQM033,pCM268_ccdB-mYongHong,pCM268_ccdB-mYongHong,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mYongHong,,
+pDQM034,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 1,FALSE,FALSE,FALSE,5,mKate2,,
+pDQM034,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 1,FALSE,FALSE,FALSE,5,mCitrine,,
+pDQM034,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 1,FALSE,FALSE,FALSE,5,Electra2,,
+pDQM034,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 1,FALSE,FALSE,FALSE,5,mKOK,,
+pDQM034,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 1,FALSE,FALSE,FALSE,5,mTFP1,,
+pDQM035,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 4,FALSE,FALSE,FALSE,5,mKate2,,
+pDQM035,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 4,FALSE,FALSE,FALSE,5,mCitrine,,
+pDQM035,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 4,FALSE,FALSE,FALSE,5,Electra2,,
+pDQM035,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 4,FALSE,FALSE,FALSE,5,mKOK,,
+pDQM035,skittles2.0-5FP,skittles2.0-5FP,Amp,5 FP version of skittles - clone 4,FALSE,FALSE,FALSE,5,mTFP1,,
+pDQM036,,skittles3.0-4FP,Amp,4 FP version of skittles with SEC hsp-phiC (cryaa:mSc) - clone 3,FALSE,FALSE,FALSE,,,,
+pDQM037,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,ef1a driven cdk/pcna cell cycle sensor clone 1 (pIGLET),FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM037,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,ef1a driven cdk/pcna cell cycle sensor clone 1 (pIGLET),FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM038,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,ef1a driven cdk/pcna cell cycle sensor clone 2 (pIGLET),FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM038,ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),ef1a:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,ef1a driven cdk/pcna cell cycle sensor clone 2 (pIGLET),FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM039,hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,hsp driven cdk/pcna cell cycle sensor clone 2 (pIGLET),FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM039,hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,hsp driven cdk/pcna cell cycle sensor clone 2 (pIGLET),FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM040,hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,hsp driven cdk/pcna cell cycle sensor clone 3 (pIGLET),FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM040,hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,hsp driven cdk/pcna cell cycle sensor clone 3 (pIGLET),FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM041,sox10:mChilada (pCM268),sox10:mChilada (pCM268),Amp,sox10p-driven mChilada (pIGLET) clone 1,FALSE,FALSE,FALSE,1,mChilada,,
+pDQM042,sox10:mChilada (pCM268),sox10:mChilada (pCM268),Amp,sox10p-driven mChilada (pIGLET) clone 2,FALSE,FALSE,FALSE,1,mChilada,,
+pDQM043,pCM268_ccdB-mCitrine,pCM268_ccdB-mCitrine,Amp,Clone 1 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mCitrine,,
+pDQM044,pCM268_ccdB-mCitrine,pCM268_ccdB-mCitrine,Amp,Clone 2 - pIGLET backbone in NEB Turbo cells (for ccdB survival),FALSE,FALSE,FALSE,1,mCitrine,,
+pDQM045,pTwist-SP6:2xLynk:mScarlet3,pTwist-SP6:2xLynk:mScarlet3,Amp,,FALSE,FALSE,FALSE,1,mScarlet3,2xLynk,N
+pDQM046,pTwist-SP6:2xLynk:mScarlet3,pTwist-SP6:2xLynk:mScarlet3,Amp,,FALSE,FALSE,FALSE,1,mScarlet3,2xLynk,N
+pDQM047,pTwist-SP6-2xLynk:mSG(J)-iCodon,pTwist-SP6-2xLynk:mSG(J)-iCodon,Amp,Clone 1,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM048,pTwist-SP6-2xLynk:mSG(J)-iCodon,pTwist-SP6-2xLynk:mSG(J)-iCodon,Amp,Clone 2,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM049,pTwist-SP6-2xLynk:mSG(B)-iCodon,pTwist-SP6-2xLynk:mSG(B)-iCodon,Amp,Clone 1,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM050,pTwist-SP6-2xLynk:mSG(B)-iCodon,pTwist-SP6-2xLynk:mSG(B)-iCodon,Amp,Clone 2,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM051,ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 1 - pIGLET,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM051,ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 1 - pIGLET,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM052,ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 2 - pIGLET,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM052,ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),ef1a:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 2 - pIGLET,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM053,hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 2 - pIGLET,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM053,hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 2 - pIGLET,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM054,hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 3 - pIGLET,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM054,hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 3 - pIGLET,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM055,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 3 (truncated SV40),FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM055,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 3 (truncated SV40),FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM056,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 4 (truncated SV40),FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM056,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 4 (truncated SV40),FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM057,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,Clone 4,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM057,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-pcna (pCM268),Amp,Clone 4,FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM058,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 1,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM058,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 1,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM059,skittles3.1-4FP (exorh:GFP),skittles3.1-4FP (exorh:GFP),Amp,Clone 3,FALSE,FALSE,FALSE,1,gfp,,
+pDQM060,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b (pCM268),ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 3,FALSE,FALSE,FALSE,2,tdmSG,2xLynk,N
+pDQM060,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b (pCM268),ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,Clone 3,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM061,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 2,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM061,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 2,FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM062,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 3,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM062,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,AAV-dhb-tdmSG-tPT2A-tdmChilada-pcna,Amp,Clone 3,FALSE,FALSE,FALSE,2,tdmChilada,pcna,C
+pDQM063,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 1,iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,GFP,,
+pDQM063,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 1,iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,mKate2,,
+pDQM063,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 1,iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,Electra2,,
+pDQM063,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 1,iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,mCitrine,,
+pDQM063,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 1,iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,mKoK,,
+pDQM063,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 1,iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,mTFP1,,
+pDQM064,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 5, iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,GFP,,
+pDQM064,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 5, iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,mKate2,,
+pDQM064,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 5, iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,Electra2,,
+pDQM064,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 5, iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,mCitrine,,
+pDQM064,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 5, iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,mKoK,,
+pDQM064,exorh skittles 2.0 5FP,exorh skittles 2.0 5FP,Amp,"clone 5, iCodon optimized - contains exorH:GFP-AttP-mKate2-Electra2-mCitrine-mKOK-mTFP1",FALSE,FALSE,FALSE,6,mTFP1,,
+pDQM065,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,clone 1,FALSE,FALSE,FALSE,2,tdmSG,2xLynk,N
+pDQM065,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,clone 1,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM066,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,clone 2,FALSE,FALSE,FALSE,2,tdmSG,2xLynk,N
+pDQM066,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,tol2-ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,clone 2,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM067,ef1a:2xLynk-tdmSG-tPT2A-tdmYH-h2b (pCM268),ef1a:2xLynk-tdmSG-tPT2A-tdmYH-h2b (pCM268),Amp,clone 1,FALSE,FALSE,FALSE,2,tdmSG,2xLynk,N
+pDQM067,ef1a:2xLynk-tdmSG-tPT2A-tdmYH-h2b (pCM268),ef1a:2xLynk-tdmSG-tPT2A-tdmYH-h2b (pCM268),Amp,clone 1,FALSE,FALSE,FALSE,2,tdmYH,h2b,C
+pDQM068,ef1a:2xLynk-tdmSG,ef1a:2xLynk-tdmSG,Amp,Clone 1,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM069,ef1a:2xLynk-tdmSG,ef1a:2xLynk-tdmSG,Amp,Clone 2,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM070,ef1a:2xLynk-tdmSG(introns),ef1a:2xLynk-tdmSG(introns),Amp,Clone 2,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM071,ef1a:2xLynk-tdmSG(introns),ef1a:2xLynk-tdmSG(introns),Amp,Clone 4,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM072,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,Clone 2,FALSE,FALSE,FALSE,2,tdmSG,2xLynk,N
+pDQM072,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,Clone 2,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM073,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,Clone 4,FALSE,FALSE,FALSE,2,tdmSG,2xLynk,N
+pDQM073,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,ef1a:2xLynk-tdmSG-tPT2A-tdmChilada-h2b,Amp,Clone 4,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM074,ef1a:2xLynk-tdmSG(introns),ef1a:2xLynk-tdmSG(introns),Amp,Clone 1,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM075,ef1a:2xLynk-tdmSG(introns),ef1a:2xLynk-tdmSG(introns),Amp,Clone 3,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM076,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),Amp,Clone 1,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM076,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),Amp,Clone 1,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM077,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),Amp,Clone 3,FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM077,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pRL093),Amp,Clone 3,FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM078,ef1a:2xLynk-tdmSG,ef1a:2xLynk-tdmSG,Amp,Clone 5,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM079,ef1a:2xLynk-mSG,ef1a:2xLynk-mSG,Amp,Clone 1,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM080,ef1a:2xLynk-mSG,ef1a:2xLynk-mSG,Amp,Clone 2,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM081,ef1a:2xLynk:mSG-tPT2A:mChilada,ef1a:2xLynk:mSG-tPT2A:mChilada,Amp,Clone 4,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM082,ef1a:2xLynk:tdmChilada,ef1a:2xLynk:tdmChilada,Amp,Clone 4,FALSE,FALSE,FALSE,1,tdmChilada,2xLynk,N
+pDQM083,ef1a:linker:Electra2:linker-attB,ef1a:linker:Electra2:linker-attB,Amp,Clone 12-1,FALSE,FALSE,FALSE,1,Electra2,,
+pDQM084,ef1a:linker:mKOK:linker-attB,ef1a:linker:mKOK:linker-attB,Amp,Clone 13-2,FALSE,FALSE,FALSE,1,mKOK,,
+pDQM085,ef1a:linker:mKate2:linker-attB,ef1a:linker:mKate2:linker-attB,Amp,Clone 14-2,FALSE,FALSE,FALSE,1,mKate2,,
+pDQM086,ef1a:linker:mCitrine:linker-attB,ef1a:linker:mCitrine:linker-attB,Amp,Clone 43-1,FALSE,FALSE,FALSE,1,mCitrine,,
+pDQM087,ef1a:linker:mTFP1:linker-attB,ef1a:linker:mTFP1:linker-attB,Amp,Clone 16-1,FALSE,FALSE,FALSE,1,mTFP1,,
+pDQM088,ef1a:linker:mYongHong:linker-attB,ef1a:linker:mYongHong:linker-attB,Amp,Clone 32-1,FALSE,FALSE,FALSE,1,mYongHong,,
+pDQM089,ef1a:linker:mChilada:linker-attB,ef1a:linker:mChilada:linker-attB,Amp,Clone 23-3,FALSE,FALSE,FALSE,1,mChilada,,
+pDQM090,ef1a:linker:mChilada-MAGPV:linker-attB,ef1a:linker:mChilada-MAGPV:linker-attB,Amp,Clone 1,FALSE,FALSE,FALSE,1,mChilada,,
+pDQM091,ef1a:linker:mChilada-MAGPV:linker-attB,ef1a:linker:mChilada-MAGPV:linker-attB,Amp,Clone 2,FALSE,FALSE,FALSE,1,mChilada,,
+pDQM092,SP6:2xLynk:mchilada-MAGPV,SP6:2xLynk:mchilada-MAGPV,Amp,Clone 1,FALSE,FALSE,FALSE,1,mchilada,2xLynk,N
+pDQM093,SP6:2xLynk:mchilada-MAGPV,SP6:2xLynk:mchilada-MAGPV,Amp,Clone 2,FALSE,FALSE,FALSE,1,mchilada,2xLynk,N
+pDQM094,ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B,ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B,Amp,Clone 1,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM095,ef1a:mSG:CDT1-tPT2A-mYH:GMN (iCodon) [FUCCI],ef1a:mSG:CDT1-tPT2A-mYH:GMN (iCodon) [FUCCI],Amp,Clone 2,FALSE,FALSE,FALSE,2,mSG,CDT1,C
+pDQM095,ef1a:mSG:CDT1-tPT2A-mYH:GMN (iCodon) [FUCCI],ef1a:mSG:CDT1-tPT2A-mYH:GMN (iCodon) [FUCCI],Amp,Clone 2,FALSE,FALSE,FALSE,2,mYH,GMN,C
+pDQM096,ef1a:mSG:CDT1-tPT2A-mYH:GMN (endogenous) [FUCCI],ef1a:mSG:CDT1-tPT2A-mYH:GMN (endogenous) [FUCCI],Amp,Clone 2,FALSE,FALSE,FALSE,2,mSG,CDT1,C
+pDQM096,ef1a:mSG:CDT1-tPT2A-mYH:GMN (endogenous) [FUCCI],ef1a:mSG:CDT1-tPT2A-mYH:GMN (endogenous) [FUCCI],Amp,Clone 2,FALSE,FALSE,FALSE,2,mYH,GMN,C
+pDQM097,cryaa skittles 3.1 5FP (new phiC (full length)),cryaa skittles 3.1 5FP (new phiC (full length)),Amp,Clone 2,FALSE,FALSE,FALSE,6,GFP,,
+pDQM097,cryaa skittles 3.1 5FP (new phiC (full length)),cryaa skittles 3.1 5FP (new phiC (full length)),Amp,Clone 2,FALSE,FALSE,FALSE,6,mKate2,,
+pDQM097,cryaa skittles 3.1 5FP (new phiC (full length)),cryaa skittles 3.1 5FP (new phiC (full length)),Amp,Clone 2,FALSE,FALSE,FALSE,6,Electra2,,
+pDQM097,cryaa skittles 3.1 5FP (new phiC (full length)),cryaa skittles 3.1 5FP (new phiC (full length)),Amp,Clone 2,FALSE,FALSE,FALSE,6,mCitrine,,
+pDQM097,cryaa skittles 3.1 5FP (new phiC (full length)),cryaa skittles 3.1 5FP (new phiC (full length)),Amp,Clone 2,FALSE,FALSE,FALSE,6,mKoK,,
+pDQM097,cryaa skittles 3.1 5FP (new phiC (full length)),cryaa skittles 3.1 5FP (new phiC (full length)),Amp,Clone 2,FALSE,FALSE,FALSE,6,mTFP1,,
+pDQM098,exorH:GFP; hsp:phiC(iC),exorH:GFP; hsp:phiC(iC),Amp,new phiC cloned into Erin's plasmid,FALSE,FALSE,FALSE,1,gfp,,
+pDQM099,exorH:GFP; hsp:phiC(iC),exorH:GFP; hsp:phiC(iC),Amp,new phiC cloned into Erin's plasmid,FALSE,FALSE,FALSE,1,gfp,,
+pDQM100,exorH:mScarlet; hsp:phiC(iC),exorH:mScarlet; hsp:phiC(iC),Amp,new phiC cloned into Erin's plasmid,FALSE,FALSE,FALSE,1,mScarlet,,
+pDQM101,ef1a:linker:Halo:linker-attB,ef1a:linker:Halo:linker-attB,Amp,Clone 1,FALSE,FALSE,FALSE,1,Halo,,
+pDQM102,efa1:linker:mStayGold(J):linker-attB,efa1:linker:mStayGold(J):linker-attB,Amp,Clone 1,FALSE,FALSE,FALSE,1,mStayGold,,
+pDQM103,efa1:linker:mStayGold(J):linker-attB,efa1:linker:mStayGold(J):linker-attB,Amp,Clone 2,FALSE,FALSE,FALSE,1,mStayGold,,
+pDQM104,SP6:mchilada-MAGPV-h2b,SP6:mchilada-MAGPV-h2b,Amp,Clone 1,FALSE,FALSE,FALSE,1,mchilada,,
+pDQM105,SP6:mYH:h2b,SP6:mYH:h2b,Amp,Clone 4,FALSE,FALSE,FALSE,1,mYH,h2b,N
+pDQM106,efa1:linker:miRFP670-2:linker-attB,efa1:linker:miRFP670-2:linker-attB,Amp,Clone 2,FALSE,FALSE,FALSE,1,miRFP670,,
+pDQM107,efa1:linker:miRFP670-2:linker-attB,efa1:linker:miRFP670-2:linker-attB,Amp,Clone 5,FALSE,FALSE,FALSE,1,miRFP670,,
+pDQM108,ccdB:linker:mChilada-MAGPV:linker,ccdB:linker:mChilada-MAGPV:linker,Amp,Clone 1,FALSE,FALSE,FALSE,1,mChilada,,
+pDQM109,ccdB:linker:mChilada-MAGPV:linker,ccdB:linker:mChilada-MAGPV:linker,Amp,Clone 3,FALSE,FALSE,FALSE,1,mChilada,,
+pDQM110,exorH:GFP; hsp:phiC(iC)-NLS,exorH:GFP; hsp:phiC(iC)-NLS,Amp,Clone 1,FALSE,FALSE,FALSE,1,gfp,,
+pDQM111,exorH:GFP; hsp:phiC(iC)-NLS,exorH:GFP; hsp:phiC(iC)-NLS,Amp,Clone 3,FALSE,FALSE,FALSE,1,gfp,,
+pDQM112,exorH:mScarlet; hsp:phiC(iC)-NLS,exorH:mScarlet; hsp:phiC(iC)-NLS,Amp,Clone 1,FALSE,FALSE,FALSE,1,mScarlet,,
+pDQM113,exorH:mScarlet; hsp:phiC(iC)-NLS,exorH:mScarlet; hsp:phiC(iC)-NLS,Amp,Clone 2,FALSE,FALSE,FALSE,1,mScarlet,,
+pDQM114,ef1a:mSG:CDT1-P2A-mYH:GMN (iCodon) [FUCCI],ef1a:mSG:CDT1-P2A-mYH:GMN (iCodon) [FUCCI],Amp,clone 2,FALSE,FALSE,FALSE,2,mSG,CDT1,C
+pDQM114,ef1a:mSG:CDT1-P2A-mYH:GMN (iCodon) [FUCCI],ef1a:mSG:CDT1-P2A-mYH:GMN (iCodon) [FUCCI],Amp,clone 2,FALSE,FALSE,FALSE,2,mYH,GMN,C
+pDQM115,SP6:2xLynk:mScarlet3S2,SP6:2xLynk:mScarlet3S2,Amp,Clone 1,FALSE,FALSE,FALSE,1,mScarlet3S2,2xLynk,N
+pDQM116,SP6:2xLynk:mScarlet3S2,SP6:2xLynk:mScarlet3S2,Amp,Clone 2,FALSE,FALSE,FALSE,1,mScarlet3S2,2xLynk,N
+pDQM117,SP6:mScarlet3S2:H2B,SP6:mScarlet3S2:H2B,Amp,Clone 2,FALSE,FALSE,FALSE,1,mScarlet3S2,H2B,N
+pDQM118,SP6:mScarlet3S2:H2B,SP6:mScarlet3S2:H2B,Amp,Clone 3,FALSE,FALSE,FALSE,1,mScarlet3S2,H2B,N
+pDQM119,SP6:mBeRFP:H2B,SP6:mBeRFP:H2B,Amp,Clone 3,FALSE,FALSE,FALSE,1,mBeRFP,H2B,N
+pDQM120,ef1a:linker:mBeRFP:linker-attB,ef1a:linker:mBeRFP:linker-attB,Amp,Clone 1,FALSE,FALSE,FALSE,1,mBeRFP,,
+pDQM121,ef1a:2xLynk:tdmScarlet3-S2-tol2,ef1a:2xLynk:tdmScarlet3-S2-tol2,Amp,Clones 1-4,FALSE,FALSE,FALSE,1,tdmScarlet3,2xLynk,N
+pDQM122,ef1a:skittles 3.5 (2xLynk:mSG-attP-Halo-attP-3FPs),ef1a:skittles 3.5 (2xLynk:mSG-attP-Halo-attP-3FPs),Amp,Clone 3,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM123,ef1a:skittles 3.5 (2xLynk:mSG-attP-Halo-attP-3FPs),ef1a:skittles 3.5 (2xLynk:mSG-attP-Halo-attP-3FPs),Amp,Clone 4,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM124,ef1a:linker:mScarlet3-S2:linker-attB (tol2),ef1a:linker:mScarlet3-S2:linker-attB (tol2),Amp,Clone 1 and 2,FALSE,FALSE,FALSE,1,mScarlet3,,
+pDQM125,ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B,ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B,Amp,clone 65-1,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM126,ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B,ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B,Amp,clone 94-1,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM127,ef1a:skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),ef1a:skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),Amp,Clone 1 & 2,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM128,A2UCOE-ef1a-2xLynk:tdmSG-tol2,A2UCOE-ef1a-2xLynk:tdmSG-tol2,Amp,TBD (missing ~96bp?),FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM129,ef1a-extended-2xLynk:tdmSG-tol2,ef1a-extended-2xLynk:tdmSG-tol2,Amp,Clones 1-4,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM130,,MBP-TEV-phiC-NLS,Amp,TBD,FALSE,FALSE,FALSE,,,,
+pDQM131,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,"Clones 2,3",FALSE,FALSE,FALSE,2,tdmSG,dhb,N
+pDQM131,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmChilada-h2b (pCM268),Amp,"Clones 2,3",FALSE,FALSE,FALSE,2,tdmChilada,h2b,C
+pDQM132,ef1a-extended::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,ef1a-extended::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,Amp,Clones 1-3,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM133,ef1a-extened::tdmScarlet3-S2:H2B-tol2,ef1a-extened::tdmScarlet3-S2:H2B-tol2,Amp,Clones 1-3,FALSE,FALSE,FALSE,1,tdmScarlet3,,
+pDQM134,A2UCOE-ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,A2UCOE-ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,Amp,still missing ~100bp,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM135,A2UCOE-ef1a-2xLynk:tdmSG-tol2,A2UCOE-ef1a-2xLynk:tdmSG-tol2,Amp,still missing ~100bp,FALSE,FALSE,FALSE,1,tdmSG,2xLynk,N
+pDQM136,ef1a-extended:2xLynk:tdmScarlet3-S2-tol2,ef1a-extended:2xLynk:tdmScarlet3-S2-tol2,Amp,clone 3,FALSE,FALSE,FALSE,1,tdmScarlet3,2xLynk,N
+pDQM137,ef1a:-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),ef1a:-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),Amp,clone 3,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM138,SP6:2xLynk:mGold2s,SP6:2xLynk:mGold2s,Amp,TBD,FALSE,FALSE,FALSE,1,mGold2s,2xLynk,N
+pDQM139,SP6:2xLynk:mGold2t,SP6:2xLynk:mGold2t,Amp,TBD,FALSE,FALSE,FALSE,1,mGold2t,2xLynk,N
+pDQM140,ef1a:linker:mGold2s:linker-attB (tol2),ef1a:linker:mGold2s:linker-attB (tol2),Amp,clones 1-3,FALSE,FALSE,FALSE,1,mGold2s,,
+pDQM141,ef1a:linker:mGold2t:linker-attB (tol2),ef1a:linker:mGold2t:linker-attB (tol2),Amp,clones 2-3,FALSE,FALSE,FALSE,1,mGold2t,,
+pDQM142,exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmScarlet3-S2-h2b (pCM268),exorh:gfp-hsp:dhb-tdmSG-tPT2A-tdmScarlet3-S2-h2b (pCM268),Amp,TBD,FALSE,FALSE,FALSE,1,tdmSG,dhb,N
+pDQM143,,SP6:tol2(iCodon),Amp,"Clones 1,2 and 4",FALSE,FALSE,FALSE,,,,
+pDQM144,ef1a:E2Crimson (iCodon),ef1a:E2Crimson (iCodon),Amp,Clones 1-4,FALSE,FALSE,FALSE,1,E2Crimson,,
+pDQM145,ef1a:mCardinal (iCodon),ef1a:mCardinal (iCodon),Amp,Clones 1-4,FALSE,FALSE,FALSE,1,mCardinal,,
+pDQM146,ef1a-extended:linker:mScarlet3-S2:linker-attB (tol2),ef1a-extended:linker:mScarlet3-S2:linker-attB (tol2),Amp,made by Erin (Janelia),FALSE,FALSE,FALSE,1,mScarlet3,,
+pDQM147,ef1a-extended:linker:mStayGold:linker-attB (tol2),ef1a-extended:linker:mStayGold:linker-attB (tol2),Amp,made by Erin (Janelia),FALSE,FALSE,FALSE,1,mStayGold,,
+pDQM148,ef1a-extended:linker:mStayGold-c4:linker-attB (tol2),ef1a-extended:linker:mStayGold-c4:linker-attB (tol2),Amp,made by Erin (Janelia),FALSE,FALSE,FALSE,1,mStayGold,,
+pDQM149,ef1a-extended:linker:Halo:linker-sv40-he1.1-tagbfp2-attB (tol2),ef1a-extended:linker:Halo:linker-sv40-he1.1-tagbfp2-attB (tol2),Amp,made by Erin (Janelia),FALSE,FALSE,FALSE,2,Halo,,
+pDQM149,ef1a-extended:linker:Halo:linker-sv40-he1.1-tagbfp2-attB (tol2),ef1a-extended:linker:Halo:linker-sv40-he1.1-tagbfp2-attB (tol2),Amp,made by Erin (Janelia),FALSE,FALSE,FALSE,2,tagbfp2,,
+pDQM150,ef1a-extended-mSG:CDT1-tPT2A-mYH:GMN (endogenous),ef1a-extended-mSG:CDT1-tPT2A-mYH:GMN (endogenous),Amp,,FALSE,FALSE,FALSE,2,mSG,CDT1,C
+pDQM150,ef1a-extended-mSG:CDT1-tPT2A-mYH:GMN (endogenous),ef1a-extended-mSG:CDT1-tPT2A-mYH:GMN (endogenous),Amp,,FALSE,FALSE,FALSE,2,mYH,GMN,C
+pDQM151,ef1a-extended-mSG:CDT1 (endogenous),ef1a-extended-mSG:CDT1 (endogenous),Amp,Clones 3 & 4,FALSE,FALSE,FALSE,1,mSG,,
+pDQM152,A2UCOE-ef1a-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),A2UCOE-ef1a-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),Amp,,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM153,ef1a-extended::DHB:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,ef1a-extended::DHB:tdmSG:tPT2A:tdmScarlet3-S2:H2B-tol2,Amp,clone 1,FALSE,FALSE,FALSE,1,tdmSG,DHB,N
+pDQM154,ef1a-extened::tdmScarlet3-S2:PCNA-tol2,ef1a-extened::tdmScarlet3-S2:PCNA-tol2,Amp,clone 1 + 2,FALSE,FALSE,FALSE,1,tdmScarlet3,,
+pDQM155,ef1a-extended:DHB:tdmSG-tol2,ef1a-extended:DHB:tdmSG-tol2,Amp,clone 2 + 4,FALSE,FALSE,FALSE,1,tdmSG,DHB,N
+pDQM156,A2UCOE-loxP-ef1a-extended-2xLynk:tdmSc3S2-SV40-lox2272-attB-tol2,A2UCOE-loxP-ef1a-extended-2xLynk:tdmSc3S2-SV40-lox2272-attB-tol2,Amp,,FALSE,FALSE,FALSE,1,tdmSc3S2,2xLynk,N
+pDQM157,A2UCOE-FRT-ef1a-extended-2xLynk:tdmSc3S2-SV40-FRT3-attB-tol2,A2UCOE-FRT-ef1a-extended-2xLynk:tdmSc3S2-SV40-FRT3-attB-tol2,Amp,,FALSE,FALSE,FALSE,1,tdmSc3S2,2xLynk,N
+pDQM158,A2UCOE-ef1a-extened::tdmScarlet3-S2:PCNA-tol2,A2UCOE-ef1a-extened::tdmScarlet3-S2:PCNA-tol2,Amp,TBD,FALSE,FALSE,FALSE,1,tdmScarlet3,,
+pDQM159,A2UCOE-ef1a-extended:DHB:tdmSG-tol2,A2UCOE-ef1a-extended:DHB:tdmSG-tol2,Amp,TBD,FALSE,FALSE,FALSE,1,tdmSG,DHB,N
+pDQM160,ef1a-extended-tdmScarlet3S2::GMN (endogenous),ef1a-extended-tdmScarlet3S2::GMN (endogenous),Amp,clones 1 + 2,FALSE,FALSE,FALSE,1,tdmScarlet3S2,,
+pDQM161,loxP-ubb-mSG-h2b-lox2272,loxP-ubb-mSG-h2b-lox2272,Amp,,FALSE,FALSE,FALSE,1,mSG,h2b,N
+pDQM162,FRT3-ubb-mSG-h2b-FRT,FRT3-ubb-mSG-h2b-FRT,Amp,,FALSE,FALSE,FALSE,1,mSG,h2b,N
+pDQM163,,SP6-SB100x,,,FALSE,FALSE,FALSE,,,,
+pDQM164,A2UCOE-ef1a-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),A2UCOE-ef1a-extended-skittles 4.0 (2xLynk:mSG-attP-Halo-attP-Electra-attP-mBeRFP-attP-mScarlet3-S2-attP-mTFP1),,,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM165,exorH:mScarlet; hsp:phiC(iC)-NLS,exorH:mScarlet; hsp:phiC(iC)-NLS,,,FALSE,FALSE,FALSE,1,mScarlet,,
+pDQM166,exorH:mScarlet; hsp:phiC(iC)-NLS-tPT2A-2xLynk-mSG-ubb,exorH:mScarlet; hsp:phiC(iC)-NLS-tPT2A-2xLynk-mSG-ubb,,,FALSE,FALSE,FALSE,1,mSG,2xLynk,N
+pDQM167,SB-LTR-loxP-ubb-mSG-h2b-SV40-SB-lox2272-LTR,SB-LTR-loxP-ubb-mSG-h2b-SV40-SB-lox2272-LTR,,,FALSE,FALSE,FALSE,1,mSG,h2b,N
+pDQM168,SB-LTR-FRT-ubb-mSG-h2b-SV40-SB-FRT3-LTR,SB-LTR-FRT-ubb-mSG-h2b-SV40-SB-FRT3-LTR,,,FALSE,FALSE,FALSE,1,mSG,h2b,N
+pDQM169,,pTwist-SP6-phiC-ERT2-new,,,FALSE,FALSE,FALSE,,,,
+MGCO-01,ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2,ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,2Xcox8A,N
+MGCO-02,ef1a-2Xcox8A-linker-mChilada-SV40-attb-tol2,ef1a-2Xcox8A-linker-mChilada-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mChilada,2Xcox8A,N
+MGCO-03,ef1a-2Xcox8A-linker-Halo-SV40-attb-tol2,ef1a-2Xcox8A-linker-Halo-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,2Xcox8A,N
+MGCO-04,ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2,ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,sec61b,N
+MGCO-05,ef1a-linker-mChilada-C4linker-sec61b-SV40-attb-tol2,ef1a-linker-mChilada-C4linker-sec61b-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mChilada,sec61b,N
+MGCO-06,ef1a-linker-Halo-sec61b-SV40-attb-tol2,ef1a-linker-Halo-sec61b-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,sec61b,N
+MGCO-07,ef1a-linker-mStayGold-C4linker-GM130-SV40-attb-tol2,ef1a-linker-mStayGold-C4linker-GM130-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-08,ef1a-linker-mChilada-C4linker-GM130-SV40-attb-tol2,ef1a-linker-mChilada-C4linker-GM130-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mChilada,,
+MGCO-09,ef1a-linker-Halo-GM130-SV40-attb-tol2,ef1a-linker-Halo-GM130-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-10,ef1a-TGN46-linker-mStayGold-SV40-attb-tol2,ef1a-TGN46-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-11,ef1a-TGN46-linker-mChilada-SV40-attb-tol2,ef1a-TGN46-linker-mChilada-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mChilada,,
+MGCO-12,ef1a-TGN46-linker-Halo-SV40-attb-tol2,ef1a-TGN46-linker-Halo-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-13,ef1a-linker-mStayGold-C4linker-rab5a-SV40-attb-tol2,ef1a-linker-mStayGold-C4linker-rab5a-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-14,ef1a-linker-Halo-rab5a-SV40-attb-tol2,ef1a-linker-Halo-rab5a-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-15,ef1a-LAMP1-linker-mStayGold-SV40-attb-tol2,ef1a-LAMP1-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,LAMP1,N
+MGCO-16,ef1a-LAMP1-linker-mChilada-SV40-attb-tol2,ef1a-LAMP1-linker-mChilada-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mChilada,LAMP1,N
+MGCO-17,ef1a-Arl13b-linker-mStayGold-SV40-attb-tol2,ef1a-Arl13b-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-18,ef1a-Arl13b-linker-Halo-SV40-attb-tol2,ef1a-Arl13b-linker-Halo-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-19,ef1a-linker-mStayGold-C4linker-alphatubulin-SV40-attb-tol2,ef1a-linker-mStayGold-C4linker-alphatubulin-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-20,ef1a-linker-Halo-linker-alphatubulin-SV40-attb-tol2,ef1a-linker-Halo-linker-alphatubulin-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-21,ef1a-vimentin-linker-mStayGold-SV40-attb-tol2,ef1a-vimentin-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-22,ef1a-vimentin-linker-Halo-linker-SV40-attb-tol2,ef1a-vimentin-linker-Halo-linker-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-23,ef1a-lifeact-linker-mStayGold-SV40-attb-tol2,ef1a-lifeact-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,lifeact,N
+MGCO-24,ef1a-lifeact-linker-Halo-linker-SV40-attb-tol2,ef1a-lifeact-linker-Halo-linker-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,lifeact,N
+MGCO-25,ef1a-linker-mStayGold-C4linker-MYH10-SV40-attb-tol2,ef1a-linker-mStayGold-C4linker-MYH10-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-25,ef1a-linker-mStayGold-C4linker-MYH10-SV40-attb-tol2,ef1a-linker-mStayGold-C4linker-MYH10-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mYH,,
+MGCO-26,ef1a-linker-mChilada-C4linker-MYH10-SV40-attb-tol2,ef1a-linker-mChilada-C4linker-MYH10-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mChilada,,
+MGCO-26,ef1a-linker-mChilada-C4linker-MYH10-SV40-attb-tol2,ef1a-linker-mChilada-C4linker-MYH10-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mYH,,
+MGCO-27,ef1a-extended-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2,ef1a-extended-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,sec61b,N
+MGCO-28,ef1a-extended-2Xcox8A-linker-mStayGold-SV40-attb-tol2,ef1a-extended-2Xcox8A-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,2Xcox8A,N
+MGCO-29,ef1a-extended-linker-mStayGold-C4linker-GM130-SV40-attb-tol2,ef1a-extended-linker-mStayGold-C4linker-GM130-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-30,ef1a-extended-TGN46-linker-mStayGold-SV40-attb-tol2,ef1a-extended-TGN46-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-31,ef1a-extended-LAMP1-linker-mStayGold-SV40-attb-tol2,ef1a-extended-LAMP1-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,LAMP1,N
+MGCO-32,ef1a-extended-linker-mStayGold-C4linker-alphatubulin-SV40-attb-tol2,ef1a-extended-linker-mStayGold-C4linker-alphatubulin-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-33,ef1a-extended-vimentin-linker-mStayGold-SV40-attb-tol2,ef1a-extended-vimentin-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-34,ef1a-extended-lifeact-linker-mStayGold-SV40-attb-tol2,ef1a-extended-lifeact-linker-mStayGold-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,lifeact,N
+MGCO-35,ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2,ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mScarlet3S2,2Xcox8A,N
+MGCO-36,ef1a-extended-linker-mScarlet3S2-sec61b-SV40-attb-tol2,ef1a-extended-linker-mScarlet3S2-sec61b-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mScarlet3S2,sec61b,N
+MGCO-37,ef1a-extended-LAMP1-linker-mScarlet3S2-SV40-attb-tol2,ef1a-extended-LAMP1-linker-mScarlet3S2-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mScarlet3S2,LAMP1,N
+MGCO-38,ef1a-extended-linker-mStayGold-C4linker-MyosinII-SV40-attb-tol2,ef1a-extended-linker-mStayGold-C4linker-MyosinII-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mStayGold,,
+MGCO-39,ef1a-extended-2Xcox8A-linker-Halo-SV40-attb-tol2,ef1a-extended-2Xcox8A-linker-Halo-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,2Xcox8A,N
+MGCO-40,ef1a-extended-linker-Halo-sec61b-SV40-attb-tol2,ef1a-extended-linker-Halo-sec61b-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,sec61b,N
+MGCO-41,ef1a-extended-linker-mScarlet3S2-GM130-SV40-attb-tol2,ef1a-extended-linker-mScarlet3S2-GM130-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mScarlet3S2,,
+MGCO-42,ef1a-extended-linker-Halo-GM130-SV40-attb-tol2,ef1a-extended-linker-Halo-GM130-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-43,ef1a-extended-TGN46-linker-mScarlet3S2-SV40-attb-tol2,ef1a-extended-TGN46-linker-mScarlet3S2-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mScarlet3S2,,
+MGCO-44,ef1a-extended-TGN46-linker-Halo-SV40-attb-tol2,ef1a-extended-TGN46-linker-Halo-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-45,ef1a-extended-linker-Halo-linker-alphatubulin-SV40-attb-tol2,ef1a-extended-linker-Halo-linker-alphatubulin-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-46,ef1a-extended-vimentin-linker-Halo-linker-SV40-attb-tol2,ef1a-extended-vimentin-linker-Halo-linker-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,,
+MGCO-47,ef1a-extended-lifeact-linker-Halo-linker-SV40-attb-tol2,ef1a-extended-lifeact-linker-Halo-linker-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,Halo,lifeact,N
+MGCO-48,ef1a-extended-linker-mScarlet3S2-linker-MyosinII-SV40-attb-tol2,ef1a-extended-linker-mScarlet3S2-linker-MyosinII-SV40-attb-tol2,,,FALSE,FALSE,FALSE,,mScarlet3S2,,
+HC-9,HC-9 Lifeact:mStayGold,HC-9 Lifeact:mStayGold,,,FALSE,FALSE,FALSE,,mStayGold,lifeact,N
+Swinburne,,,,,,,,,Halo,,

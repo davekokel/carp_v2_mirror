@@ -1,6 +1,7 @@
 BEGIN;
 
 -- v_tanks_overview: one row per tank, enriched with resident fish + genotype/treatment summary
+DROP VIEW IF EXISTS public.v_tanks_overview;
 CREATE OR REPLACE VIEW public.v_tanks_overview AS
 WITH resident AS (
   SELECT
