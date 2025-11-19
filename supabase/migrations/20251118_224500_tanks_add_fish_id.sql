@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE public.tanks
+ADD COLUMN IF NOT EXISTS fish_id uuid;
+
+COMMIT;
