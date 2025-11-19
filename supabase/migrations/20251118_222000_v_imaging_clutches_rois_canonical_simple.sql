@@ -32,7 +32,7 @@ SELECT
   r.birthday,
   r.genetic_background,
 
-  r.genotype_pretty,
+  NULL::text                 AS genotype_pretty,
   NULL::text                 AS genotype_base_codes,
   NULL::text                 AS genotype_alleles_pretty,
   NULL::text                 AS genotype_marker_fluors,
