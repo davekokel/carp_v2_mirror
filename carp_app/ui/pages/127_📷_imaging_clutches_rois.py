@@ -73,15 +73,15 @@ with st.form("clutch_roi_filters", clear_on_submit=False):
 
     with c1:
         clutch_q_raw = st.text_input(
-            "Clutch code / parents / treatment",
+            "Clutch code / parents / fish / ROI",
             "",
-            help="Matches clutch_code, ZF female/male genotype text, treatment codes/text.",
+            help="Matches clutch_code, parent text, fish_code, roi_name.",
         )
     with c2:
         marker_q_raw = st.text_input(
-            "Marker (fluor/tag substring)",
+            "Marker (fluor substring)",
             "",
-            help="Matches treatment marker fluor/tag codes (if/when populated).",
+            help="Matches all_marker_fluor_codes (e.g. 'mStayGold', 'Halo', 'tdmSG').",
         )
     with c3:
         date_from = st.date_input(
@@ -112,11 +112,11 @@ if clutch_q:
     where_clauses.append(
         """
         (
-          c.clutch_code ILIKE :clutch_q
-          OR COALESCE(c.zf_female_genotype_text, '') ILIKE :clutch_q
-          OR COALESCE(c.zf_male_genotype_text, '') ILIKE :clutch_q
-          OR COALESCE(r.treat_code, '') ILIKE :clutch_q
-          OR COALESCE(r.treat_text, '') ILIKE :clutch_q
+          COALESCE(r.clutch_code, '')             ILIKE :clutch_q
+          OR COALESCE(r.zf_female_genotype_text,'') ILIKE :clutch_q
+          OR COALESCE(r.zf_male_genotype_text,'')   ILIKE :clutch_q
+          OR COALESCE(r.fish_code,'')               ILIKE :clutch_q
+          OR COALESCE(r.roi_name,'')                ILIKE :clutch_q
         )
         """
     )
@@ -125,16 +125,13 @@ if marker_q:
     params["marker_q"] = f"%{marker_q}%"
     where_clauses.append(
         """
-        (
-          COALESCE(r.treatment_marker_fluor_codes, '') ILIKE :marker_q
-          OR COALESCE(r.treatment_marker_tag_codes, '') ILIKE :marker_q
-        )
+        COALESCE(r.all_marker_fluor_codes,'') ILIKE :marker_q
         """
     )
 
 if date_from is not None:
     params["date_from"] = date_from
-    where_clauses.append("c.clutch_date >= :date_from")
+    where_clauses.append("r.clutch_date >= :date_from")
 
 where_sql = " AND ".join(where_clauses)
 
@@ -151,53 +148,33 @@ with eng.begin() as cx:
     sql = text(
         f"""
         SELECT
-          c.clutch_code,
-          c.clutch_date,
-          c.date_born,
-          c.zf_female_genotype_text,
-          c.zf_male_genotype_text,
-          r.experimental_plate_id,
-          r.experimental_slot_id,
-          r.plate_index,
-          r.slot_index,
-          r.slot_index_global,
+          r.clutch_code,
+          r.clutch_date,
+          r.estimated_egg_count,
+          r.membership_date_born,
+          r.zf_female_genotype_text,
+          r.zf_male_genotype_text,
           r.data_location,
 
           r.imaging_roi_id,
-          r.roi_index,
-          r.roi_name,
-          r.data_path,
           r.plate_code,
           r.slot_label,
           r.fish_code,
-          r.fish_nickname,
-          r.birthday,
-          r.genetic_background,
-
-          r.genotype_pretty,
-          r.genotype_base_codes,
-          r.genotype_alleles_pretty,
-          r.genotype_marker_fluors,
-          r.genotype_marker_tags,
-
-          r.treat_code,
-          r.treat_text,
-          r.treatment_plasmid_base_codes,
-          r.treatment_rna_base_codes,
-          r.treatment_dye_base_codes,
-          r.treatment_marker_fluor_codes,
-          r.treatment_marker_tag_codes
+          r.roi_name,
+          r.roi_parent_female,
+          r.roi_parent_male,
+          r.roi_birthday,
+          r.all_marker_fluor_codes,
+          r.data_path
 
         FROM public.v_imaging_clutches_rois AS r
-        JOIN public.clutches AS c
-          ON c.id = r.clutch_id
         WHERE {where_sql}
         ORDER BY
-          c.clutch_code,
-          c.clutch_date,
+          r.clutch_code,
+          r.clutch_date,
           r.plate_code,
           r.slot_label,
-          r.roi_index
+          r.imaging_roi_id
         LIMIT :lim
         """
     )
@@ -215,42 +192,24 @@ ro = df.copy()
 ro.insert(0, "✓ Select", False)
 
 column_config = {
-    "clutch_code":              st.column_config.TextColumn("Clutch", disabled=True),
-    "clutch_date":              st.column_config.DateColumn("Clutch date", disabled=True),
-    "date_born":                st.column_config.DateColumn("Date born", disabled=True),
-    "zf_female_genotype_text":  st.column_config.TextColumn("Female genotype (sheet)", disabled=True),
-    "zf_male_genotype_text":    st.column_config.TextColumn("Male genotype (sheet)", disabled=True),
-    "experimental_plate_id":    st.column_config.TextColumn("Exp plate ID", disabled=True),
-    "experimental_slot_id":     st.column_config.TextColumn("Exp slot ID", disabled=True),
-    "plate_index":              st.column_config.NumberColumn("Plate idx", disabled=True),
-    "slot_index":               st.column_config.NumberColumn("Slot idx", disabled=True),
-    "slot_index_global":        st.column_config.NumberColumn("Global slot idx", disabled=True),
-    "data_location":            st.column_config.TextColumn("Data location (sheet)", disabled=True),
+    "clutch_code":        st.column_config.TextColumn("Clutch", disabled=True),
+    "clutch_date":        st.column_config.DateColumn("Clutch date", disabled=True),
+    "estimated_egg_count": st.column_config.NumberColumn("ROI count (inferred)", disabled=True),
+    "membership_date_born": st.column_config.DateColumn("Membership date_born", disabled=True),
+    "zf_female_genotype_text": st.column_config.TextColumn("Female genotype (legacy)", disabled=True),
+    "zf_male_genotype_text":   st.column_config.TextColumn("Male genotype (legacy)", disabled=True),
+    "data_location":      st.column_config.TextColumn("Data location (sheet / ROI dir)", disabled=True),
 
-    "imaging_roi_id":           st.column_config.TextColumn("ROI ID", disabled=True),
-    "roi_index":                st.column_config.NumberColumn("ROI #", disabled=True),
-    "roi_name":                 st.column_config.TextColumn("ROI name", disabled=True),
-    "data_path":                st.column_config.TextColumn("Data path", disabled=True),
-    "plate_code":               st.column_config.TextColumn("Plate code", disabled=True),
-    "slot_label":               st.column_config.TextColumn("Slot label", disabled=True),
-    "fish_code":                st.column_config.TextColumn("Fish code", disabled=True),
-    "fish_nickname":            st.column_config.TextColumn("Fish nickname", disabled=True),
-    "birthday":                 st.column_config.DateColumn("Fish DOB", disabled=True),
-    "genetic_background":       st.column_config.TextColumn("Background", disabled=True),
-
-    "genotype_pretty":          st.column_config.TextColumn("Genotype (view)", disabled=True),
-    "genotype_base_codes":      st.column_config.TextColumn("Genotype codes", disabled=True),
-    "genotype_alleles_pretty":  st.column_config.TextColumn("Genotype alleles", disabled=True),
-    "genotype_marker_fluors":   st.column_config.TextColumn("Genotype markers (fluors)", disabled=True),
-    "genotype_marker_tags":     st.column_config.TextColumn("Genotype markers (tags)", disabled=True),
-
-    "treat_code":               st.column_config.TextColumn("Treatment code", disabled=True),
-    "treat_text":               st.column_config.TextColumn("Treatment description", disabled=True),
-    "treatment_plasmid_base_codes": st.column_config.TextColumn("Plasmid base codes", disabled=True),
-    "treatment_rna_base_codes":     st.column_config.TextColumn("RNA base codes", disabled=True),
-    "treatment_dye_base_codes":     st.column_config.TextColumn("Dye base codes", disabled=True),
-    "treatment_marker_fluor_codes": st.column_config.TextColumn("Treatment markers (fluors)", disabled=True),
-    "treatment_marker_tag_codes":   st.column_config.TextColumn("Treatment markers (tags)", disabled=True),
+    "imaging_roi_id":     st.column_config.TextColumn("ROI ID", disabled=True),
+    "plate_code":         st.column_config.TextColumn("Plate", disabled=True),
+    "slot_label":         st.column_config.TextColumn("Slot", disabled=True),
+    "fish_code":          st.column_config.TextColumn("Fish code", disabled=True),
+    "roi_name":           st.column_config.TextColumn("ROI name", disabled=True),
+    "roi_parent_female":  st.column_config.TextColumn("ROI parent female", disabled=True),
+    "roi_parent_male":    st.column_config.TextColumn("ROI parent male", disabled=True),
+    "roi_birthday":       st.column_config.DateColumn("ROI birthday", disabled=True),
+    "all_marker_fluor_codes": st.column_config.TextColumn("Markers (fluors)", disabled=True),
+    "data_path":          st.column_config.TextColumn("Data path", disabled=True),
 }
 
 ro_view = st.data_editor(
