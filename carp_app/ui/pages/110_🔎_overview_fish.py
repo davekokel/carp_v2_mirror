@@ -1,15 +1,15 @@
+# carp_app/ui/pages/110_🔎_overview_fish.py
 from __future__ import annotations
 
 import os
 import sys
 import pathlib
-from typing import Optional, List
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
-from sqlalchemy import text, bindparam
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
 
 # ───────── repo path/bootstrap ─────────
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
 from carp_app.lib.time import utc_now
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
+
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
@@ -38,7 +39,10 @@ st.set_page_config(
     page_icon="🔎",
     layout="wide",
 )
+st.title("🔎 Search Fish → Tanks")
 
+
+# ───────── engine helpers ─────────
 @st.cache_resource(show_spinner=False)
 def _cached_engine() -> Engine:
     url = os.getenv("DB_URL", "")
@@ -46,260 +50,240 @@ def _cached_engine() -> Engine:
         return _direct_engine()
     return _create_engine()
 
+
 def _get_engine() -> Engine:
     return _cached_engine()
 
+
 # ───────── helpers ─────────
-def _normalize_q(q_raw: str) -> Optional[str]:
+def _normalize_q(q_raw: str | None) -> Optional[str]:
     q = (q_raw or "").strip()
     return q or None
 
-def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
+
+def _coerce_strings(df: pd.DataFrame | None) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
     for c in df.select_dtypes(include=["object", "string"]).columns:
         df[c] = df[c].astype("string").fillna("")
     return df
 
-def _table_exists(schema: str, table: str) -> bool:
-    sql = text("""
-      SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = :s AND table_name = :t
-      )
-    """)
-    with _get_engine().begin() as cx:
-        return bool(cx.execute(sql, {"s": schema, "t": table}).scalar())
 
-# ───────── data loaders ─────────
+# ───────── v8 fish overview query ─────────
 def _load_fish_overview(q: Optional[str], limit: int) -> pd.DataFrame:
     """
-    v8: Load fish directly from public.fish_instance.
+    v8 fish overview built from:
 
-    We no longer rely on public.v_fish_overview; this keeps the page
-    working even when v_fish_overview is absent.
+      - public.fish_instance
+      - public.genotype_transgene_alleles
+      - public.transgene_alleles
+
+    using fish_instance.standard_genotype_code as the link into genotypes.
     """
-    sql = text("""
-      SELECT
-        id::text           AS fish_id,
-        fish_code,
-        nickname,
-        genetic_background,
-        line_building_stage,
-        birthday,
-        created_at
-      FROM public.fish_instance
-      WHERE (:q IS NULL)
-         OR fish_code              ILIKE :q
-         OR COALESCE(nickname,'')  ILIKE :q
-         OR COALESCE(genetic_background,'') ILIKE :q
-         OR COALESCE(line_building_stage,'') ILIKE :q
-      ORDER BY created_at DESC NULLS LAST, fish_code
-      LIMIT :lim
-    """)
-    params = {"q": (f"%{q}%" if q else None), "lim": int(limit)}
+
+    sql = text(
+        """
+        WITH base AS (
+          SELECT
+            f.id,
+            f.fish_code,
+            f.nickname,
+            f.genetic_background,
+            f.line_building_stage,
+            f.birthday,
+            f.created_at,
+            f.standard_genotype_code AS genotype_code
+          FROM public.fish_instance f
+        ),
+        alleles AS (
+          SELECT
+            gta.genotype_code,
+            string_agg(
+              DISTINCT gta.transgene_base_code,
+              ', ' ORDER BY gta.transgene_base_code
+            ) AS genotype_base_codes,
+            string_agg(
+              'Tg(' || gta.transgene_base_code || ')' ||
+              COALESCE(
+                NULLIF(ta.allele_name, ''),
+                'gu' || gta.allele_number::text
+              ),
+              '; ' ORDER BY gta.transgene_base_code, gta.allele_number
+            ) AS genotype_alleles_pretty
+          FROM public.genotype_transgene_alleles gta
+          LEFT JOIN public.transgene_alleles ta
+            ON ta.transgene_base_code = gta.transgene_base_code
+           AND ta.allele_number       = gta.allele_number
+          GROUP BY gta.genotype_code
+        ),
+        joined AS (
+          SELECT
+            b.id,
+            b.fish_code,
+            b.nickname,
+            b.genetic_background,
+            b.line_building_stage,
+            b.birthday,
+            b.created_at,
+            b.genotype_code,
+            a.genotype_base_codes,
+            a.genotype_alleles_pretty,
+            a.genotype_alleles_pretty AS genotype_pretty,
+            NULL::text AS genotype_fluors,
+            COALESCE(a.genotype_base_codes, '') AS all_base_codes,
+            NULL::text AS all_fluors
+          FROM base b
+          LEFT JOIN alleles a
+            ON a.genotype_code = b.genotype_code
+        )
+        SELECT *
+        FROM joined
+        WHERE (
+          :q IS NULL
+          OR fish_code                        ILIKE :ql
+          OR COALESCE(nickname,'')           ILIKE :ql
+          OR COALESCE(genetic_background,'') ILIKE :ql
+          OR COALESCE(line_building_stage,'')ILIKE :ql
+          OR COALESCE(genotype_pretty,'')    ILIKE :ql
+          OR COALESCE(genotype_alleles_pretty,'') ILIKE :ql
+          OR COALESCE(genotype_base_codes,'')     ILIKE :ql
+          OR COALESCE(all_base_codes,'')          ILIKE :ql
+          OR COALESCE(all_fluors,'')              ILIKE :ql
+        )
+        ORDER BY created_at DESC NULLS LAST, fish_code
+        LIMIT :lim
+        """
+    )
+
+    qnorm = _normalize_q(q)
+    params = {
+        "q": qnorm,
+        "ql": f"%{qnorm}%" if qnorm else None,
+        "lim": int(limit),
+    }
+
     with _get_engine().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
+
     return _coerce_strings(df)
 
-def _fetch_enriched_for_containers(container_ids: List[str]) -> pd.DataFrame:
-    """
-    Given a list of tank container UUIDs, return enriched tank records.
 
-    v8: join back to public.fish_instance instead of v_fish_overview to
-    avoid depending on a missing view. Genotype-related fields are
-    currently left empty.
-    """
-    ids = [x for x in (container_ids or []) if x]
-    if not ids:
-        return pd.DataFrame()
+# ───────── page body ─────────
+def main() -> None:
+    st.caption(f"DB_URL = {os.getenv('DB_URL', '')}")
 
-    use_view = _table_exists("public", "v_tanks")
-    src_table = "public.v_tanks" if use_view else "public.tanks"
-    id_col   = "tank_uuid" if use_view else "id"
-
-    sql = text(f"""
-      WITH picked AS (
-        SELECT unnest(:ids) AS container_id
-      ),
-      vt AS (
-        SELECT
-            v.{id_col}::uuid AS tank_id,
-            v.tank_code::text AS tank_code,
-            regexp_replace(v.tank_code, '^.*\\(([^)]+)\\).*$', '\\1')::text AS fish_code,
-            COALESCE(CAST(v.status AS text), ''::text) AS status,
-            v.created_at::timestamptz AS created_at,
-            split_part(v.tank_code, '#', 2) AS tank_num
-        FROM {src_table} v
-      ),
-      vf AS (
-        SELECT
-            f.fish_code                         AS fish_code,
-            COALESCE(f.nickname,'')             AS nickname,
-            COALESCE(f.genetic_background,'')   AS genetic_background,
-            COALESCE(f.line_building_stage,'')  AS stage,
-            f.birthday::date                    AS dob,
-            ''::text                            AS genotype,
-            ''::text                            AS transgene_pretty,
-            ''::text                            AS genotype_nickname
-        FROM public.fish_instance f
-      )
-      SELECT
-        p.container_id::text AS container_id,
-        vt.tank_code,
-        vt.status,
-        vt.fish_code,
-        vf.nickname AS name,
-        vf.nickname AS nickname,
-        ''::text    AS alias,
-        CASE
-          WHEN vt.tank_num IS NOT NULL AND vt.tank_num <> ''
-            THEN 'TANK(' || vt.fish_code || ')#' || vt.tank_num
-            ELSE vt.tank_code
-        END AS tank_display,
-        vf.genotype,
-        vf.transgene_pretty,
-        vf.genotype_nickname,
-        vf.genetic_background,
-        vf.stage,
-        vf.dob
-      FROM picked p
-      JOIN vt ON vt.tank_id = p.container_id
-      LEFT JOIN vf ON vf.fish_code = vt.fish_code
-      ORDER BY vt.created_at ASC, vt.tank_code ASC
-    """).bindparams(bindparam("ids", type_=ARRAY(UUID(as_uuid=True))))
-
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"ids": ids})
-    return _coerce_strings(df)
-
-def _load_tanks_for_codes(codes: List[str]) -> pd.DataFrame:
-    if not codes:
-        return pd.DataFrame(
-            columns=["fish_code", "tank_code", "status", "created_at", "container_id"]
-        )
-    use_view = _table_exists("public", "v_tanks")
-    src_table = "public.v_tanks" if use_view else "public.tanks"
-    id_col   = "tank_uuid" if use_view else "id"
-
-    sql = text(f"""
-      SELECT
-        v.{id_col}::text  AS container_id,
-        v.tank_code::text AS tank_code,
-        COALESCE(CAST(v.status AS text), ''::text) AS status,
-        regexp_replace(v.tank_code, '^.*\\(([^)]+)\\).*$', '\\1')::text AS fish_code,
-        v.created_at::timestamptz AS created_at
-      FROM {src_table} v
-      WHERE regexp_replace(v.tank_code, '^.*\\(([^)]+)\\).*$', '\\1') = ANY(:codes)
-      ORDER BY v.created_at ASC, v.tank_code ASC
-    """)
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"codes": codes})
-    return _coerce_strings(df)
-
-# ───────── page ─────────
-def main():
-    st.title("🔎 Search Fish → Tanks")
-    st.caption(f"DB_URL = {os.getenv('DB_URL','')}")
-
+    # ── filters ──
     with st.container():
         c1, c2 = st.columns([3, 1])
         with c1:
             q_raw = st.text_input(
-                "Search (code / nickname / background / genotype / alleles / fluors / tags)",
+                "Search (code / nickname / background / genotype / alleles / fluors)",
                 "",
             )
         with c2:
             limit = int(
-                st.number_input("Limit", min_value=1, max_value=5000, value=500, step=100)
+                st.number_input(
+                    "Limit",
+                    min_value=1,
+                    max_value=5000,
+                    value=500,
+                    step=100,
+                )
             )
-        q = _normalize_q(q_raw)
 
+    q = _normalize_q(q_raw)
     df = _load_fish_overview(q, limit)
+
     if df.empty:
         st.info("No fish match your search.")
         return
 
-    st.subheader(f"Fish ({len(df)} rows)")
-    table = df.copy()
-    table.insert(0, "✓ Select", False)
+    # ── main fish table ──
+    st.subheader(f"Fish ({len(df)} row(s))")
 
-    fish_table = st.data_editor(
-        table,
-        hide_index=True,
-        width="stretch",
-        key="fish_table_v8",
-    )
+    view = df.copy()
+    view.insert(0, "✓ Select", False)
 
-    st.subheader("Tanks for selected fish")
-    selected_codes = (
-        fish_table.loc[fish_table["✓ Select"], "fish_code"]
-        .dropna()
-        .astype(str)
-        .tolist()
-        if isinstance(fish_table, pd.DataFrame) and "✓ Select" in fish_table.columns
-        else []
-    )
-    if not selected_codes:
-        st.info("Select at least one fish.")
-        st.stop()
-
-    tdf = _load_tanks_for_codes(selected_codes)
-    if tdf.empty:
-        st.info("No tanks for selected fish.")
-        st.stop()
-
-    tview = tdf.copy()
-    tview.insert(0, "✓ Print", False)
-    tanks_table = st.data_editor(
-        tview,
+    fish_view = st.data_editor(
+        view,
+        key="overview_fish_v8",
         width="stretch",
         hide_index=True,
-        key="tank_table",
+        column_config={
+            "✓ Select":                    st.column_config.CheckboxColumn("✓", default=False),
+            "fish_code":                   st.column_config.TextColumn("Fish code", disabled=True),
+            "nickname":                    st.column_config.TextColumn("Nickname", disabled=True),
+            "genetic_background":          st.column_config.TextColumn("Background", disabled=True),
+            "line_building_stage":         st.column_config.TextColumn("Line stage", disabled=True),
+            "birthday":                    st.column_config.DateColumn("Birthday", disabled=True),
+            "genotype_code":               st.column_config.TextColumn("Genotype code", disabled=True),
+            "genotype_pretty":             st.column_config.TextColumn("Genotype (pretty)", disabled=True),
+            "genotype_alleles_pretty":     st.column_config.TextColumn("Alleles (pretty)", disabled=True),
+            "genotype_base_codes":         st.column_config.TextColumn("Genotype base codes", disabled=True),
+            "genotype_fluors":             st.column_config.TextColumn("Genotype fluors", disabled=True),
+            "all_base_codes":              st.column_config.TextColumn("All base codes", disabled=True),
+            "all_fluors":                  st.column_config.TextColumn("All fluors", disabled=True),
+            "created_at":                  st.column_config.DatetimeColumn("Created at", disabled=True),
+        },
     )
 
-    chosen = (
-        tanks_table.loc[tanks_table["✓ Print"] == True]
-        if isinstance(tanks_table, pd.DataFrame) and "✓ Print" in tanks_table.columns
+    # ───────── pivot for selected fish ─────────
+    st.divider()
+    st.subheader("Pivot: selected fish (expanded fields)")
+
+    selected = (
+        fish_view.loc[fish_view["✓ Select"] == True].copy()
+        if isinstance(fish_view, pd.DataFrame) and "✓ Select" in fish_view.columns
         else pd.DataFrame()
     )
-    st.caption(f"{len(chosen)} tank(s) selected")
 
-    if chosen.empty:
-        st.stop()
+    if selected.empty:
+        st.caption("Select one or more fish above to see a field-by-field pivot.")
+    else:
+        # identify id columns (kept as-is)
+        id_cols: list[str] = []
+        for c in ("fish_code", "id"):
+            if c in selected.columns:
+                id_cols.append(c)
 
-    # Enrich selected tanks → edf
-    ids = chosen["container_id"].astype(str).tolist()
-    edf = _fetch_enriched_for_containers(ids)
-    if edf.empty:
-        st.info("No enriched tank data found.")
-        st.stop()
+        value_cols = [c for c in selected.columns if c not in id_cols + ["✓ Select"]]
 
-    # ───────── Pivot view of all fields ─────────
-    st.subheader("Pivot: fields linked to selected tank(s)")
+        tidy = (
+            selected[id_cols + value_cols]
+            .melt(
+                id_vars=id_cols,
+                value_vars=value_cols,
+                var_name="field",
+                value_name="value",
+            )
+            .sort_values(id_cols + ["field"])
+            .reset_index(drop=True)
+        )
 
-    pivot_id_cols = [c for c in ["container_id", "tank_code"] if c in edf.columns]
-    value_cols = [c for c in edf.columns if c not in pivot_id_cols]
+        st.dataframe(tidy, hide_index=True, width="stretch")
+        st.download_button(
+            "⬇︎ Download field pivot for selected fish (CSV)",
+            data=tidy.to_csv(index=False).encode("utf-8"),
+            file_name=f"fish_field_pivot_{len(selected)}fish_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
+            type="secondary",
+            use_container_width=True,
+        )
 
-    tidy = edf[pivot_id_cols + value_cols].melt(
-        id_vars=pivot_id_cols,
-        value_vars=value_cols,
-        var_name="field",
-        value_name="value",
-    ).reset_index(drop=True)
+    # ───────── export main table ─────────
+    st.divider()
+    st.subheader("Export")
 
-    sort_keys = [k for k in ("tank_code", "field") if k in tidy.columns]
-    tidy = tidy.sort_values(by=sort_keys or ["field"])
+    st.caption(f"Selected rows: {len(selected)}")
 
-    st.dataframe(tidy, width="stretch", hide_index=True)
     st.download_button(
-        "⬇︎ Download tank field pivot",
-        data=tidy.to_csv(index=False).encode("utf-8"),
-        file_name=f"tanks_field_pivot_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
+        "⬇︎ Download current fish table (CSV)",
+        data=df.to_csv(index=False).encode("utf-8"),
+        file_name=f"fish_overview_{len(df)}_rows_{utc_now().strftime('%Y%m%d_%H%M%S')}.csv",
         type="secondary",
-        width="stretch",
+        mime="text/csv",
+        use_container_width=True,
     )
+
 
 if __name__ == "__main__":
     main()
