@@ -1,130 +1,144 @@
 from __future__ import annotations
-import os
-from pathlib import Path
+
+import argparse
+import sys
+import pathlib
+from typing import List, Dict, Any
 
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+# ---- repo bootstrap ---------------------------------------------------------
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from carp_app.ui.lib.page_engine import engine as get_engine  # type: ignore
+
+DEFAULT_BATCH_ID = "legacy_clutch_inference_2025-11-18"
 
 
-BASE = Path(__file__).resolve().parents[1]
-CSV_PATH = BASE / "seed_kits" / "legacy_wrangling" / "working" / "legacy_clutches.csv"
+def _load_legacy_clutches_csv(path: pathlib.Path) -> pd.DataFrame:
+    if not path.exists():
+        raise FileNotFoundError(f"legacy clutches CSV not found: {path}")
+    df = pd.read_csv(path)
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
+
+def _prepare_payload(df: pd.DataFrame, batch: str) -> List[Dict[str, Any]]:
+    required = {"clutch_code", "date_born", "roi_count"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"legacy_clutches.csv is missing required columns: {sorted(missing)}"
+        )
+
+    rows: List[Dict[str, Any]] = []
+    for _, row in df.iterrows():
+        clutch_code = str(row["clutch_code"]).strip()
+        if not clutch_code:
+            continue
+
+        date_born = row.get("date_born")
+        clutch_date = None
+        if pd.notna(date_born) and str(date_born).strip():
+            clutch_date = str(date_born)
+
+        roi_count = row.get("roi_count")
+        try:
+            egg_count = int(roi_count) if pd.notna(roi_count) else None
+        except Exception:
+            egg_count = None
+
+        notes = f"legacy_imaging; roi_count={roi_count}"
+
+        rows.append(
+            {
+                "clutch_code": clutch_code,
+                "clutch_date": clutch_date,
+                "estimated_egg_count": egg_count,
+                "notes": notes,
+                "source_system": "legacy_imaging",
+                "import_batch_id": batch,
+            }
+        )
+
+    return rows
+
+
+def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> None:
+    if not rows:
+        print("[WARN] loader_legacy_clutches: no rows to insert.")
+        return
+
+    delete_memberships_sql = text(
+        "DELETE FROM public.imaging_clutch_memberships"
+    )
+
+    delete_clutches_sql = text(
+        """
+        DELETE FROM public.clutches
+        WHERE source_system = 'legacy_imaging'
+          AND import_batch_id = :batch
+        """
+    )
+
+    insert_sql = text(
+        """
+        INSERT INTO public.clutches (
+          clutch_code,
+          clutch_date,
+          estimated_egg_count,
+          notes,
+          source_system,
+          import_batch_id
+        )
+        VALUES (
+          :clutch_code,
+          :clutch_date,
+          :estimated_egg_count,
+          :notes,
+          :source_system,
+          :import_batch_id
+        )
+        """
+    )
+
+    with engine.begin() as cx:
+        cx.execute(delete_memberships_sql)
+        cx.execute(delete_clutches_sql, {"batch": batch})
+        cx.execute(insert_sql, rows)
+
+    print(
+        f"[OK] Inserted {len(rows)} legacy clutch row(s) "
+        f"for batch='{batch}'."
+    )
 
 
 def main() -> None:
-    db_url = os.environ.get("DB_URL")
-    if not db_url:
-        raise SystemExit("DB_URL is not set")
+    parser = argparse.ArgumentParser(
+        description="Load inferred legacy clutches into public.clutches (v8)."
+    )
+    parser.add_argument(
+        "--csv",
+        default="seed_kits/legacy_wrangling/working/legacy_clutches.csv",
+        help="Path to legacy_clutches.csv",
+    )
+    parser.add_argument(
+        "--batch",
+        default=DEFAULT_BATCH_ID,
+        help="import_batch_id label to use for this load",
+    )
+    args = parser.parse_args()
 
-    if not CSV_PATH.exists():
-        raise SystemExit(f"CSV not found: {CSV_PATH}")
+    path = pathlib.Path(args.csv)
+    df = _load_legacy_clutches_csv(path)
+    rows = _prepare_payload(df, args.batch)
 
-    df = pd.read_csv(CSV_PATH)
-
-    required = {"clutch_code", "date_born"}
-    missing = required - set(df.columns)
-    if missing:
-        raise SystemExit(f"legacy_clutches.csv missing required columns: {sorted(missing)}")
-
-    if "import_batch_id" in df.columns and df["import_batch_id"].notna().any():
-        import_batch_id = str(df["import_batch_id"].dropna().iloc[0])
-    else:
-        import_batch_id = "legacy_clutch_inference_2025-11-18"
-
-    engine = create_engine(db_url)
-
-    with engine.begin() as cx:
-        cx.execute(
-            text(
-                """
-                ALTER TABLE public.clutches
-                ADD COLUMN IF NOT EXISTS source_system text
-                """
-            )
-        )
-        cx.execute(
-            text(
-                """
-                ALTER TABLE public.clutches
-                ADD COLUMN IF NOT EXISTS import_batch_id text
-                """
-            )
-        )
-
-        cx.execute(
-            text(
-                """
-                DELETE FROM public.clutches
-                WHERE source_system = 'legacy_imaging'
-                  AND import_batch_id = :batch
-                """
-            ),
-            {"batch": import_batch_id},
-        )
-        print(f"[INFO] Deleted existing legacy clutches for import_batch_id={import_batch_id!r}.")
-
-        inserted = 0
-        with_missing_date = 0
-
-        for _, row in df.iterrows():
-            clutch_code = row.get("clutch_code")
-            date_born = row.get("date_born")
-
-            if pd.isna(date_born):
-                print(f"[WARN] Inserting legacy clutch {clutch_code!r} with UNKNOWN date_born (clutch_date=NULL).")
-                clutch_date = None
-                with_missing_date += 1
-            else:
-                clutch_date = date_born
-
-            payload = {
-                "clutch_code": clutch_code,
-                "clutch_date": clutch_date,  # may be None
-                "estimated_egg_count": row.get("roi_count"),
-                "genotype_cross_label": None,
-                "genotype_base_codes": None,
-                "genotype_allele_codes": None,
-                "genotype_pretty": None,
-                "notes": f"legacy_imaging; roi_count={row.get('roi_count')}",
-                "source_system": "legacy_imaging",
-                "import_batch_id": import_batch_id,
-            }
-
-            cx.execute(
-                text(
-                    """
-                    INSERT INTO public.clutches (
-                        clutch_code,
-                        clutch_date,
-                        estimated_egg_count,
-                        genotype_cross_label,
-                        genotype_base_codes,
-                        genotype_allele_codes,
-                        genotype_pretty,
-                        notes,
-                        source_system,
-                        import_batch_id
-                    )
-                    VALUES (
-                        :clutch_code,
-                        :clutch_date,
-                        :estimated_egg_count,
-                        :genotype_cross_label,
-                        :genotype_base_codes,
-                        :genotype_allele_codes,
-                        :genotype_pretty,
-                        :notes,
-                        :source_system,
-                        :import_batch_id
-                    )
-                    """
-                ),
-                payload,
-            )
-            inserted += 1
-
-        print(f"[OK] Inserted {inserted} legacy clutch row(s) for batch={import_batch_id!r}.")
-        if with_missing_date:
-            print(f"[WARN] {with_missing_date} clutch(es) inserted with NULL clutch_date (unknown date_born).")
+    engine = get_engine()
+    _upsert_clutches(engine, rows, args.batch)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,17 @@
+roi_dir,transgene_base_code,allele_number,injection_type,mapping_note
+/clusterfs/vast/abcabc/Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/er_roi1,MGCO-04,0,mRNA,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/er_roi1,MGCO-01,0,mRNA,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/mito_roi1,MGCO-04,0,,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/mito_roi1,MGCO-01,0,,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/mito_roi2,MGCO-04,0,,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/mito_roi2,MGCO-01,0,,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20250723_er-mSG_mem-mChilada/fish1_24hpf_roi1,MGCO-04,0,mRNA,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20250723_er-mSG_mem-mChilada/fish1_24hpf_roi1,MGCO-01,0,mRNA,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20251002_mem_mito/fish10_24hpf_roi1,MGCO-01,0,mRNA,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi1_brain,MGCO-01,0,mRNA,ok
+/clusterfs/vast/abcabc/Aang_Foundation/20251107_mem-kinectocore/fish1_72hpf_roi1,MGCO-57,0,mRNA,unknown_plasmid_code:MGCO-57
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251028_peroxi/roi1_560_10ms,MGCO-49,0,mRNA,unknown_plasmid_code:MGCO-49
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251029_peroxi/fish1_roi1,MGCO-49,0,mRNA,unknown_plasmid_code:MGCO-49
+/clusterfs/vast/abcabc/Korra_Foundation/20250620_mitomSG/fish1_roi1,MGCO-01,0,mRNA,ok
+/clusterfs/vast/abcabc/Korra_Foundation/20250724_mem-mchilada_er-mSG/fish1_24hpf/roi1,MGCO-01,0,mRNA,ok
+/clusterfs/vast/abcabc/Korra_Foundation/20250724_mem-mchilada_er-mSG/fish1_24hpf/roi1,MGC)-04,0,mRNA,unknown_plasmid_code:MGC)-04

@@ -72,7 +72,7 @@ def upsert_tags(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
     inserted = 0
     updated = 0
 
-    # Your tags.xlsx has: nickname, localization, note, citation_link, aliases
+    # tags.xlsx: nickname, localization, note, citation_link, aliases
     required_cols = {"nickname"}
     missing = required_cols - set(df.columns)
     if missing:
@@ -80,10 +80,12 @@ def upsert_tags(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
 
     sql = text(
         """
-        INSERT INTO public.tags (tag_code, tag_name)
-        VALUES (:tag_code, :tag_name)
+        INSERT INTO public.tags (tag_code, tag_name, localization, notes)
+        VALUES (:tag_code, :tag_name, :localization, :notes)
         ON CONFLICT (tag_code) DO UPDATE
-        SET tag_name = EXCLUDED.tag_name
+        SET tag_name    = EXCLUDED.tag_name,
+            localization = EXCLUDED.localization,
+            notes        = EXCLUDED.notes
         """
     )
 
@@ -93,12 +95,17 @@ def upsert_tags(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
             if not nickname:
                 continue
 
+            localization = str(row.get("localization") or "").strip() or None
+            note = str(row.get("note") or "").strip() or None
+
             params = {
                 "tag_code": nickname,
-                "tag_name": nickname,  # for now, use the same nickname as name
+                "tag_name": nickname,  # nickname doubles as name
+                "localization": localization,
+                "notes": note,
             }
             cx.execute(sql, params)
-            inserted += 1
+            inserted += 1  # count rows we upserted
 
     return inserted, updated
 

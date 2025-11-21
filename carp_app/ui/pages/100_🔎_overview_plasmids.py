@@ -1,14 +1,17 @@
-# carp_app/ui/pages/100_🧪_overview_plasmids.py
+# carp_app/ui/pages/100_🔎_overview_plasmids.py
 from __future__ import annotations
-import os, pathlib, sys
-from typing import Optional
+
+import os
+import pathlib
+import sys
+from typing import Optional, Dict, Any
 
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-# repo root on sys.path
+# ───────── repo bootstrap ─────────
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -18,148 +21,158 @@ from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock(): ...
-from carp_app.ui.lib.app_ctx import get_engine as _create_engine
+    def require_app_unlock():
+        ...
+from carp_app.ui.lib.app_ctx import get_engine
 
-# ───────────── auth & page ─────────────
+
+# ───────── auth & page ─────────
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-st.set_page_config(page_title="CARP — Plasmids Overview", page_icon="🧪", layout="wide")
-st.title("🧪 Plasmids Overview")
+st.set_page_config(
+    page_title="CARP — Plasmids / Constructs Overview",
+    page_icon="🧪",
+    layout="wide",
+)
+st.title("🧪 Plasmids / Constructs Overview")
 
-# ───────────── engine cache ────────────
+
+# ───────── engine (cached) ─────────
 @st.cache_resource(show_spinner=False)
-def _cached_engine() -> Engine:
-    url = os.environ.get("DB_URL")
+def _eng() -> Engine:
+    url = os.getenv("DB_URL")
     if not url:
-        raise RuntimeError("DB_URL not set")
-    return _create_engine()
+        st.error("DB_URL is not set")
+        st.stop()
+    return get_engine()
 
-def _get_engine() -> Engine:
-    return _cached_engine()
 
-# ───────────── data loaders ────────────
-def _coerce_strings(df: pd.DataFrame) -> pd.DataFrame:
-    if df is None or df.empty:
-        return pd.DataFrame()
-    for c in df.select_dtypes(include=["object", "string"]).columns:
-        df[c] = df[c].astype("string").fillna("")
-    return df
+def _norm(s: str | None) -> Optional[str]:
+    s = (s or "").strip()
+    return s or None
 
-def _load_plasmids_overview(q: Optional[str], limit: int) -> pd.DataFrame:
-    """
-    Load plasmids from v_plasmids_overview.
 
-    We keep `name`, `tag_codes`, and fusion rollups available for search, but we don't
-    show or edit them all in the main grids; the user-facing fields are:
-      - code
-      - nickname
-      - fluors (rolled up)
-      - tag_codes (rolled up)
-      - fusions (rolled up)
-      - n_fusions
-      - created_at
-    """
-    sql = text("""
-      SELECT
-        code,
-        name,
-        nickname,
-        fluors,
-        tag_codes,
-        fusions,
-        n_fusions,
-        created_at
-      FROM public.v_plasmids_overview v
-      WHERE (:q IS NULL)
-         OR (
-              v.code      ILIKE :q
-           OR v.name      ILIKE :q
-           OR v.nickname  ILIKE :q
-           OR v.fluors    ILIKE :q
-           OR v.tag_codes ILIKE :q
-           OR v.fusions   ILIKE :q
-         )
-      ORDER BY v.created_at DESC NULLS LAST, v.code
-      LIMIT :lim
-    """)
-    params = {
-        "q":   (f"%{q.strip()}%" if q and q.strip() else None),
-        "lim": int(limit),
-    }
-    with _get_engine().begin() as cx:
-        df = pd.read_sql(sql, cx, params=params)
-    return _coerce_strings(df)
-
-# ─────────────────────────── page ───────────────────────────
-def main():
-    st.caption(f"DB_URL = {os.getenv('DB_URL','')}")
-
-    # Filters
-    with st.form("plasmid_filters", clear_on_submit=False):
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            q = st.text_input(
-                "Search (code / nickname / fluors / tags / fusions)",
-                ""
+# ───────── filters ─────────
+with st.form("plasmid_filters", clear_on_submit=False):
+    c1, c2, c3 = st.columns([3, 1.5, 0.8])
+    with c1:
+        q_raw = st.text_input(
+            "Search (code / nickname / name / type / fluors / tags / fusions)",
+            "",
+        )
+    with c2:
+        type_choice = st.selectbox(
+            "Construct type",
+            ["(any)", "DNA", "RNA", "CRISPR"],
+            index=0,
+        )
+    with c3:
+        lim = int(
+            st.number_input(
+                "Limit",
+                min_value=50,
+                max_value=5000,
+                value=1000,
+                step=50,
             )
-        with c2:
-            limit = int(st.number_input("Limit", min_value=10, max_value=2000, value=500, step=50))
-        _ = st.form_submit_button("Search")
+        )
+    _ = st.form_submit_button("Apply")
 
-    df = _load_plasmids_overview(q, limit)
-    if df.empty:
-        st.info("No plasmids match your filters.")
-        return
+q = _norm(q_raw)
+type_filter = type_choice if type_choice != "(any)" else None
 
-    st.subheader(f"Plasmids ({len(df)} rows)")
 
-    # Show all columns from the view so we can inspect everything
-    table = df.copy()
+# ───────── query v_plasmids_overview ─────────
+where = ["1=1"]
+params: Dict[str, Any] = {"lim": lim}
 
-    st.dataframe(table, width="stretch", hide_index=True)
-
-    st.divider()
-    st.subheader("Edit selection")
-
-    # Only allow editing of nickname here (no resistance column in schema)
-    editable_map = {
-        "nickname": "Nickname",
-    }
-    edit_choice = st.multiselect(
-        "Choose which columns are editable",
-        list(editable_map.keys()),
-        []
+if q:
+    params["ql"] = f"%{q}%"
+    where.append(
+        "("
+        "  code      ILIKE :ql"
+        " OR nickname  ILIKE :ql"
+        " OR name      ILIKE :ql"
+        " OR COALESCE(construct_type,'') ILIKE :ql"
+        " OR fluors    ILIKE :ql"
+        " OR tag_codes ILIKE :ql"
+        " OR fusions   ILIKE :ql"
+        ")"
     )
 
-    selected = st.data_editor(
-        table,
-        width="stretch",
-        hide_index=True,
-        disabled=[c for c in table.columns if c not in edit_choice],
-        key="plasmids_editor_v1",
-    )
+if type_filter:
+    params["type"] = type_filter
+    where.append("construct_type = :type")
 
-    if st.button("Save edits", type="primary"):
-        if not edit_choice:
-            st.info("No columns selected for editing.")
-        else:
-            changed = selected[[c for c in edit_choice] + ["code"]]
-            changed = changed[changed["code"].notna()]
-            if not changed.empty:
-                with _get_engine().begin() as cx:
-                    for _, row in changed.drop_duplicates(subset=["code"])[["code"] + list(edit_choice)].iterrows():
-                        cx.execute(text(f"""
-                          UPDATE public.plasmids
-                          SET {", ".join([f"{c} = :{c}" for c in edit_choice])}
-                          WHERE code = :code
-                        """), {
-                            **{c: (row[c] if pd.notna(row[c]) else None) for c in edit_choice},
-                            "code": row["code"],
-                        })
-                st.success("Edits saved.")
+where_sql = " AND ".join(where)
 
-if __name__ == "__main__":
-    main()
+sql = text(f"""
+    SELECT
+      code,
+      name,
+      nickname,
+      construct_type,
+      fluors,
+      tag_codes,
+      fusions,
+      n_fusions,
+      created_at
+    FROM public.v_plasmids_overview
+    WHERE {where_sql}
+    ORDER BY created_at DESC NULLS LAST, code
+    LIMIT :lim
+""")
+
+with _eng().begin() as cx:
+    df = pd.read_sql(sql, cx, params=params)
+
+df = df.fillna("")
+st.caption(f"{len(df)} construct(s)")
+
+
+# ───────── table ─────────
+view = df.copy()
+view.insert(0, "✓ Select", False)
+
+st.data_editor(
+    view,
+    key="plasmids_overview_v8",
+    hide_index=True,
+    use_container_width=True,
+    num_rows="fixed",
+    column_order=[
+        "✓ Select",
+        "code",
+        "construct_type",
+        "nickname",
+        "name",
+        "fluors",
+        "tag_codes",
+        "fusions",
+        "n_fusions",
+        "created_at",
+    ],
+    column_config={
+        "✓ Select":       st.column_config.CheckboxColumn("✓", default=False),
+        "code":           st.column_config.TextColumn("Code", disabled=True),
+        "construct_type": st.column_config.TextColumn("Type", disabled=True),
+        "nickname":       st.column_config.TextColumn("Nickname", disabled=True),
+        "name":           st.column_config.TextColumn("Name", disabled=True),
+        "fluors":         st.column_config.TextColumn("Fluors", disabled=True),
+        "tag_codes":      st.column_config.TextColumn("Tags", disabled=True),
+        "fusions":        st.column_config.TextColumn("Fusions", disabled=True),
+        "n_fusions":      st.column_config.NumberColumn("n fusions", disabled=True),
+        "created_at":     st.column_config.DatetimeColumn("Created", disabled=True),
+    },
+)
+
+# ───────── export ─────────
+st.download_button(
+    "⬇︎ Download full constructs table (CSV)",
+    data=df.to_csv(index=False).encode("utf-8"),
+    file_name="constructs_plasmids_overview.csv",
+    type="secondary",
+    mime="text/csv",
+)

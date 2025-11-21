@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import os
-import sys
 import argparse
 from pathlib import Path
-from typing import List, Dict, Any
 
 import pandas as pd
 import psycopg2
@@ -37,12 +35,12 @@ def main() -> None:
     parser.add_argument(
         "--source-system",
         default="legacy_imaging_auto",
-        help="Value for source_system column",
+        help="(unused) legacy source_system argument",
     )
     parser.add_argument(
         "--import-batch-id",
         default=None,
-        help="Optional import_batch_id for this load",
+        help="(unused) legacy import_batch_id argument",
     )
     args = parser.parse_args()
 
@@ -59,28 +57,58 @@ def main() -> None:
         "genotype_marker_tag_codes",
         "treatment_plasmid_base_codes",
         "treatment_rna_base_codes",
-        "treatment_dye_base_codes",
         "treatment_marker_fluor_codes",
         "treatment_marker_tag_codes",
         "all_marker_fluor_codes",
+        "plate_id_filled",
+        "slot_id_filled",
+        "roi_index_within_slot",
+        "roi_code",
     ]
 
+    # include fusion label columns if present in the CSV
+    if "genotype_marker_fusion_labels" in df.columns:
+        expected_cols.append("genotype_marker_fusion_labels")
+    if "treatment_marker_fusion_labels" in df.columns:
+        expected_cols.append("treatment_marker_fusion_labels")
+
+    # include localization columns if present in the CSV
+    if "genotype_marker_localizations" in df.columns:
+        expected_cols.append("genotype_marker_localizations")
+    if "treatment_marker_localizations" in df.columns:
+        expected_cols.append("treatment_marker_localizations")
+
+    # include fluor-localization label columns if present in the CSV
+    if "genotype_marker_fluor_loc_labels" in df.columns:
+        expected_cols.append("genotype_marker_fluor_loc_labels")
+    if "treatment_marker_fluor_loc_labels" in df.columns:
+        expected_cols.append("treatment_marker_fluor_loc_labels")
+    if "all_marker_fluor_loc_labels" in df.columns:
+        expected_cols.append("all_marker_fluor_loc_labels")
+
+    # ensure all expected columns exist in the DataFrame
     for col in expected_cols:
         if col not in df.columns:
             df[col] = None
 
+    # deduplicate expected_cols to avoid duplicate column labels
+    seen = set()
+    dedup_cols = []
+    for c in expected_cols:
+        if c not in seen:
+            dedup_cols.append(c)
+            seen.add(c)
+    expected_cols = dedup_cols
+
     df = df[expected_cols].copy()
-
-    df["source_system"] = args.source_system
-    df["import_batch_id"] = args.import_batch_id
-
-    cols_for_insert = expected_cols + ["source_system", "import_batch_id"]
+    cols_for_insert = expected_cols
 
     rows = []
     for _, row in df.iterrows():
         vals = []
         for col in cols_for_insert:
             v = row.get(col)
+            # at this point v should be a scalar; duplicate columns would have made it a Series
             if pd.isna(v):
                 vals.append(None)
             else:

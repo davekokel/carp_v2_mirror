@@ -382,9 +382,23 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
         params["tp_code"] = new_code
 
         sql = text(
-            f"""
-            INSERT INTO public.tank_pairs({', '.join(insert_cols)})
-            VALUES ({', '.join(placeholders)})
+            """
+            INSERT INTO public.tank_pairs(
+                id,
+                mother_tank_id,
+                father_tank_id,
+                active_from,
+                created_at,
+                tank_pair_code
+            )
+            VALUES (
+                :id,
+                :m,
+                :d,
+                now(),
+                now(),
+                :tp_code
+            )
             RETURNING tank_pair_code
             """
         )
