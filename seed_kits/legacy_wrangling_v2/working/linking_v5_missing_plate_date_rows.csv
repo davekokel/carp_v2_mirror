@@ -1,0 +1,12 @@
+roi_dir,experiment_folder,dataset_slug_norm,roi_path_date_yyyymmdd,date_mount,Date imaged,Data location,link_source
+/clusterfs/vast/abcabc/Korra_Foundation/analysis_test/fish1_roi1,analysis_test,analysis_test,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251028_peroxi/roi1_560_10ms,Denoising,denoising,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251028_peroxi/roi1_560_76ms,Denoising,denoising,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251029_mem-histone/fish1_roi1,Denoising,denoising,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251029_mem-histone/fish3_roi1,Denoising,denoising,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251029_mem-histone/fish4_roi1,Denoising,denoising,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251029_mem-histone/fish5_roi1,Denoising,denoising,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251029_mem-histone/fish5_roi2,Denoising,denoising,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251029_mem-histone/fish5_roi3,Denoising,denoising,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251029_peroxi/fish1_roi1,Denoising,denoising,,,,,unmatched
+/clusterfs/vast/abcabc/Aang_Foundation/Denoising/20251029_peroxi/fish3_roi1,Denoising,denoising,,,,,unmatched

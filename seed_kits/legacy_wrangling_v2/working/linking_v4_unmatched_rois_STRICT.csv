@@ -1,0 +1,8 @@
+roi_dir,experiment_folder,dataset_slug,roi_path_date_yyyymmdd,Date imaged,Data location
+/clusterfs/vast/abcabc/Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi1,20251007_mem_histone,20251007_mem_histone,20251007,,
+/clusterfs/vast/abcabc/Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi2,20251007_mem_histone,20251007_mem_histone,20251007,,
+/clusterfs/vast/abcabc/Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi2_test,20251007_mem_histone,20251007_mem_histone,20251007,,
+/clusterfs/vast/abcabc/Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi3,20251007_mem_histone,20251007_mem_histone,20251007,,
+/clusterfs/vast/abcabc/Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi4,20251007_mem_histone,20251007_mem_histone,20251007,,
+/clusterfs/vast/abcabc/Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi5,20251007_mem_histone,20251007_mem_histone,20251007,,
+/clusterfs/vast/abcabc/Aang_Foundation/20251007_mem_histone/fish3_48hpf_roi1,20251007_mem_histone,20251007_mem_histone,20251007,,

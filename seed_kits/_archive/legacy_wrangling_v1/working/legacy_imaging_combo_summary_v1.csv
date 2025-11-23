@@ -1,0 +1,46 @@
+parent_female,parent_male,genotype_base_codes,genotype_allele_codes,treatment_plasmid_base_codes,treatment_rna_base_codes,treatment_marker_fusion_labels,genotype_marker_fusion_loc_labels,all_unique_organelles,all_fluor_organelles,n_rows
+ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082,"pDQM082:315,pDQM082:315",,MGCO-01,mStayGold::2Xcox8A(N),tdmChilada::2xLynk(N)(membrane),"membrane,mitochondria",tdmChilada(membrane)|mStayGold(mitochondria),126
+casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),,,,MGCO-01,mStayGold::2Xcox8A(N),,mitochondria,mStayGold(mitochondria),60
+,,,,"pDQM034,pDQM036",,Electra2; mCitrine; mKOK; mKate2; mTFP1,,,Electra2; mCitrine; mKOK; mKate2; mTFP1,46
+Jim (F2 of allele 316),Ben (F2 of allele 310),"pDQM034,pDQM059","pDQM059:316,pDQM034:310",,pDQM117,mScarlet3S2::H2B(N),"Electra2,gfp,mCitrine,mKOK,mKate2,mTFP1",histone,"Electra2,gfp,mCitrine,mKOK,mKate2,mTFP1|mScarlet3S2(histone)",45
+casper/rnf,mem:tdmChilada,pDQM082,pDQM082:315,,MGCO-01,mStayGold::2Xcox8A(N),tdmChilada::2xLynk(N)(membrane),"membrane,mitochondria",tdmChilada(membrane)|mStayGold(mitochondria),40
+Ben (F2 of allele 310),Abe (F2 of allele 309),pDQM034,"pDQM034:310,pDQM034:309",,pDQM117,mScarlet3S2::H2B(N),"Electra2,mCitrine,mKOK,mKate2,mTFP1",histone,"Electra2,mCitrine,mKOK,mKate2,mTFP1|mScarlet3S2(histone)",40
+Dennis (F2 of allele 318),Abe (F2 of allele 309),"pDQM034,pDQM036","pDQM036:318,pDQM034:309",,pDQM117,mScarlet3S2::H2B(N),"Electra2,mCitrine,mKOK,mKate2,mTFP1",histone,"Electra2,mCitrine,mKOK,mKate2,mTFP1|mScarlet3S2(histone)",39
+casper,ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082,pDQM082:315,,MGCO-01,mStayGold::2Xcox8A(N),tdmChilada::2xLynk(N)(membrane),"membrane,mitochondria",tdmChilada(membrane)|mStayGold(mitochondria),35
+Jim (F2 of allele 316),Abe (F2 of allele 309),,,,pDQM117,mScarlet3S2::H2B(N),,histone,mScarlet3S2(histone),33
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),"pDQM005,pDQM133","pDQM005:302,pDQM133:324",,pDQM117,mScarlet3S2::H2B(N),"tdmSG::2xLynk(N)(membrane),tdmScarlet3","histone,membrane","tdmSG(membrane),tdmScarlet3|mScarlet3S2(histone)",33
+ef1a:2xLynk:tdmChilada (F1 of allele 315),casper/rnf,pDQM082,pDQM082:315,,MGCO-01,mStayGold::2Xcox8A(N),tdmChilada::2xLynk(N)(membrane),"membrane,mitochondria",tdmChilada(membrane)|mStayGold(mitochondria),29
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),"pDQM005,pDQM133","pDQM005:301,pDQM133:324",,MGCO-01,mStayGold::2Xcox8A(N),"tdmSG::2xLynk(N)(membrane),tdmScarlet3","membrane,mitochondria","tdmSG(membrane),tdmScarlet3|mStayGold(mitochondria)",29
+casper/rnf,from Swinburne lab - tank ID 344 (F1 of allele 45385),Swinburne,Swinburne:Swinburne,,MGCO-01,mStayGold::2Xcox8A(N),,mitochondria,mStayGold(mitochondria),25
+casper/rnf,tdmScarlet3S2 (F1 of allele 325),pDQM136,pDQM136:325,,MGCO-01,mStayGold::2Xcox8A(N),tdmScarlet3::2xLynk(N)(membrane),"membrane,mitochondria",tdmScarlet3(membrane)|mStayGold(mitochondria),24
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),"pDQM005,pDQM133","pDQM005:302,pDQM133:324",,MGCO-01,mStayGold::2Xcox8A(N),"tdmSG::2xLynk(N)(membrane),tdmScarlet3","membrane,mitochondria","tdmSG(membrane),tdmScarlet3|mStayGold(mitochondria)",24
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),"pDQM005,pDQM133","pDQM005:301,pDQM133:324",,pDQM117,mScarlet3S2::H2B(N),"tdmSG::2xLynk(N)(membrane),tdmScarlet3","histone,membrane","tdmSG(membrane),tdmScarlet3|mScarlet3S2(histone)",24
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),pDQM005,"pDQM005:301,pDQM005:301",,pDQM117,mScarlet3S2::H2B(N),tdmSG::2xLynk(N)(membrane),"histone,membrane",tdmSG(membrane)|mScarlet3S2(histone),21
+membrane mChilada,membrane mChilada,pDQM082,"pDQM082:315,pDQM082:315",,MGCO-01,mStayGold::2Xcox8A(N),tdmChilada::2xLynk(N)(membrane),"Lysosomes,Mitochondria,hindbrain,membrane,mitochondria,muscle,skin,spinal_cord",tdmChilada(membrane)|mStayGold(mitochondria),21
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),pDQM005,"pDQM005:301,pDQM005:301",MGCO-35,MGCO-40,Halo::sec61b(N); mScarlet3S2::2Xcox8A(N),tdmSG::2xLynk(N)(membrane),"ER,Mitochondria,brain,hindbrain,membrane,mitochondria,muscle,neuromast,notochord,skin,spinal_cord",tdmSG(membrane)|Halo(ER); mScarlet3S2(mitochondria),21
+casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082,pDQM082:315,,MGCO-01,mStayGold::2Xcox8A(N),tdmChilada::2xLynk(N)(membrane),"membrane,mitochondria",tdmChilada(membrane)|mStayGold(mitochondria),19
+casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),pDQM082,pDQM082:315,,MGCO-23,mStayGold::lifeact(N),tdmChilada::2xLynk(N)(membrane),"actin,membrane",tdmChilada(membrane)|mStayGold(actin),19
+,,,,"pDQM034,pDQM036",,Electra2; mCitrine; mKOK; mKate2; mTFP1,,"brain,ear,hindbrain,muscle,notochord,skin,spinal_cord,tail",Electra2; mCitrine; mKOK; mKate2; mTFP1,19
+Liam (F2 of allele 321),Chris (F1 of allele 317),"pDQM034,pDQM059","pDQM059:321,pDQM034:317",,pDQM117,mScarlet3S2::H2B(N),"Electra2,gfp,mCitrine,mKOK,mKate2,mTFP1",histone,"Electra2,gfp,mCitrine,mKOK,mKate2,mTFP1|mScarlet3S2(histone)",18
+,ef1a:2xLynk:tdm:Halo,Swinburne,Swinburne:Swinburne,,MGCO-01,mStayGold::2Xcox8A(N),,mitochondria,mStayGold(mitochondria),18
+membrane Halo,membrane Halo,Swinburne,"Swinburne:Swinburne,Swinburne:Swinburne",,MGCO-04,mStayGold::sec61b(N),,ER,mStayGold(ER),15
+,,,,,,,,,,14
+casper,memrane tdmScarlet3S2 (F1 of allele 325),pDQM136,pDQM136:325,,MGCO-01,mStayGold::2Xcox8A(N),tdmScarlet3::2xLynk(N)(membrane),"membrane,mitochondria",tdmScarlet3(membrane)|mStayGold(mitochondria),13
+membrane mChilada,membrane mChilada,pDQM082,"pDQM082:315,pDQM082:315",,MGCO-01,mStayGold::2Xcox8A(N),tdmChilada::2xLynk(N)(membrane),"membrane,mitochondria",tdmChilada(membrane)|mStayGold(mitochondria),12
+Jim (F2 of allele 316),Dennis (F2 of allele 318),"pDQM036,pDQM059","pDQM059:316,pDQM036:318",,pDQM117,mScarlet3S2::H2B(N),gfp,histone,gfp|mScarlet3S2(histone),12
+casper/rnf,memrane tdmScarlet3S2 (F1 of allele 325),pDQM136,pDQM136:325,,MGCO-01,mStayGold::2Xcox8A(N),tdmScarlet3::2xLynk(N)(membrane),"membrane,mitochondria",tdmScarlet3(membrane)|mStayGold(mitochondria),12
+ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F2 of allele 302),pDQM005,"pDQM005:302,pDQM005:302",,pDQM117,mScarlet3S2::H2B(N),tdmSG::2xLynk(N)(membrane),"histone,membrane",tdmSG(membrane)|mScarlet3S2(histone),11
+casper/rnf,mem:tdmChilada,pDQM082,pDQM082:315,,HC-9,mStayGold::lifeact(N),tdmChilada::2xLynk(N)(membrane),"actin,membrane",tdmChilada(membrane)|mStayGold(actin),10
+casper,memrane tdmScarlet3S2 (F1 of allele 325),pDQM136,pDQM136:325,,pDQM117,mScarlet3S2::H2B(N),tdmScarlet3::2xLynk(N)(membrane),"histone,membrane",tdmScarlet3(membrane)|mScarlet3S2(histone),9
+membrane Halo,membrane Halo,Swinburne,"Swinburne:Swinburne,Swinburne:Swinburne",pDQM140,,mGold2s,,,mGold2s,8
+casper/rnf,mem:tdmChilada,pDQM082,pDQM082:315,,MGCO-23,mStayGold::lifeact(N),tdmChilada::2xLynk(N)(membrane),"actin,membrane",tdmChilada(membrane)|mStayGold(actin),8
+casper/rnf,mem:tdmChilada,pDQM082,pDQM082:315,,MGCO-04,mStayGold::sec61b(N),tdmChilada::2xLynk(N)(membrane),"ER,membrane",tdmChilada(membrane)|mStayGold(ER),8
+membrane Halo,membrane Halo,Swinburne,"Swinburne:Swinburne,Swinburne:Swinburne",,MGCO-01,mStayGold::2Xcox8A(N),,mitochondria,mStayGold(mitochondria),7
+Ken (F2 of allele 320),Isaac (F2 of allele 314),"pDQM059,pDQM064","pDQM059:320,pDQM064:314",,pDQM117,mScarlet3S2::H2B(N),"Electra2,GFP,gfp,mCitrine,mKate2,mKoK,mTFP1",histone,"Electra2,GFP,gfp,mCitrine,mKate2,mKoK,mTFP1|mScarlet3S2(histone)",5
+casper/rnf,ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),pDQM136,pDQM136:325,,HC-9,mStayGold::lifeact(N),tdmScarlet3::2xLynk(N)(membrane),"actin,membrane",tdmScarlet3(membrane)|mStayGold(actin),5
+membrane Halo,membrane Halo,Swinburne,"Swinburne:Swinburne,Swinburne:Swinburne",,MGCO-23,mStayGold::lifeact(N),,actin,mStayGold(actin),5
+Dennis (F2 of allele 318),Abe (F2 of allele 309),"pDQM034,pDQM036","pDQM036:318,pDQM034:309","pDQM034,pDQM036",,Electra2; mCitrine; mKOK; mKate2; mTFP1,"Electra2,mCitrine,mKOK,mKate2,mTFP1",skittles test,"Electra2,mCitrine,mKOK,mKate2,mTFP1|Electra2; mCitrine; mKOK; mKate2; mTFP1",5
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),pDQM005,"pDQM005:301,pDQM005:301",,pDQM037,tdmChilada::pcna(C); tdmSG::dhb(N),tdmSG::2xLynk(N)(membrane),"membrane,nucleus",tdmSG(membrane)|tdmChilada(nucleus); tdmSG,5
+casper/rnf,casper/rnf,,,,MGCO-01,mStayGold::2Xcox8A(N),,mitochondria,mStayGold(mitochondria),2
+casper/rnf,casper/rnf,,,,pDQM117,mScarlet3S2::H2B(N),,histone,mScarlet3S2(histone),1
+casper/rnf,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),pDQM005,pDQM005:302,,pDQM117,mScarlet3S2::H2B(N),tdmSG::2xLynk(N)(membrane),"histone,membrane",tdmSG(membrane)|mScarlet3S2(histone),1

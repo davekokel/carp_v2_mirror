@@ -1,0 +1,10 @@
+plasmid_code,plasmid_name,plasmid_nickname,resistance,n_fluors_per_plasmid,fluor_code,tag_code,tag_pos,tag_localization_hint
+MGCO-49,A2UCOE-ef1aextra-mStayGold-SKL,mStayGold-SKL,Amp,1,mStayGold,,,Peroxisome
+MGCO-50,A2UCOE-attb_entire+pDQM147-EB3-mStayGold,EB3-mStayGold,Amp,1,mStayGold,,,Microtubule EBP
+MGCO-51,A2UCOE-attb_entire+PDQM148-mStayGold-C4-cortactin,mStayGold-C4-cortactin,Amp,1,mStayGold,,,Lamellipodia
+MGCO-52,A2UCOE-attb_entire+pDQM147-ABCDpmp70-mStayGold,ABCDpmp70-mStayGold,Amp,1,mStayGold,,,Peroxisome
+MGCO-53,A2UCOE-attb_entire+pDQM147-calnexin-mStayGold,calnexin-mStayGold,Amp,1,mStayGold,,,ER
+MGCO-54,A2UCOE-attb_entire+pDQM147-LEMD2-mStayGold,LEMD2-mStayGold,Amp,1,mStayGold,,,Nuclear Envelope
+MGCO-55,A2UCOE-attb_entire+pDQM147-pex3-mStayGold,pex3-mStayGold,Amp,1,mStayGold,,,Peroxisome
+MGCO-56,A2UCOE-attb_entire+pDQM147-tubba-mStayGold,tubba-mStayGold,Amp,1,mStayGold,,,Microtubules
+MGCO-57,A2UCOE-attb_entire+PDQM148-mStayGold-C4-CENPA,mStayGold-C4-CENPA,Amp,1,mStayGold,,,Kinetochore
