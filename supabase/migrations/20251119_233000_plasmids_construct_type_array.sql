@@ -1,15 +1,16 @@
 BEGIN;
 
-ALTER TABLE public.plasmids
-    ALTER COLUMN construct_type DROP DEFAULT;
+-- For now, do not change the type of plasmids.construct_type.
+-- Just ensure v_plasmids_overview exists in a simple, consistent form.
 
--- If the column already exists as text, convert to text[].
-ALTER TABLE public.plasmids
-    ALTER COLUMN construct_type TYPE text[]
-    USING
-      CASE
-        WHEN construct_type IS NULL OR construct_type = '' THEN ARRAY[]::text[]
-        ELSE ARRAY[construct_type]::text[]
-      END;
+DROP VIEW IF EXISTS public.v_plasmids_overview;
+
+CREATE VIEW public.v_plasmids_overview AS
+SELECT
+  p.id            AS plasmid_id,
+  p.code          AS plasmid_code,
+  p.construct_type,
+  0::bigint       AS n_fusions
+FROM public.plasmids p;
 
 COMMIT;

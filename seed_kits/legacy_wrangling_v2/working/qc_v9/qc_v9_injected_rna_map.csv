@@ -1,0 +1,36 @@
+treatment_name,rna_base_code,treatment_name_norm
+2xCox8A:mScarlet3S2,MGCO-35,2xCox8A:mScarlet3S2
+2xCox8A:mSG,MGCO-01,2xCox8A:mSG
+"2xCox8A:mSG,, 2xLynk:mChilada","MGCO-35, pDQM092","2xCox8A:mSG,, 2xLynk:mChilada"
+"2xLynk:mChilada,, 2xLynk:mSG","pDQM092, pDQM047","2xLynk:mChilada,, 2xLynk:mSG"
+"2xLynk:mChilada,, 2xLynk:mSG,, Lifeact:Halo","pDQM092, pDQM047, MGCO-24","2xLynk:mChilada,, 2xLynk:mSG,, Lifeact:Halo"
+2xLynk:mSG; mChilada:H2B,"pDQM047, pDQM104",2xLynk:mSG; mChilada:H2B
+2xLynk:mSG; mYH:H2B,"pdQM047, pDQM105",2xLynk:mSG; mYH:H2B
+ef1a-extended:Halo:sec61b,MGCO-40,ef1a-extended:Halo:sec61b
+ef1a-extended:mScarlet3S2:sec61b,MGCO-36,ef1a-extended:mScarlet3S2:sec61b
+HC-10 4x-Cox8:mStayGold,HC-10,HC-10 4x-Cox8:mStayGold
+HC-2 2:NLS-mScarlet3,HC-2,HC-2 2:NLS-mScarlet3
+HC-9 Lifeact:mStayGold,HC-9,HC-9 Lifeact:mStayGold
+LAMP1:mSG,MGCO-15,LAMP1:mSG
+"LAMP1:mSG,, 2xLynk:mChilada","MGCO-15, pDQM092","LAMP1:mSG,, 2xLynk:mChilada"
+"LAMP1:mSG,, 2xLynk:mScarlet3-S2",MGCO-15; pDQM136,"LAMP1:mSG,, 2xLynk:mScarlet3-S2"
+"Lifeact:Halo,, 2xLynk:mSG","MGCO-24, pDQM047","Lifeact:Halo,, 2xLynk:mSG"
+Lifeact:mSG,MGCO-23,Lifeact:mSG
+mChilada:H2B (80 and 120 pg),pDQM104,mChilada:H2B (80 and 120 pg)
+mChilada:H2B (80 pg),pDQM104,mChilada:H2B (80 pg)
+MGCO01,MGCO-01,MGCO01
+MGCO28,MGCO-28,MGCO28
+mScarlet3-S2:H2B,pDQM117,mScarlet3-S2:H2B
+mScarlet3S2:sec61b,MGCO-36,mScarlet3S2:sec61b
+mSG:alpha-tub,MGCO-19,mSG:alpha-tub
+mSG:MYH10,MGCO-25,mSG:MYH10
+mSG:sec61b,MGCO-04,mSG:sec61b
+mYH:H2B,pDQM105,mYH:H2B
+mYH:H2B (80 and 120 pg),pDQM105,mYH:H2B (80 and 120 pg)
+mYH:H2B (80 pg),pDQM105,mYH:H2B (80 pg)
+pDQM172 SP6-2x-cox8A-mSG,pDQM172,pDQM172 SP6-2x-cox8A-mSG
+"phiC-NLS,, 2xLynk:mSG,, mChilada:H2B","pDQM047, pDQM104","phiC-NLS,, 2xLynk:mSG,, mChilada:H2B"
+"phiC,, 2xLynk:mSG",pDQM047,"phiC,, 2xLynk:mSG"
+tdmChilada:PCNA,pDQM037,tdmChilada:PCNA
+TGN:mSG,MGCO-10,TGN:mSG
+"Vimentin:Halo,, 2xLynk:mScarlet3-S2","MGCO-22, pDQM136","Vimentin:Halo,, 2xLynk:mScarlet3-S2"
