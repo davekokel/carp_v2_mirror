@@ -1,0 +1,65 @@
+clutch_code,parent_female,parent_male,date_born,roi_count,legacy_clutch_group
+LCL-0001,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-04-26,2,20250428_mem_histone
+LCL-0002,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-04-28,8,20250429_mem_cytosol
+LCL-0003,,,2025-05-12,44,20250513_skittles
+LCL-0004,Dennis (F2 of allele 318),Abe (F2 of allele 309),2025-05-20,5,20250521_skittles_no-membrane
+LCL-0005,,,2025-05-21,19,20250522_skittlez
+LCL-0006,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F2 of allele 302),2025-05-22,5,20250523_mem_histone
+LCL-0007,,,2025-05-27,2,20250528_skittlez
+LCL-0008,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F2 of allele 302),2025-05-27,3,20250528_mem-histone
+LCL-0009,Jim (F2 of allele 316),Ben (F2 of allele 310),2025-05-28,22,20250529_skittlez
+LCL-0010,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F2 of allele 302),2025-05-28,3,20250530_mem-histone
+LCL-0011,casper/rnf,ef1a:2xLynk:tdmSG(J) (F2 of allele 302),2025-05-30,1,20250602_mem
+LCL-0012,Liam (F2 of allele 321),Chris (F1 of allele 317),2025-06-02,18,20250603_skittlez
+LCL-0013,Dennis (F2 of allele 318),Abe (F2 of allele 309),2025-06-04,21,20250605_skittlez
+LCL-0014,Jim (F2 of allele 316),Ben (F2 of allele 310),2025-06-05,23,20250606_skittlez
+LCL-0015,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-06-06,9,20250609_mem-histone
+LCL-0016,Dennis (F2 of allele 318),Abe (F2 of allele 309),2025-06-11,10,20250612_skittlez
+LCL-0017,Jim (F2 of allele 316),Dennis (F2 of allele 318),2025-06-12,12,20250613_skittlez
+LCL-0018,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-06-14,6,20250616_mem-histone
+LCL-0019,Ben (F2 of allele 310),Abe (F2 of allele 309),2025-06-17,23,20250618_skittlez
+LCL-0020,Dennis (F2 of allele 318),Abe (F2 of allele 309),2025-06-18,8,20250619_skittlez
+LCL-0021,Ken (F2 of allele 320),Isaac (F2 of allele 314),2025-06-23,5,20250624_skittlez_Issac_x_Ken
+LCL-0022,Liam (F2 of allele 321),Chris (F1 of allele 317),2025-06-23,17,20250624_skittlez_Chris_x_Liam
+LCL-0023,Ben (F2 of allele 310),Abe (F2 of allele 309),2025-06-24,10,20250625_skittlez
+LCL-0024,Jim (F2 of allele 316),Ben (F2 of allele 310),2025-06-26,12,20250627_skittlez
+LCL-0025,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-07-14,21,20250715_mem_organelle
+LCL-0026,membrane Halo,membrane Halo,2025-07-21,16,"20250722_mem-halo_er-mSG,20250723_er-mSG_mem-mChilada,20250723_mem-halo_ER-mSG"
+LCL-0027,membrane mChilada,membrane mChilada,2025-07-21,12,20250722_mrna_mito-mSG_mem-mChilada
+LCL-0028,membrane mChilada,membrane mChilada,2025-07-23,4,20250724_mem-mchilada_er-mSG
+LCL-0029,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-07-26,2,20250728_mem-histone
+LCL-0030,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),2025-07-31,4,"20250801_mem-PCNA,20250801_mem-histone"
+LCL-0031,membrane Halo,membrane Halo,2025-08-04,7,20250805_mito_mem-halo
+LCL-0032,membrane mChilada,membrane mChilada,2025-08-07,21,20250808_mem_organelle
+LCL-0033,casper/rnf,mem:tdmChilada,2025-08-18,33,"20250819_mem_ER,20250819_mem_mito"
+LCL-0034,casper/rnf,mem:tdmChilada,2025-08-20,15,20250821_mem_mito
+LCL-0035,casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-08-25,5,20250827_mem_actin
+LCL-0036,casper/rnf,mem:tdmChilada,2025-08-25,8,20250826_mem_actin
+LCL-0037,casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-08-27,14,20250828_mem_actin
+LCL-0038,casper/rnf,mem:tdmChilada,2025-09-02,10,"20250903_lifeact-mSG,20250905_lifeact-mSG"
+LCL-0039,casper/rnf,ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),2025-09-03,5,20250904_lifeact-mSG
+LCL-0040,ef1a:2xLynk:tdm:mChilada,ef1a:2xLynk:tdm:mChilada,2025-09-05,22,20250908_mem-mito
+LCL-0041,ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-09-09,34,"20250911_mem-mito,20250912_mem-mito"
+LCL-0042,,ef1a:2xLynk:tdm:Halo,2025-09-12,18,20250915_mem-mito
+LCL-0043,ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-09-15,26,20250918_mem-mito
+LCL-0044,ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-09-17,23,20250919_mem-mito
+LCL-0045,casper/rnf,tdmScarlet3S2 (F1 of allele 325),2025-09-19,17,20250922_mem-mito
+LCL-0046,casper/rnf,from Swinburne lab - tank ID 344 (F1 of allele 45385),2025-09-23,25,"20250924_mem-mito,20250925_mem-mito"
+LCL-0047,casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-09-24,16,20250926_mem-mito
+LCL-0048,ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-09-30,11,20251001_mem-histone
+LCL-0049,ef1a:2xLynk:tdmSG(J) (F1 of allele 302),ef1a:2xLynk:tdmSG(J) (F1 of allele 304),2025-10-05,14,"20251007_mem-histone,20251007_mem_histone"
+LCL-0050,ef1a:2xLynk:tdmChilada (F1 of allele 315),casper/rnf,2025-10-08,7,"20251009_mem-mito,20251009_skittlez,20251016_mem-mito_v2"
+LCL-0051,ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-09,16,"20251010_mem-histone,20251013_mem-histone"
+LCL-0052,ef1a:2xLynk:tdmSG(J) (F1 of allele 302),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-13,22,"20251015_mem-histone,20251016_mem-histone"
+LCL-0053,casper/rnf,casper/rnf,2025-10-16,3,"20251017_microtubules,20251017_nuclear_envelope"
+LCL-0054,ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-17,20,20251020_mem-histone
+LCL-0055,casper/rnf,tdmScarlet3S2 (F1 of allele 325),2025-10-20,7,20251021_mem-mito_v2
+LCL-0056,ef1a:2xLynk:tdmChilada (F1 of allele 315),casper/rnf,2025-10-20,14,"20251021_mem-mito,20251022_mem-mito"
+LCL-0057,ef1a:2xLynk:tdmSG(J) (F1 of allele 302),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-21,31,"20251022_mem-histone,20251024_mem-histone,20251027_mem-histone"
+LCL-0058,casper/rnf,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-10-22,3,20251023_mem-mito
+LCL-0059,casper/rnf,memrane tdmScarlet3S2 (F1 of allele 325),2025-10-27,12,"20251028_mem-mito,20251028_mem-peroxi,20251028_mem-peroxi2,20251029_peroxi"
+LCL-0060,ef1a:2xLynk:tdmSG(J) (F1 of allele 302),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-10-28,4,20251029_mem-histone
+LCL-0061,casper,ef1a:2xLynk:tdmChilada (F1 of allele 315),2025-11-04,35,"20251105_mem-mito,20251106_mem-mito"
+LCL-0062,ef1a:2xLynk:tdmSG(J) (F1 of allele 301),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),2025-11-08,6,20251110_mem-histone
+LCL-0063,casper,memrane tdmScarlet3S2 (F1 of allele 325),2025-11-10,9,20251112_mem-mito
+LCL-0064,ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),,4,20250520_mem_histone

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import argparse
 from typing import Dict, Tuple
@@ -41,9 +43,8 @@ def load_slot_ids(engine: Engine) -> Dict[Tuple[str, int], str]:
     """
     (plate_code, slot_index) -> slot_id
 
-    imaging_plates.plate_code matches plate_id_filled
-    imaging_slots.slot_index matches the numeric part of slot_id_filled
-    (e.g. '20250513-plate1-slot4' -> slot_index = 4).
+    imaging_plates.plate_code matches 'plate_code' in v9 memberships
+    imaging_slots.slot_index matches 'slot_index'.
     """
     sql = text(
         """
@@ -67,61 +68,38 @@ def load_slot_ids(engine: Engine) -> Dict[Tuple[str, int], str]:
     return mapping
 
 
-def parse_slot_index(slot_id_filled: str, clutch_code: str):
-    """
-    slot_id_filled is of the form '<plate_code>-slotN', e.g. '20250513-plate1-slot4'.
-    Extract N as an integer.
-    """
-    s = slot_id_filled.strip()
-    if "-slot" not in s:
-        print(
-            f"[WARN] slot_id_filled='{s}' has no '-slot' segment; "
-            f"cannot parse slot_index for clutch_code='{clutch_code}'"
-        )
-        return None
-    try:
-        idx_str = s.split("-slot")[-1]
-        slot_index = int(idx_str)
-        return slot_index
-    except Exception:
-        print(
-            f"[WARN] Could not parse slot_index from slot_id_filled='{s}' "
-            f"for clutch_code='{clutch_code}'"
-        )
-        return None
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="v8: load imaging_clutch_memberships from legacy_clutch_memberships.csv"
+        description="v9: load imaging_clutch_memberships from legacy_clutch_memberships_v9.csv"
     )
     parser.add_argument(
         "--csv",
-        default="seed_kits/legacy_wrangling/working/legacy_clutch_memberships.csv",
-        help="Path to legacy_clutch_memberships.csv",
+        default="seed_kits/legacy_wrangling_v2/working/legacy_clutch_memberships_v9.csv",
+        help="Path to legacy_clutch_memberships_v9.csv",
     )
     args = parser.parse_args()
 
     csv_path = args.csv
     if not os.path.exists(csv_path):
-        raise FileNotFoundError(f"legacy_clutch_memberships CSV not found: {csv_path}")
+        raise FileNotFoundError(f"legacy_clutch_memberships_v9 CSV not found: {csv_path}")
 
     df = pd.read_csv(csv_path)
 
     required_cols = {
         "clutch_code",
-        "plate_id_filled",
-        "slot_id_filled",
+        "plate_code",
+        "slot_index",
+        "roi_count",
     }
     missing = required_cols - set(df.columns)
     if missing:
-        raise ValueError(f"legacy_clutch_memberships CSV missing columns: {missing}")
+        raise ValueError(f"legacy_clutch_memberships_v9 CSV missing columns: {missing}")
 
-    # group ROI-level rows to one record per (clutch, plate, slot)
+    # just in case, group to one record per (clutch_code, plate_code, slot_index)
     grouped = (
-        df.groupby(["clutch_code", "plate_id_filled", "slot_id_filled"])
-        .size()
-        .reset_index(name="roi_count")
+        df.groupby(["clutch_code", "plate_code", "slot_index"])
+        .agg({"roi_count": "sum"})
+        .reset_index()
     )
 
     engine = get_engine()
@@ -154,19 +132,26 @@ def main() -> None:
     created_by = (
         os.environ.get("USER")
         or os.environ.get("USERNAME")
-        or "legacy_imaging_loader"
+        or "legacy_imaging_loader_v9"
     )
 
     inserted = 0
     skipped_missing_clutch = 0
     skipped_missing_slot = 0
-    skipped_bad_slot_index = 0
 
     with engine.begin() as cx:
         for _, row in grouped.iterrows():
             clutch_code = str(row["clutch_code"]).strip()
-            plate_code = str(row["plate_id_filled"]).strip()
-            slot_id_filled = str(row["slot_id_filled"]).strip()
+            plate_code = str(row["plate_code"]).strip()
+            try:
+                slot_index = int(row["slot_index"])
+            except Exception:
+                print(
+                    f"[WARN] Bad slot_index='{row['slot_index']}' "
+                    f"for clutch_code='{clutch_code}', plate_code='{plate_code}'"
+                )
+                skipped_missing_slot += 1
+                continue
             roi_count = int(row["roi_count"])
 
             if not clutch_code:
@@ -176,14 +161,9 @@ def main() -> None:
             if clutch_id is None:
                 print(
                     f"[WARN] No clutch_id for clutch_code='{clutch_code}'; "
-                    f"skipping plate={plate_code}, slot_id_filled={slot_id_filled}"
+                    f"skipping plate={plate_code}, slot_index={slot_index}"
                 )
                 skipped_missing_clutch += 1
-                continue
-
-            slot_index = parse_slot_index(slot_id_filled, clutch_code)
-            if slot_index is None:
-                skipped_bad_slot_index += 1
                 continue
 
             key = (plate_code, slot_index)
@@ -209,10 +189,9 @@ def main() -> None:
             )
             inserted += 1
 
-    print(f"imaging_clutch_memberships: inserted/updated={inserted}")
-    print(f"  skipped (missing clutch):    {skipped_missing_clutch}")
-    print(f"  skipped (missing slot):      {skipped_missing_slot}")
-    print(f"  skipped (bad slot_index):    {skipped_bad_slot_index}")
+    print(f"imaging_clutch_memberships (v9): inserted/updated={inserted}")
+    print(f"  skipped (missing clutch): {skipped_missing_clutch}")
+    print(f"  skipped (missing slot):   {skipped_missing_slot}")
 
 
 if __name__ == "__main__":

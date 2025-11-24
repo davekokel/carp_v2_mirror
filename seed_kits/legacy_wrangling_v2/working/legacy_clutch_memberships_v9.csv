@@ -1,0 +1,358 @@
+clutch_code,legacy_clutch_key,plate_code,slot_index,roi_count
+LCL-0064, | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250520-plate6,1,1
+LCL-0064, | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250520-plate6,2,2
+LCL-0064, | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250520-plate6,3,1
+LCL-0001,2025-04-26 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250428-plate1,1,2
+LCL-0002,2025-04-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250429-plate2,1,2
+LCL-0002,2025-04-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250429-plate2,2,1
+LCL-0002,2025-04-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250429-plate2,3,2
+LCL-0002,2025-04-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250429-plate2,4,3
+LCL-0003,2025-05-12 |  | ,20250513-plate3,1,3
+LCL-0003,2025-05-12 |  | ,20250513-plate3,2,1
+LCL-0003,2025-05-12 |  | ,20250513-plate3,3,2
+LCL-0003,2025-05-12 |  | ,20250513-plate3,4,3
+LCL-0003,2025-05-12 |  | ,20250513-plate3,5,4
+LCL-0003,2025-05-12 |  | ,20250513-plate3,6,2
+LCL-0003,2025-05-12 |  | ,20250513-plate4,1,4
+LCL-0003,2025-05-12 |  | ,20250513-plate4,2,1
+LCL-0003,2025-05-12 |  | ,20250513-plate4,3,2
+LCL-0003,2025-05-12 |  | ,20250513-plate4,4,4
+LCL-0003,2025-05-12 |  | ,20250513-plate4,5,3
+LCL-0003,2025-05-12 |  | ,20250513-plate4,6,7
+LCL-0003,2025-05-12 |  | ,20250513-plate5,1,4
+LCL-0003,2025-05-12 |  | ,20250513-plate5,2,2
+LCL-0003,2025-05-12 |  | ,20250513-plate5,3,1
+LCL-0003,2025-05-12 |  | ,20250513-plate5,4,1
+LCL-0004,2025-05-20 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250521-plate7,1,2
+LCL-0004,2025-05-20 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250521-plate7,2,1
+LCL-0004,2025-05-20 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250521-plate7,3,2
+LCL-0005,2025-05-21 |  | ,20250522-plate8,1,2
+LCL-0005,2025-05-21 |  | ,20250522-plate8,2,2
+LCL-0005,2025-05-21 |  | ,20250522-plate8,3,3
+LCL-0005,2025-05-21 |  | ,20250522-plate8,4,2
+LCL-0005,2025-05-21 |  | ,20250522-plate8,5,1
+LCL-0005,2025-05-21 |  | ,20250522-plate8,6,2
+LCL-0005,2025-05-21 |  | ,20250522-plate9,1,3
+LCL-0005,2025-05-21 |  | ,20250522-plate9,2,3
+LCL-0005,2025-05-21 |  | ,20250522-plate9,3,1
+LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,1,1
+LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,2,1
+LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,3,1
+LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,4,1
+LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,5,1
+LCL-0007,2025-05-27 |  | ,20250528-plate12,1,2
+LCL-0008,2025-05-27 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250528-plate11,1,1
+LCL-0008,2025-05-27 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250528-plate11,2,1
+LCL-0008,2025-05-27 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250528-plate11,3,1
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,1,3
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,2,1
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,3,2
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,4,1
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,5,1
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,6,3
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,1,1
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,2,2
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,3,1
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,4,2
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,5,1
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,6,1
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate15,1,1
+LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate15,2,2
+LCL-0010,2025-05-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250530-plate16,1,2
+LCL-0010,2025-05-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250530-plate16,2,1
+LCL-0011,2025-05-30 | casper/rnf | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250602-plate17,1,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,1,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,2,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,3,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,4,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,5,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,6,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,1,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,2,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,3,2
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,4,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,5,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,6,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate20,1,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate20,2,1
+LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate20,3,3
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,1,1
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,2,2
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,3,2
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,4,1
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,5,2
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,6,1
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,1,2
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,2,2
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,3,1
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,4,2
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,5,1
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,6,1
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate23,1,1
+LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate23,2,2
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,1,1
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,2,1
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,3,2
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,4,2
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,5,2
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,6,3
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,1,3
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,2,1
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,3,1
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,4,1
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,5,1
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,6,2
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate26,1,1
+LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate26,2,2
+LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,1,1
+LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,2,2
+LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,3,1
+LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,4,1
+LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,5,2
+LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,6,2
+LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,1,1
+LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,2,1
+LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,3,1
+LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,4,1
+LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,5,3
+LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,6,1
+LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate29,1,1
+LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate29,2,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,1,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,2,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,3,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,4,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,5,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,6,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,1,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,2,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,3,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,4,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,5,1
+LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,6,1
+LCL-0018,2025-06-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250616-plate32,1,3
+LCL-0018,2025-06-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250616-plate32,2,1
+LCL-0018,2025-06-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250616-plate32,3,1
+LCL-0018,2025-06-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250616-plate32,4,1
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,1,2
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,2,4
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,3,1
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,4,1
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,5,1
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,6,1
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,1,1
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,2,2
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,3,4
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,4,4
+LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,5,2
+LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,1,2
+LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,2,1
+LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,3,2
+LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,4,1
+LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,5,2
+LCL-0021,2025-06-23 | Ken (F2 of allele 320) | Isaac (F2 of allele 314),20250624-plate38,1,1
+LCL-0021,2025-06-23 | Ken (F2 of allele 320) | Isaac (F2 of allele 314),20250624-plate38,2,2
+LCL-0021,2025-06-23 | Ken (F2 of allele 320) | Isaac (F2 of allele 314),20250624-plate38,3,1
+LCL-0021,2025-06-23 | Ken (F2 of allele 320) | Isaac (F2 of allele 314),20250624-plate38,4,1
+LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,1,1
+LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,2,3
+LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,3,4
+LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,4,2
+LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,5,3
+LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,6,4
+LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,1,2
+LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,2,1
+LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,3,1
+LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,4,2
+LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,5,1
+LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,6,2
+LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate40,1,1
+LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,1,3
+LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,2,1
+LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,3,1
+LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,4,1
+LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,5,2
+LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,6,1
+LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate42,1,1
+LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate42,2,1
+LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate42,3,1
+LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,1,2
+LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,2,1
+LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,3,2
+LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,4,3
+LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,5,4
+LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,6,5
+LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate44,1,1
+LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate44,2,3
+LCL-0026,2025-07-21 | membrane Halo | membrane Halo,20250722-plate66,1,5
+LCL-0026,2025-07-21 | membrane Halo | membrane Halo,20250722-plate66,2,4
+LCL-0026,2025-07-21 | membrane Halo | membrane Halo,20250723-plate45,1,6
+LCL-0026,2025-07-21 | membrane Halo | membrane Halo,20250723-plate68,1,1
+LCL-0027,2025-07-21 | membrane mChilada | membrane mChilada,20250722-plate67,1,3
+LCL-0027,2025-07-21 | membrane mChilada | membrane mChilada,20250722-plate67,2,5
+LCL-0027,2025-07-21 | membrane mChilada | membrane mChilada,20250722-plate67,3,4
+LCL-0028,2025-07-23 | membrane mChilada | membrane mChilada,20250724-plate46,1,4
+LCL-0029,2025-07-26 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250728-plate47,1,2
+LCL-0030,2025-07-31 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250801-plate48,1,1
+LCL-0030,2025-07-31 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250801-plate48,2,1
+LCL-0030,2025-07-31 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250801-plate48,3,1
+LCL-0030,2025-07-31 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250801-plate49,1,1
+LCL-0031,2025-08-04 | membrane Halo | membrane Halo,20250805-plate70,1,2
+LCL-0031,2025-08-04 | membrane Halo | membrane Halo,20250805-plate70,2,3
+LCL-0031,2025-08-04 | membrane Halo | membrane Halo,20250805-plate70,3,2
+LCL-0032,2025-08-07 | membrane mChilada | membrane mChilada,20250808-plate71,1,5
+LCL-0032,2025-08-07 | membrane mChilada | membrane mChilada,20250808-plate71,2,3
+LCL-0032,2025-08-07 | membrane mChilada | membrane mChilada,20250808-plate71,3,4
+LCL-0032,2025-08-07 | membrane mChilada | membrane mChilada,20250808-plate71,4,9
+LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate72,1,5
+LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate72,2,3
+LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,1,8
+LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,2,2
+LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,3,1
+LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,4,7
+LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,5,2
+LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,6,5
+LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,1,2
+LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,2,2
+LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,3,2
+LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,4,2
+LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,5,2
+LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,6,2
+LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate75,1,3
+LCL-0035,2025-08-25 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250827-plate77,1,2
+LCL-0035,2025-08-25 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250827-plate77,2,3
+LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,1,2
+LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,2,1
+LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,3,2
+LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,4,2
+LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,5,1
+LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,1,4
+LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,2,3
+LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,3,2
+LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,4,3
+LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,5,2
+LCL-0038,2025-09-02 | casper/rnf | mem:tdmChilada,20250903-plate79,1,4
+LCL-0038,2025-09-02 | casper/rnf | mem:tdmChilada,20250903-plate79,2,2
+LCL-0038,2025-09-02 | casper/rnf | mem:tdmChilada,20250905-plate81,1,4
+LCL-0039,2025-09-03 | casper/rnf | ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),20250904-plate80,1,5
+LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,1,4
+LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,2,8
+LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,3,3
+LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,4,4
+LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,5,3
+LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250911-plate83,1,5
+LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250911-plate83,2,3
+LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250912-plate84,1,4
+LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250912-plate84,2,4
+LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250912-plate84,3,12
+LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250912-plate84,4,6
+LCL-0042,2025-09-12 |  | ef1a:2xLynk:tdm:Halo,20250915-plate85,1,5
+LCL-0042,2025-09-12 |  | ef1a:2xLynk:tdm:Halo,20250915-plate85,2,3
+LCL-0042,2025-09-12 |  | ef1a:2xLynk:tdm:Halo,20250915-plate85,3,7
+LCL-0042,2025-09-12 |  | ef1a:2xLynk:tdm:Halo,20250915-plate85,4,3
+LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,1,6
+LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,2,4
+LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,3,11
+LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,4,4
+LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,5,1
+LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,1,3
+LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,2,3
+LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,3,3
+LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,4,4
+LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,5,5
+LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,6,5
+LCL-0045,2025-09-19 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20250922-plate89,1,8
+LCL-0045,2025-09-19 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20250922-plate89,2,4
+LCL-0045,2025-09-19 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20250922-plate89,3,1
+LCL-0045,2025-09-19 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20250922-plate89,4,4
+LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250924-plate90,1,6
+LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250924-plate90,2,2
+LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250924-plate90,3,7
+LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250924-plate90,4,3
+LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250925-plate91,1,3
+LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250925-plate91,2,4
+LCL-0047,2025-09-24 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250926-plate92,1,5
+LCL-0047,2025-09-24 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250926-plate92,2,5
+LCL-0047,2025-09-24 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250926-plate92,3,5
+LCL-0047,2025-09-24 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250926-plate92,4,1
+LCL-0048,2025-09-30 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251001-plate93,1,2
+LCL-0048,2025-09-30 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251001-plate93,2,3
+LCL-0048,2025-09-30 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251001-plate93,3,2
+LCL-0048,2025-09-30 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251001-plate93,4,4
+LCL-0049,2025-10-05 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | ef1a:2xLynk:tdmSG(J) (F1 of allele 304),20251007-plate50,1,3
+LCL-0049,2025-10-05 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | ef1a:2xLynk:tdmSG(J) (F1 of allele 304),20251007-plate50,2,4
+LCL-0049,2025-10-05 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | ef1a:2xLynk:tdmSG(J) (F1 of allele 304),20251007-plate98,1,6
+LCL-0049,2025-10-05 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | ef1a:2xLynk:tdmSG(J) (F1 of allele 304),20251007-plate98,2,1
+LCL-0050,2025-10-08 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251009-plate51,1,1
+LCL-0050,2025-10-08 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251009-plate99,1,4
+LCL-0050,2025-10-08 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251016-plate102,1,2
+LCL-0051,2025-10-09 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251010-plate52,1,1
+LCL-0051,2025-10-09 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251013-plate53,1,6
+LCL-0051,2025-10-09 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251013-plate53,2,2
+LCL-0051,2025-10-09 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251013-plate53,3,7
+LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,1,4
+LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,2,2
+LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,3,4
+LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,4,4
+LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,5,1
+LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,6,1
+LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251016-plate55,1,1
+LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251016-plate55,2,3
+LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251016-plate55,3,2
+LCL-0053,2025-10-16 | casper/rnf | casper/rnf,20251017-plate103,1,2
+LCL-0053,2025-10-16 | casper/rnf | casper/rnf,20251017-plate56,1,1
+LCL-0054,2025-10-17 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251020-plate57,1,12
+LCL-0054,2025-10-17 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251020-plate57,2,5
+LCL-0054,2025-10-17 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251020-plate57,3,3
+LCL-0055,2025-10-20 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20251021-plate105,1,1
+LCL-0055,2025-10-20 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20251021-plate105,2,2
+LCL-0055,2025-10-20 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20251021-plate105,3,4
+LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,1,2
+LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,2,2
+LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,3,2
+LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,4,1
+LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,5,1
+LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,6,2
+LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251022-plate106,1,1
+LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251022-plate106,2,2
+LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251022-plate106,3,1
+LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251022-plate58,1,2
+LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251022-plate58,2,3
+LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251022-plate58,3,2
+LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251022-plate58,4,3
+LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251024-plate59,1,3
+LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251024-plate59,2,5
+LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251027-plate60,1,2
+LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251027-plate60,2,11
+LCL-0058,2025-10-22 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251023-plate107,1,2
+LCL-0058,2025-10-22 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251023-plate107,2,1
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate108,1,1
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate109,1,1
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate109,2,2
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate109,3,2
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,1,1
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,2,1
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,3,1
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,4,1
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,5,1
+LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251029-plate111,1,1
+LCL-0060,2025-10-28 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251029-plate61,1,1
+LCL-0060,2025-10-28 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251029-plate61,2,1
+LCL-0060,2025-10-28 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251029-plate61,3,2
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,1,1
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,2,2
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,3,2
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,4,2
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,5,2
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,1,7
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,2,9
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,3,3
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,4,4
+LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,5,3
+LCL-0062,2025-11-08 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251110-plate63,1,2
+LCL-0062,2025-11-08 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251110-plate63,2,2
+LCL-0062,2025-11-08 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251110-plate63,3,1
+LCL-0062,2025-11-08 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251110-plate63,4,1
+LCL-0063,2025-11-10 | casper | memrane tdmScarlet3S2 (F1 of allele 325),20251112-plate64,1,3
+LCL-0063,2025-11-10 | casper | memrane tdmScarlet3S2 (F1 of allele 325),20251112-plate64,2,4
+LCL-0063,2025-11-10 | casper | memrane tdmScarlet3S2 (F1 of allele 325),20251112-plate64,3,2
