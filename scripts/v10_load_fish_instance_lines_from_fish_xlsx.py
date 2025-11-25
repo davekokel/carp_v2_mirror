@@ -82,6 +82,7 @@ def main() -> None:
     print("[v10_load_fish_instance_lines] stage_key value_counts:")
     print(df["stage_key"].value_counts(dropna=False).to_string())
 
+    # Step 1: candidate line-def rows
     df_lines = df[
         df["base_code"].map(is_real_basecode)
         & df["stage_key"].isin(["p0", "stable", "f1", "f2"])
@@ -92,6 +93,7 @@ def main() -> None:
         print("[v10_load_fish_instance_lines] no candidate line-definition rows; exiting.")
         return
 
+    # Collapse to unique lines
     df_lines = df_lines[[
         "nick_key",
         "bg_key",
@@ -108,6 +110,30 @@ def main() -> None:
     print(f"[v10_load_fish_instance_lines] prepared {len(df_lines)} unique line rows")
 
     engine = get_engine(args.db_url)
+
+    # Step 2: restrict to known constructs (base_code ∈ transgenes)
+    with engine.begin() as cx:
+        df_known = pd.read_sql(
+            text("SELECT transgene_base_code FROM public.transgenes"),
+            cx,
+        )
+    known_bases = set(df_known["transgene_base_code"].astype(str).str.strip())
+
+    mask_known = df_lines["base_code"].isin(known_bases)
+    n_unknown = int((~mask_known).sum())
+    if n_unknown > 0:
+        skipped = df_lines.loc[~mask_known, "base_code"].dropna().astype(str).unique().tolist()
+        print(
+            f"[v10_load_fish_instance_lines] SKIP: {n_unknown} line row(s) with base_code not in constructs: {skipped}"
+        )
+
+    df_lines = df_lines.loc[mask_known].copy()
+
+    if df_lines.empty:
+        print("[v10_load_fish_instance_lines] after filtering by known constructs, no lines remain; exiting.")
+        return
+
+    print(f"[v10_load_fish_instance_lines] lines after known-construct filter: {len(df_lines)}")
 
     sql_insert_fish = text(
         """
