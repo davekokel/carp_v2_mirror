@@ -32,11 +32,11 @@ require_email_otp()
 require_app_unlock()
 
 st.set_page_config(
-    page_title="CARP — Plasmids / Constructs Overview",
+    page_title="CARP — Constructs Overview",
     page_icon="🧪",
     layout="wide",
 )
-st.title("🧪 Plasmids / Constructs Overview")
+st.title("🧪 Constructs Overview")
 
 
 # ───────── engine (cached) ─────────
@@ -55,7 +55,7 @@ def _norm(s: str | None) -> Optional[str]:
 
 
 # ───────── filters ─────────
-with st.form("plasmid_filters", clear_on_submit=False):
+with st.form("construct_filters", clear_on_submit=False):
     c1, c2, c3 = st.columns([3, 1.5, 0.8])
     with c1:
         q_raw = st.text_input(
@@ -63,9 +63,9 @@ with st.form("plasmid_filters", clear_on_submit=False):
             "",
         )
     with c2:
-        type_choice = st.selectbox(
-            "Construct type",
-            ["(any)", "DNA", "RNA", "CRISPR"],
+        kind_choice = st.selectbox(
+            "Construct kind",
+            ["(any)", "plasmid", "rna", "crispr"],
             index=0,
         )
     with c3:
@@ -81,10 +81,10 @@ with st.form("plasmid_filters", clear_on_submit=False):
     _ = st.form_submit_button("Apply")
 
 q = _norm(q_raw)
-type_filter = type_choice if type_choice != "(any)" else None
+kind_filter = kind_choice if kind_choice != "(any)" else None
 
 
-# ───────── query v_plasmids_overview ─────────
+# ───────── query v_constructs_overview ─────────
 where = ["1=1"]
 params: Dict[str, Any] = {"lim": lim}
 
@@ -92,34 +92,36 @@ if q:
     params["ql"] = f"%{q}%"
     where.append(
         "("
-        "  code      ILIKE :ql"
-        " OR nickname  ILIKE :ql"
-        " OR name      ILIKE :ql"
-        " OR COALESCE(construct_type,'') ILIKE :ql"
-        " OR fluors    ILIKE :ql"
-        " OR tag_codes ILIKE :ql"
-        " OR fusions   ILIKE :ql"
+        "  code            ILIKE :ql"
+        " OR nickname        ILIKE :ql"
+        " OR name            ILIKE :ql"
+        " OR construct_kind  ILIKE :ql"
+        " OR construct_type  ILIKE :ql"
+        " OR fluors          ILIKE :ql"
+        " OR tag_codes       ILIKE :ql"
+        " OR fusions         ILIKE :ql"
         ")"
     )
 
-if type_filter:
-    params["type"] = type_filter
-    where.append("construct_type = :type")
+if kind_filter:
+    params["kind"] = kind_filter
+    where.append("construct_kind = :kind")
 
 where_sql = " AND ".join(where)
 
 sql = text(f"""
     SELECT
       code,
-      name,
-      nickname,
+      construct_kind,
       construct_type,
+      nickname,
+      name,
       fluors,
       tag_codes,
       fusions,
       n_fusions,
       created_at
-    FROM public.v_plasmids_overview
+    FROM public.v_constructs_overview
     WHERE {where_sql}
     ORDER BY created_at DESC NULLS LAST, code
     LIMIT :lim
@@ -128,6 +130,7 @@ sql = text(f"""
 with _eng().begin() as cx:
     df = pd.read_sql(sql, cx, params=params)
 
+# let pandas handle NULLs
 df = df.fillna("")
 st.caption(f"{len(df)} construct(s)")
 
@@ -138,13 +141,14 @@ view.insert(0, "✓ Select", False)
 
 st.data_editor(
     view,
-    key="plasmids_overview_v8",
+    key="constructs_overview_v9",
     hide_index=True,
     use_container_width=True,
     num_rows="fixed",
     column_order=[
         "✓ Select",
         "code",
+        "construct_kind",
         "construct_type",
         "nickname",
         "name",
@@ -155,16 +159,17 @@ st.data_editor(
         "created_at",
     ],
     column_config={
-        "✓ Select":       st.column_config.CheckboxColumn("✓", default=False),
-        "code":           st.column_config.TextColumn("Code", disabled=True),
-        "construct_type": st.column_config.TextColumn("Type", disabled=True),
-        "nickname":       st.column_config.TextColumn("Nickname", disabled=True),
-        "name":           st.column_config.TextColumn("Name", disabled=True),
-        "fluors":         st.column_config.TextColumn("Fluors", disabled=True),
-        "tag_codes":      st.column_config.TextColumn("Tags", disabled=True),
-        "fusions":        st.column_config.TextColumn("Fusions", disabled=True),
-        "n_fusions":      st.column_config.NumberColumn("n fusions", disabled=True),
-        "created_at":     st.column_config.DatetimeColumn("Created", disabled=True),
+        "✓ Select":        st.column_config.CheckboxColumn("✓", default=False),
+        "code":            st.column_config.TextColumn("Code", disabled=True),
+        "construct_kind":  st.column_config.TextColumn("Kind", disabled=True),
+        "construct_type":  st.column_config.TextColumn("Subtype", disabled=True),
+        "nickname":        st.column_config.TextColumn("Nickname", disabled=True),
+        "name":            st.column_config.TextColumn("Name", disabled=True),
+        "fluors":          st.column_config.TextColumn("Fluors", disabled=True),
+        "tag_codes":       st.column_config.TextColumn("Tags", disabled=True),
+        "fusions":         st.column_config.TextColumn("Fusions", disabled=True),
+        "n_fusions":       st.column_config.NumberColumn("n fusions", disabled=True),
+        "created_at":      st.column_config.DatetimeColumn("Created", disabled=True),
     },
 )
 
@@ -172,7 +177,7 @@ st.data_editor(
 st.download_button(
     "⬇︎ Download full constructs table (CSV)",
     data=df.to_csv(index=False).encode("utf-8"),
-    file_name="constructs_plasmids_overview.csv",
+    file_name="constructs_overview.csv",
     type="secondary",
     mime="text/csv",
 )

@@ -86,7 +86,7 @@ def _tank_pair_parent_cols() -> Tuple[str, str]:
 def _discover_tanks_fish_fk_col() -> str:
     """
     Return the column in public.tanks that FK-references public.fish_instance(id).
-    Require exactly one such column; error if 0 or >1.
+    If no explicit FK is present, fall back to 'fish_id' if that column exists.
     """
     sql = text(
         """
@@ -112,10 +112,15 @@ def _discover_tanks_fish_fk_col() -> str:
         df = pd.read_sql(sql, cx)
 
     if df.empty:
+        # no FK constraint – fall back to a reasonable default if present
+        tanks_cols = _cols("public", "tanks")
+        if "fish_id" in tanks_cols:
+            return "fish_id"
         raise RuntimeError(
-            "No foreign key from public.tanks to public.fish_instance(id) was found. "
-            "Expected exactly one FK column in public.tanks that references public.fish_instance(id)."
+            "No foreign key from public.tanks to public.fish_instance(id) was found, "
+            "and no 'fish_id' column exists to fall back to."
         )
+
     cols = df["fk_col"].astype(str).tolist()
     uniq = sorted(set(cols))
     if len(uniq) != 1:
@@ -140,7 +145,7 @@ def _verify_core_schema() -> dict:
             f"FK column '{fish_fk_col}' referenced by constraint is not a column of public.tanks?! Found: {tanks_cols}"
         )
 
-    # fish requirements (stage can be either of two exact names)
+    # fish requirements
     _assert_cols("public", FISH_TABLE, ["id", "fish_code", "nickname", "genetic_background", "created_at"])
     fish_cols = _cols("public", FISH_TABLE)
     if "line_building_stage" not in fish_cols:
@@ -191,12 +196,10 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
         WITH gp AS (
           SELECT
             f.{f['code']} AS fish_code,
-            COALESCE(
-              string_agg(
-                DISTINCT jfta.transgene_base_code || '(' ||
-                  COALESCE(NULLIF(ta.allele_name,''), ta.allele_number::text) || ')',
-                ', ' ORDER BY jfta.transgene_base_code || '(' || COALESCE(NULLIF(ta.allele_name,''), ta.allele_number::text) || ')'
-              ), ''
+            string_agg(
+              DISTINCT jfta.transgene_base_code || '(' ||
+                COALESCE(NULLIF(ta.allele_name,''), ta.allele_number::text) || ')',
+              ', ' ORDER BY jfta.transgene_base_code || '(' || COALESCE(NULLIF(ta.allele_name,''), ta.allele_number::text) || ')'
             ) AS genotype_pretty
           FROM public.{f_tbl} f
           LEFT JOIN public.join_fish_transgene_alleles jfta
@@ -286,12 +289,10 @@ def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
         LEFT JOIN (
           SELECT
             f3.{f['code']} AS fish_code,
-            COALESCE(
-              string_agg(
-                DISTINCT j2.transgene_base_code || '(' ||
-                  COALESCE(NULLIF(ta2.allele_name,''), ta2.allele_number::text) || ')',
-                ', ' ORDER BY j2.transgene_base_code || '(' || COALESCE(NULLIF(ta2.allele_name,''), ta2.allele_number::text) || ')'
-              ), ''
+            string_agg(
+              DISTINCT j2.transgene_base_code || '(' ||
+                COALESCE(NULLIF(ta2.allele_name,''), ta2.allele_number::text) || ')',
+              ', ' ORDER BY j2.transgene_base_code || '(' || COALESCE(NULLIF(ta2.allele_name,''), ta2.allele_number::text) || ')'
             ) AS genotype_pretty
           FROM public.{f_tbl} f3
           LEFT JOIN public.join_fish_transgene_alleles j2
@@ -342,8 +343,8 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
             params = {"id": row.iloc[0]["id"], "note": note, "by": created_by}
             if "updated_at" in cols:
                 sets.append("updated_at = now()")
-            if "note" in cols:
-                sets.append("note = COALESCE(NULLIF(:note,''), note)")
+            if "notes" in cols:
+                sets.append("notes = COALESCE(NULLIF(:note,''), notes)")
             if "updated_by" in cols:
                 sets.append("updated_by = COALESCE(NULLIF(:by,''), updated_by)")
             if sets:
@@ -353,34 +354,11 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 )
             return False, str(row.iloc[0]["tank_pair_code"])
 
-        # 2) Build INSERT for a new pair, explicitly setting id and tank_pair_code
+        # 2) Insert a new pair
         new_id = str(uuid.uuid4())
         new_code = f"TP-{new_id[:8]}"
 
-        insert_cols = ["id", mom_col, dad_col]
-        placeholders = [":id", ":m", ":d"]
-        params = {"id": new_id, "m": mother_tank_id, "d": father_tank_id}
-
-        if "created_by" in cols:
-            insert_cols.append("created_by")
-            placeholders.append(":by")
-            params["by"] = created_by
-        if "note" in cols:
-            insert_cols.append("note")
-            placeholders.append(":note")
-            params["note"] = note
-        if "status" in cols:
-            insert_cols.append("status")
-            placeholders.append(":st")
-            params["st"] = "selected"
-        if "created_at" in cols:
-            insert_cols.append("created_at")
-            placeholders.append("now()")
-
-        insert_cols.append("tank_pair_code")
-        placeholders.append(":tp_code")
-        params["tp_code"] = new_code
-
+        params = {"id": new_id, "m": mother_tank_id, "d": father_tank_id, "by": created_by, "note": note, "tp_code": new_code}
         sql = text(
             """
             INSERT INTO public.tank_pairs(
@@ -389,7 +367,8 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 father_tank_id,
                 active_from,
                 created_at,
-                tank_pair_code
+                tank_pair_code,
+                notes
             )
             VALUES (
                 :id,
@@ -397,7 +376,8 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 :d,
                 now(),
                 now(),
-                :tp_code
+                :tp_code,
+                NULLIF(:note,'')
             )
             RETURNING tank_pair_code
             """

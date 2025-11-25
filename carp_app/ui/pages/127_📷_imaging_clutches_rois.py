@@ -1,3 +1,4 @@
+# carp_app/ui/pages/127_📷_imaging_clutches_rois.py
 from __future__ import annotations
 
 import os
@@ -22,8 +23,9 @@ from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock():
+    def require_app_unlock() -> None:
         ...
+
 
 # ───────── auth & page ─────────
 sb, session, user = require_auth()
@@ -36,6 +38,7 @@ st.set_page_config(
     layout="wide",
 )
 st.title("📷 Imaging clutches → ROIs")
+
 
 # ───────── engine (cached) ─────────
 @st.cache_resource(show_spinner=False)
@@ -54,23 +57,18 @@ def _norm(s: str | None) -> Optional[str]:
 
 # ───────── filters ─────────
 with st.form("imaging_clutches_filters", clear_on_submit=False):
-    c1, c2, c3, c4 = st.columns([3, 2, 2, 0.8])
+    c1, c2, c3 = st.columns([3, 2, 0.8])
     with c1:
         q_raw = st.text_input(
-            "Clutch code / parents / fish / ROI",
+            "Clutch code / plate / slot / ROI code",
             "",
         )
     with c2:
-        marker_raw = st.text_input(
-            "Marker (fluor substring)",
-            "",
-        )
-    with c3:
         clutch_date_from_raw = st.text_input(
             "Clutch date from (YYYY-MM-DD)",
             "",
         )
-    with c4:
+    with c3:
         lim = int(
             st.number_input(
                 "Row limit",
@@ -83,11 +81,10 @@ with st.form("imaging_clutches_filters", clear_on_submit=False):
     _ = st.form_submit_button("Apply")
 
 q = _norm(q_raw)
-marker = _norm(marker_raw)
 clutch_date_from = _norm(clutch_date_from_raw)
 
 
-# ───────── build WHERE for v_imaging_clutches_rois ─────────
+# ───────── build WHERE for v_imaging_clutches_rois (lean) ─────────
 where = ["1=1"]
 params: Dict[str, Any] = {"lim": lim}
 
@@ -95,22 +92,15 @@ if q:
     params["ql"] = f"%{q}%"
     where.append(
         "("
-        "  COALESCE(clutch_code,'')      ILIKE :ql"
-        " OR COALESCE(parent_female,'')  ILIKE :ql"
-        " OR COALESCE(parent_male,'')    ILIKE :ql"
-        " OR COALESCE(fish_code,'')      ILIKE :ql"
-        " OR COALESCE(roi_code,'')       ILIKE :ql"
-        " OR COALESCE(roi_name,'')       ILIKE :ql"
+        "  clutch_code ILIKE :ql"
+        " OR plate_code  ILIKE :ql"
+        " OR slot_label  ILIKE :ql"
+        " OR roi_code    ILIKE :ql"
         ")"
     )
 
-if marker:
-    params["marker"] = f"%{marker}%"
-    where.append("COALESCE(all_marker_fluor_codes,'') ILIKE :marker")
-
 if clutch_date_from:
     try:
-        # Validate date format and use as text comparable to date column
         dt = datetime.strptime(clutch_date_from, "%Y-%m-%d").date()
         params["clutch_date_from"] = dt.isoformat()
         where.append("clutch_date >= :clutch_date_from")
@@ -121,7 +111,7 @@ if clutch_date_from:
 where_sql = " AND ".join(where)
 
 
-# ───────── query canonical view v_imaging_clutches_rois ─────────
+# ───────── query v_imaging_clutches_rois ─────────
 sql = text(f"""
     SELECT
       clutch_code,
@@ -136,12 +126,6 @@ sql = text(f"""
       slot_label,
       roi_code,
       roi_index,
-      roi_name,
-      fish_code,
-      parent_female,
-      parent_male,
-      roi_birthday,
-      all_marker_fluor_codes,
       data_path
     FROM public.v_imaging_clutches_rois
     WHERE {where_sql}
@@ -152,8 +136,9 @@ sql = text(f"""
 with _eng().begin() as cx:
     df = pd.read_sql(sql, cx, params=params)
 
+# normalise string columns for display
 for c in df.select_dtypes(include=["object", "string"]).columns:
-    df[c] = df[c].astype("string").fillna("")
+    df[c] = df[c].astype("string")
 
 st.caption(f"{len(df)} row(s)")
 
@@ -162,9 +147,9 @@ st.caption(f"{len(df)} row(s)")
 view = df.copy()
 view.insert(0, "✓ Select", False)
 
-grid = st.data_editor(
+st.data_editor(
     view,
-    key="imaging_clutches_rois_overview_v8",
+    key="imaging_clutches_rois_overview_v9",
     hide_index=True,
     use_container_width=True,
     num_rows="fixed",
@@ -179,32 +164,20 @@ grid = st.data_editor(
         "slot_label",
         "roi_code",
         "roi_index",
-        "roi_name",
-        "fish_code",
-        "parent_female",
-        "parent_male",
-        "roi_birthday",
-        "all_marker_fluor_codes",
         "data_path",
     ],
     column_config={
-        "✓ Select":          st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_code":       st.column_config.TextColumn("Clutch code", disabled=True),
-        "clutch_date":       st.column_config.DateColumn("Clutch date", disabled=True),
+        "✓ Select":            st.column_config.CheckboxColumn("✓", default=False),
+        "clutch_code":         st.column_config.TextColumn("Clutch code", disabled=True),
+        "clutch_date":         st.column_config.DateColumn("Clutch date", disabled=True),
         "estimated_egg_count": st.column_config.NumberColumn("Est. egg count", disabled=True),
-        "membership_role":   st.column_config.TextColumn("Role", disabled=True),
-        "embryo_count":      st.column_config.NumberColumn("Embryos", disabled=True),
-        "plate_code":        st.column_config.TextColumn("Plate", disabled=True),
-        "slot_label":        st.column_config.TextColumn("Slot", disabled=True),
-        "roi_code":          st.column_config.TextColumn("ROI code", disabled=True),
-        "roi_index":         st.column_config.NumberColumn("ROI index", disabled=True),
-        "roi_name":          st.column_config.TextColumn("ROI name", disabled=True),
-        "fish_code":         st.column_config.TextColumn("Fish code", disabled=True),
-        "parent_female":     st.column_config.TextColumn("Parent ♀", disabled=True),
-        "parent_male":       st.column_config.TextColumn("Parent ♂", disabled=True),
-        "roi_birthday":      st.column_config.DateColumn("ROI birthday", disabled=True),
-        "all_marker_fluor_codes": st.column_config.TextColumn("Markers (fluors)", disabled=True),
-        "data_path":         st.column_config.TextColumn("Data path", disabled=True),
+        "membership_role":     st.column_config.TextColumn("Role", disabled=True),
+        "embryo_count":        st.column_config.NumberColumn("Embryos", disabled=True),
+        "plate_code":          st.column_config.TextColumn("Plate", disabled=True),
+        "slot_label":          st.column_config.TextColumn("Slot", disabled=True),
+        "roi_code":            st.column_config.TextColumn("ROI code", disabled=True),
+        "roi_index":           st.column_config.NumberColumn("ROI index", disabled=True),
+        "data_path":           st.column_config.TextColumn("ROI path", disabled=True),
     },
 )
 
@@ -212,7 +185,7 @@ grid = st.data_editor(
 st.download_button(
     "⬇︎ Download imaging clutches → ROIs (CSV)",
     data=df.to_csv(index=False).encode("utf-8"),
-    file_name="imaging_clutches_rois_overview.csv",
+    file_name="imaging_clutches_rois_overview_v9.csv",
     type="secondary",
     mime="text/csv",
 )
