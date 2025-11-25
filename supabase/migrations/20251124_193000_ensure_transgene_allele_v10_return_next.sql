@@ -1,97 +1,91 @@
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.ensure_transgene_allele(
-  p_base_code       text,
-  p_allele_nickname text
+  p_construct_code    text,
+  p_allele_nickname   text
 )
-RETURNS TABLE (
+RETURNS TABLE(
   transgene_base_code text,
   allele_number       integer,
   allele_name         text,
   allele_nickname     text
 )
 LANGUAGE plpgsql
-AS $function$
+AS $$
 DECLARE
-  v_base  text;
-  v_nick  text;
-  v_row   public.transgene_alleles%ROWTYPE;
-  v_name  text;
+  v_code text;
+  v_nick text;
+  v_tg   public.transgenes%ROWTYPE;
+  v_al   public.transgene_alleles%ROWTYPE;
+  v_num  integer;
+  v_name text;
 BEGIN
-  v_base := trim(p_base_code);
-  RAISE NOTICE '[allocator] called with basecode=%, nickname=%', v_base, p_allele_nickname;
-
-  IF v_base IS NULL OR v_base = '' THEN
-    RAISE NOTICE '[allocator] basecode empty, returning';
+  -- normalize inputs
+  v_code := trim(p_construct_code);
+  IF v_code IS NULL OR v_code = '' THEN
     RETURN;
   END IF;
 
-  PERFORM 1
-  FROM public.transgenes t
-  WHERE t.transgene_base_code = v_base;
-
-  IF FOUND THEN
-    RAISE NOTICE '[allocator] basecode % FOUND in transgenes', v_base;
-  ELSE
-    RAISE NOTICE '[allocator] basecode % NOT found in transgenes, checking plasmids', v_base;
-    SELECT p.name
-    INTO v_name
-    FROM public.plasmids p
-    WHERE p.code = v_base
-    LIMIT 1;
-
-    IF FOUND THEN
-      RAISE NOTICE '[allocator] FOUND in plasmids as %; inserting/updating transgenes', v_name;
-      INSERT INTO public.transgenes (transgene_base_code, transgene_name, description, created_at)
-      VALUES (v_base, v_name, NULL, now())
-      ON CONFLICT (transgene_base_code) DO NOTHING;
-    ELSE
-      RAISE NOTICE '[allocator] basecode % NOT found in plasmids; returning with no rows', v_base;
-      RETURN;
-    END IF;
-  END IF;
-
   v_nick := trim(p_allele_nickname);
-  IF v_nick IS NULL OR v_nick = '' OR lower(v_nick) IN ('nan', 'na', 'none') THEN
+  IF v_nick IS NULL OR lower(v_nick) IN ('', 'nan', 'na', 'none') THEN
     v_nick := NULL;
   END IF;
 
-  -- Try reuse path
+  -- ensure a transgenes row exists for this canonical code
+  SELECT tg.*
+  INTO v_tg
+  FROM public.transgenes tg
+  WHERE tg.transgene_base_code = v_code
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    -- try to pull a name from constructs
+    SELECT c.construct_name
+    INTO v_name
+    FROM public.constructs c
+    WHERE c.construct_code = v_code
+    LIMIT 1;
+
+    INSERT INTO public.transgenes (
+      transgene_base_code,
+      transgene_name,
+      description,
+      created_at
+    )
+    VALUES (
+      v_code,
+      COALESCE(v_name, v_code),
+      NULL,
+      now()
+    )
+    RETURNING * INTO v_tg;
+  END IF;
+
+  -- if nickname present, try to reuse existing allele
   IF v_nick IS NOT NULL THEN
     SELECT ta.*
-    INTO v_row
-    FROM public.transgene_alleles AS ta
-    WHERE ta.transgene_base_code = v_base
+    INTO v_al
+    FROM public.transgene_alleles ta
+    WHERE ta.transgene_base_code = v_code
       AND ta.allele_nickname     = v_nick
     LIMIT 1;
 
     IF FOUND THEN
-      RAISE NOTICE '[allocator] reuse allele for basecode=% nickname=% → allele_number=%',
-        v_base, v_nick, v_row.allele_number;
-
-      transgene_base_code := v_row.transgene_base_code;
-      allele_number       := v_row.allele_number;
-      allele_name         := v_row.allele_name;
-      allele_nickname     := v_row.allele_nickname;
+      transgene_base_code := v_al.transgene_base_code;
+      allele_number       := v_al.allele_number;
+      allele_name         := v_al.allele_name;
+      allele_nickname     := v_al.allele_nickname;
 
       RETURN NEXT;
       RETURN;
     END IF;
   END IF;
 
-  -- Mint new allele_number
+  -- otherwise mint a new global allele_number
   SELECT nextval('public.transgene_alleles_allele_number_seq')::int
-  INTO allele_number;
-  allele_name := 'gu' || allele_number;
+  INTO v_num;
 
-  IF v_nick IS NULL THEN
-    allele_nickname := allele_name;
-  ELSE
-    allele_nickname := v_nick;
-  END IF;
-
-  RAISE NOTICE '[allocator] minting new allele: basecode=% allele_number=% nickname=%',
-    v_base, allele_number, allele_nickname;
+  v_name := 'gu' || v_num;
 
   INSERT INTO public.transgene_alleles (
     transgene_base_code,
@@ -101,17 +95,22 @@ BEGIN
     created_at
   )
   VALUES (
-    v_base,
-    allele_number,
-    allele_name,
-    allele_nickname,
+    v_code,
+    v_num,
+    v_name,
+    COALESCE(v_nick, v_name),
     now()
-  );
+  )
+  RETURNING * INTO v_al;
 
-  transgene_base_code := v_base;
+  transgene_base_code := v_al.transgene_base_code;
+  allele_number       := v_al.allele_number;
+  allele_name         := v_al.allele_name;
+  allele_nickname     := v_al.allele_nickname;
+
   RETURN NEXT;
   RETURN;
 END;
-$function$;
+$$;
 
 COMMIT;
