@@ -1,4 +1,3 @@
-# carp_app/ui/pages/100_🧪_overview_constructs_v10.py
 from __future__ import annotations
 
 import os
@@ -11,7 +10,6 @@ import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-# ───────── path / auth bootstrap ─────────
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -45,12 +43,11 @@ def _norm(s: Optional[str]) -> str:
     return (s or "").strip()
 
 
-# ───────── filters ─────────
 with st.form("construct_filters", clear_on_submit=False):
     c1, c2, c3 = st.columns([3, 1.3, 0.8])
     with c1:
         q_raw = st.text_input(
-            "Search (code / name / kind / resistance / fluors / tags / organelles)",
+            "Search (code / name / kind / resistance / description / fusions / organelles)",
             "",
         )
     with c2:
@@ -85,9 +82,9 @@ if q:
         " OR construct_name ILIKE :ql"
         " OR COALESCE(construct_kind,'') ILIKE :ql"
         " OR COALESCE(resistance,'') ILIKE :ql"
-        " OR COALESCE(fluor_codes,'') ILIKE :ql"
-        " OR COALESCE(tag_codes,'') ILIKE :ql"
-        " OR COALESCE(organelles,'') ILIKE :ql"
+        " OR COALESCE(description,'') ILIKE :ql"
+        " OR COALESCE(fusion_pretty,'') ILIKE :ql"
+        " OR COALESCE(organelle_fluors,'') ILIKE :ql"
         ")"
     )
 
@@ -105,11 +102,9 @@ sql = text(
       construct_name,
       resistance,
       description,
-      fluor_codes,
-      tag_codes,
-      organelles,
+      n_fusions,
       fusion_pretty,
-      fluor_organelle_codes,
+      organelle_fluors,
       created_at
     FROM public.v10_constructs_overview
     WHERE {where_sql}
@@ -125,13 +120,24 @@ if df.empty:
     st.info("No constructs match these filters.")
     st.stop()
 
-# normalize display
 for col in df.select_dtypes(include="object").columns:
     df[col] = df[col].fillna("")
 
 st.caption(f"{len(df)} construct(s)")
 
-view = df.copy()
+view = df[
+    [
+        "construct_code",
+        "construct_kind",
+        "construct_name",
+        "resistance",
+        "description",
+        "n_fusions",
+        "fusion_pretty",
+        "organelle_fluors",
+        "created_at",
+    ]
+].copy()
 
 st.data_editor(
     view,
@@ -145,11 +151,9 @@ st.data_editor(
         "construct_name": st.column_config.TextColumn("name", disabled=True, width="large"),
         "resistance": st.column_config.TextColumn("resistance", disabled=True),
         "description": st.column_config.TextColumn("description", disabled=True),
-        "fluor_codes": st.column_config.TextColumn("fluor_codes", disabled=True),
-        "tag_codes": st.column_config.TextColumn("tag_codes", disabled=True),
-        "organelles": st.column_config.TextColumn("organelles", disabled=True),
-        "fusion_pretty": st.column_config.TextColumn("fusion_pretty", disabled=True),
-        "fluor_organelle_codes": st.column_config.TextColumn("fluor-organelle codes", disabled=True),
+        "n_fusions": st.column_config.NumberColumn("n_fusions", disabled=True),
+        "fusion_pretty": st.column_config.TextColumn("fusions fluor::tag(tag_pos)", disabled=True, width="large"),
+        "organelle_fluors": st.column_config.TextColumn("organelle-fluors", disabled=True, width="large"),
         "created_at": st.column_config.DatetimeColumn("created_at", disabled=True),
     },
 )
