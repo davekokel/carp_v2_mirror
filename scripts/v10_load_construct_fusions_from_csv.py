@@ -1,13 +1,36 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
+import math
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+
+
+def norm(s: str | None) -> str:
+    if s is None:
+        return ""
+    return str(s).strip()
+
+
+def norm_key(s: str | None) -> str:
+    return norm(s).lower()
+
+
+def norm_optional(val: Any) -> str | None:
+    if val is None:
+        return None
+    if isinstance(val, float) and math.isnan(val):
+        return None
+    s = str(val).strip()
+    if not s or s.lower() == "nan":
+        return None
+    return s
 
 
 def get_engine(db_url: Optional[str]) -> Engine:
@@ -18,9 +41,106 @@ def get_engine(db_url: Optional[str]) -> Engine:
     return create_engine(url)
 
 
+def build_construct_lookup(engine: Engine) -> Dict[str, Tuple[str, str]]:
+    sql = text(
+        """
+        SELECT
+          c.id::text      AS construct_id,
+          c.construct_code,
+          c.base_code,
+          a.alias
+        FROM public.constructs c
+        LEFT JOIN public.construct_aliases a
+          ON a.construct_id = c.id
+        """
+    )
+    with engine.begin() as cx:
+        df = pd.read_sql(sql, cx)
+
+    lookup: Dict[str, Tuple[str, str]] = {}
+    for _, row in df.iterrows():
+        cid = norm(row["construct_id"])
+        code = norm(row["construct_code"])
+        base = norm(row["base_code"])
+        alias = norm(row.get("alias"))
+
+        canon = code or base
+        if not canon:
+            continue
+
+        keys = set()
+        if code:
+            keys.add(code)
+            keys.add(code.lower())
+        if base:
+            keys.add(base)
+            keys.add(base.lower())
+        if alias:
+            keys.add(alias)
+            keys.add(alias.lower())
+
+        for k in keys:
+            lookup[k] = (cid, canon)
+
+    print(f"[v10_load_construct_fusions] construct lookup keys: {len(lookup)}")
+    return lookup
+
+
+def build_fluor_lookup(engine: Engine) -> Dict[str, str]:
+    sql = text(
+        """
+        SELECT
+          f.id::text   AS fluor_id,
+          f.fluor_code,
+          a.alias
+        FROM public.fluors f
+        LEFT JOIN public.fluor_aliases a
+          ON a.fluor_id = f.id
+        """
+    )
+    with engine.begin() as cx:
+        df = pd.read_sql(sql, cx)
+
+    lookup: Dict[str, str] = {}
+    for _, row in df.iterrows():
+        fid = norm(row["fluor_id"])
+        code = norm(row["fluor_code"])
+        alias = norm(row.get("alias"))
+
+        for raw in (code, alias):
+            k = norm_key(raw)
+            if not k:
+                continue
+            lookup[k] = fid
+
+    print(f"[v10_load_construct_fusions] fluor lookup keys: {len(lookup)}")
+    return lookup
+
+
+def build_tag_lookup(engine: Engine) -> Dict[str, str]:
+    sql = text(
+        """
+        SELECT id::text AS tag_id, tag_code
+        FROM public.tags
+        """
+    )
+    with engine.begin() as cx:
+        df = pd.read_sql(sql, cx)
+
+    lookup: Dict[str, str] = {}
+    for _, row in df.iterrows():
+        k = norm_key(row["tag_code"])
+        if not k:
+            continue
+        lookup[k] = norm(row["tag_id"])
+
+    print(f"[v10_load_construct_fusions] tag lookup keys: {len(lookup)}")
+    return lookup
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="v10: ensure construct_fusions from constructs_plasmid.csv (constructs ↔ fusions)."
+        description="v10: load construct_fusions from constructs_plasmid.csv",
     )
     parser.add_argument(
         "--constructs-csv",
@@ -35,54 +155,38 @@ def main() -> None:
 
     path = Path(args.constructs_csv)
     if not path.exists():
-        raise SystemExit(f"constructs CSV not found: {path}")
+        raise SystemExit(f"[v10_load_construct_fusions] CSV not found: {path}")
 
     df = pd.read_csv(path)
     print(f"[v10_load_construct_fusions] read {len(df)} row(s) from {path}")
 
-    required_cols = [
-        "plasmid_code",
-        "fluor_code",
-        "tag_code",
-        "tag_pos",
-    ]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        raise SystemExit(f"[v10_load_construct_fusions] missing required columns in CSV: {missing}")
-
-    # Normalize codes
-    df["plasmid_code"] = df["plasmid_code"].astype(str).str.strip()
-    df["fluor_code"] = df["fluor_code"].astype(str).str.strip()
-    df["tag_code"] = df["tag_code"].astype(str).str.strip()
-    df["tag_pos"] = df["tag_pos"].astype(str).str.strip()
+    required_cols = ["plasmid_code", "fluor_code"]
+    for c in required_cols:
+        if c not in df.columns:
+            raise SystemExit(f"[v10_load_construct_fusions] missing column {c!r} in CSV")
 
     engine = get_engine(args.db_url)
 
-    sql_find_construct = text(
-        """
-        SELECT c.id::text
-        FROM public.constructs c
-        LEFT JOIN public.construct_aliases a
-          ON a.construct_id = c.id
-        WHERE c.base_code = :code
-           OR c.construct_code = :code
-           OR a.alias = :code
-        LIMIT 1
-        """
-    )
+    construct_lookup = build_construct_lookup(engine)
+    fluor_lookup = build_fluor_lookup(engine)
+    tag_lookup = build_tag_lookup(engine)
 
-    sql_find_fluor = text(
-        "SELECT id::text FROM public.fluors WHERE fluor_code = :code LIMIT 1"
-    )
-
-    sql_find_tag = text(
-        "SELECT id::text FROM public.tags WHERE tag_code = :code LIMIT 1"
-    )
-
-    sql_upsert_fusion = text(
+    sql_insert_fusion = text(
         """
-        INSERT INTO public.fusions (fluor_id, tag_id, tag_pos, created_at)
-        VALUES (:fluor_id, :tag_id, :tag_pos, now())
+        INSERT INTO public.fusions (
+          fluor_id,
+          tag_id,
+          tag_pos,
+          created_at
+        )
+        VALUES (
+          :fluor_id,
+          :tag_id,
+          :tag_pos,
+          now()
+        )
+        ON CONFLICT (fluor_id, tag_id, tag_pos) DO UPDATE SET
+          tag_pos = EXCLUDED.tag_pos
         RETURNING id::text AS fusion_id
         """
     )
@@ -94,7 +198,7 @@ def main() -> None:
         WHERE fluor_id = :fluor_id
           AND (
                 (tag_id IS NULL AND :tag_id IS NULL)
-             OR (tag_id = :tag_id)
+             OR (tag_id IS NOT NULL AND :tag_id IS NOT NULL AND tag_id = :tag_id)
           )
           AND COALESCE(tag_pos, '') = COALESCE(:tag_pos, '')
         LIMIT 1
@@ -103,90 +207,103 @@ def main() -> None:
 
     sql_insert_cf = text(
         """
-        INSERT INTO public.construct_fusions (construct_id, fusion_id)
-        VALUES (:construct_id, :fusion_id)
-        ON CONFLICT (construct_id, fusion_id) DO NOTHING
+        INSERT INTO public.construct_fusions (
+          construct_id,
+          fusion_id,
+          created_at
+        )
+        VALUES (
+          :construct_id,
+          :fusion_id,
+          now()
+        )
+        ON CONFLICT DO NOTHING
         """
     )
 
+    unknown_constructs: set[str] = set()
+    unknown_fluors: set[str] = set()
+    unknown_tags: set[str] = set()
+
     inserted_cf = 0
-    skipped_no_construct = 0
-    skipped_no_fluor = 0
 
     with engine.begin() as cx:
         for _, row in df.iterrows():
-            plasmid_code = row["plasmid_code"]
-            fluor_code = row["fluor_code"]
-            tag_code = row["tag_code"]
-            tag_pos = row["tag_pos"]
+            plasmid_code_raw = norm(row.get("plasmid_code"))
+            fluor_code_raw = norm(row.get("fluor_code"))
+            tag_code_raw = norm_optional(row.get("tag_code"))
+            tag_pos_raw = norm_optional(row.get("tag_pos"))
 
-            if not plasmid_code:
+            if not plasmid_code_raw or not fluor_code_raw:
                 continue
 
-            # Find construct_id by base_code or construct_code = plasmid_code
-            construct_id = cx.execute(sql_find_construct, {"code": plasmid_code}).scalar()
-            if construct_id is None:
-                print(f"[WARN] No construct for plasmid_code={plasmid_code}; skipping fusions for this row.")
-                skipped_no_construct += 1
+            c_key = norm_key(plasmid_code_raw)
+            c_match = construct_lookup.get(plasmid_code_raw) or construct_lookup.get(c_key)
+            if not c_match:
+                if plasmid_code_raw not in unknown_constructs:
+                    print(
+                        f"[v10_load_construct_fusions] WARN: unknown plasmid_code={plasmid_code_raw!r} (no construct/alias match)"
+                    )
+                    unknown_constructs.add(plasmid_code_raw)
                 continue
+            construct_id, canon_code = c_match
 
-            # Skip rows with no fluor_code
-            if not fluor_code or str(fluor_code).lower() in ("nan", "none", ""):
-                skipped_no_fluor += 1
-                continue
-
-            fluor_id = cx.execute(sql_find_fluor, {"code": fluor_code}).scalar()
-            if fluor_id is None:
-                print(f"[WARN] No fluor_id for fluor_code={fluor_code}; skipping.")
-                skipped_no_fluor += 1
+            f_key = norm_key(fluor_code_raw)
+            fluor_id = fluor_lookup.get(f_key)
+            if not fluor_id:
+                if fluor_code_raw not in unknown_fluors:
+                    print(
+                        f"[v10_load_construct_fusions] WARN: unknown fluor_code={fluor_code_raw!r} (no fluors/aliases match)"
+                    )
+                    unknown_fluors.add(fluor_code_raw)
                 continue
 
             tag_id = None
-            if tag_code and str(tag_code).lower() not in ("nan", "none", ""):
-                tag_id = cx.execute(sql_find_tag, {"code": tag_code}).scalar()
-                if tag_id is None:
-                    print(f"[WARN] No tag_id for tag_code={tag_code}; using NULL tag.")
-                    tag_id = None
+            if tag_code_raw:
+                t_key = norm_key(tag_code_raw)
+                tag_id = tag_lookup.get(t_key)
+                if not tag_id and tag_code_raw not in unknown_tags:
+                    print(
+                        f"[v10_load_construct_fusions] WARN: unknown tag_code={tag_code_raw!r}; using NULL tag."
+                    )
+                    unknown_tags.add(tag_code_raw)
 
-            tag_pos_clean = tag_pos if tag_pos and str(tag_pos).lower() not in ("nan", "none", "") else None
+            if tag_id is None:
+                tag_pos = None
+            else:
+                tag_pos = tag_pos_raw
 
-            # Try to reuse an existing fusion first
             res = cx.execute(
                 sql_find_fusion,
-                {
-                    "fluor_id": fluor_id,
-                    "tag_id": tag_id,
-                    "tag_pos": tag_pos_clean or "",
-                },
+                {"fluor_id": fluor_id, "tag_id": tag_id, "tag_pos": tag_pos},
             ).fetchone()
 
             if res is not None:
                 fusion_id = res._mapping["fusion_id"]
             else:
-                # Create new fusion
                 res2 = cx.execute(
-                    sql_upsert_fusion,
-                    {
-                        "fluor_id": fluor_id,
-                        "tag_id": tag_id,
-                        "tag_pos": tag_pos_clean,
-                    },
+                    sql_insert_fusion,
+                    {"fluor_id": fluor_id, "tag_id": tag_id, "tag_pos": tag_pos},
                 ).fetchone()
                 fusion_id = res2._mapping["fusion_id"]
 
-            # Link construct ↔ fusion
             cx.execute(
                 sql_insert_cf,
-                {
-                    "construct_id": construct_id,
-                    "fusion_id": fusion_id,
-                },
+                {"construct_id": construct_id, "fusion_id": fusion_id},
             )
             inserted_cf += 1
 
     print(f"[v10_load_construct_fusions] linked {inserted_cf} construct_fusions row(s)")
-    print(f"[v10_load_construct_fusions] skipped {skipped_no_construct} row(s) with no construct")
-    print(f"[v10_load_construct_fusions] skipped {skipped_no_fluor} row(s) with no fluor")
+    if unknown_fluors:
+        print(
+            "[v10_load_construct_fusions] unresolved fluor_code values (after normalization):",
+            ", ".join(sorted(unknown_fluors)),
+        )
+    if unknown_constructs:
+        print(
+            "[v10_load_construct_fusions] unresolved plasmid_code values:",
+            ", ".join(sorted(unknown_constructs)),
+        )
 
 
 if __name__ == "__main__":

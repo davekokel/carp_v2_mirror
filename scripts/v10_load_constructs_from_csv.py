@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
-from typing import Tuple, Optional
-
 import re
+from pathlib import Path
+from typing import Optional, Dict, Tuple
+
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 
-def get_engine(db_url: str | None) -> Engine:
+def get_engine(db_url: Optional[str]) -> Engine:
     url = db_url or os.environ.get("DB_URL")
     if not url:
         raise SystemExit("DB_URL must be provided via --db-url or env DB_URL")
@@ -19,61 +19,65 @@ def get_engine(db_url: str | None) -> Engine:
     return create_engine(url)
 
 
-def split_series(code: str) -> Tuple[Optional[str], Optional[int]]:
-    """
-    Best-effort split of construct_code into (series_prefix, series_number),
-    treating '-' as a delimiter, not part of the prefix.
-
-    Examples:
-      'pDQM005' -> ('pdqm', 5)
-      'MGCO-01' -> ('mgco', 1)
-      'HC-9'    -> ('hc', 9)
-
-    If pattern doesn't match cleanly, returns (None, None).
-    """
-    s = code.strip()
-    prefix_chars = []
-    number_chars = []
-    seen_digit = False
-
-    for ch in s:
-        if ch.isdigit():
-            seen_digit = True
-            number_chars.append(ch)
-        else:
-            if not seen_digit:
-                if ch.isalpha():
-                    prefix_chars.append(ch)
-                else:
-                    # treat '-' and other non-alpha as delimiters
-                    continue
-            else:
-                # ignore any trailing non-digits once numbers start
-                continue
-
-    if not prefix_chars or not number_chars:
-        return None, None
-
-    prefix = "".join(prefix_chars).lower()
-    number = int("".join(number_chars))
-    return prefix, number
+def norm(s: str | None) -> str:
+    if s is None:
+        return ""
+    return str(s).strip()
 
 
-def canonical_code(prefix: Optional[str], number: Optional[int], raw_code: str) -> str:
-    """
-    Build a canonical construct_code.
+def canonical_code(raw: str) -> Tuple[str, Optional[str], Optional[int]]:
+    s = norm(raw)
+    if not s:
+        raise ValueError("Empty plasmid_code cannot be normalized")
 
-    If prefix/number are available, use PREFIX-NNN (PREFIX uppercase, NNN zero-padded).
-    Else fall back to the raw_code.
-    """
-    if prefix is None or number is None:
-        return raw_code.strip()
-    return f"{prefix.upper()}-{number:03d}"
+    s_clean = s.strip()
+
+    m = re.match(r"^([A-Za-z-]+?)(\d+)$", s_clean)
+    if not m:
+        return s_clean.upper(), None, None
+
+    prefix_raw, num_raw = m.group(1), m.group(2)
+    try:
+        num_int = int(num_raw)
+    except ValueError:
+        return s_clean.upper(), None, None
+
+    prefix = prefix_raw.upper().rstrip("-")
+    construct_code = f"{prefix}-{num_int:03d}"
+    series_prefix = prefix.lower()
+    series_number = num_int
+    return construct_code, series_prefix, series_number
+
+
+def derive_kind(row: pd.Series) -> str:
+    truthy = {"1", "true", "t", "yes", "y"}
+
+    def flag(col: str) -> bool:
+        v = str(row.get(col, "")).strip().lower()
+        return v in truthy
+
+    used_plasmid = flag("used_for_injection_plasmid")
+    used_rna     = flag("used_for_injection_rna")
+    used_crispr  = flag("used_for_injection_crispr")
+
+    kinds: list[str] = []
+    if used_plasmid:
+        kinds.append("plasmid")
+    if used_rna:
+        kinds.append("rna")
+    if used_crispr:
+        kinds.append("crispr")
+
+    if not kinds:
+        return "plasmid"
+    if len(kinds) == 1:
+        return kinds[0]
+    return "+".join(kinds)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="v10: load constructs + construct_plasmids from constructs_plasmid.csv"
+        description="v10: load constructs + plasmid metadata + aliases from constructs_plasmid.csv"
     )
     parser.add_argument(
         "--constructs-csv",
@@ -88,44 +92,38 @@ def main() -> None:
 
     path = Path(args.constructs_csv)
     if not path.exists():
-        raise SystemExit(f"constructs_plasmid.csv not found: {path}")
+        raise SystemExit(f"[v10_load_constructs] constructs CSV not found: {path}")
 
     df = pd.read_csv(path)
     print(f"[v10_load_constructs] read {len(df)} row(s) from {path}")
 
-    required = ["plasmid_code", "plasmid_name"]
-    missing = [c for c in required if c not in df.columns]
+    required_cols = [
+        "plasmid_code",
+        "plasmid_name",
+        "resistance",
+        "plasmid_notes",
+        "used_for_injection_plasmid",
+        "used_for_injection_rna",
+        "used_for_injection_crispr",
+    ]
+    missing = [c for c in required_cols if c not in df.columns]
     if missing:
-        raise SystemExit(f"constructs CSV missing required columns: {missing}; found {list(df.columns)}")
+        raise SystemExit(f"[v10_load_constructs] CSV missing required columns: {missing}")
 
-    df = df.copy()
-    df["plasmid_code"] = df["plasmid_code"].astype(str).str.strip()
-    df["plasmid_name"] = df["plasmid_name"].astype(str).str.strip()
-    df["plasmid_notes"] = (
-        df.get("plasmid_notes", df.get("notes", ""))
-          .astype(str)
-          .fillna("")
-          .str.strip()
+    df_codes = (
+        df
+        .groupby("plasmid_code", as_index=False)
+        .agg({
+            "plasmid_name": "first",
+            "plasmid_nickname": "first",
+            "resistance": "first",
+            "plasmid_notes": "first",
+            "used_for_injection_plasmid": "first",
+            "used_for_injection_rna": "first",
+            "used_for_injection_crispr": "first",
+        })
     )
-    df["resistance"] = (
-        df.get("resistance", "")
-          .astype(str)
-          .fillna("")
-          .str.strip()
-    )
-
-    # drop empty codes, dedupe by plasmid_code
-    df = df[df["plasmid_code"] != ""].drop_duplicates(subset=["plasmid_code"])
-
-    # derive series_prefix/series_number and canonical_code
-    df["series_prefix"] = None
-    df["series_number"] = None
-    df["canonical_code"] = None
-    for idx, code in df["plasmid_code"].items():
-        prefix, number = split_series(code)
-        df.at[idx, "series_prefix"] = prefix
-        df.at[idx, "series_number"] = number
-        df.at[idx, "canonical_code"] = canonical_code(prefix, number, code)
+    print(f"[v10_load_constructs] unique plasmid_code rows: {len(df_codes)}")
 
     engine = get_engine(args.db_url)
 
@@ -138,16 +136,20 @@ def main() -> None:
           construct_name,
           description,
           series_prefix,
-          series_number
+          series_number,
+          resistance,
+          plasmid_notes
         )
         VALUES (
           :base_code,
-          :code,
-          'plasmid',
-          :name,
-          :desc,
-          :prefix,
-          :number
+          :construct_code,
+          :construct_kind,
+          :construct_name,
+          :description,
+          :series_prefix,
+          :series_number,
+          :resistance,
+          :plasmid_notes
         )
         ON CONFLICT (construct_code) DO UPDATE SET
           base_code      = EXCLUDED.base_code,
@@ -155,28 +157,10 @@ def main() -> None:
           construct_name = EXCLUDED.construct_name,
           description    = EXCLUDED.description,
           series_prefix  = EXCLUDED.series_prefix,
-          series_number  = EXCLUDED.series_number
+          series_number  = EXCLUDED.series_number,
+          resistance     = EXCLUDED.resistance,
+          plasmid_notes  = EXCLUDED.plasmid_notes
         RETURNING id::text AS construct_id
-        """
-    )
-
-    sql_insert_plasmid = text(
-        """
-        INSERT INTO public.construct_plasmids (
-          construct_id,
-          resistance,
-          backbone,
-          notes
-        )
-        VALUES (
-          :construct_id,
-          :resistance,
-          NULL,
-          :notes
-        )
-        ON CONFLICT (construct_id) DO UPDATE SET
-          resistance = EXCLUDED.resistance,
-          notes      = EXCLUDED.notes
         """
     )
 
@@ -185,69 +169,67 @@ def main() -> None:
         INSERT INTO public.construct_aliases (
           construct_id,
           alias,
-          alias_kind,
-          created_at
+          alias_kind
         )
         VALUES (
           :construct_id,
           :alias,
-          :alias_kind,
-          now()
+          'plasmid_code_from_csv'
         )
-        ON CONFLICT (alias) DO UPDATE SET
-          construct_id = EXCLUDED.construct_id,
-          alias_kind   = EXCLUDED.alias_kind
+        ON CONFLICT (construct_id, alias, alias_kind) DO NOTHING
         """
     )
 
     inserted_constructs = 0
-    inserted_aliases = 0
+    alias_rows = 0
+
     with engine.begin() as cx:
-        for _, row in df.iterrows():
-            raw_code  = row["plasmid_code"]
-            name      = row["plasmid_name"]
-            notes     = row["plasmid_notes"]
-            resistance = row["resistance"]
-            prefix    = row["series_prefix"]
-            number    = row["series_number"]
-            canon     = row["canonical_code"]
+        for _, row in df_codes.iterrows():
+            plasmid_code = norm(row["plasmid_code"])
+            if not plasmid_code:
+                print("[v10_load_constructs] SKIP row with empty plasmid_code")
+                continue
+
+            try:
+                construct_code, series_prefix, series_number = canonical_code(plasmid_code)
+            except Exception as e:
+                print(f"[v10_load_constructs] WARN: unable to canonicalize {plasmid_code!r}: {e}; skipping.")
+                continue
+
+            base_code = construct_code
+            name = norm(row.get("plasmid_name")) or plasmid_code
+            desc = norm(row.get("plasmid_notes")) or None
+            resistance = norm(row.get("resistance")) or None
+            construct_kind = derive_kind(row)
 
             res = cx.execute(
                 sql_insert_construct,
                 {
-                    "base_code": canon,
-                    "code": canon,
-                    "name": name,
-                    "desc": notes or None,
-                    "prefix": prefix,
-                    "number": number,
+                    "base_code": base_code,
+                    "construct_code": construct_code,
+                    "construct_kind": construct_kind,
+                    "construct_name": name,
+                    "description": desc,
+                    "series_prefix": series_prefix,
+                    "series_number": series_number,
+                    "resistance": resistance,
+                    "plasmid_notes": desc,
                 },
             ).fetchone()
             construct_id = res._mapping["construct_id"]
             inserted_constructs += 1
 
             cx.execute(
-                sql_insert_plasmid,
-                {
-                    "construct_id": construct_id,
-                    "resistance": resistance or None,
-                    "notes": notes or None,
-                },
-            )
-
-            # insert plasmid_code as alias
-            cx.execute(
                 sql_insert_alias,
                 {
                     "construct_id": construct_id,
-                    "alias": raw_code,
-                    "alias_kind": "plasmid_code_from_csv",
+                    "alias": plasmid_code,
                 },
             )
-            inserted_aliases += 1
+            alias_rows += 1
 
     print(f"[v10_load_constructs] upserted {inserted_constructs} construct(s)")
-    print(f"[v10_load_constructs] upserted {inserted_aliases} alias row(s)")
+    print(f"[v10_load_constructs] upserted {alias_rows} alias row(s)")
 
 
 if __name__ == "__main__":
