@@ -1,4 +1,5 @@
 nickname,localization,excitation_nm,emission_nm,alias,notes
-JF549,halo,549,571,Janelia Fluor 549; HaloTag ligand 549,Approximate peaks; adjust if you use vendor-specific spectra.
-JFX650,halo,650,670,Janelia Fluor X 650; HaloTag ligand 650,Approximate peaks; adjust if you use vendor-specific spectra.
-LysoTracker Deep Red,lysosome,647,668,,
+JF549,halo,549,571,"Janelia Fluor 549; JF 549; JF-549; HaloTag ligand 549","Approximate peaks; adjust if you use vendor-specific values."
+JFX650,halo,650,670,"Janelia Fluor X 650; JFX 650; JFX-650; HaloTag ligand 650","Approximate peaks; adjust if you use vendor-specific values."
+JF635,halo,635,660,"Janelia Fluor 635; JF 635; JF-635; HaloTag ligand 635","Approximate peaks; adjust if you use vendor-specific values."
+LysoTracker Deep Red,lysosome,647,668,"LysoTracker Deep Red; LysoTracker DR",""
