@@ -4,7 +4,7 @@ import argparse
 import os
 import re
 from pathlib import Path
-from typing import Optional, Dict, Tuple
+from typing import Optional, Tuple
 
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -57,8 +57,8 @@ def derive_kind(row: pd.Series) -> str:
         return v in truthy
 
     used_plasmid = flag("used_for_injection_plasmid")
-    used_rna     = flag("used_for_injection_rna")
-    used_crispr  = flag("used_for_injection_crispr")
+    used_rna = flag("used_for_injection_rna")
+    used_crispr = flag("used_for_injection_crispr")
 
     kinds: list[str] = []
     if used_plasmid:
@@ -77,7 +77,7 @@ def derive_kind(row: pd.Series) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="v10: load constructs + plasmid metadata + aliases from constructs_plasmid.csv"
+        description="v10: load constructs (with folded plasmid metadata) from constructs_plasmid.csv"
     )
     parser.add_argument(
         "--constructs-csv",
@@ -138,6 +138,7 @@ def main() -> None:
           series_prefix,
           series_number,
           resistance,
+          backbone,
           plasmid_notes
         )
         VALUES (
@@ -149,7 +150,8 @@ def main() -> None:
           :series_prefix,
           :series_number,
           :resistance,
-          :plasmid_notes
+          NULL,
+          :notes
         )
         ON CONFLICT (construct_code) DO UPDATE SET
           base_code      = EXCLUDED.base_code,
@@ -159,6 +161,7 @@ def main() -> None:
           series_prefix  = EXCLUDED.series_prefix,
           series_number  = EXCLUDED.series_number,
           resistance     = EXCLUDED.resistance,
+          backbone       = EXCLUDED.backbone,
           plasmid_notes  = EXCLUDED.plasmid_notes
         RETURNING id::text AS construct_id
         """
@@ -213,7 +216,7 @@ def main() -> None:
                     "series_prefix": series_prefix,
                     "series_number": series_number,
                     "resistance": resistance,
-                    "plasmid_notes": desc,
+                    "notes": desc,
                 },
             ).fetchone()
             construct_id = res._mapping["construct_id"]

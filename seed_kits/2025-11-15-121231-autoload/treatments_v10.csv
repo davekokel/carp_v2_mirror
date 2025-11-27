@@ -1,3 +1,2 @@
 treatment_code,treatment_name,kind_code,mix_code,ingredient_type,ingredient_code,concentration
-T-LEGACY-001,Legacy v9 mix 1,injection,M1,dye,JF-635,
-T-LEGACY-002,Legacy v9 mix 2,injection,M1,construct,PDQM-140,
+T-LEGACY-001,Legacy v9 mix 1,injection,M1,construct,PDQM-140,

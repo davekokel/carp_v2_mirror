@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -7,7 +8,12 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from carp_app.etl.util import get_engine_from_env, normalize_base_code, _load_csv_normalized
+from carp_app.etl.util import (
+    get_engine_from_env,
+    normalize_base_code,
+    _load_csv_normalized,
+)
+
 
 def _normalize_dye_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, list[str]]:
     warnings: list[str] = []
@@ -63,6 +69,7 @@ def _normalize_dye_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, list[str]]:
     out = out[mask_valid].reset_index(drop=True)
 
     return out, warnings
+
 
 def load_dyes_from_csv(csv_path: str | Path, engine: Optional[Engine] = None) -> dict:
     path = Path(csv_path)
@@ -125,3 +132,32 @@ def load_dyes_from_csv(csv_path: str | Path, engine: Optional[Engine] = None) ->
                 existing_codes.add(base_code)
 
     return {"rows": len(df), "inserted": inserted, "updated": updated, "warnings": warnings}
+
+
+def main(argv: Optional[list[str]] = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Load / upsert dyes into public.dyes from a CSV file."
+    )
+    parser.add_argument(
+        "--csv",
+        required=True,
+        help="Path to dyes CSV (e.g. seed_kits/.../dyes.csv)",
+    )
+    args = parser.parse_args(argv)
+
+    engine = get_engine_from_env()
+    print(f"DB_URL={engine.url}")
+
+    result = load_dyes_from_csv(args.csv, engine=engine)
+
+    for w in result.get("warnings", []):
+        print(f"[dyes] WARN: {w}")
+    print(
+        f"[dyes] rows={result['rows']} "
+        f"inserted={result['inserted']} "
+        f"updated={result['updated']}"
+    )
+
+
+if __name__ == "__main__":
+    main()
