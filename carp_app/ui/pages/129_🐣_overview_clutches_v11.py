@@ -89,10 +89,13 @@ if q:
     params["ql"] = f"%{q}%"
     where.append(
         "("
-        "  c.clutch_code   ILIKE :ql"
-        " OR c.genotype    ILIKE :ql"
-        " OR c.source_system ILIKE :ql"
-        " OR c.treat_codes ILIKE :ql"
+        "  c.clutch_code           ILIKE :ql"
+        " OR c.genotype_pretty     ILIKE :ql"
+        " OR c.genotype_cross_label ILIKE :ql"
+        " OR c.source_system       ILIKE :ql"
+        " OR c.treat_codes         ILIKE :ql"
+        " OR c.treat_fluor_tag     ILIKE :ql"
+        " OR c.treat_organelle_fluor ILIKE :ql"
         ")"
     )
 
@@ -112,16 +115,16 @@ sql = text(f"""
       c.clutch_id,
       c.clutch_code,
       c.clutch_date,
-      c.genotype,
+      c.genotype_pretty,
+      c.genotype_cross_label,
       c.source_system,
       c.n_imaging_slots,
       c.n_rois,
       c.treat_codes,
       c.kind_codes,
       c.mix_codes,
-      c.fluor_codes,
-      c.fluor_names,
-      c.tag_codes
+      c.treat_fluor_tag,
+      c.treat_organelle_fluor
     FROM public.v11_clutch_star c
     WHERE {where_sql}
     ORDER BY c.clutch_date, c.clutch_code
@@ -136,8 +139,17 @@ except Exception as e:
     st.exception(e)
     st.stop()
 
+# normalize string columns for display
 for c in df.select_dtypes(include=["object", "string"]).columns:
     df[c] = df[c].astype("string").fillna("")
+
+# derive display genotype in Python (no SQL COALESCE)
+if "genotype_pretty" in df.columns and "genotype_cross_label" in df.columns:
+    df["genotype"] = df["genotype_pretty"]
+    mask = df["genotype"].isin(["", "None"])
+    df.loc[mask, "genotype"] = df.loc[mask, "genotype_cross_label"]
+else:
+    df["genotype"] = ""
 
 st.caption(f"{len(df)} clutch row(s)")
 
@@ -145,7 +157,20 @@ st.caption(f"{len(df)} clutch row(s)")
 if df.empty:
     st.info("No clutches match the current filters.")
 else:
-    view = df.copy()
+    view = df[[
+        "clutch_id",
+        "clutch_code",
+        "clutch_date",
+        "genotype",
+        "source_system",
+        "n_imaging_slots",
+        "n_rois",
+        "treat_codes",
+        "kind_codes",
+        "mix_codes",
+        "treat_fluor_tag",
+        "treat_organelle_fluor",
+    ]].copy()
     view.insert(0, "✓ Select", False)
 
     st.data_editor(
@@ -154,21 +179,6 @@ else:
         hide_index=True,
         use_container_width=True,
         num_rows="fixed",
-        column_order=[
-            "✓ Select",
-            "clutch_code",
-            "clutch_date",
-            "genotype",
-            "source_system",
-            "n_imaging_slots",
-            "n_rois",
-            "treat_codes",
-            "kind_codes",
-            "mix_codes",
-            "fluor_codes",
-            "fluor_names",
-            "tag_codes",
-        ],
         column_config={
             "✓ Select":        st.column_config.CheckboxColumn("✓", default=False),
             "clutch_code":     st.column_config.TextColumn("Clutch", disabled=True),
@@ -180,15 +190,14 @@ else:
             "treat_codes":     st.column_config.TextColumn("Treat codes", disabled=True),
             "kind_codes":      st.column_config.TextColumn("Kinds", disabled=True),
             "mix_codes":       st.column_config.TextColumn("Mix codes", disabled=True),
-            "fluor_codes":     st.column_config.TextColumn("Fluor codes", disabled=True),
-            "fluor_names":     st.column_config.TextColumn("Fluor names", disabled=True),
-            "tag_codes":       st.column_config.TextColumn("Tag codes", disabled=True),
+            "treat_fluor_tag": st.column_config.TextColumn("Treat fluor::tag(tag_pos)", disabled=True),
+            "treat_organelle_fluor": st.column_config.TextColumn("Treat organelle-fluor", disabled=True),
         },
     )
 
     st.download_button(
         "⬇︎ Download v11 clutch star (CSV)",
-        data=df.to_csv(index=False).encode("utf-8"),
+        data=view.to_csv(index=False).encode("utf-8"),
         file_name="v11_clutch_star_overview.csv",
         type="secondary",
         mime="text/csv",
