@@ -1,8 +1,10 @@
 # carp_app/ui/pages/260_🖨️_print_tank_labels.py
+# 🖨️ Print tank labels (v11) — tank_code, allele_label, organelle-fluor, stage + DOB
+
 from __future__ import annotations
 
 import os, sys, pathlib
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 
 import pandas as pd
 import streamlit as st
@@ -47,38 +49,60 @@ def _eng() -> Engine:
         st.error("DB_URL not set"); st.stop()
     return _engine()
 
-# ── data loaders ─────────────────────────────────────────────────────────────
+# ── helpers ──────────────────────────────────────────────────────────────────
+def _vert_table(title: str, kv_pairs: List[Tuple[str, Any]]):
+    tbl = pd.DataFrame(kv_pairs, columns=["Field", "Value"])
+    tbl["Field"] = tbl["Field"].astype("string")
+    tbl["Value"] = tbl["Value"].astype("string").fillna("")
+    st.markdown(f"**{title}**")
+    st.dataframe(tbl, hide_index=True, use_container_width=True)
+
+def _safe(v: Any) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, (pd.Timestamp,)):
+        return v.strftime("%Y-%m-%d")
+    return str(v)
+
+# ── data loaders (v11) ───────────────────────────────────────────────────────
 def _load_fish(q: str | None, limit: int) -> pd.DataFrame:
     """
-    Fish registry with nickname, DOB, background, stage, genotype, and fusions.
-    One row per fish_code, using v_fish_overview.
+    Fish registry for selection: one row per *fish* (true fish_code),
+    via v11_fish_instance_star + fish_instances_v10 + fish_lines.
     """
     sql = text("""
-      WITH vm AS (
+      WITH fis AS (
         SELECT
-          v.fish_code_raw        AS fish_code,
-          MAX(v.genotype_pretty) AS genotype_pretty,
-          MAX(v.fusions)         AS fusions
-        FROM public.v_fish_overview v
-        GROUP BY v.fish_code_raw
+          fish_instance_id,
+          fish_code,
+          line_id,
+          birthday,
+          genetic_background,
+          line_building_stage,
+          genotype_pretty,
+          all_organelle_fluor_rollup
+        FROM public.v11_fish_instance_star
       )
       SELECT
-        f.fish_code::text                  AS fish_code,
-        COALESCE(f.nickname,'')           AS nickname,
-        f.birthday                         AS dob,
-        COALESCE(f.genetic_background,'') AS genetic_background,
-        COALESCE(f.in_breeding_stage,'')  AS line_building_stage,
-        COALESCE(vm.genotype_pretty,'')   AS genotype_pretty,
-        COALESCE(vm.fusions,'')           AS fusions
-      FROM public.fish f
-      LEFT JOIN vm ON vm.fish_code = f.fish_code
+        COALESCE(fi.fish_code, fis.fish_code)::text AS fish_code,
+        COALESCE(fl.nickname, '')                  AS nickname,
+        fis.birthday                               AS dob,
+        COALESCE(fl.genetic_background,
+                 fis.genetic_background, '')       AS genetic_background,
+        COALESCE(fl.line_building_stage,
+                 fis.line_building_stage, '')      AS line_building_stage,
+        COALESCE(fis.genotype_pretty, '')          AS genotype_pretty,
+        COALESCE(fis.all_organelle_fluor_rollup,'') AS organelle_fluor
+      FROM fis
+      LEFT JOIN public.fish_instances_v10 fi ON fi.id = fis.fish_instance_id
+      LEFT JOIN public.fish_lines fl ON fl.id = fis.line_id
       WHERE (:q IS NULL)
-         OR f.fish_code ILIKE :ql
-         OR COALESCE(f.nickname,'')       ILIKE :ql
-         OR COALESCE(f.genetic_background,'') ILIKE :ql
-         OR COALESCE(f.in_breeding_stage,'')  ILIKE :ql
-         OR COALESCE(vm.genotype_pretty,'')   ILIKE :ql
-      ORDER BY f.created_at DESC NULLS LAST, f.fish_code
+         OR COALESCE(fi.fish_code, fis.fish_code) ILIKE :ql
+         OR COALESCE(fl.nickname,'')           ILIKE :ql
+         OR COALESCE(fl.genetic_background,'') ILIKE :ql
+         OR COALESCE(fl.line_building_stage,'')ILIKE :ql
+         OR COALESCE(fis.genotype_pretty,'')   ILIKE :ql
+      ORDER BY fis.birthday DESC NULLS LAST, COALESCE(fi.fish_code, fis.fish_code)
       LIMIT :lim
     """)
     qnorm = (q or "").strip()
@@ -93,55 +117,41 @@ def _load_fish(q: str | None, limit: int) -> pd.DataFrame:
         df[c] = df[c].astype("string").fillna("")
     return df
 
+
 def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
     """
-    Tanks for the selected fish, plus fish metadata to preview labels.
-    Uses v_tanks_overview + v_fish_overview.
+    Tanks for the selected fish, via v11_tank_star.
+    v11_tank_star must expose:
+      tank_code, fish_code, allele_canonical, allele_label,
+      organelle_fluor, line_building_stage, dob
     """
     if not fish_codes:
         return pd.DataFrame(columns=[
-            "tank_code","fish_code","nickname","dob",
-            "genetic_background","line_building_stage","genotype_pretty","fusions",
+            "tank_code", "fish_code",
+            "allele_canonical", "allele_label",
+            "organelle_fluor",
+            "line_building_stage", "dob",
         ])
+
     sql = text("""
-      WITH picked AS (
-        SELECT unnest(:codes) AS fish_code
-      ),
-      vm AS (
-        SELECT
-          v.fish_code_raw        AS fish_code,
-          MAX(v.genotype_pretty) AS genotype_pretty,
-          MAX(v.fusions)         AS fusions
-        FROM public.v_fish_overview v
-        GROUP BY v.fish_code_raw
-      )
       SELECT
-        vt.tank_code::text                AS tank_code,
-        vt.fish_code::text                AS fish_code,
-        COALESCE(f.nickname,'')           AS nickname,
-        f.birthday                         AS dob,
-        COALESCE(f.genetic_background,'') AS genetic_background,
-        COALESCE(f.in_breeding_stage,'')  AS line_building_stage,
-        COALESCE(vm.genotype_pretty,'')   AS genotype_pretty,
-        COALESCE(vm.fusions,'')           AS fusions
-      FROM public.v_tanks_overview vt
-      JOIN picked p           ON p.fish_code = vt.fish_code
-      LEFT JOIN public.fish f ON f.fish_code = vt.fish_code
-      LEFT JOIN vm           ON vm.fish_code = vt.fish_code
-      ORDER BY vt.created_at DESC NULLS LAST, vt.tank_code
+        tank_code,
+        fish_code,
+        allele_canonical,
+        allele_label,
+        organelle_fluor,
+        line_building_stage,
+        dob
+      FROM public.v11_tank_star
+      WHERE fish_code = ANY(:codes)
+      ORDER BY dob DESC NULLS LAST, tank_code
     """).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
+
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": fish_codes})
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
     return df
-
-def _vert_table(title: str, kv_pairs: List[Tuple[str, str]]):
-    tbl = pd.DataFrame(kv_pairs, columns=["Field", "Value"])
-    tbl["Field"] = tbl["Field"].astype("string")
-    tbl["Value"] = tbl["Value"].astype("string").fillna("")
-    st.markdown(f"**{title}**")
-    st.dataframe(tbl, hide_index=True, use_container_width=True)
 
 # ── Filters ──────────────────────────────────────────────────────────────────
 with st.form("filters", clear_on_submit=False):
@@ -161,7 +171,18 @@ if f_sel_col not in fish_view.columns:
     fish_view.insert(0, f_sel_col, False)
 
 fish_picker = st.data_editor(
-    fish_view[[f_sel_col, "fish_code", "nickname", "genetic_background", "line_building_stage", "dob", "genotype_pretty", "fusions"]],
+    fish_view[
+        [
+            f_sel_col,
+            "fish_code",
+            "nickname",
+            "genetic_background",
+            "line_building_stage",
+            "dob",
+            "genotype_pretty",
+            "organelle_fluor",
+        ]
+    ],
     hide_index=True,
     use_container_width=True,
     column_config={
@@ -172,9 +193,9 @@ fish_picker = st.data_editor(
         "line_building_stage":   st.column_config.TextColumn("Stage", disabled=True),
         "dob":                   st.column_config.DateColumn("DOB", disabled=True),
         "genotype_pretty":       st.column_config.TextColumn("Genotype", disabled=True, width="large"),
-        "fusions":               st.column_config.TextColumn("Fusions", disabled=True),
+        "organelle_fluor":       st.column_config.TextColumn("Organelle-fluor", disabled=True, width="large"),
     },
-    key="fish_picker_editor_v2",
+    key="fish_picker_editor_v11",
 )
 fmask = fish_picker.get(f_sel_col, pd.Series(False, index=fish_picker.index)).fillna(False).astype(bool)
 chosen_fish = fish_df.loc[fmask].reset_index(drop=True)
@@ -198,18 +219,27 @@ if t_sel_col not in t_view.columns:
     t_view.insert(0, t_sel_col, False)
 
 tank_picker = st.data_editor(
-    t_view[[t_sel_col, "tank_code", "nickname", "genotype_pretty", "fusions"]],
+    t_view[
+        [
+            t_sel_col,
+            "tank_code",
+            "allele_label",
+            "organelle_fluor",
+            "line_building_stage",
+            "dob",
+        ]
+    ],
     hide_index=True,
     use_container_width=True,
     column_config={
-        t_sel_col:               st.column_config.CheckboxColumn("✓", default=False),
-        "tank_code":             st.column_config.TextColumn("Tank", disabled=True),
-        # fish_code is intentionally omitted from the picker and labels
-        "nickname":              st.column_config.TextColumn("Nickname", disabled=True),
-        "genotype_pretty":       st.column_config.TextColumn("Genotype", disabled=True, width="large"),
-        "fusions":               st.column_config.TextColumn("Fusions", disabled=True),
+        t_sel_col:             st.column_config.CheckboxColumn("✓", default=False),
+        "tank_code":           st.column_config.TextColumn("Tank", disabled=True),
+        "allele_label":        st.column_config.TextColumn("Tg(base)label", disabled=True, width="large"),
+        "organelle_fluor":     st.column_config.TextColumn("Organelle-fluor", disabled=True, width="large"),
+        "line_building_stage": st.column_config.TextColumn("Stage", disabled=True),
+        "dob":                 st.column_config.DateColumn("DOB", disabled=True),
     },
-    key="tank_picker_editor_v5",
+    key="tank_picker_editor_v11",
 )
 tmask = tank_picker.get(t_sel_col, pd.Series(False, index=tank_picker.index)).fillna(False).astype(bool)
 chosen_tanks = tanks_df.loc[tmask].reset_index(drop=True)
@@ -229,52 +259,61 @@ if n > 1:
 idx = int(page) - 1
 row = chosen_tanks.iloc[idx].to_dict()
 
+stage_dob = " ".join(
+    x for x in [row.get("line_building_stage") or "", _safe(row.get("dob"))] if x
+)
+
 _vert_table(
     f"TANK {row.get('tank_code','')}",
     [
-        ("Tank code",           row.get("tank_code","")),
-        ("Nickname",            row.get("nickname","")),
-        ("Genetic background",  row.get("genetic_background","")),
-        ("Line-building stage", row.get("line_building_stage")),
-        ("DOB",                 str(row.get("dob") or "")),
-        ("Genotype",            row.get("genotype_pretty","")),
-        ("Fusions",             row.get("fusions","")),
+        ("Tank code",        row.get("tank_code","")),
+        ("Transgene alleles", row.get("allele_label","")),
+        ("Organelle-fluor",  row.get("organelle_fluor","")),
+        ("Stage + DOB",      stage_dob),
     ]
 )
 
-# ── Step 4 — Download PDF ────────────────────────────────────────────────────
-st.subheader("4) Download PDF")
+# ── Step 4 — Download / Print labels ─────────────────────────────────────────
+st.subheader("4) Download / print tank labels")
 
 label_rows: List[Dict] = []
 for r in chosen_tanks.to_dict(orient="records"):
+    stage_dob = " ".join(
+        x for x in [r.get("line_building_stage") or "", _safe(r.get("dob"))] if x
+    )
+
     label_rows.append({
-        "tank_code":           r.get("tank_code"),
-        "nickname":            r.get("nickname") or "",
-        "genetic_background":  r.get("genetic_background") or "",
-        "line_building_stage": r.get("line_building_stage") or "",
-        "dob":                 r.get("dob"),
-        "genotype":            r.get("genotype_pretty") or "",
-        "fusions":             r.get("fusions") or "",
+        # Line 1: header / label (what prints as "line 1")
+        "label":               r.get("tank_code"),
+        "tank_code":           r.get("tank_code"),   # also QR payload
+        # Line 2: nickname (we leave blank)
+        "nickname":            "",
+        # Line 3: tank_display → allele_label (canonical label)
+        "tank_display":        r.get("allele_label") or "",
+        # Line 4: fusions → organelle-fluor
+        "fusions":             r.get("organelle_fluor") or "",
+        # Line 5: genetic_background (unused)
+        "genetic_background":  "",
+        # Line 6: stage → "stage DOB"
+        "line_building_stage": stage_dob,
+        "stage":               stage_dob,
+        # Line 7: dob (leave None; we already encoded it in stage_dob)
+        "dob":                 None,
     })
 
 if HAVE_PRINT_HELPER:
     download_button_for_labels(
         rows=label_rows,
         builder="tank",
-        file_prefix="tank_labels",
+        file_prefix="tank_labels_v11",
         button_text="⬇️ Download tank labels (PDF)",
     )
-else:
-    st.button("⬇️ Download tank labels (PDF)", disabled=True)
-
-# ── Step 5 — Print labels ────────────────────────────────────────────────────
-st.subheader("5) Print labels")
-if HAVE_PRINT_HELPER:
     download_button_for_labels(
         rows=label_rows,
         builder="tank",
-        file_prefix="tank_labels",
+        file_prefix="tank_labels_v11",
         button_text="🖨️ Print tank labels to lab printer",
     )
 else:
+    st.button("⬇️ Download tank labels (PDF)", disabled=True)
     st.button("🖨️ Print tank labels to lab printer", disabled=True)
