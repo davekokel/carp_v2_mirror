@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import pathlib
 import sys
-from typing import List, Optional, Dict, Any
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
@@ -24,6 +24,7 @@ except Exception:
         ...
 from carp_app.ui.lib.page_engine import engine as _engine
 
+
 # ───────── auth & page ─────────
 sb, session, user = require_auth()
 require_email_otp()
@@ -42,155 +43,13 @@ def _eng() -> Engine:
     return _engine()
 
 
-def _cols(schema: str, table: str) -> List[str]:
-    sql = text(
-        """
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_schema = :s AND table_name = :t
-        ORDER BY ordinal_position
-        """
-    )
-    with _eng().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"s": schema, "t": table})
-    return df["column_name"].tolist()
-
-
-def _assert_table(schema: str, table: str) -> None:
-    sql = text(
-        """
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = :s AND table_name = :t
-        """
-    )
-    with _eng().begin() as cx:
-        df = pd.read_sql(sql, cx, params={"s": schema, "t": table})
-    if df.empty:
-        raise RuntimeError(f"Required table {schema}.{table} is missing.")
-
-
-def _discover_tanks_fish_fk_col() -> str:
-    """
-    Return the column in public.tanks that FK-references public.fish_instance(id).
-    Require exactly one such column; error if 0 or >1.
-    """
-    sql = text(
-        """
-        WITH fk AS (
-          SELECT
-            con.oid,
-            con.conrelid  AS tbl_oid,
-            con.confrelid AS ref_oid,
-            con.conkey    AS fk_cols
-          FROM pg_constraint con
-          WHERE con.contype='f'
-            AND con.conrelid='public.tanks'::regclass
-            AND con.confrelid='public.fish_instance'::regclass
-        )
-        SELECT a.attname AS fk_col
-        FROM fk
-        JOIN LATERAL unnest(fk.fk_cols) WITH ORDINALITY k(attnum, ord) ON TRUE
-        JOIN pg_attribute a ON a.attrelid=fk.tbl_oid AND a.attnum=k.attnum
-        ORDER BY ord
-        """
-    )
-    with _eng().begin() as cx:
-        df = pd.read_sql(sql, cx)
-
-    if df.empty:
-        raise RuntimeError(
-            "No foreign key from public.tanks to public.fish_instance(id) was found."
-        )
-    cols = df["fk_col"].astype(str).tolist()
-    uniq = sorted(set(cols))
-    if len(uniq) != 1:
-        raise RuntimeError(
-            "Multiple FK columns in public.tanks reference public.fish_instance(id); "
-            f"columns: {uniq}"
-        )
-    return uniq[0]
-
-
-def _tank_pair_parent_cols() -> Dict[str, str]:
-    cols = _cols("public", "tank_pairs")
-    for mom, dad in (("mother_tank_id", "father_tank_id"), ("tank_id_mother", "tank_id_father")):
-        if mom in cols and dad in cols:
-            return {"mom": mom, "dad": dad}
-    raise RuntimeError(
-        "public.tank_pairs must have mother/father UUID columns. "
-        f"Expected (mother_tank_id,father_tank_id) or (tank_id_mother,tank_id_father). Found: {cols}"
-    )
-
-
 def _norm(s: str | None) -> Optional[str]:
     s = (s or "").strip()
     return s or None
 
 
-# ───────── schema sanity check once ─────────
-@st.cache_data(show_spinner=False)
-def _schema_info() -> Dict[str, Any]:
-    for t in ("fish_instance", "tanks", "tank_pairs"):
-        _assert_table("public", t)
-
-    fish_cols = _cols("public", "fish_instance")
-    for required in ("id", "fish_code"):
-        if required not in fish_cols:
-            raise RuntimeError(f"public.fish_instance must have column '{required}'. Found: {fish_cols}")
-
-    tank_cols = _cols("public", "tanks")
-    for required in ("id", "tank_code", "status", "created_at"):
-        if required not in tank_cols:
-            raise RuntimeError(f"public.tanks must have column '{required}'. Found: {tank_cols}")
-
-    fk_col = _discover_tanks_fish_fk_col()
-    if fk_col not in tank_cols:
-        raise RuntimeError(f"FK column '{fk_col}' not found in public.tanks. Found: {tank_cols}")
-
-    tp_parents = _tank_pair_parent_cols()
-
-    return {
-        "fish": {"id": "id", "code": "fish_code"},
-        "tanks": {"id": "id", "code": "tank_code", "status": "status", "created": "created_at", "fish_fk": fk_col},
-        "tank_pairs": tp_parents,
-    }
-
-
-# ───────── query: tank pair overview (no legacy views) ─────────
+# ───────── query: tank pair overview (v11, via star view) ─────────
 def load_tank_pairs(q: Optional[str], limit: int) -> pd.DataFrame:
-    S = _schema_info()
-    f, t, tp = S["fish"], S["tanks"], S["tank_pairs"]
-
-    sql = text(
-        f"""
-        SELECT
-          tp.id::text        AS tank_pair_id,
-          tp.tank_pair_code,
-          tp.created_at,
-          tp.active_from,
-          mt.{t['code']}     AS mother_tank_code,
-          mf.{f['code']}     AS mother_fish_code,
-          ft.{t['code']}     AS father_tank_code,
-          ff.{f['code']}     AS father_fish_code
-        FROM public.tank_pairs tp
-        JOIN public.tanks mt ON mt.{t['id']} = tp.{tp['mom']}
-        JOIN public.tanks ft ON ft.{t['id']} = tp.{tp['dad']}
-        JOIN public.fish_instance mf ON mf.{f['id']} = mt.{t['fish_fk']}
-        JOIN public.fish_instance ff ON ff.{f['id']} = ft.{t['fish_fk']}
-        WHERE (:q IS NULL)
-           OR (
-                tp.tank_pair_code              ILIKE :ql
-             OR mt.{t['code']}                 ILIKE :ql
-             OR ft.{t['code']}                 ILIKE :ql
-             OR mf.{f['code']}                 ILIKE :ql
-             OR ff.{f['code']}                 ILIKE :ql
-           )
-        ORDER BY tp.created_at DESC NULLS LAST, tp.tank_pair_code
-        LIMIT :lim
-        """
-    )
-
     qn = _norm(q)
     params = {
         "q": qn if qn else None,
@@ -198,10 +57,61 @@ def load_tank_pairs(q: Optional[str], limit: int) -> pd.DataFrame:
         "lim": int(limit),
     }
 
+    sql = text(
+        """
+        SELECT
+          tp.id::text        AS tank_pair_id,
+          tp.tank_pair_code,
+          tp.created_at,
+          tp.active_from,
+
+          mt.tank_code       AS mother_tank_code,
+          mf.fish_code       AS mother_fish_code,
+          mf.treatments_and_transgenes
+                             AS mother_treatments_and_transgenes,
+          mf.all_fluor_tag_rollup
+                             AS mother_all_fluor_tag_rollup,
+          mf.all_organelle_fluor_rollup
+                             AS mother_all_organelle_fluor_rollup,
+
+          ft.tank_code       AS father_tank_code,
+          ff.fish_code       AS father_fish_code,
+          ff.treatments_and_transgenes
+                             AS father_treatments_and_transgenes,
+          ff.all_fluor_tag_rollup
+                             AS father_all_fluor_tag_rollup,
+          ff.all_organelle_fluor_rollup
+                             AS father_all_organelle_fluor_rollup
+
+        FROM public.tank_pairs tp
+        JOIN public.tanks mt
+          ON mt.id = tp.mother_tank_id
+        JOIN public.tanks ft
+          ON ft.id = tp.father_tank_id
+        LEFT JOIN public.v11_fish_instance_star mf
+          ON mf.tank_id = mt.id
+        LEFT JOIN public.v11_fish_instance_star ff
+          ON ff.tank_id = ft.id
+        WHERE (:q IS NULL)
+           OR (
+                tp.tank_pair_code ILIKE :ql
+             OR mt.tank_code      ILIKE :ql
+             OR ft.tank_code      ILIKE :ql
+             OR mf.fish_code      ILIKE :ql
+             OR ff.fish_code      ILIKE :ql
+           )
+        ORDER BY tp.created_at DESC NULLS LAST, tp.tank_pair_code
+        LIMIT :lim
+        """
+    )
+
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
+
+    # normalize string columns
     for c in df.select_dtypes(include=["object", "string"]).columns:
         df[c] = df[c].astype("string").fillna("")
+
     return df
 
 
@@ -231,9 +141,30 @@ if df.empty:
     st.info("No tank pairs found for current filters.")
 else:
     st.caption(f"{len(df)} tank_pair(s)")
+
+    # Column order: IDs, tanks, fish codes, then v11 semantics
+    cols = [
+        "tank_pair_id",
+        "tank_pair_code",
+        "created_at",
+        "active_from",
+        "mother_tank_code",
+        "mother_fish_code",
+        "father_tank_code",
+        "father_fish_code",
+        "mother_treatments_and_transgenes",
+        "mother_all_fluor_tag_rollup",
+        "mother_all_organelle_fluor_rollup",
+        "father_treatments_and_transgenes",
+        "father_all_fluor_tag_rollup",
+        "father_all_organelle_fluor_rollup",
+    ]
+    cols = [c for c in cols if c in df.columns]
+    df_display = df[cols].copy()
+
     st.data_editor(
-        df,
-        key="tank_pairs_overview_v8",
+        df_display,
+        key="tank_pairs_overview_v11",
         hide_index=True,
         use_container_width=True,
         num_rows="fixed",
@@ -241,9 +172,9 @@ else:
             "tank_pair_id":     st.column_config.TextColumn("ID", disabled=True),
             "tank_pair_code":   st.column_config.TextColumn("Tank pair code", disabled=True),
             "mother_tank_code": st.column_config.TextColumn("Mother tank", disabled=True),
-            "mother_fish_code": st.column_config.TextColumn("Mother fish", disabled=True),
+            "mother_fish_code": st.column_config.TextColumn("Mother fish (FSH code)", disabled=True),
             "father_tank_code": st.column_config.TextColumn("Father tank", disabled=True),
-            "father_fish_code": st.column_config.TextColumn("Father fish", disabled=True),
+            "father_fish_code": st.column_config.TextColumn("Father fish (FSH code)", disabled=True),
             "created_at":       st.column_config.DatetimeColumn("Created at", disabled=True),
             "active_from":      st.column_config.DatetimeColumn("Active from", disabled=True),
         },
@@ -251,7 +182,7 @@ else:
 
     st.download_button(
         "⬇︎ Download tank_pairs overview (CSV)",
-        data=df.to_csv(index=False).encode("utf-8"),
+        data=df_display.to_csv(index=False).encode("utf-8"),
         file_name="tank_pairs_overview.csv",
         type="secondary",
         mime="text/csv",

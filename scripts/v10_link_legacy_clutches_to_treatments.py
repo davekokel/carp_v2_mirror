@@ -4,14 +4,13 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
-from typing import Optional, Dict, Set, List
+from typing import Optional, Dict, Set, List, Tuple
 
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 DEFAULT_IN_ROI = "seed_kits/legacy_wrangling_v2/working/legacy_imaging_annotations_for_db_v9.csv"
-DEFAULT_OUT    = "seed_kits/2025-11-15-121231-autoload/treatments_v10.csv"
 
 
 def get_engine(db_url: Optional[str]) -> Engine:
@@ -84,19 +83,11 @@ def build_construct_lookup(engine: Engine) -> Dict[str, str]:
         for k in keys:
             lookup[k] = canon
 
-    print(f"[v10_build_legacy_treatments] construct alias keys: {len(lookup)}")
+    print(f"[v10_link_legacy_clutches] construct alias keys: {len(lookup)}")
     return lookup
 
 
 def build_dye_alias_lookup(engine: Engine) -> Dict[str, str]:
-    """
-    alias -> canonical dye_base_code
-
-    We treat dye_base_code and name as sources of aliases, plus
-    variants with hyphens/spaces removed or swapped so that:
-        JF-635, JF 635, JF635
-    all resolve to the same base dye.
-    """
     sql = text(
         """
         SELECT dye_base_code, name
@@ -145,7 +136,7 @@ def build_dye_alias_lookup(engine: Engine) -> Dict[str, str]:
         for key in candidates:
             alias_to_base[key] = base
 
-    print(f"[v10_build_legacy_treatments] dye alias keys: {len(alias_to_base)}")
+    print(f"[v10_link_legacy_clutches] dye alias keys: {len(alias_to_base)}")
     return alias_to_base
 
 
@@ -172,9 +163,17 @@ def find_extra_dye_col(df: pd.DataFrame) -> Optional[str]:
     return None
 
 
+def find_roi_code_col(df: pd.DataFrame) -> Optional[str]:
+    # Our CSV uses bruker_roi_id as the canonical ROI code (e.g. 20250428-plate1-slot1-roi1)
+    for c in df.columns:
+        if c.strip().lower() == "bruker_roi_id":
+            return c
+    return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="v10: build treatments_v10.csv from legacy v9 imaging annotations."
+        description="v10: link legacy clutches to treatments using ROI CSV + normalized treatments."
     )
     parser.add_argument(
         "--roi-csv",
@@ -182,51 +181,32 @@ def main() -> None:
         help=f"Path to legacy_imaging_annotations_for_db_v9.csv (default: {DEFAULT_IN_ROI})",
     )
     parser.add_argument(
-        "--out-csv",
-        default=DEFAULT_OUT,
-        help=f"Path to write treatments_v10.csv (default: {DEFAULT_OUT})",
-    )
-    parser.add_argument(
         "--db-url",
-        help="Override DB_URL for construct/dye lookups",
+        help="Override DB_URL for DB lookups",
     )
     args = parser.parse_args()
 
     roi_path = Path(args.roi_csv)
     if not roi_path.exists():
-        raise SystemExit(f"[v10_build_legacy_treatments] ROI CSV not found: {roi_path}")
+        raise SystemExit(f"[v10_link_legacy_clutches] ROI CSV not found: {roi_path}")
 
-    print(f"[v10_build_legacy_treatments] reading ROI CSV: {roi_path}")
+    print(f"[v10_link_legacy_clutches] reading ROI CSV: {roi_path}")
     df = pd.read_csv(roi_path)
 
     plasmid_col   = find_plasmid_col(df)
     rna_col       = find_rna_col(df)
     extra_dye_col = find_extra_dye_col(df)
+    roi_code_col  = find_roi_code_col(df)
 
-    if plasmid_col is None and rna_col is None and extra_dye_col is None:
-        print("[v10_build_legacy_treatments] No plasmid, RNA, or extra dye columns; nothing to build.")
-        empty = pd.DataFrame(
-            columns=[
-                "treatment_code",
-                "treatment_name",
-                "kind_code",
-                "mix_code",
-                "ingredient_type",
-                "ingredient_code",
-                "concentration",
-            ]
-        )
-        out = Path(args.out_csv)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        empty.to_csv(out, index=False)
-        print(f"[v10_build_legacy_treatments] wrote EMPTY treatments CSV to {out}")
-        return
+    if roi_code_col is None:
+        raise SystemExit("[v10_link_legacy_clutches] Could not find bruker_roi_id column in ROI CSV.")
 
     engine           = get_engine(args.db_url)
     construct_lookup = build_construct_lookup(engine)
     dye_aliases      = build_dye_alias_lookup(engine)
 
-    records: list[dict] = []
+    # ── 1) Compute signature per ROI row ─────────────────────────────────────
+    records: List[Dict[str, object]] = []
 
     for _, row in df.iterrows():
         plasmid_raw = row[plasmid_col] if plasmid_col and plasmid_col in df.columns else None
@@ -244,7 +224,6 @@ def main() -> None:
                 continue
             canon = construct_lookup.get(key) or construct_lookup.get(key.lower())
             if not canon:
-                print(f"[v10_build_legacy_treatments] WARN: unknown construct base_code/alias={bc}")
                 continue
             construct_codes.add(canon)
 
@@ -265,7 +244,6 @@ def main() -> None:
                     base = dye_aliases[kk]
                     break
             if base is None:
-                print(f"[v10_build_legacy_treatments] WARN: unknown dye_base_code={k}")
                 continue
             dye_codes_used.add(base)
 
@@ -276,82 +254,141 @@ def main() -> None:
         dye_sig       = ",".join(sorted(dye_codes_used)) if dye_codes_used else ""
         sig           = f"constructs={construct_sig}|dyes={dye_sig}"
 
+        roi_code = norm(row[roi_code_col])
+
         records.append(
             {
+                "roi_code": roi_code,
                 "signature": sig,
-                "construct_codes": sorted(construct_codes),
-                "dye_codes": sorted(dye_codes_used),
             }
         )
 
     if not records:
-        print("[v10_build_legacy_treatments] No rows with treatment constructs/dyes; writing header-only CSV.")
-        df_out = pd.DataFrame(
-            columns=[
-                "treatment_code",
-                "treatment_name",
-                "kind_code",
-                "mix_code",
-                "ingredient_type",
-                "ingredient_code",
-                "concentration",
-            ]
-        )
-        out = Path(args.out_csv)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        df_out.to_csv(out, index=False)
-        print(f"[v10_build_legacy_treatments] wrote EMPTY treatments CSV to {out}")
+        print("[v10_link_legacy_clutches] No ROI rows with treatments; nothing to link.")
         return
 
-    df_sig = (
-        pd.DataFrame(records)
-        .drop_duplicates(subset=["signature"])
+    df_roi_sig = pd.DataFrame(records).drop_duplicates(subset=["roi_code"]).reset_index(drop=True)
+    print(f"[v10_link_legacy_clutches] ROI rows with treatments: {len(df_roi_sig)}")
+
+    # ── 2) signature -> treat_code mapping (must match builder's scheme) ─────
+    sig_records: List[Dict[str, object]] = []
+    seen_sigs: Set[str] = set()
+    for r in records:
+        sig = r["signature"]
+        if sig in seen_sigs:
+            continue
+        seen_sigs.add(sig)
+        sig_records.append({"signature": sig})
+
+    df_sig = pd.DataFrame(sig_records).reset_index(drop=True)
+    print(f"[v10_link_legacy_clutches] unique signatures: {len(df_sig)}")
+
+    df_sig["treatment_code"] = [
+        f"T-LEGACY-{i+1:03d}" for i in range(len(df_sig))
+    ]
+    sig_to_treat: Dict[str, str] = dict(zip(df_sig["signature"], df_sig["treatment_code"]))
+
+    # ── 3) Map roi_code -> clutch_id via DB ──────────────────────────────────
+    sql_map = text(
+        """
+        SELECT
+          ra.roi_code,
+          icm.clutch_id::text AS clutch_id
+        FROM public.imaging_roi_annotations ra
+        JOIN public.imaging_slots s
+          ON s.id = ra.slot_id
+        JOIN public.imaging_clutch_memberships icm
+          ON icm.slot_id = s.id
+        """
+    )
+    with engine.begin() as cx:
+        df_map = pd.read_sql(sql_map, cx)
+
+    df_map["roi_code"] = df_map["roi_code"].astype(str).str.strip()
+    print(f"[v10_link_legacy_clutches] DB ROI→clutch rows (by roi_code): {len(df_map)}")
+
+    # ── 4) Combine ROI-level signatures with clutch mapping ──────────────────
+    merged = df_roi_sig.merge(df_map, on="roi_code", how="inner")
+    merged = merged.dropna(subset=["clutch_id", "signature"]).reset_index(drop=True)
+    print(f"[v10_link_legacy_clutches] ROI rows with clutch + signature: {len(merged)}")
+
+    if merged.empty:
+        print("[v10_link_legacy_clutches] No ROI rows could be mapped to clutches; nothing to link.")
+        return
+
+    merged["treatment_code"] = merged["signature"].map(sig_to_treat)
+    merged = merged.dropna(subset=["treatment_code"]).reset_index(drop=True)
+
+    if merged.empty:
+        print("[v10_link_legacy_clutches] No ROI signatures matched treatment codes; nothing to link.")
+        return
+
+    df_pairs = (
+        merged[["clutch_id", "treatment_code"]]
+        .drop_duplicates()
         .reset_index(drop=True)
     )
-    print(f"[v10_build_legacy_treatments] unique treatment signatures: {len(df_sig)}")
+    print(f"[v10_link_legacy_clutches] unique (clutch_id, treatment_code) pairs: {len(df_pairs)}")
 
-    rows_out: list[dict] = []
-    for i, row in df_sig.iterrows():
-        constructs: List[str] = row["construct_codes"]
-        dyes: List[str]       = row["dye_codes"]
+    # ── 5) Resolve treatment_ids ─────────────────────────────────────────────
+    sql_treat = text(
+        """
+        SELECT id::text AS treatment_id, treat_code
+        FROM public.treatments
+        WHERE treat_code = ANY(:codes)
+        """
+    )
+    codes = df_pairs["treatment_code"].astype(str).tolist()
+    with engine.begin() as cx:
+        df_treat = pd.read_sql(sql_treat, cx, params={"codes": codes})
 
-        treat_code = f"T-LEGACY-{i+1:03d}"
-        treat_name = f"Legacy v9 mix {i+1}"
-        kind_code  = "injection"
-        mix_code   = "M1"
+    tcode_to_id: Dict[str, str] = dict(zip(df_treat["treat_code"], df_treat["treatment_id"]))
+    print(f"[v10_link_legacy_clutches] treatment rows found for linking: {len(tcode_to_id)}")
 
-        for c_code in constructs:
-            rows_out.append(
-                {
-                    "treatment_code": treat_code,
-                    "treatment_name": treat_name,
-                    "kind_code": kind_code,
-                    "mix_code": mix_code,
-                    "ingredient_type": "construct",
-                    "ingredient_code": c_code,
-                    "concentration": None,
-                }
+    df_pairs["treatment_id"] = df_pairs["treatment_code"].map(tcode_to_id)
+    df_pairs = df_pairs.dropna(subset=["treatment_id"]).reset_index(drop=True)
+
+    if df_pairs.empty:
+        print("[v10_link_legacy_clutches] No treatment_ids could be resolved; nothing to link.")
+        return
+
+    # ── 6) Insert into join_clutch_treatments ───────────────────────────────
+    insert_sql = text(
+        """
+        INSERT INTO public.join_clutch_treatments (
+          id,
+          clutch_id,
+          treatment_id,
+          applied_at,
+          notes,
+          created_at
+        )
+        VALUES (
+          gen_random_uuid(),
+          :clutch_id,
+          :treatment_id,
+          now(),
+          NULL,
+          now()
+        )
+        ON CONFLICT DO NOTHING
+        """
+    )
+
+    to_insert: List[Tuple[str, str]] = list(
+        { (str(r["clutch_id"]), str(r["treatment_id"])) for _, r in df_pairs.iterrows() }
+    )
+
+    inserted = 0
+    with engine.begin() as cx:
+        for clutch_id, treatment_id in to_insert:
+            cx.execute(
+                insert_sql,
+                {"clutch_id": clutch_id, "treatment_id": treatment_id},
             )
+            inserted += 1
 
-        for d_code in dyes:
-            rows_out.append(
-                {
-                    "treatment_code": treat_code,
-                    "treatment_name": treat_name,
-                    "kind_code": kind_code,
-                    "mix_code": mix_code,
-                    "ingredient_type": "dye",
-                    "ingredient_code": d_code,
-                    "concentration": None,
-                }
-            )
-
-    df_out = pd.DataFrame(rows_out)
-    out = Path(args.out_csv)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    df_out.to_csv(out, index=False)
-    print(f"[v10_build_legacy_treatments] wrote {len(df_out)} row(s) to {out}")
-
+    print(f"[v10_link_legacy_clutches] inserted {inserted} join_clutch_treatments row(s)")
 
 if __name__ == "__main__":
     main()
