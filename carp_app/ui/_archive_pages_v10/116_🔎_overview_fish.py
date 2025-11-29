@@ -54,10 +54,8 @@ def _norm(s: str | None) -> Optional[str]:
 
 def parse_query(q_raw: str) -> Tuple[Dict[str, str], str]:
     """
-    Mini-language, e.g.:
-
+    Mini-language, e.g.
       nickname=casper background=casper mStayGold
-
     ⇒ field_filters, free_text
     """
     field_filters: Dict[str, str] = {}
@@ -104,7 +102,7 @@ field_filters, free_text = parse_query(q_raw or "")
 where = ["1=1"]
 params: Dict[str, Any] = {"lim": lim}
 
-# Map mini-language field names → columns on v11_fish_instance_star
+# mini-language → columns on v11_fish_instance_star_enriched
 field_to_column = {
     "nickname": "line_nickname",
     "line_nickname": "line_nickname",
@@ -117,7 +115,6 @@ field_to_column = {
     "fluors": "fluor_codes",
     "tag": "tag_codes",
     "tags": "tag_codes",
-    # search against the canonical organelle rollup
     "organelle": "all_organelle_fluor_rollup",
     "organelle_fluor": "all_organelle_fluor_rollup",
     "organelle_fluors": "all_organelle_fluor_rollup",
@@ -128,12 +125,12 @@ field_to_column = {
 for key, val in field_filters.items():
     col = field_to_column.get(key)
     if not col:
-        # unknown field name: push into free-text instead
         free_text = (free_text + " " + f"{key}={val}").strip()
         continue
-    param_name = f"f_{key}"
-    where.append(f"COALESCE({col}, '') ILIKE :{param_name}")
-    params[param_name] = f"%{val}%"
+    pname = f"f_{key}"
+    where.append(f"COALESCE({col}, '') ILIKE :{pname}")
+    params[pname] = f"%{val}%"
+
 
 if free_text:
     params["ql"] = f"%{free_text}%"
@@ -143,6 +140,7 @@ if free_text:
         " OR COALESCE(line_nickname,'')      ILIKE :ql"
         " OR COALESCE(genetic_background,'') ILIKE :ql"
         " OR COALESCE(genotype_pretty,'')    ILIKE :ql"
+        " OR COALESCE(genotype_basecode_code,'') ILIKE :ql"
         " OR COALESCE(fluor_codes,'')        ILIKE :ql"
         " OR COALESCE(tag_codes,'')          ILIKE :ql"
         " OR COALESCE(all_fluor_tag_rollup,'')      ILIKE :ql"
@@ -152,7 +150,7 @@ if free_text:
 
 where_sql = " AND ".join(where)
 
-# ───────── query v11_fish_instance_star ─────────
+# ───────── query v11_fish_instance_star_enriched ─────────
 sql = text(f"""
     SELECT
       fish_instance_id,
@@ -167,8 +165,10 @@ sql = text(f"""
       tag_codes,
       all_fluor_tag_rollup,
       all_organelle_fluor_rollup,
+      n_transgenes,
+      n_fluors,
       fish_created_at
-    FROM public.v11_fish_instance_star
+    FROM public.v11_fish_instance_star_enriched
     WHERE {where_sql}
     ORDER BY fish_created_at DESC NULLS LAST, fish_code
     LIMIT :lim
@@ -196,6 +196,8 @@ view = df[
         "tag_codes",
         "all_fluor_tag_rollup",
         "all_organelle_fluor_rollup",
+        "n_transgenes",
+        "n_fluors",
         "fish_created_at",
     ]
 ].copy()
@@ -220,6 +222,8 @@ st.data_editor(
         "tag_codes",
         "all_fluor_tag_rollup",
         "all_organelle_fluor_rollup",
+        "n_transgenes",
+        "n_fluors",
         "fish_created_at",
     ],
     column_config={
@@ -234,7 +238,9 @@ st.data_editor(
         "fluor_codes":             st.column_config.TextColumn("Fluors", disabled=True),
         "tag_codes":               st.column_config.TextColumn("Tags", disabled=True),
         "all_fluor_tag_rollup":    st.column_config.TextColumn("Fluor::tag rollup", disabled=True, width="large"),
-        "all_organelle_fluor_rollup": st.column_config.TextColumn("Organelle-fluor", disabled=True),
+        "all_organelle_fluor_rollup": st.column_config.TextColumn("Organelle-fluor", disabled=True, width="large"),
+        "n_transgenes":            st.column_config.NumberColumn("# transgenes", disabled=True, format="%d"),
+        "n_fluors":                st.column_config.NumberColumn("# fluors", disabled=True, format="%d"),
         "fish_created_at":         st.column_config.DatetimeColumn("Created at", disabled=True),
     },
 )

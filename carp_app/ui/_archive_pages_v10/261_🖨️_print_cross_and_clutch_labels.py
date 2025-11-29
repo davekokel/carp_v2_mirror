@@ -131,8 +131,8 @@ def _load_crosses_v11(
         COALESCE(lm.allele_canonical_rollup,'')        AS mom_allele_canonical,
         COALESCE(lf.allele_canonical_rollup,'')        AS dad_allele_canonical,
 
-        COALESCE(lm.allele_nickname_rollup,'')         AS mom_allele_nicknames,
-        COALESCE(lf.allele_nickname_rollup,'')         AS dad_allele_nicknames,
+        COALESCE(lm.allele_label_rollup,'')            AS mom_allele_nicknames,
+        COALESCE(lf.allele_label_rollup,'')            AS dad_allele_nicknames,
 
         COALESCE(fm.all_organelle_fluor_rollup,'')     AS mom_organelle_fluor_rollup,
         COALESCE(ff.all_organelle_fluor_rollup,'')     AS dad_organelle_fluor_rollup

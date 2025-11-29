@@ -1,5 +1,5 @@
 # carp_app/ui/pages/210_🧪_overview_treated_clutches.py
-# 🔎 Overview — Treated clutches (v11, clutch_star-based)
+# 🔎 Overview — Treated clutches (v11, v11_clutch_star-based)
 
 from __future__ import annotations
 
@@ -22,7 +22,8 @@ from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock(): ...
+    def require_app_unlock() -> None:
+        ...
 from carp_app.ui.lib.page_engine import engine
 
 V_CLUTCH_STAR = "public.v11_clutch_star"
@@ -54,15 +55,17 @@ def _safe(cx, q: str | TextClause, p: dict[str, Any] | None = None) -> pd.DataFr
 def _exists_view(qualified: str) -> bool:
     sch, name = qualified.split(".", 1)
     q = text(
-        "SELECT 1 FROM information_schema.views WHERE table_schema=:s AND table_name=:n "
+        "SELECT 1 FROM information_schema.views "
+        "WHERE table_schema=:s AND table_name=:n "
         "UNION ALL "
-        "SELECT 1 FROM pg_catalog.pg_matviews WHERE schemaname=:s AND matviewname=:n "
+        "SELECT 1 FROM pg_catalog.pg_matviews "
+        "WHERE schemaname=:s AND matviewname=:n "
         "LIMIT 1"
     )
     with engine().begin() as cx:
         return cx.execute(q, {"s": sch, "n": name}).first() is not None
 
-def _pivot(title: str, rows: List[Tuple[str, Any]]):
+def _pivot(title: str, rows: List[Tuple[str, Any]]) -> None:
     dfp = pd.DataFrame(rows, columns=["Field", "Value"])
     st.markdown(f"**{title}**")
     st.dataframe(dfp, hide_index=True, use_container_width=True)
@@ -92,13 +95,14 @@ with st.form("filters", clear_on_submit=False):
 # --- load data from v11_clutch_star ------------------------------------------
 def _load_clutches() -> pd.DataFrame:
     if not _exists_view(V_CLUTCH_STAR):
-        st.error(f"Required view {V_CLUTCH_STAR} not found."); st.stop()
+        st.error(f"Required view {V_CLUTCH_STAR} not found.")
+        st.stop()
 
     where: list[str] = []
     params: dict[str, Any] = {}
 
     # only clutches that actually have treatments
-    where.append("(COALESCE(treat_codes,'') <> '' OR COALESCE(treatment_code,'') <> '')")
+    where.append("COALESCE(treat_codes,'') <> ''")
 
     if not most_recent:
         where.append("clutch_date::date BETWEEN :d1 AND :d2")
@@ -109,14 +113,13 @@ def _load_clutches() -> pd.DataFrame:
         params["q"] = f"%{qnorm}%"
         where.append(
             """(
-              COALESCE(clutch_code,'')                 ILIKE :q OR
-              COALESCE(genotype_pretty,'')             ILIKE :q OR
-              COALESCE(genotype_basecode_code,'')      ILIKE :q OR
-              COALESCE(genotype_transgene_allele_code,'') ILIKE :q OR
-              COALESCE(treatment_code,'')              ILIKE :q OR
-              COALESCE(treat_codes,'')                 ILIKE :q OR
-              COALESCE(all_fluor_tag_rollup,'')        ILIKE :q OR
-              COALESCE(all_organelle_fluor_rollup,'')  ILIKE :q
+              COALESCE(clutch_code,'')            ILIKE :q OR
+              COALESCE(genotype_pretty,'')        ILIKE :q OR
+              COALESCE(genotype_base_codes,'')    ILIKE :q OR
+              COALESCE(genotype_v11_code,'')      ILIKE :q OR
+              COALESCE(genotype_v11_basecodes,'') ILIKE :q OR
+              COALESCE(treat_codes,'')            ILIKE :q OR
+              COALESCE(treat_basecodes,'')        ILIKE :q
             )"""
         )
 
@@ -125,7 +128,19 @@ def _load_clutches() -> pd.DataFrame:
 
     sql = text(
         f"""
-        SELECT *
+        SELECT
+          clutch_id,
+          clutch_code,
+          clutch_date,
+          estimated_egg_count,
+          n_imaging_slots,
+          n_rois,
+          genotype_base_codes,
+          genotype_v11_code,
+          genotype_v11_basecodes,
+          genotype_pretty,
+          treat_codes,
+          treat_basecodes
         FROM {V_CLUTCH_STAR}
         {where_sql}
         ORDER BY clutch_date, clutch_code
@@ -150,8 +165,11 @@ if df.empty:
 cols = [
     "clutch_code",
     "clutch_date",
-    "treatment_code",
+    "genotype_pretty",
+    "genotype_v11_code",
+    "genotype_v11_basecodes",
     "treat_codes",
+    "treat_basecodes",
 ]
 grid_src = df[cols].copy()
 if "✓ Select" not in grid_src.columns:
@@ -164,11 +182,14 @@ grid = st.data_editor(
     use_container_width=True,
     num_rows="fixed",
     column_config={
-        "✓ Select":          st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_code":       st.column_config.TextColumn("Clutch", disabled=True),
-        "clutch_date":       st.column_config.DateColumn("Clutch date", disabled=True),
-        "treatment_code":    st.column_config.TextColumn("Primary treatment", disabled=True),
-        "treat_codes":       st.column_config.TextColumn("All treatment codes", disabled=True, width="large"),
+        "✓ Select":              st.column_config.CheckboxColumn("✓", default=False),
+        "clutch_code":           st.column_config.TextColumn("Clutch", disabled=True),
+        "clutch_date":           st.column_config.DateColumn("Clutch date", disabled=True),
+        "genotype_pretty":       st.column_config.TextColumn("Genotype (pretty)", disabled=True),
+        "genotype_v11_code":     st.column_config.TextColumn("Genotype code (v11)", disabled=True),
+        "genotype_v11_basecodes": st.column_config.TextColumn("Genotype basecodes", disabled=True),
+        "treat_codes":           st.column_config.TextColumn("Treatment code(s)", disabled=True),
+        "treat_basecodes":       st.column_config.TextColumn("Treatment basecode(s)", disabled=True),
     },
     key="overview_treated_clutches_grid_v11",
 )
@@ -191,22 +212,19 @@ summary_rows = [
     ("Clutch id",             row.get("clutch_id")),
     ("Clutch code",           row.get("clutch_code")),
     ("Clutch date",           row.get("clutch_date")),
-    ("Cross",                 row.get("cross_run_code") or row.get("cross_code")),
-    ("Treatment code",        row.get("treatment_code")),
-    ("All treatment codes",   row.get("treat_codes")),
     ("Genotype (pretty)",     row.get("genotype_pretty")),
-    ("Genotype basecodes",    row.get("genotype_basecode_code")),
-    ("Genotype allele codes", row.get("genotype_transgene_allele_code")),
-    ("Treatments > transgenes", row.get("treatments_and_transgenes")),
-    ("Tx → fluor::tag(pos)",  row.get("all_fluor_tag_rollup")),
-    ("Tx → organelle-fluor",  row.get("all_organelle_fluor_rollup")),
+    ("Genotype basecodes",    row.get("genotype_base_codes")),
+    ("Genotype v11 code",     row.get("genotype_v11_code")),
+    ("Genotype v11 basecodes", row.get("genotype_v11_basecodes")),
+    ("Treatment code(s)",     row.get("treat_codes")),
+    ("Treatment basecode(s)", row.get("treat_basecodes")),
 ]
 
 _pivot("Clutch summary", summary_rows)
 
 st.markdown("---")
 st.info(
-    "This v11 view is driven entirely by public.v11_clutch_star. "
+    "This v11 page is driven entirely by public.v11_clutch_star. "
     "Each row represents a clutch with at least one attached treatment, "
-    "using the standard genotype and treatment rollup fields."
+    "using the standard genotype_v11 and treatment rollup fields."
 )

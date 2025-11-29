@@ -20,9 +20,11 @@ from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock(): ...
+    def require_app_unlock() -> None:
+        ...
 from carp_app.ui.lib.page_engine import engine as _engine
 
+# ───────── auth & page ─────────
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
@@ -93,14 +95,14 @@ if q:
     params["ql"] = f"%{q}%"
     where.append(
         "("
-        " clutch_code            ILIKE :ql"
-        " OR clutch_label        ILIKE :ql"
-        " OR cross_code          ILIKE :ql"
-        " OR cross_id::text      ILIKE :ql"
-        " OR cross_date::text    ILIKE :ql"
-        " OR female_fish_code    ILIKE :ql"
-        " OR male_fish_code      ILIKE :ql"
-        " OR tank_pair_code      ILIKE :ql"
+        " clutch_code         ILIKE :ql"
+        " OR clutch_label     ILIKE :ql"
+        " OR cross_code       ILIKE :ql"
+        " OR cross_id::text   ILIKE :ql"
+        " OR cross_date::text ILIKE :ql"
+        " OR female_fish_code ILIKE :ql"
+        " OR male_fish_code   ILIKE :ql"
+        " OR tank_pair_code   ILIKE :ql"
         ")"
     )
 
@@ -119,7 +121,7 @@ sql = text(
     f"""
     WITH crows AS (
       SELECT
-        c.id::text        AS clutch_id,
+        c.id               AS clutch_id,   -- keep as uuid
         c.clutch_code,
         c.clutch_date,
         c.estimated_egg_count,
@@ -127,12 +129,12 @@ sql = text(
         c.source_system,
         c.import_batch_id,
         c.created_at,
-        cr.id::text       AS cross_id,
-        cr.cross_run_code AS cross_code,
-        cr.created_at     AS cross_date,
-        tp.tank_pair_code AS tank_pair_code,
-        ff.fish_code      AS female_fish_code,
-        mf.fish_code      AS male_fish_code
+        cr.id              AS cross_id,
+        cr.cross_run_code  AS cross_code,
+        cr.created_at      AS cross_date,
+        tp.tank_pair_code  AS tank_pair_code,
+        ff.fish_code       AS female_fish_code,
+        mf.fish_code       AS male_fish_code
       FROM public.clutches c
       LEFT JOIN public.crosses cr
         ON cr.id = c.cross_id
@@ -147,21 +149,20 @@ sql = text(
         AND (c.import_batch_id IS NULL OR c.import_batch_id NOT LIKE 'legacy_%')
     )
     SELECT
-      c.clutch_id,
+      c.clutch_id::text                                  AS clutch_id,
       c.clutch_code,
-      ('CL-' || right(c.clutch_code, 8)) AS clutch_label,
+      ('CL-' || right(c.clutch_code, 8))                 AS clutch_label,
       c.clutch_date,
       c.estimated_egg_count,
-      c.cross_id,
+      c.cross_id::text                                   AS cross_id,
       c.cross_date,
       c.cross_code,
       c.tank_pair_code,
-      cs.genotype_basecode_code          AS genotype_basecode_code,
-      cs.genotype_transgene_allele_code  AS genotype_transgene_allele_code,
-      cs.treatment_code                  AS treatment_code,
-      cs.treatments_and_transgenes,
-      cs.all_fluor_tag_rollup,
-      cs.all_organelle_fluor_rollup,
+      cs.genotype_base_codes                             AS genotype_base_codes,
+      cs.genotype_v11_code                               AS genotype_v11_code,
+      cs.genotype_v11_basecodes                          AS genotype_v11_basecodes,
+      cs.treat_codes                                     AS treat_codes,
+      cs.treat_basecodes                                 AS treat_basecodes,
       c.female_fish_code,
       c.male_fish_code,
       c.notes,
@@ -182,9 +183,9 @@ sql = text(
 with eng().begin() as cx:
     df = pd.read_sql(sql, cx, params=params)
 
-# optional: display times in local zone (e.g. America/Los_Angeles)
+# convert tz if needed
 for col in ["cross_date", "created_at"]:
-    if col in df.columns and pd.core.dtypes.common.is_datetime64tz_dtype(df[col].dtype):
+    if col in df.columns and pd.api.types.is_datetime64tz_dtype(df[col].dtype):
         df[col] = df[col].dt.tz_convert("America/Los_Angeles")
 
 df = df.fillna("")
@@ -194,7 +195,7 @@ if df.empty:
     st.info("No clutches / crosses match the current filters.")
     st.stop()
 
-# ───────── Overview table (with standard 6) ─────────
+# ───────── Overview table ─────────
 st.subheader("Overview", anchor=False)
 
 view = df.copy()
@@ -208,12 +209,11 @@ top_cols = [
     "cross_code",
     "cross_date",
     "tank_pair_code",
-    "genotype_basecode_code",
-    "genotype_transgene_allele_code",
-    "treatment_code",
-    "treatments_and_transgenes",
-    "all_fluor_tag_rollup",
-    "all_organelle_fluor_rollup",
+    "genotype_base_codes",
+    "genotype_v11_code",
+    "genotype_v11_basecodes",
+    "treat_codes",
+    "treat_basecodes",
     "female_fish_code",
     "male_fish_code",
 ]
@@ -248,12 +248,11 @@ else:
         "cross_code",
         "cross_date",
         "tank_pair_code",
-        "genotype_basecode_code",
-        "genotype_transgene_allele_code",
-        "treatment_code",
-        "treatments_and_transgenes",
-        "all_fluor_tag_rollup",
-        "all_organelle_fluor_rollup",
+        "genotype_base_codes",
+        "genotype_v11_code",
+        "genotype_v11_basecodes",
+        "treat_codes",
+        "treat_basecodes",
         "female_fish_code",
         "male_fish_code",
         "notes",
@@ -273,7 +272,7 @@ else:
         height=min(800, 30 * len(detail_df)),
     )
 
-    # --- NEW: Expected genotypes for this clutch (Option B) ---
+    # Expected-genotype rows for this clutch
     st.subheader("Expected genotypes for this clutch (clutch_expected_genotypes_v11)", anchor=False)
 
     exp_sql = text(
@@ -302,7 +301,7 @@ else:
             use_container_width=True,
         )
 
-# ───────── download button (all rows) ─────────
+# ───────── download button ─────────
 st.download_button(
     "⬇︎ Download cross & clutch rows (CSV)",
     data=df.to_csv(index=False).encode("utf-8"),

@@ -4,7 +4,7 @@ import os
 import sys
 import uuid
 import pathlib
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Any
 
 import pandas as pd
 import streamlit as st
@@ -23,27 +23,32 @@ except Exception:
     def require_app_unlock():
         ...
 
-from carp_app.ui.lib.page_engine import engine
+from carp_app.ui.lib.page_engine import engine as _engine
 
+# ---- auth gates -------------------------------------------------------------
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
 st.set_page_config(
-    page_title="CARP — 🧬 Select tank pairings",
-    page_icon="🧬",
+    page_title="CARP — ⚙️ Select tank pairings",
+    page_icon="⚙️",
     layout="wide",
 )
-st.title("🧬 Select tank pairings (v10 fish instances & tanks)")
+st.title("⚙️ Select tank pairings (v11 fish instances & tanks)")
 
 
-# ------------------ core queries (v10-specific) ------------------------------
+def eng():
+    return _engine()
+
+
+# ------------------ core queries (v11) ---------------------------------------
 
 @st.cache_data(show_spinner=False)
 def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
     """
-    Search fish instances (FSH- codes) using v10_fish_instances_overview_enriched
-    for genotype + metadata, plus live tank counts per fish_instance_id.
+    Search fish instances (FSH- codes) using v11_fish_instance_star
+    plus live tank counts from v11_tank_star.
     """
     qnorm = (q or "").strip()
     params: Dict[str, object] = {
@@ -56,53 +61,53 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
         """
         WITH base AS (
           SELECT
-            vie.fish_instance_id,
-            vie.fish_code,
-            vie.line_code,
-            vie.line_nickname       AS nickname,
-            COALESCE(vie.genetic_background,'')    AS genetic_background,
-            COALESCE(vie.line_building_stage,'')   AS stage,
-            COALESCE(vie.genotype_pretty,'')       AS genotype_pretty,
-            vie.birthday            AS birthday,
-            vie.fish_created_at     AS created_at
-          FROM public.v10_fish_instances_overview_enriched vie
+            fis.fish_instance_id,
+            fis.fish_code,
+            fis.line_code,
+            fis.line_nickname                 AS nickname,
+            COALESCE(fis.genetic_background,'')    AS genetic_background,
+            COALESCE(fis.line_building_stage,'')   AS stage,
+            COALESCE(fis.genotype_pretty,'')       AS genotype,
+            fis.birthday                      AS birthday,
+            fis.fish_created_at               AS created_at
+          FROM public.v11_fish_instance_star fis
           WHERE (:q IS NULL)
              OR (
-                  vie.fish_code                  ILIKE :ql
-               OR COALESCE(vie.line_nickname,'') ILIKE :ql
-               OR COALESCE(vie.genetic_background,'') ILIKE :ql
-               OR COALESCE(vie.line_building_stage,'') ILIKE :ql
-               OR COALESCE(vie.genotype_pretty,'') ILIKE :ql
+                  fis.fish_code                  ILIKE :ql
+               OR COALESCE(fis.line_nickname,'') ILIKE :ql
+               OR COALESCE(fis.genetic_background,'') ILIKE :ql
+               OR COALESCE(fis.line_building_stage,'') ILIKE :ql
+               OR COALESCE(fis.genotype_pretty,'')    ILIKE :ql
              )
-          ORDER BY vie.fish_created_at DESC NULLS LAST, vie.fish_code
+          ORDER BY fis.fish_created_at DESC NULLS LAST, fis.fish_code
           LIMIT :lim
         ),
         live AS (
           SELECT
-            t.fish_instance_id,
+            ts.fish_code,
             COUNT(*)::int AS n_live,
-            string_agg(DISTINCT t.tank_code, ', ' ORDER BY t.tank_code) AS live_tank_codes
-          FROM public.tanks t
-          WHERE lower(trim(t.status)) = 'active'
-          GROUP BY t.fish_instance_id
+            string_agg(DISTINCT ts.tank_code, ', ' ORDER BY ts.tank_code) AS live_tank_codes
+          FROM public.v11_tank_star ts
+          WHERE lower(trim(ts.tank_status)) = 'active'
+          GROUP BY ts.fish_code
         )
         SELECT
           b.fish_code,
           b.line_code,
-          b.nickname                      AS name,
-          b.genetic_background            AS background,
-          b.stage                         AS stage,
-          b.genotype_pretty               AS genotype,
-          b.birthday                      AS birthday,
-          COALESCE(l.n_live, 0)           AS live_tanks,
-          COALESCE(l.live_tank_codes,'')  AS live_tank_codes
+          b.nickname               AS name,
+          b.genetic_background     AS background,
+          b.stage                  AS stage,
+          b.genotype               AS genotype,
+          b.birthday               AS birthday,
+          COALESCE(l.n_live, 0)    AS live_tanks,
+          COALESCE(l.live_tank_codes,'') AS live_tank_codes
         FROM base b
         LEFT JOIN live l
-          ON l.fish_instance_id = b.fish_instance_id
+          ON l.fish_code = b.fish_code;
         """
     )
 
-    with engine().begin() as cx:
+    with eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
     for c in df.select_dtypes(include=["object", "string"]).columns:
         df[c] = df[c].astype("string").fillna("")
@@ -113,7 +118,7 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
 def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     """
     Return active tanks for the given FSH fish_codes,
-    with line nickname + genotype + line_code + birthday.
+    with line nickname + genotype + line_code + birthday (v11 views).
     """
     if not codes:
         return pd.DataFrame()
@@ -121,30 +126,30 @@ def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     sql = text(
         """
         SELECT
-          vie.fish_code,
-          vie.line_code,
-          vie.line_nickname        AS fish_name,
-          COALESCE(vie.genotype_pretty,'') AS genotype,
-          vie.birthday             AS birthday,
-          t.tank_code,
-          t.id::text               AS tank_id,
-          t.status,
-          t.created_at
-        FROM public.tanks t
-        JOIN public.v10_fish_instances_overview_enriched vie
-          ON vie.fish_instance_id = t.fish_instance_id
-        WHERE vie.fish_code = ANY(:codes)
-          AND lower(trim(t.status)) = 'active'
-        ORDER BY vie.fish_code, t.created_at DESC NULLS LAST
+          ts.fish_code,
+          fis.line_code,
+          fis.line_nickname              AS fish_name,
+          COALESCE(fis.genotype_pretty,'') AS genotype,
+          fis.birthday                   AS birthday,
+          ts.tank_code,
+          ts.tank_id::text               AS tank_id,
+          ts.tank_status                 AS status,
+          ts.tank_created_at             AS created_at
+        FROM public.v11_tank_star ts
+        JOIN public.v11_fish_instance_star fis
+          ON fis.fish_code = ts.fish_code
+        WHERE ts.fish_code = ANY(:codes)
+          AND lower(trim(ts.tank_status)) = 'active'
+        ORDER BY ts.fish_code, ts.tank_created_at DESC NULLS LAST;
         """
     )
-    with engine().begin() as cx:
+    with eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": codes})
     return df.fillna("")
 
 
 def _tank_pair_parent_cols() -> Tuple[str, str]:
-    with engine().begin() as cx:
+    with eng().begin() as cx:
         df = pd.read_sql(
             text(
                 """
@@ -152,7 +157,7 @@ def _tank_pair_parent_cols() -> Tuple[str, str]:
                 FROM information_schema.columns
                 WHERE table_schema = 'public'
                   AND table_name = 'tank_pairs'
-                ORDER BY ordinal_position
+                ORDER BY ordinal_position;
                 """
             ),
             cx,
@@ -176,13 +181,13 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
     """
     mom_col, dad_col = _tank_pair_parent_cols()
 
-    with engine().begin() as cx:
+    with eng().begin() as cx:
         cols_df = pd.read_sql(
             text(
                 """
                 SELECT column_name
                 FROM information_schema.columns
-                WHERE table_schema='public' AND table_name='tank_pairs'
+                WHERE table_schema='public' AND table_name='tank_pairs';
                 """
             ),
             cx,
@@ -196,7 +201,7 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 SELECT id::text, tank_pair_code
                 FROM public.tank_pairs
                 WHERE {mom_col} = :m AND {dad_col} = :d
-                LIMIT 1
+                LIMIT 1;
                 """
             ),
             cx,
@@ -214,7 +219,9 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 sets.append("updated_by = COALESCE(NULLIF(:by,''), updated_by)")
             if sets:
                 cx.execute(
-                    text(f"UPDATE public.tank_pairs SET {', '.join(sets)} WHERE id = :id::uuid"),
+                    text(
+                        f"UPDATE public.tank_pairs SET {', '.join(sets)} WHERE id = :id::uuid"
+                    ),
                     params,
                 )
             return False, str(row.iloc[0]["tank_pair_code"])
@@ -252,7 +259,7 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 :tp_code,
                 NULLIF(:note,'')
             )
-            RETURNING tank_pair_code
+            RETURNING tank_pair_code;
             """
         )
         tp_code_db = cx.execute(sql, params).scalar()
@@ -260,10 +267,14 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
 
 
 # ------------------ UI -------------------------------------------------------
+
 with st.form("filters"):
     c1, c2 = st.columns([3, 1])
     with c1:
-        q = st.text_input("Filter by code / nickname / background / genotype", "")
+        q = st.text_input(
+            "Filter by code / nickname / background / genotype",
+            "",
+        )
     with c2:
         limit = int(st.number_input("Rows", 1, 2000, 500, 50))
     st.form_submit_button("Apply")
@@ -279,20 +290,22 @@ view = df.copy()
 view.insert(0, "✓ Parent", False)
 pick = st.data_editor(
     view,
-    key="parent_table_v10",
+    key="parent_table_v11",
     width="stretch",
     hide_index=True,
     column_config={
-        "✓ Parent":        st.column_config.CheckboxColumn("✓", default=False),
-        "fish_code":       st.column_config.TextColumn("FSH code", disabled=True),
-        "line_code":       st.column_config.TextColumn("LINE code", disabled=True),
-        "name":            st.column_config.TextColumn("name", disabled=True),
-        "background":      st.column_config.TextColumn("background", disabled=True),
-        "stage":           st.column_config.TextColumn("stage", disabled=True),
-        "genotype":        st.column_config.TextColumn("genotype", disabled=True),
-        "birthday":        st.column_config.DateColumn("Birthday", disabled=True),
-        "live_tanks":      st.column_config.NumberColumn("live tanks"),
-        "live_tank_codes": st.column_config.TextColumn("live tank codes", disabled=True),
+        "✓ Parent": st.column_config.CheckboxColumn("✓", default=False),
+        "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
+        "line_code": st.column_config.TextColumn("LINE code", disabled=True),
+        "name": st.column_config.TextColumn("Name", disabled=True),
+        "background": st.column_config.TextColumn("Background", disabled=True),
+        "stage": st.column_config.TextColumn("Stage", disabled=True),
+        "genotype": st.column_config.TextColumn("Genotype", disabled=True),
+        "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+        "live_tanks": st.column_config.NumberColumn("Live tanks", disabled=True),
+        "live_tank_codes": st.column_config.TextColumn(
+            "Live tank codes", disabled=True
+        ),
     },
 )
 
@@ -322,9 +335,20 @@ m_candidates = live.copy()
 m_candidates.insert(0, "✓ Mother", False)
 m_sel = st.data_editor(
     m_candidates[
-        ["✓ Mother", "fish_code", "line_code", "fish_name", "genotype", "birthday", "tank_code", "tank_id", "status", "created_at"]
+        [
+            "✓ Mother",
+            "fish_code",
+            "line_code",
+            "fish_name",
+            "genotype",
+            "birthday",
+            "tank_code",
+            "tank_id",
+            "status",
+            "created_at",
+        ]
     ],
-    key="mother_table_v10",
+    key="mother_table_v11",
     width="stretch",
     hide_index=True,
 )
@@ -348,9 +372,20 @@ st.subheader("Father")
 f_candidates.insert(0, "✓ Father", False)
 f_sel = st.data_editor(
     f_candidates[
-        ["✓ Father", "fish_code", "line_code", "fish_name", "genotype", "birthday", "tank_code", "tank_id", "status", "created_at"]
+        [
+            "✓ Father",
+            "fish_code",
+            "line_code",
+            "fish_name",
+            "genotype",
+            "birthday",
+            "tank_code",
+            "tank_id",
+            "status",
+            "created_at",
+        ]
     ],
-    key="father_table_v10",
+    key="father_table_v11",
     width="stretch",
     hide_index=True,
 )
@@ -372,3 +407,4 @@ note = st.text_input("Note (optional)", "")
 if st.button("💾 Save tank pairing", type="primary", use_container_width=True):
     created, code = upsert_tank_pair(mother_tank_id, father_tank_id, creator, note)
     st.success(f"{'Created' if created else 'Updated'} tank_pair {code}")
+    st.info("You can now go to ⚙️ Schedule new crosses and pick this tank pair.")
