@@ -54,16 +54,11 @@ def _norm(s: str | None) -> Optional[str]:
 
 def parse_query(q_raw: str) -> Tuple[Dict[str, str], str]:
     """
-    Parse a simple mini-language:
+    Mini-language, e.g.:
 
       nickname=casper background=casper mStayGold
 
-    into:
-
-      field_filters = {"nickname": "casper", "background": "casper"}
-      free_text     = "mStayGold"
-
-    Any token without '=' goes into the free-text portion.
+    ⇒ field_filters, free_text
     """
     field_filters: Dict[str, str] = {}
     free_tokens: List[str] = []
@@ -122,9 +117,10 @@ field_to_column = {
     "fluors": "fluor_codes",
     "tag": "tag_codes",
     "tags": "tag_codes",
-    "organelle": "organelle_fluors",
-    "organelle_fluor": "organelle_fluors",
-    "organelle_fluors": "organelle_fluors",
+    # search against the canonical organelle rollup
+    "organelle": "all_organelle_fluor_rollup",
+    "organelle_fluor": "all_organelle_fluor_rollup",
+    "organelle_fluors": "all_organelle_fluor_rollup",
     "code": "fish_code",
     "fish_code": "fish_code",
 }
@@ -132,7 +128,7 @@ field_to_column = {
 for key, val in field_filters.items():
     col = field_to_column.get(key)
     if not col:
-        # unknown field name: treat this as free-text instead
+        # unknown field name: push into free-text instead
         free_text = (free_text + " " + f"{key}={val}").strip()
         continue
     param_name = f"f_{key}"
@@ -149,7 +145,8 @@ if free_text:
         " OR COALESCE(genotype_pretty,'')    ILIKE :ql"
         " OR COALESCE(fluor_codes,'')        ILIKE :ql"
         " OR COALESCE(tag_codes,'')          ILIKE :ql"
-        " OR COALESCE(organelle_fluors,'')   ILIKE :ql"
+        " OR COALESCE(all_fluor_tag_rollup,'')      ILIKE :ql"
+        " OR COALESCE(all_organelle_fluor_rollup,'') ILIKE :ql"
         ")"
     )
 
@@ -165,9 +162,11 @@ sql = text(f"""
       line_building_stage,
       birthday,
       genotype_pretty,
+      genotype_basecode_code,
       fluor_codes,
       tag_codes,
-      organelle_fluors,
+      all_fluor_tag_rollup,
+      all_organelle_fluor_rollup,
       fish_created_at
     FROM public.v11_fish_instance_star
     WHERE {where_sql}
@@ -192,9 +191,11 @@ view = df[
         "line_building_stage",
         "birthday",
         "genotype_pretty",
+        "genotype_basecode_code",
         "fluor_codes",
         "tag_codes",
-        "organelle_fluors",
+        "all_fluor_tag_rollup",
+        "all_organelle_fluor_rollup",
         "fish_created_at",
     ]
 ].copy()
@@ -204,7 +205,7 @@ st.data_editor(
     view,
     key="fish_overview_v11",
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     num_rows="fixed",
     column_order=[
         "✓ Select",
@@ -214,23 +215,27 @@ st.data_editor(
         "line_building_stage",
         "birthday",
         "genotype_pretty",
+        "genotype_basecode_code",
         "fluor_codes",
         "tag_codes",
-        "organelle_fluors",
+        "all_fluor_tag_rollup",
+        "all_organelle_fluor_rollup",
         "fish_created_at",
     ],
     column_config={
-        "✓ Select":            st.column_config.CheckboxColumn("✓", default=False),
-        "fish_code":           st.column_config.TextColumn("Fish code", disabled=True),
-        "line_nickname":       st.column_config.TextColumn("Line nickname", disabled=True, width="large"),
-        "genetic_background":  st.column_config.TextColumn("Background", disabled=True),
-        "line_building_stage": st.column_config.TextColumn("Stage", disabled=True),
-        "birthday":            st.column_config.DateColumn("Birthday", disabled=True),
-        "genotype_pretty":     st.column_config.TextColumn("Genotype (pretty)", disabled=True, width="large"),
-        "fluor_codes":         st.column_config.TextColumn("Fluors", disabled=True),
-        "tag_codes":           st.column_config.TextColumn("Tags", disabled=True),
-        "organelle_fluors":    st.column_config.TextColumn("Organelle-fluors", disabled=True, width="large"),
-        "fish_created_at":     st.column_config.DatetimeColumn("Created at", disabled=True),
+        "✓ Select":                st.column_config.CheckboxColumn("✓", default=False),
+        "fish_code":               st.column_config.TextColumn("Fish code", disabled=True),
+        "line_nickname":           st.column_config.TextColumn("Line nickname", disabled=True, width="large"),
+        "genetic_background":      st.column_config.TextColumn("Background", disabled=True),
+        "line_building_stage":     st.column_config.TextColumn("Stage", disabled=True),
+        "birthday":                st.column_config.DateColumn("Birthday", disabled=True),
+        "genotype_pretty":         st.column_config.TextColumn("Genotype (pretty)", disabled=True, width="large"),
+        "genotype_basecode_code":  st.column_config.TextColumn("Genotype basecodes", disabled=True),
+        "fluor_codes":             st.column_config.TextColumn("Fluors", disabled=True),
+        "tag_codes":               st.column_config.TextColumn("Tags", disabled=True),
+        "all_fluor_tag_rollup":    st.column_config.TextColumn("Fluor::tag rollup", disabled=True, width="large"),
+        "all_organelle_fluor_rollup": st.column_config.TextColumn("Organelle-fluor", disabled=True),
+        "fish_created_at":         st.column_config.DatetimeColumn("Created at", disabled=True),
     },
 )
 
