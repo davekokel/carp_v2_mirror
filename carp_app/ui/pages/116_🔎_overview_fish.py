@@ -24,6 +24,7 @@ except Exception:
 from carp_app.ui.lib.app_ctx import get_engine
 
 
+# ───────── auth & page ─────────
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
@@ -36,6 +37,7 @@ st.set_page_config(
 st.title("🐟 Overview fish")
 
 
+# ───────── engine ─────────
 @st.cache_resource(show_spinner=False)
 def _eng() -> Engine:
     url = os.getenv("DB_URL")
@@ -82,11 +84,12 @@ def parse_query(q_raw: str) -> Tuple[Dict[str, str], str]:
     return field_filters, free_text
 
 
+# ───────── filters ─────────
 with st.form("fish_filters", clear_on_submit=False):
     c1, c2 = st.columns([3, 1])
     with c1:
         q_raw = st.text_input(
-            "Search (fish code / line nickname / background / genotype / fluor / tag / fusion / organelle)",
+            "Search (fish code / line nickname / background / genotype / fluor / tag / organelle)",
             "",
         )
     with c2:
@@ -106,6 +109,7 @@ field_filters, free_text = parse_query(q_raw or "")
 where = ["1=1"]
 params: Dict[str, Any] = {"lim": lim}
 
+# Map mini-language field names → columns on v11_fish_instance_star
 field_to_column = {
     "nickname": "line_nickname",
     "line_nickname": "line_nickname",
@@ -118,8 +122,6 @@ field_to_column = {
     "fluors": "fluor_codes",
     "tag": "tag_codes",
     "tags": "tag_codes",
-    "fusion": "fusion_pretty",
-    "fusions": "fusion_pretty",
     "organelle": "organelle_fluors",
     "organelle_fluor": "organelle_fluors",
     "organelle_fluors": "organelle_fluors",
@@ -147,13 +149,13 @@ if free_text:
         " OR COALESCE(genotype_pretty,'')    ILIKE :ql"
         " OR COALESCE(fluor_codes,'')        ILIKE :ql"
         " OR COALESCE(tag_codes,'')          ILIKE :ql"
-        " OR COALESCE(fusion_pretty,'')      ILIKE :ql"
         " OR COALESCE(organelle_fluors,'')   ILIKE :ql"
         ")"
     )
 
 where_sql = " AND ".join(where)
 
+# ───────── query v11_fish_instance_star ─────────
 sql = text(f"""
     SELECT
       fish_instance_id,
@@ -165,11 +167,9 @@ sql = text(f"""
       genotype_pretty,
       fluor_codes,
       tag_codes,
-      n_fusions,
-      fusion_pretty,
       organelle_fluors,
       fish_created_at
-    FROM public.v10_fish_instances_overview_enriched
+    FROM public.v11_fish_instance_star
     WHERE {where_sql}
     ORDER BY fish_created_at DESC NULLS LAST, fish_code
     LIMIT :lim
@@ -183,6 +183,7 @@ for c in df.select_dtypes(include=["object", "string"]).columns:
 
 st.caption(f"{len(df)} fish")
 
+# ───────── table view ─────────
 view = df[
     [
         "fish_code",
@@ -193,8 +194,6 @@ view = df[
         "genotype_pretty",
         "fluor_codes",
         "tag_codes",
-        "n_fusions",
-        "fusion_pretty",
         "organelle_fluors",
         "fish_created_at",
     ]
@@ -203,7 +202,7 @@ view.insert(0, "✓ Select", False)
 
 st.data_editor(
     view,
-    key="fish_overview_v10",
+    key="fish_overview_v11",
     hide_index=True,
     use_container_width=True,
     num_rows="fixed",
@@ -217,8 +216,6 @@ st.data_editor(
         "genotype_pretty",
         "fluor_codes",
         "tag_codes",
-        "n_fusions",
-        "fusion_pretty",
         "organelle_fluors",
         "fish_created_at",
     ],
@@ -232,8 +229,6 @@ st.data_editor(
         "genotype_pretty":     st.column_config.TextColumn("Genotype (pretty)", disabled=True, width="large"),
         "fluor_codes":         st.column_config.TextColumn("Fluors", disabled=True),
         "tag_codes":           st.column_config.TextColumn("Tags", disabled=True),
-        "n_fusions":           st.column_config.NumberColumn("n fusions", disabled=True),
-        "fusion_pretty":       st.column_config.TextColumn("Fusions fluor::tag(tag_pos)", disabled=True, width="large"),
         "organelle_fluors":    st.column_config.TextColumn("Organelle-fluors", disabled=True, width="large"),
         "fish_created_at":     st.column_config.DatetimeColumn("Created at", disabled=True),
     },

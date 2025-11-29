@@ -20,9 +20,7 @@ from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock() -> None:
-        ...
-
+    def require_app_unlock(): ...
 from carp_app.ui.lib.app_ctx import get_engine
 
 
@@ -36,7 +34,9 @@ st.set_page_config(
     page_icon="🐣",
     layout="wide",
 )
+
 st.title("🐣 v11 Overview — Clutches (genotype + treatment)")
+
 
 # ───────── engine (cached) ─────────
 @st.cache_resource(show_spinner=False)
@@ -58,7 +58,7 @@ with st.form("clutch_filters", clear_on_submit=False):
     c1, c2 = st.columns([3, 1])
     with c1:
         q_raw = st.text_input(
-            "Search (clutch / genotype / treatment / markers)",
+            "Search (clutch / genotype / genotype code / treatment)",
             "",
         )
     with c2:
@@ -75,6 +75,7 @@ with st.form("clutch_filters", clear_on_submit=False):
 
 q = _norm(q_raw)
 
+
 # ───────── query v11_clutch_star ─────────
 where = ["1=1"]
 params: Dict[str, Any] = {"lim": lim}
@@ -85,11 +86,10 @@ if q:
         "("
         "  clutch_code           ILIKE :ql"
         " OR genotype_pretty     ILIKE :ql"
-        " OR genotype_base_codes ILIKE :ql"
-        " OR genotype_allele_codes ILIKE :ql"
+        " OR genotype_v11_code   ILIKE :ql"
+        " OR genotype_v11_basecodes ILIKE :ql"
         " OR treat_codes         ILIKE :ql"
-        " OR treat_fluor_tag     ILIKE :ql"
-        " OR treat_organelle_fluor ILIKE :ql"
+        " OR treat_basecodes     ILIKE :ql"
         ")"
     )
 
@@ -101,12 +101,15 @@ sql = text(f"""
       clutch_date,
       n_imaging_slots,
       n_rois,
-      genotype_pretty,
+
       genotype_base_codes,
-      genotype_allele_codes,
+      genotype_v11_code,
+      genotype_v11_basecodes,
+      genotype_pretty,
+
       treat_codes,
-      treat_fluor_tag,
-      treat_organelle_fluor
+      treat_basecodes
+
     FROM public.v11_clutch_star
     WHERE {where_sql}
     ORDER BY clutch_date, clutch_code
@@ -116,15 +119,15 @@ sql = text(f"""
 with _eng().begin() as cx:
     df = pd.read_sql(sql, cx, params=params)
 
-# normalize for display only
-df_display = df.copy()
-df_display = df_display.fillna("")
+
+df_display = df.copy().fillna("")
 
 st.caption(f"{len(df_display)} clutch row(s)")
 
-# ───────── top table: clutch overview with checkbox selection ─────────
+
+# ───────── top grid ─────────
 if df_display.empty:
-    st.info("No clutches matched the current filters.")
+    st.info("No clutches matched filters.")
     st.stop()
 
 view = df_display.copy()
@@ -134,7 +137,7 @@ grid = st.data_editor(
     view,
     key="v11_clutch_overview_table",
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     num_rows="fixed",
     column_order=[
         "✓ Select",
@@ -142,31 +145,36 @@ grid = st.data_editor(
         "clutch_date",
         "n_imaging_slots",
         "n_rois",
-        "genotype_pretty",
+
         "genotype_base_codes",
-        "genotype_allele_codes",
+        "genotype_v11_code",
+        "genotype_v11_basecodes",
+        "genotype_pretty",
+
         "treat_codes",
-        "treat_fluor_tag",
-        "treat_organelle_fluor",
+        "treat_basecodes",
     ],
     column_config={
-        "✓ Select":              st.column_config.CheckboxColumn("✓", default=False),
-        "clutch_code":           st.column_config.TextColumn("Clutch", disabled=True),
-        "clutch_date":           st.column_config.DateColumn("Date", disabled=True),
-        "n_imaging_slots":       st.column_config.NumberColumn("# slots", disabled=True, format="%d"),
-        "n_rois":                st.column_config.NumberColumn("# ROIs", disabled=True, format="%d"),
-        "genotype_pretty":       st.column_config.TextColumn("Genotype (Tg(base)allele)", disabled=True),
-        "genotype_base_codes":   st.column_config.TextColumn("Genotype base codes", disabled=True),
-        "genotype_allele_codes": st.column_config.TextColumn("Genotype allele codes", disabled=True),
-        "treat_codes":           st.column_config.TextColumn("Treat codes", disabled=True),
-        "treat_fluor_tag":       st.column_config.TextColumn("Treat fluor::tag", disabled=True),
-        "treat_organelle_fluor": st.column_config.TextColumn("Treat organelle-fluor", disabled=True),
+        "✓ Select":            st.column_config.CheckboxColumn("✓"),
+        "clutch_code":         st.column_config.TextColumn("Clutch", disabled=True),
+        "clutch_date":         st.column_config.DateColumn("Date", disabled=True),
+        "n_imaging_slots":     st.column_config.NumberColumn("# slots", disabled=True),
+        "n_rois":              st.column_config.NumberColumn("# ROIs", disabled=True),
+
+        "genotype_base_codes":     st.column_config.TextColumn("Geno (raw Tg codes)", disabled=True),
+        "genotype_v11_code":       st.column_config.TextColumn("Genotype Code", disabled=True),
+        "genotype_v11_basecodes":  st.column_config.TextColumn("Genotype Basecodes", disabled=True),
+        "genotype_pretty":         st.column_config.TextColumn("Genotype Pretty", disabled=True),
+
+        "treat_codes":        st.column_config.TextColumn("Treatment Code(s)", disabled=True),
+        "treat_basecodes":    st.column_config.TextColumn("Treatment Basecodes", disabled=True),
     },
 )
 
-# determine selected clutches
+
+# ───────── selected clutches ─────────
 selected_clutches: List[str] = []
-if isinstance(grid, pd.DataFrame) and "✓ Select" in grid.columns and "clutch_code" in grid.columns:
+if isinstance(grid, pd.DataFrame):
     mask = grid["✓ Select"] == True
     selected_clutches = (
         grid.loc[mask, "clutch_code"]
@@ -174,22 +182,16 @@ if isinstance(grid, pd.DataFrame) and "✓ Select" in grid.columns and "clutch_c
         .astype(str)
         .tolist()
     )
-    # preserve first-appearance order
-    seen: Dict[str, None] = {}
-    for c in selected_clutches:
-        if c not in seen:
-            seen[c] = None
-    selected_clutches = list(seen.keys())
 
+
+# ───────── ROI drill-down ─────────
 st.divider()
-
-# ───────── drill-down: ROIs for selected clutches (stacked below) ─────────
 st.subheader("Imaging ROIs for selected clutch(es)")
 
 if not selected_clutches:
-    st.caption("Select one or more clutches above to see their imaging ROIs.")
+    st.caption("Select one or more clutches above.")
 else:
-    st.caption(f"{len(selected_clutches)} clutch(es) selected: {', '.join(selected_clutches)}")
+    st.caption(f"{len(selected_clutches)} selected: {', '.join(selected_clutches)}")
 
     sql_rois = text("""
         SELECT
@@ -215,56 +217,27 @@ else:
         df_rois = pd.read_sql(sql_rois, cx, params={"codes": selected_clutches})
 
     if df_rois.empty:
-        st.info("No ROIs found for the selected clutches.")
+        st.info("No ROIs found.")
     else:
-        df_rois_disp = df_rois.copy().fillna("")
+        df_rois_disp = df_rois.fillna("")
         st.data_editor(
             df_rois_disp,
             key="v11_clutch_rois_detail",
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
             num_rows="fixed",
-            column_order=[
-                "clutch_code",
-                "plate_code",
-                "experiment_date",
-                "slot_label",
-                "slot_index",
-                "roi_code",
-                "roi_index",
-                "roi_note_anatomy",
-                "roi_path",
-                "fish_code",
-                "fish_genotype_pretty",
-                "tank_code",
-                "tank_status",
-            ],
-            column_config={
-                "clutch_code":      st.column_config.TextColumn("Clutch", disabled=True),
-                "plate_code":       st.column_config.TextColumn("Plate", disabled=True),
-                "experiment_date":  st.column_config.DateColumn("Exp date", disabled=True),
-                "slot_label":       st.column_config.TextColumn("Slot", disabled=True),
-                "slot_index":       st.column_config.NumberColumn("Slot idx", disabled=True),
-                "roi_code":         st.column_config.TextColumn("ROI code", disabled=True),
-                "roi_index":        st.column_config.NumberColumn("ROI idx", disabled=True),
-                "roi_note_anatomy": st.column_config.TextColumn("Anatomy", disabled=True),
-                "roi_path":         st.column_config.TextColumn("ROI path", disabled=True),
-                "fish_code":        st.column_config.TextColumn("FSH code", disabled=True),
-                "fish_genotype_pretty": st.column_config.TextColumn("Fish genotype", disabled=True),
-                "tank_code":        st.column_config.TextColumn("Tank", disabled=True),
-                "tank_status":      st.column_config.TextColumn("Tank status", disabled=True),
-            },
         )
 
         st.download_button(
-            "⬇︎ Download ROIs for selected clutches (CSV)",
+            "⬇︎ Download ROIs (CSV)",
             data=df_rois_disp.to_csv(index=False).encode("utf-8"),
             file_name="v11_clutch_rois_selected.csv",
             type="secondary",
             mime="text/csv",
         )
 
-# ───────── export full clutch table ─────────
+
+# ───────── export full table ─────────
 st.divider()
 st.download_button(
     "⬇︎ Download clutches overview (CSV)",

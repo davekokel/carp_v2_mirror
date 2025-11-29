@@ -1,0 +1,29 @@
+legacy_clutch_key,clutch_code,signature_norm,v9_signature_raw,v10_signature_raw,treatment_code
+2025-05-30 | casper/rnf | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),LCL-0011,MGCO#39,MGCO-39||nan,MGCO-039,T-LEGACY-016
+2025-07-21 | membrane Halo | membrane Halo,LCL-0026,MGCO#1||MGCO#4,MGCO-04||MGCO-04|MGCO-01||nan,MGCO-001||MGCO-004,T-LEGACY-001
+2025-07-21 | membrane mChilada | membrane mChilada,LCL-0027,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-07-23 | membrane mChilada | membrane mChilada,LCL-0028,MGCO#1||MGCO#4,MGCO-01|MGCO-04||nan,MGCO-001||MGCO-004,T-LEGACY-001
+2025-08-04 | membrane Halo | membrane Halo,LCL-0031,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-08-07 | membrane mChilada | membrane mChilada,LCL-0032,MGCO#1||MGCO#15,MGCO-01|MGCO-15||MGCO-15|MGCO-01||nan,MGCO-001||MGCO-015,T-LEGACY-006
+2025-08-18 | casper/rnf | mem:tdmChilada,LCL-0033,MGCO#1||MGCO#4,MGCO-01||MGCO-04||nan,MGCO-001||MGCO-004,T-LEGACY-001
+2025-08-20 | casper/rnf | mem:tdmChilada,LCL-0034,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-08-25 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),LCL-0035,MGCO#23,MGCO-23||nan,MGCO-023,T-LEGACY-008
+2025-08-25 | casper/rnf | mem:tdmChilada,LCL-0036,MGCO#23,MGCO-23||nan,MGCO-023,T-LEGACY-008
+2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),LCL-0037,MGCO#23,MGCO-23||nan,MGCO-023,T-LEGACY-008
+2025-09-02 | casper/rnf | mem:tdmChilada,LCL-0038,HC#9,HC-9||nan,HC-009,T-LEGACY-009
+2025-09-03 | casper/rnf | ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),LCL-0039,HC#9,HC-9||nan,HC-009,T-LEGACY-009
+2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,LCL-0040,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),LCL-0041,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-09-12 |  | ef1a:2xLynk:tdm:Halo,LCL-0042,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),LCL-0043,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),LCL-0044,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-09-19 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),LCL-0045,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),LCL-0046,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-09-24 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),LCL-0047,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-10-08 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,LCL-0050,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-10-20 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),LCL-0055,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,LCL-0056,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-10-22 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),LCL-0058,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-10-28 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),LCL-0060,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),LCL-0061,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003
+2025-11-10 | casper | memrane tdmScarlet3S2 (F1 of allele 325),LCL-0063,MGCO#1,MGCO-01||nan,MGCO-001,T-LEGACY-003

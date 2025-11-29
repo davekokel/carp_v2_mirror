@@ -31,11 +31,11 @@ require_email_otp()
 require_app_unlock()
 
 st.set_page_config(
-    page_title="CARP — v10 Fish Lines Overview",
+    page_title="CARP — Fish Lines Overview",
     page_icon="🔎",
     layout="wide",
 )
-st.title("🔎 v10 Fish Lines Overview")
+st.title("🔎 Fish Lines Overview")
 
 
 # ───────── engine (cached) ─────────
@@ -88,7 +88,7 @@ q = _norm(q_raw)
 bg = _norm(bg_raw)
 stage_filter = stage_choice if stage_choice != "(any)" else None
 
-# ───────── query v10_fish_lines_overview + n_fish_instances ─────────
+# ───────── query fish_lines + v11_line_allele_rollups + fish_instances_v10 ─────────
 where = ["1=1"]
 params: Dict[str, Any] = {"lim": lim}
 
@@ -96,39 +96,51 @@ if q:
     params["ql"] = f"%{q}%"
     where.append(
         "("
-        "  line_code         ILIKE :ql"
-        " OR nickname        ILIKE :ql"
-        " OR genotype_pretty ILIKE :ql"
+        "  b.line_code        ILIKE :ql"
+        " OR b.nickname       ILIKE :ql"
+        " OR b.genotype_pretty ILIKE :ql"
         ")"
     )
 
 if bg:
     params["bg"] = f"%{bg}%"
-    where.append("genetic_background ILIKE :bg")
+    where.append("b.genetic_background ILIKE :bg")
 
 if stage_filter:
     params["stage"] = stage_filter
-    where.append("line_building_stage = :stage")
+    where.append("b.line_building_stage = :stage")
 
 where_sql = " AND ".join(where)
 
 sql = text(f"""
+    WITH base AS (
+      SELECT
+        fl.id                  AS line_id,
+        fl.line_code           AS line_code,
+        fl.nickname            AS nickname,
+        fl.genetic_background  AS genetic_background,
+        fl.line_building_stage AS line_building_stage,
+        fl.created_at          AS created_at,
+        la.allele_label_rollup AS genotype_pretty
+      FROM public.fish_lines fl
+      LEFT JOIN public.v11_line_allele_rollups la
+        ON la.line_id = fl.id
+    )
     SELECT
-      v.line_code,
-      v.nickname,
-      v.genetic_background,
-      v.line_building_stage,
-      v.genotype_pretty,
-      v.created_at,
+      b.line_code,
+      b.nickname,
+      b.genetic_background,
+      b.line_building_stage,
+      b.genotype_pretty,
+      b.created_at,
       (
         SELECT COUNT(*)
         FROM public.fish_instances_v10 fi
-        JOIN public.fish_lines fl ON fl.id = fi.line_id
-        WHERE fl.line_code = v.line_code
+        WHERE fi.line_id = b.line_id
       ) AS n_fish_instances
-    FROM public.v10_fish_lines_overview v
+    FROM base b
     WHERE {where_sql}
-    ORDER BY v.created_at DESC NULLS LAST, v.line_code
+    ORDER BY b.created_at DESC NULLS LAST, b.line_code
     LIMIT :lim
 """)
 
@@ -144,7 +156,7 @@ view.insert(0, "✓ Select", False)
 
 grid = st.data_editor(
     view,
-    key="v10_fish_lines_overview_grid",
+    key="fish_lines_overview_v11",
     hide_index=True,
     use_container_width=True,
     num_rows="fixed",
@@ -171,9 +183,9 @@ grid = st.data_editor(
 )
 
 st.download_button(
-    "⬇︎ Download v10 fish lines (CSV)",
+    "⬇︎ Download fish lines (CSV)",
     data=df.to_csv(index=False).encode("utf-8"),
-    file_name="v10_fish_lines_overview.csv",
+    file_name="fish_lines_overview.csv",
     type="secondary",
     mime="text/csv",
 )

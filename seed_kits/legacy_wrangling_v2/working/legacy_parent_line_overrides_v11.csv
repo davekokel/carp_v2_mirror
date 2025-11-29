@@ -1,0 +1,50 @@
+parent_label,line_nickname,score
+heatshock PhiC,casper,0
+mem-histone,membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),0
+mem-kinetocore,casper,0
+mem-mito,membrane tandem mStayGold;Mito mScarlet3S2 (ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2),0
+mem:tdmChilada,membrane tandem mChilada (ef1a:2xLynk:tdmChilada),0
+mitomSG,membrane tandem mStayGold;Mito mScarlet3S2 (ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2),0
+peroxi,casper,0
+skittles,skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),0
+ef1a:2xLynk:tdm:mHalo,membrane tandem Halo (ef1a:2xLynk:tdHalo),2
+ef1a:H2B:Halo,tandem mScarlet3-S2 H2B (ef1a-ext:tdmSc3s2:H2B),2
+er-mSG_mem-mChilada,membrane tandem mChilada (ef1a:2xLynk:tdmChilada),2
+membrane Halo,membrane tandem Halo (ef1a:2xLynk:tdHalo),2
+membrane mChilada,membrane tandem mSG; mChilada H2B (ef1a:2xlynk:tdmSG-tPT2A:tdmChilada:H2B),2
+tandem mem:mStayGold,membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),2
+ef1a:2xLynk:tdm:Halo,membrane tandem Halo (ef1a:2xLynk:tdHalo),3
+ef1a:2xLynk:tdm:mChilada,membrane tandem mSG; mChilada H2B (ef1a:2xlynk:tdmSG-tPT2A:tdmChilada:H2B),3
+from Swinburne lab - tank ID 344 (F1 of allele 45385),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),3
+tandem mem:mStayGold; tdmChilada(MAGPV):Histone,membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),3
+tandem mem:mStayGold; tdmChilada:Histone,membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),3
+tdmScarlet3S2 (F2 of allele 325),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),3
+memrane tdmScarlet3S2 (F1 of allele 325),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),4
+memrane tdmScarlet3S2 (F1 of allele 327),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),4
+tdmScarlet3S2 (F1 of allele 325),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),4
+ef1a:2xLynk:tdmSG(J) (F1 of allele 305),ef1a:2xLynk:tdmSG(J) (F1 of allele 308),7
+casper/rnf,casper,11
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 317),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),11
+skittlez,skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),11
+csp/pIGLET 14a,csp/pIGLET 14a,13
+Abe (F2 of allele 309),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),15
+Ben (F2 of allele 310),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),15
+Chris (F1 of allele 317),Chris (F1 of allele 317),15
+Dennis (F2 of allele 318),Dennis (F2 of allele 318),15
+Isaac (F2 of allele 314),Isaac (F2 of allele 314),15
+Jim (F2 of allele 316),Jim (F2 of allele 316),15
+Ken (F2 of allele 320),Ken (F2 of allele 320),15
+Liam (F2 of allele 321),Liam (F2 of allele 321),15
+MGCO35 (F1 of allele 336),MGCO35 (F1 of allele 336),15
+ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315),17
+tdmScarlet3S2:H2B-tol2 (F1 of allele 324),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),17
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),ef1a:2xLynk:tdmSG(J) (F1 of allele 301),18
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),ef1a:2xLynk:tdmSG(J) (F1 of allele 302),18
+ef1a:2xLynk:tdmSG(J) (F1 of allele 304),ef1a:2xLynk:tdmSG(J) (F1 of allele 304),18
+ef1a:2xLynk:tdmSG(J) (F1 of allele 308),ef1a:2xLynk:tdmSG(J) (F1 of allele 308),18
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F1 of allele 301),18
+ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F1 of allele 302),18
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),20
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),22
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),22
+ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),22

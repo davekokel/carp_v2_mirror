@@ -84,13 +84,13 @@ if q:
     params["ql"] = f"%{q}%"
     where.append(
         "("
-        "  fis.fish_code           ILIKE :ql"
+        "  fis.fish_code            ILIKE :ql"
         " OR fis.line_instance_code ILIKE :ql"
-        " OR fis.line_code         ILIKE :ql"
-        " OR fis.group_code        ILIKE :ql"
-        " OR fis.line_nickname     ILIKE :ql"
+        " OR fis.line_code          ILIKE :ql"
+        " OR fis.group_code         ILIKE :ql"
+        " OR fis.line_nickname      ILIKE :ql"
         " OR fis.genetic_background ILIKE :ql"
-        " OR fis.genotype_pretty   ILIKE :ql"
+        " OR fis.genotype_pretty    ILIKE :ql"
         ")"
     )
 
@@ -114,7 +114,6 @@ sql = text(f"""
       fis.genotype_pretty,
       fis.fluor_codes,
       fis.tag_codes,
-      fis.fusion_pretty,
       fis.organelle_fluors,
       fis.tank_code,
       fis.tank_status,
@@ -164,7 +163,6 @@ else:
             "genotype_pretty",
             "fluor_codes",
             "tag_codes",
-            "fusion_pretty",
             "organelle_fluors",
             "tank_code",
             "tank_status",
@@ -183,7 +181,6 @@ else:
             "genotype_pretty":     st.column_config.TextColumn("Genotype", disabled=True),
             "fluor_codes":         st.column_config.TextColumn("Fluor codes", disabled=True),
             "tag_codes":           st.column_config.TextColumn("Tag codes", disabled=True),
-            "fusion_pretty":       st.column_config.TextColumn("Fusions", disabled=True),
             "organelle_fluors":    st.column_config.TextColumn("Organelle-fluor", disabled=True),
             "tank_code":           st.column_config.TextColumn("Tank code", disabled=True),
             "tank_status":         st.column_config.TextColumn("Tank status", disabled=True),
