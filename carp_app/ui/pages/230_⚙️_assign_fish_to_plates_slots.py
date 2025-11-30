@@ -4,8 +4,7 @@
 from __future__ import annotations
 
 import sys, pathlib, os, re, io
-from typing import Dict, Tuple, Set, List, Any
-from uuid import uuid4
+from typing import Dict, Tuple, Set, List, Any, Optional
 from datetime import date
 
 import pandas as pd
@@ -45,25 +44,12 @@ def eng() -> Engine:
 T_IMAGING_PLATES = "public.imaging_plates"
 T_IMAGING_SLOTS  = "public.imaging_slots"
 T_IMAGING_MEMB   = "public.imaging_clutch_memberships"
-V_CLUTCH_STAR    = "public.v11_clutch_star"
 
-# plate-type / microscope-specific orientations
 PLATE_ORIENTATIONS: Dict[str, List[str]] = {
-    "mosaic": [
-        "dorsal_head",
-        "dorsal_spine",
-        "lateral_yolk_left",
-        "lateral_yolk_right",
-    ],
-    "isoar": [
-        "dorsal",
-        "lateral",
-    ],
+    "mosaic": ["dorsal_head", "dorsal_spine", "lateral_yolk_left", "lateral_yolk_right"],
+    "isoar": ["dorsal", "lateral"],
 }
-DEFAULT_ORIENTATIONS = [
-    "dorsal",
-    "lateral",
-]
+DEFAULT_ORIENTATIONS = ["dorsal", "lateral"]
 
 # --- helpers ------------------------------------------------------------------
 def _exists_table(q: str) -> bool:
@@ -81,27 +67,12 @@ def _exists_table(q: str) -> bool:
         )
     return not r.empty
 
-def _exists_view(q: str) -> bool:
-    s, n = q.split(".", 1)
-    with eng().begin() as cx:
-        r = pd.read_sql(
-            text(
-                """
-          SELECT 1 FROM information_schema.views WHERE table_schema=:s AND table_name=:n
-          UNION ALL
-          SELECT 1 FROM pg_catalog.pg_matviews WHERE schemaname=:s AND matviewname=:n
-          LIMIT 1
-        """
-            ),
-            cx,
-            params={"s": s, "n": n},
-        )
-    return not r.empty
 
 def _csv_bytes(df: pd.DataFrame) -> bytes:
     buf = io.StringIO()
     df.to_csv(buf, index=False)
     return buf.getvalue().encode("utf-8")
+
 
 def _parse_well_token(tok: str) -> Tuple[int, int] | None:
     m = re.fullmatch(r"([A-Za-z])\s*(\d{1,2})", tok.strip())
@@ -110,6 +81,7 @@ def _parse_well_token(tok: str) -> Tuple[int, int] | None:
     row = m.group(1).upper()
     col = int(m.group(2))
     return (ord(row) - 64, col)
+
 
 def _expand_range(a: str, b: str) -> Set[Tuple[int, int]]:
     a_rc = _parse_well_token(a)
@@ -122,13 +94,13 @@ def _expand_range(a: str, b: str) -> Set[Tuple[int, int]]:
     cc = range(min(c1, c2), max(c1, c2) + 1)
     return {(r, c) for r in rr for c in cc}
 
+
 def _parse_selection(expr: str) -> Set[Tuple[int, int]]:
     out: set[Tuple[int, int]] = set()
     if not expr or not expr.strip():
         return out
     parts = [p.strip() for p in re.split(r"[,\s]+", expr) if p.strip()]
     for p in parts:
-        # allow both A01:A06 and A01-A06 as ranges
         if ":" in p or "-" in p:
             sep = ":" if ":" in p else "-"
             a, b = p.split(sep, 1)
@@ -139,27 +111,21 @@ def _parse_selection(expr: str) -> Set[Tuple[int, int]]:
                 out.add(rc)
     return out
 
+
 def _cells_to_expr(cells: Set[Tuple[int, int]]) -> str:
     if not cells:
         return ""
     return ",".join(f"{chr(64+r)}{str(c).zfill(2)}" for r, c in sorted(cells))
 
-def _skey(plate_id: str, suffix: str) -> str:
-    return f"plate:{plate_id}:{suffix}"
-
-def _get_map(plate_id: str, key: str, default):
-    return st.session_state.get(_skey(plate_id, key), default)
-
-def _set_map(plate_id: str, key: str, val):
-    st.session_state[_skey(plate_id, key)] = val
 
 def _generate_slot_grid_size(microscope_type: str) -> Tuple[int, int]:
     mt = (microscope_type or "").strip().lower()
     if mt == "mosaic":
-        return (1, 6)   # Bruker: 1×6
+        return (1, 6)
     if mt == "isoar":
-        return (5, 5)   # Mattek: 5×5
-    return (3, 3)       # fallback for unknown types
+        return (5, 5)
+    return (3, 3)
+
 
 def _auto_generate_slots(plate_id: str, microscope_type: str) -> pd.DataFrame:
     rows, cols = _generate_slot_grid_size(microscope_type)
@@ -198,80 +164,153 @@ def _auto_generate_slots(plate_id: str, microscope_type: str) -> pd.DataFrame:
             params={"pid": plate_id},
         )
 
+
 def _create_imaging_plate(date_mount: date, microscope_type: str, created_by: str) -> Tuple[str, str]:
     """
-    Create a new imaging plate row and return (plate_id, plate_code).
-    plate_code pattern: PL-YYYYMMDD-XXXX.
+    PLATE-YYMMDD-NN with NN per-day.
     """
-    plate_code = f"PL-{date_mount.strftime('%Y%m%d')}-{uuid4().hex[:4]}"
+    yymmdd = date_mount.strftime("%y%m%d")
+    prefix = f"PLATE-{yymmdd}-"
     with eng().begin() as cx:
+        existing = pd.read_sql(
+            text(
+                """
+                SELECT plate_code
+                FROM public.imaging_plates
+                WHERE plate_code LIKE :prefix
+                """
+            ),
+            cx,
+            params={"prefix": prefix + "%"},
+        )
+        used = set()
+        for pc in existing["plate_code"]:
+            parts = str(pc).split("-")
+            if len(parts) >= 3 and parts[-1].isdigit():
+                used.add(int(parts[-1]))
+        n = 1
+        while n in used:
+            n += 1
+        plate_code = f"{prefix}{n:02d}"
         plate_id = cx.execute(
             text(
                 f"""
-          INSERT INTO {T_IMAGING_PLATES}
-            (id, plate_code, experiment_date, instrument, created_at, created_by)
-          VALUES
-            (gen_random_uuid(), :code, :d, :instr, now(), :who)
-          RETURNING id::text
-        """
+                INSERT INTO {T_IMAGING_PLATES}
+                  (id, plate_code, experiment_date, instrument, created_at, created_by)
+                VALUES
+                  (gen_random_uuid(), :code, :d, :instr, now(), :who)
+                RETURNING id::text
+                """
             ),
-            cx,
-            params={"code": plate_code, "d": date_mount, "instr": microscope_type, "who": created_by},
+            {"code": plate_code, "d": date_mount, "instr": microscope_type, "who": created_by},
         ).scalar()
     return str(plate_id), str(plate_code)
 
-# --- sanity: check schema ----------------------------------------------------
+
+# --- sanity -------------------------------------------------------------------
 miss = []
 for obj in [T_IMAGING_PLATES, T_IMAGING_SLOTS, T_IMAGING_MEMB]:
     if not _exists_table(obj):
         miss.append(obj)
-if not _exists_view(V_CLUTCH_STAR):
-    miss.append(V_CLUTCH_STAR)
-
 if miss:
     st.error("Required object not found: " + ", ".join(miss))
     st.stop()
 
-# --- 1) Create imaging plate -------------------------------------------------
-st.subheader("1) Create imaging plate")
+# ════════════════════════════════════════════════════════
+# STEP 0 — CHOOSE PLATE (SELECT OR CREATE)
+# ════════════════════════════════════════════════════════
+st.subheader("0) Choose imaging plate", anchor=False)
 
-today = pd.Timestamp.today().date()
-c1, c2, c3 = st.columns([1, 1, 2])
-with c1:
-    date_mount = st.date_input("Mount / experiment date", value=today, key="mount_date")
-with c2:
-    microscope_type_sel = st.selectbox(
-        "Microscope type",
-        options=["mosaic", "isoar"],
-        index=0,
-    )
-with c3:
-    st.caption("New plates are created in public.imaging_plates with auto-generated plate_code.")
-
-creator = (
-    getattr(user, "email", None)
-    or os.getenv("USER")
-    or os.getenv("USERNAME")
-    or "system"
+mode = st.radio(
+    "Plate mode",
+    ["Select existing plate", "Create new plate"],
+    horizontal=True,
+    key="plate_mode",
 )
 
-if st.button("➕ Create new imaging plate", type="primary", use_container_width=True):
-    plate_id_new, plate_code_new = _create_imaging_plate(date_mount, microscope_type_sel, creator)
-    slots_new = _auto_generate_slots(plate_id_new, microscope_type_sel)
-    st.session_state["_assign_plate_id"] = plate_id_new
-    st.session_state["_assign_plate_code"] = plate_code_new
-    st.success(
-        f"Created imaging plate {plate_code_new} ({microscope_type_sel}) with {len(slots_new)} slots."
+# reuse previously selected/created plate across reruns
+plate_id: Optional[str] = st.session_state.get("assign_plate_id")
+plate_code: Optional[str] = st.session_state.get("assign_plate_code")
+
+if mode == "Select existing plate":
+    with eng().begin() as cx:
+        df_plates = pd.read_sql(
+            text(
+                """
+                SELECT
+                  id::text        AS plate_id,
+                  plate_code,
+                  experiment_date,
+                  COALESCE(scope_name, instrument, '') AS scope_name,
+                  experiment_name
+                FROM public.imaging_plates
+                ORDER BY experiment_date DESC NULLS LAST, plate_code DESC
+                LIMIT 200
+                """
+            ),
+            cx,
+        )
+    if df_plates.empty:
+        st.info("No imaging plates found yet.")
+        st.stop()
+    view = df_plates.copy()
+    view.insert(0, "✓ Select", False)
+    grid = st.data_editor(
+        view[
+            ["✓ Select", "plate_code", "experiment_date", "experiment_name", "scope_name"]
+        ],
+        key="assign_existing_plates",
+        hide_index=True,
+        width="stretch",
+        num_rows="fixed",
+        column_config={
+            "✓ Select":       st.column_config.CheckboxColumn("✓", default=False),
+            "plate_code":     st.column_config.TextColumn("Plate", disabled=True),
+            "experiment_date": st.column_config.DateColumn("Date", disabled=True),
+            "experiment_name": st.column_config.TextColumn("Experiment", disabled=True),
+            "scope_name":     st.column_config.TextColumn("Scope", disabled=True),
+        },
     )
+    mask = grid["✓ Select"] == True if "✓ Select" in grid.columns else pd.Series(False, index=grid.index)
+    if mask.any():
+        idx = grid.index[mask][0]
+        row = df_plates.loc[idx]
+        plate_id = row["plate_id"]
+        plate_code = row["plate_code"]
+        st.session_state["assign_plate_id"] = plate_id
+        st.session_state["assign_plate_code"] = plate_code
 
-plate_id = st.session_state.get("_assign_plate_id")
-plate_code = st.session_state.get("_assign_plate_code")
+elif mode == "Create new plate":
+    today = pd.Timestamp.today().date()
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        date_mount = st.date_input("Mount / experiment date", value=today, key="mount_date")
+    with c2:
+        microscope_type_sel = st.selectbox(
+            "Microscope type",
+            options=["mosaic", "isoar"],
+            index=0,
+        )
+    creator = (
+        getattr(user, "email", None)
+        or os.getenv("USER")
+        or os.getenv("USERNAME")
+        or "system"
+    )
+    if st.button("➕ Create imaging plate", type="primary"):
+        plate_id, plate_code = _create_imaging_plate(date_mount, microscope_type_sel, creator)
+        _ = _auto_generate_slots(plate_id, microscope_type_sel)
+        st.session_state["assign_plate_id"] = plate_id
+        st.session_state["assign_plate_code"] = plate_code
+        st.success(f"Created {plate_code} with default slots.")
 
+# guard: if we still don't have a plate, stop here
 if not plate_id:
-    st.info("Create a new imaging plate above to continue.")
+    st.caption("Select or create a plate above to continue.")
     st.stop()
 
-# reload plate + slots
+assert plate_id is not None and plate_code is not None
+
 with eng().begin() as cx:
     plate_row = pd.read_sql(
         text(
@@ -310,218 +349,204 @@ with eng().begin() as cx:
     )
 
 if slots.empty:
-    slots = _auto_generate_slots(plate_id, microscope_type_sel)
-
-microscope_type = (plate_row["microscope_type"] or "").strip().lower()
-ORIENTATIONS = PLATE_ORIENTATIONS.get(microscope_type, DEFAULT_ORIENTATIONS)
-
-st.caption(
-    f"Current plate: {plate_row['plate_code']} • date={plate_row['experiment_date']} • "
-    f"microscope={microscope_type or 'n/a'} • orientations={', '.join(ORIENTATIONS)}"
-)
+    slots = _auto_generate_slots(plate_id, plate_row["microscope_type"] or "mosaic")
 
 slots = slots.copy()
 slots["well_row"] = slots["well_row"].fillna(1).astype(int)
 slots["well_col"] = slots["well_col"].fillna(1).astype(int)
-
 n_rows = int(slots["well_row"].max())
 n_cols = int(slots["well_col"].max())
-st.caption(f"Plate layout: {n_rows}×{n_cols}")
+
+st.caption(
+    f"Current plate: {plate_row['plate_code']} • date={plate_row['experiment_date']} • "
+    f"microscope={plate_row['microscope_type'] or 'n/a'} • layout={n_rows}×{n_cols}"
+)
 
 all_cells = {(int(r), int(c)) for r, c in zip(slots["well_row"], slots["well_col"])}
 
-# --- 2) Pick treated clutches ------------------------------------------------
-st.subheader("2) Pick treated clutches (from v11_clutch_star)")
 
-clutch_q = st.text_input("Search clutches (code/genotype/treatment)", "")
+# ════════════════════════════════════════════════════════
+# STEP 1 — PICK TREATED CLUTCHES (WITH GENOTYPE + MARKERS)
+# ════════════════════════════════════════════════════════
+st.subheader("1) Pick treated clutches", anchor=False)
+
+clutch_q = st.text_input(
+    "Search treated clutches (code / parent clutch / treatment / genotype / markers)",
+    "",
+)
 
 with eng().begin() as cx:
-    where = ["(COALESCE(treat_codes,'') <> '' OR COALESCE(treatment_code,'') <> '')"]
-    params: Dict[str, Any] = {}
-    if clutch_q.strip():
-        params["q"] = f"%{clutch_q.strip()}%"
-        where.append(
-            """(
-              COALESCE(clutch_code,'')            ILIKE :q OR
-              COALESCE(genotype_pretty,'')        ILIKE :q OR
-              COALESCE(genotype_basecode_code,'') ILIKE :q OR
-              COALESCE(treat_codes,'')            ILIKE :q
-            )"""
-        )
-    wsql = "WHERE " + " AND ".join(where) if where else ""
-    clutches = pd.read_sql(
+    df_treated = pd.read_sql(
         text(
-            f"""
-      SELECT
-        clutch_id,
-        clutch_code,
-        clutch_date,
-        genotype_pretty,
-        genotype_basecode_code,
-        treat_codes,
-        all_fluor_tag_rollup,
-        all_organelle_fluor_rollup
-      FROM {V_CLUTCH_STAR}
-      {wsql}
-      ORDER BY clutch_date DESC NULLS LAST, clutch_code
-      LIMIT 500
-      """
+            """
+            WITH base AS (
+              SELECT
+                tc.id::uuid                  AS treated_clutch_id,
+                tc.treated_clutch_code,
+                c.id::uuid                   AS clutch_id,
+                c.clutch_code,
+                c.clutch_date,
+                c.genotype_pretty,
+                c.genotype_base_codes        AS genotype_basecodes,
+                t.treat_code                 AS treatment_code,
+                ts.all_fluor_tag_rollup,
+                ts.all_organelle_fluor_rollup
+              FROM public.treated_clutches_v11 tc
+              JOIN public.clutches c
+                ON c.id = tc.clutch_id
+              JOIN public.treatments t
+                ON t.id = tc.treatment_id
+              LEFT JOIN public.v11_treatment_star ts
+                ON ts.treatment_id = t.id::text
+              WHERE c.clutch_date >= (current_date - INTERVAL '14 days')
+            )
+            SELECT
+              treated_clutch_id::text,
+              treated_clutch_code,
+              clutch_id::text,
+              clutch_code,
+              clutch_date,
+              genotype_pretty,
+              genotype_basecodes,
+              treatment_code,
+              all_fluor_tag_rollup,
+              all_organelle_fluor_rollup
+            FROM base
+            WHERE (
+              :q IS NULL
+              OR treated_clutch_code              ILIKE :ql
+              OR clutch_code                      ILIKE :ql
+              OR treatment_code                   ILIKE :ql
+              OR COALESCE(genotype_pretty,'')    ILIKE :ql
+              OR COALESCE(genotype_basecodes,'') ILIKE :ql
+              OR COALESCE(all_fluor_tag_rollup,'')       ILIKE :ql
+              OR COALESCE(all_organelle_fluor_rollup,'') ILIKE :ql
+            )
+            ORDER BY clutch_date DESC, treated_clutch_code
+            LIMIT 500;
+            """
         ),
         cx,
-        params=params,
+        params={
+            "q": clutch_q.strip() or None,
+            "ql": f"%{clutch_q.strip()}%" if clutch_q.strip() else None,
+        },
     )
 
-if clutches.empty:
-    st.info("No treated clutches match your search.")
-    selected_clutches: List[Dict[str, Any]] = []
+if df_treated.empty:
+    st.info("No treated clutches in the last 2 weeks match your search.")
+    selected_groups: List[Dict[str, Any]] = []
 else:
-    cdf = clutches.copy()
-    cdf.insert(0, "✓", False)
-    clutch_pick = st.data_editor(
-        cdf,
+    t_view = df_treated.fillna("").copy()
+    t_view.insert(0, "✓ Select", False)
+    t_grid = st.data_editor(
+        t_view[
+            [
+                "✓ Select",
+                "treated_clutch_code",
+                "clutch_code",
+                "clutch_date",
+                "treatment_code",
+                "genotype_pretty",
+                "genotype_basecodes",
+                "all_fluor_tag_rollup",
+                "all_organelle_fluor_rollup",
+            ]
+        ],
+        key="treated_clutch_picker",
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         num_rows="fixed",
         height=260,
         column_config={
-            "✓":                          st.column_config.CheckboxColumn("✓", default=False),
-            "clutch_code":                st.column_config.TextColumn("Clutch", disabled=True),
-            "clutch_date":                st.column_config.DateColumn("Date", disabled=True),
-            "genotype_pretty":            st.column_config.TextColumn("Genotype", disabled=True, width="large"),
-            "genotype_basecode_code":     st.column_config.TextColumn("Basecodes", disabled=True, width="large"),
-            "treat_codes":                st.column_config.TextColumn("Treat codes", disabled=True, width="large"),
-            "all_fluor_tag_rollup":       st.column_config.TextColumn("Tx → fluor::tag(pos)", disabled=True, width="large"),
-            "all_organelle_fluor_rollup": st.column_config.TextColumn("Tx → organelle-fluor", disabled=True, width="large"),
+            "✓ Select":              st.column_config.CheckboxColumn("✓", default=False),
+            "treated_clutch_code":   st.column_config.TextColumn("Treated clutch", disabled=True),
+            "clutch_code":           st.column_config.TextColumn("Parent clutch", disabled=True),
+            "clutch_date":           st.column_config.DateColumn("Date", disabled=True),
+            "treatment_code":        st.column_config.TextColumn("Treatment", disabled=True),
+            "genotype_pretty":       st.column_config.TextColumn("Genotype (pretty)", disabled=True, width="large"),
+            "genotype_basecodes":    st.column_config.TextColumn("Genotype basecodes", disabled=True, width="large"),
+            "all_fluor_tag_rollup":  st.column_config.TextColumn("fluor::tag(tag_pos)", disabled=True, width="large"),
+            "all_organelle_fluor_rollup": st.column_config.TextColumn("organelle-fluor", disabled=True, width="large"),
         },
-        key="assign_clutch_picker_v11",
     )
-    selected_clutches = (
-        clutch_pick.loc[clutch_pick["✓"] == True].to_dict(orient="records")
-        if "✓" in clutch_pick.columns
-        else []
-    )
+    mask = t_grid["✓ Select"] == True if "✓ Select" in t_grid.columns else pd.Series(False, index=t_grid.index)
+    selected_groups = df_treated.loc[mask].to_dict(orient="records") if mask.any() else []
 
-st.caption(f"Selected clutches: {len(selected_clutches)}")
+st.caption(f"Selected treated clutches: {len(selected_groups)}")
 
-# --- 3) Assign clutches to wells ---------------------------------------------
-st.subheader("3) Assign clutches to wells")
+
+# ════════════════════════════════════════════════════════
+# STEP 2 — ASSIGN TREATED CLUTCHES TO WELLS
+# ════════════════════════════════════════════════════════
+st.subheader("2) Assign treated clutches to wells", anchor=False)
 st.caption("Example syntax: A01:A03, B01:B02")
 
-clutch_map: Dict[str, str] = _get_map(plate_id, "clutch_map", {})
+with eng().begin() as cx:
+    existing_m = pd.read_sql(
+        text(
+            f"""
+            SELECT
+              s.well_row,
+              s.well_col,
+              tc.treated_clutch_code
+            FROM {T_IMAGING_MEMB} m
+            JOIN public.imaging_slots s
+              ON s.id = m.slot_id
+            JOIN public.treated_clutches_v11 tc
+              ON tc.id = m.treated_clutch_id
+            WHERE s.plate_id = CAST(:pid AS uuid)
+            """
+        ),
+        cx,
+        params={"pid": plate_id},
+    )
 
-if not selected_clutches:
-    st.info("Select one or more clutches above.")
+initial_map: Dict[str, str] = {}
+if not existing_m.empty:
+    by_tc = existing_m.groupby("treated_clutch_code")
+    for tcode, sub in by_tc:
+        cells = {(int(r), int(c)) for r, c in zip(sub["well_row"], sub["well_col"])}
+        initial_map[tcode] = _cells_to_expr(cells)
+
+clutch_map: Dict[str, str] = {}
+if not selected_groups:
+    st.info("Select treated clutches above to assign.")
 else:
-    # existing memberships on this plate
-    with eng().begin() as cx:
-        memb_df = pd.read_sql(
-            text(
-                f"""
-        SELECT
-          s.well_row,
-          s.well_col
-        FROM {T_IMAGING_MEMB} m
-        JOIN {T_IMAGING_SLOTS} s ON s.id = m.slot_id
-        WHERE s.plate_id = CAST(:pid AS uuid)
-        """
-            ),
-            cx,
-            params={"pid": plate_id},
-        )
-    existing_memberships: Set[Tuple[int, int]] = set()
-    if not memb_df.empty:
-        existing_memberships = {
-            (int(r), int(c)) for r, c in zip(memb_df["well_row"], memb_df["well_col"])
-        }
+    cols = st.columns(2)
+    for i, g in enumerate(selected_groups):
+        tcode = g["treated_clutch_code"]
+        default_expr = initial_map.get(tcode, "")
+        with cols[i % 2]:
+            clutch_map[tcode] = st.text_input(
+                f"{tcode} — wells",
+                value=default_expr,
+                key=f"tcells_{tcode}",
+            )
 
-    staged_cells: Set[Tuple[int, int]] = set()
-    for expr in clutch_map.values():
-        if expr.strip():
-            staged_cells |= _parse_selection(expr)
 
-    remaining_cells = all_cells - existing_memberships - staged_cells
-    st.caption(
-        f"Remaining wells (no clutch yet): {_cells_to_expr(remaining_cells) or '(none)'}"
-    )
-
-    # ensure keys for selected clutches
-    for c in selected_clutches:
-        code = c["clutch_code"]
-        clutch_map.setdefault(code, "")
-
-    cols_map = st.columns(2)
-    for i, c in enumerate(selected_clutches):
-        code = c["clutch_code"]
-        key = f"clutch_map_{code}"
-        default_expr = clutch_map.get(code, "")
-        with cols_map[i % 2]:
-            r = st.columns([3, 1])
-            with r[0]:
-                val = st.text_input(f"{code} — wells", key=key, value=default_expr)
-                if val != clutch_map.get(code, ""):
-                    clutch_map[code] = val
-                    _set_map(plate_id, "clutch_map", clutch_map)
-            with r[1]:
-                if st.button(
-                    "All empty wells",
-                    key=f"clutch_all_{code}",
-                    disabled=(len(remaining_cells) == 0),
-                ):
-                    clutch_map[code] = _cells_to_expr(remaining_cells)
-                    _set_map(plate_id, "clutch_map", clutch_map)
-                    st.rerun()
-
-    _set_map(plate_id, "clutch_map", clutch_map)
-
-# --- 4) Assign orientations to wells -----------------------------------------
-st.subheader("4) Assign orientations to wells")
+# ════════════════════════════════════════════════════════
+# STEP 3 — ASSIGN ORIENTATIONS
+# ════════════════════════════════════════════════════════
+st.subheader("3) Assign orientations to wells", anchor=False)
 st.caption("Example syntax: A01:A03, B01:B02")
 
-ori_map: Dict[str, str] = _get_map(plate_id, "ori_map", {})
-for ori in ORIENTATIONS:
-    ori_map.setdefault(ori, "")
-_set_map(plate_id, "ori_map", ori_map)
+ori_map: Dict[str, str] = {}
+ori_cols = st.columns(2)
+for i, ori in enumerate(PLATE_ORIENTATIONS.get(plate_row["microscope_type"], DEFAULT_ORIENTATIONS)):
+    with ori_cols[i % 2]:
+        ori_map[ori] = st.text_input(f"{ori} — wells", key=f"ori_{ori}")
 
-existing_ori_cells: Set[Tuple[int, int]] = set()
-for r, c, o in zip(slots["well_row"], slots["well_col"], slots["orientation"]):
-    if str(o or "").strip():
-        existing_ori_cells.add((int(r), int(c)))
 
-staged_ori: Set[Tuple[int, int]] = set()
-for expr in ori_map.values():
-    if expr.strip():
-        staged_ori |= _parse_selection(expr)
-
-remaining_ori = all_cells - existing_ori_cells - staged_ori
-st.caption(f"Remaining wells (no orientation yet): {_cells_to_expr(remaining_ori) or '(none)'}")
-
-cols_ori = st.columns(2)
-for i, ori in enumerate(ORIENTATIONS):
-    key = f"ori_map_{ori}"
-    default_expr = ori_map.get(ori, "")
-    with cols_ori[i % 2]:
-        r = st.columns([3, 1])
-        with r[0]:
-            val = st.text_input(f"{ori} — wells", key=key, value=default_expr)
-            if val != ori_map.get(ori, ""):
-                ori_map[ori] = val
-                _set_map(plate_id, "ori_map", ori_map)
-        with r[1]:
-            if st.button(
-                "All unoriented wells",
-                key=f"ori_all_{ori}",
-                disabled=(len(remaining_ori) == 0),
-            ):
-                ori_map[ori] = _cells_to_expr(remaining_ori)
-                _set_map(plate_id, "ori_map", ori_map)
-                st.rerun()
-
-# --- 5) Preview layout -------------------------------------------------------
-st.subheader("5) Preview layout")
+# ════════════════════════════════════════════════════════
+# STEP 4 — PREVIEW
+# ════════════════════════════════════════════════════════
+st.subheader("4) Preview layout", anchor=False)
 
 preview = slots[["slot_label", "well_row", "well_col", "orientation"]].copy()
+preview["treated_clutch_code"] = ""
+preview["clutch_code"] = ""
 
-# existing memberships → clutch_code
 with eng().begin() as cx:
     memb_df2 = pd.read_sql(
         text(
@@ -529,10 +554,13 @@ with eng().begin() as cx:
       SELECT
         s.well_row,
         s.well_col,
-        c.clutch_code
+        c.clutch_code,
+        tc.treated_clutch_code
       FROM {T_IMAGING_MEMB} m
-      JOIN {T_IMAGING_SLOTS} s ON s.id = m.slot_id
-      JOIN public.clutches c    ON c.id = m.clutch_id
+      JOIN public.imaging_slots s ON s.id = m.slot_id
+      JOIN public.clutches c      ON c.id = m.clutch_id
+      LEFT JOIN public.treated_clutches_v11 tc
+        ON tc.id = m.treated_clutch_id
       WHERE s.plate_id = CAST(:pid AS uuid)
       """
         ),
@@ -540,23 +568,25 @@ with eng().begin() as cx:
         params={"pid": plate_id},
     )
 
-preview["clutch_code"] = ""
 if not memb_df2.empty:
-    for r, c, code in zip(
-        memb_df2["well_row"], memb_df2["well_col"], memb_df2["clutch_code"]
+    for r, c, tcode, ccode in zip(
+        memb_df2["well_row"],
+        memb_df2["well_col"],
+        memb_df2["treated_clutch_code"],
+        memb_df2["clutch_code"],
     ):
         mask = (preview["well_row"] == int(r)) & (preview["well_col"] == int(c))
-        preview.loc[mask, "clutch_code"] = code
+        if str(tcode or "").strip():
+            preview.loc[mask, "treated_clutch_code"] = tcode
+        preview.loc[mask, "clutch_code"] = ccode
 
-# overlay staged clutch assignments
-for code, expr in (clutch_map or {}).items():
-    if not (code and expr.strip()):
+for tcode, expr in (clutch_map or {}).items():
+    if not (tcode and expr.strip()):
         continue
     for (r, c) in _parse_selection(expr):
         mask = (preview["well_row"] == int(r)) & (preview["well_col"] == int(c))
-        preview.loc[mask, "clutch_code"] = code
+        preview.loc[mask, "treated_clutch_code"] = tcode
 
-# overlay staged orientations
 for ori, expr in (ori_map or {}).items():
     if not (ori and expr.strip()):
         continue
@@ -565,28 +595,27 @@ for ori, expr in (ori_map or {}).items():
         preview.loc[mask, "orientation"] = ori
 
 st.dataframe(
-    preview[["slot_label", "clutch_code", "orientation"]],
+    preview[["slot_label", "treated_clutch_code", "clutch_code", "orientation"]],
     hide_index=True,
     use_container_width=True,
     height=260,
 )
 
-# --- 6) Save mappings --------------------------------------------------------
-st.subheader("6) Save mappings")
+
+# ════════════════════════════════════════════════════════
+# STEP 5 — SAVE
+# ════════════════════════════════════════════════════════
+st.subheader("5) Save mappings", anchor=False)
 
 def _apply_mappings(
     plate_id: str,
     clutch_map: Dict[str, str],
     ori_map: Dict[str, str],
 ) -> Tuple[int, int, int]:
-    """
-    Apply clutch and orientation mappings to imaging_clutch_memberships + imaging_slots.
-    Returns (n_clutch_updates, n_orientation_updates, n_orientation_overwrites).
-    """
     n_c = n_o = n_over = 0
 
     with eng().begin() as cx:
-        # slots: (row,col) -> slot_id
+        # slots on this plate
         slots_df = pd.read_sql(
             text(
                 f"""
@@ -600,26 +629,35 @@ def _apply_mappings(
         )
         slot_map: Dict[Tuple[int, int], str] = {
             (int(r), int(c)): sid
-            for r, c, sid in zip(slots_df["well_row"], slots_df["well_col"], slots_df["slot_id"])
+            for r, c, sid in zip(
+                slots_df["well_row"], slots_df["well_col"], slots_df["slot_id"]
+            )
         }
 
-        # existing memberships
+        # existing memberships on this plate
         memb_df = pd.read_sql(
             text(
                 f"""
           SELECT
             m.clutch_id::text,
+            m.treated_clutch_id::text,
             s.id::text AS slot_id
           FROM {T_IMAGING_MEMB} m
-          JOIN {T_IMAGING_SLOTS} s ON s.id = m.slot_id
+          JOIN public.imaging_slots s ON s.id = m.slot_id
           WHERE s.plate_id = CAST(:pid AS uuid)
         """
             ),
             cx,
             params={"pid": plate_id},
         )
-        existing_memb = {
-            (sid, cid) for cid, sid in zip(memb_df["clutch_id"], memb_df["slot_id"])
+        # DB enforces UNIQUE (clutch_id, slot_id), so track exactly that
+        existing_memb: set[Tuple[str, str]] = {
+            (sid, cid)
+            for cid, tcid, sid in zip(
+                memb_df["clutch_id"],
+                memb_df["treated_clutch_id"],
+                memb_df["slot_id"],
+            )
         }
 
         # existing orientations
@@ -634,21 +672,121 @@ def _apply_mappings(
             cx,
             params={"pid": plate_id},
         )
-        existing_ori = {
-            sid: (o if o is not None else "")
+        existing_ori: Dict[str, str] = {
+            sid: (o or "")
             for sid, o in zip(slots_ori_df["slot_id"], slots_ori_df["orientation"])
         }
 
-        # helper: clutch_code -> clutch_id
-        def clutch_id_of(code: str) -> str | None:
-            if not code:
-                return None
-            return cx.execute(
+        # ---- frontfill genotypes_v11 for clutches we touch ----
+        frontfilled_clutches: set[str] = set()
+
+        def _frontfill_clutch_genotype(clutch_id: str) -> None:
+            if not clutch_id or clutch_id in frontfilled_clutches:
+                return
+
+            row = cx.execute(
                 text(
-                    "SELECT id::text FROM public.clutches WHERE clutch_code=:c LIMIT 1"
+                    """
+                    SELECT genotype_v11_id, genotype_base_codes
+                    FROM public.clutches
+                    WHERE id = CAST(:cid AS uuid)
+                    LIMIT 1
+                    """
                 ),
-                {"c": code},
+                {"cid": clutch_id},
+            ).fetchone()
+            if not row:
+                frontfilled_clutches.add(clutch_id)
+                return
+
+            g_id, base_codes = row[0], (row[1] or "").strip()
+            # already wired or no basecodes → nothing to do
+            if g_id is not None or not base_codes:
+                frontfilled_clutches.add(clutch_id)
+                return
+
+            # try to reuse an existing genotype_v11 row
+            geno_row = cx.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM public.genotypes_v11
+                    WHERE genotype_basecodes = :bc
+                    LIMIT 1
+                    """
+                ),
+                {"bc": base_codes},
+            ).fetchone()
+
+            if geno_row:
+                new_gid = geno_row[0]
+            else:
+                # create a new genotype_v11 row for these basecodes
+                new_gid = cx.execute(
+                    text(
+                        """
+                        INSERT INTO public.genotypes_v11
+                          (genotype_code, genotype_pretty, genotype_basecodes, created_at)
+                        VALUES (
+                          'G-' || upper(substr(md5(:bc), 1, 10)),
+                          :pretty,
+                          :bc,
+                          now()
+                        )
+                        RETURNING id
+                        """
+                    ),
+                    {
+                        "bc": base_codes,
+                        "pretty": base_codes,
+                    },
+                ).scalar()
+
+            cx.execute(
+                text(
+                    """
+                    UPDATE public.clutches
+                    SET genotype_v11_id = :gid
+                    WHERE id = CAST(:cid AS uuid)
+                    """
+                ),
+                {"gid": new_gid, "cid": clutch_id},
+            )
+            frontfilled_clutches.add(clutch_id)
+
+        def treated_mapping_of(code: str) -> Tuple[Optional[str], Optional[str]]:
+            if not code:
+                return None, None
+            row = cx.execute(
+                text(
+                    """
+                    SELECT
+                      tc.id::text AS treated_clutch_id,
+                      c.id::text  AS clutch_id
+                    FROM public.treated_clutches_v11 tc
+                    JOIN public.clutches c
+                      ON c.id = tc.clutch_id
+                    WHERE tc.treated_clutch_code = :code
+                    LIMIT 1
+                    """
+                ),
+                {"code": code},
+            ).fetchone()
+            if row:
+                return row._mapping["treated_clutch_id"], row._mapping["clutch_id"]
+
+            clutch_id = cx.execute(
+                text(
+                    """
+                    SELECT id::text
+                    FROM public.clutches
+                    WHERE clutch_code = :code
+                    LIMIT 1
+                    """
+                ),
+                {"code": code},
             ).scalar()
+            return None, clutch_id
 
         who = (
             getattr(user, "email", None)
@@ -657,35 +795,48 @@ def _apply_mappings(
             or "system"
         )
 
-        # apply clutch mappings
+        # ---- treated clutches → imaging_clutch_memberships (+ genotype frontfill) ----
         for code, expr in (clutch_map or {}).items():
             if not (code and expr.strip()):
                 continue
-            cid = clutch_id_of(code)
+            treated_id, cid = treated_mapping_of(code)
             if not cid:
-                raise RuntimeError(f"Unknown clutch_code: {code}")
+                raise RuntimeError(f"Unknown treated/parent clutch code: {code}")
+
+            # frontfill genotype_v11_id for this clutch if possible
+            _frontfill_clutch_genotype(cid)
+
             for (r, c) in _parse_selection(expr):
                 sid = slot_map.get((r, c))
                 if not sid:
                     continue
-                if (sid, cid) in existing_memb:
+                key = (sid, cid)
+                if key in existing_memb:
                     continue
                 cx.execute(
                     text(
                         f"""
                   INSERT INTO {T_IMAGING_MEMB}
-                    (id, clutch_id, slot_id, role, embryo_count, mount_notes, created_at, created_by)
-                  VALUES
-                    (gen_random_uuid(), CAST(:cid AS uuid), CAST(:sid AS uuid),
-                     NULL, NULL, NULL, now(), :who)
+                    (id, clutch_id, treated_clutch_id, slot_id, role, embryo_count, mount_notes, created_at, created_by)
+                  VALUES (
+                    gen_random_uuid(),
+                    CAST(:cid AS uuid),
+                    CAST(:tcid AS uuid),
+                    CAST(:sid AS uuid),
+                    NULL,
+                    NULL,
+                    NULL,
+                    now(),
+                    :who
+                  )
                 """
                     ),
-                    {"cid": cid, "sid": sid, "who": who},
+                    {"cid": cid, "tcid": treated_id, "sid": sid, "who": who},
                 )
-                existing_memb.add((sid, cid))
+                existing_memb.add(key)
                 n_c += 1
 
-        # apply orientation mappings
+        # ---- orientations ----
         for ori, expr in (ori_map or {}).items():
             if not (ori and expr.strip()):
                 continue
@@ -712,21 +863,20 @@ def _apply_mappings(
 
     return n_c, n_o, n_over
 
-if st.button("💾 Save mappings", type="primary", use_container_width=True):
-    clutch_map = _get_map(plate_id, "clutch_map", {})
-    ori_map = _get_map(plate_id, "ori_map", {})
+
+if st.button("💾 Save mappings", type="primary"):
     try:
         n_c, n_o, n_over = _apply_mappings(plate_id, clutch_map, ori_map)
         st.success(
-            f"Saved mappings: clutches→{n_c}, orientations→{n_o}, overwrote {n_over} existing orientation(s)."
+            f"Saved mappings for plate {plate_code}: "
+            f"treated clutches→{n_c}, orientations→{n_o}, overwrote {n_over} existing orientation(s)."
         )
     except Exception as e:
-        st.error(f"Save failed: {e}")
+        st.error(f"Save failed: {type(e).__name__}: {e}")
 
-# --- 7) Export layout ---------------------------------------------------------
+
 st.divider()
-st.subheader("Export plate layout CSV")
-
+st.subheader("Export plate layout CSV", anchor=False)
 with eng().begin() as cx:
     export_df = pd.read_sql(
         text(
@@ -739,11 +889,14 @@ with eng().begin() as cx:
         s.well_row,
         s.well_col,
         s.orientation,
-        c.clutch_code
+        c.clutch_code,
+        tc.treated_clutch_code
       FROM {T_IMAGING_SLOTS} s
       JOIN {T_IMAGING_PLATES} p ON p.id = s.plate_id
       LEFT JOIN {T_IMAGING_MEMB} m ON m.slot_id = s.id
       LEFT JOIN public.clutches c   ON c.id = m.clutch_id
+      LEFT JOIN public.treated_clutches_v11 tc
+        ON tc.id = m.treated_clutch_id
       WHERE p.id = CAST(:pid AS uuid)
       ORDER BY s.well_row, s.well_col
       """
@@ -755,8 +908,7 @@ with eng().begin() as cx:
 st.download_button(
     "⬇︎ Download plate layout CSV",
     data=_csv_bytes(export_df),
-    file_name=f"{plate_row['plate_code']}_layout.csv",
-    mime="text/csv",
+    file_name=f"{plate_code}_layout.csv",
     type="secondary",
     use_container_width=True,
 )

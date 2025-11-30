@@ -125,21 +125,23 @@ def _load_fish(q: str | None, limit: int) -> pd.DataFrame:
 
 def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
     """
-    Tanks for the selected fish, via v11_tank_star.
-    v11_tank_star must expose:
-      tank_code, fish_code, allele_canonical, allele_label,
-      organelle_fluor, line_building_stage, dob
+    Tanks for the selected fish, via v11_tank_star + v11_fish_instance_star.
+    v11_tank_star exposes:
+      tank_code, fish_code, birthday, line_building_stage,
+      allele_labels, allele_canonical.
+    v11_fish_instance_star provides:
+      all_organelle_fluor_rollup (as organelle_fluor).
     """
     if not fish_codes:
         return pd.DataFrame(
             columns=[
                 "tank_code",
                 "fish_code",
+                "allele_labels",
                 "allele_canonical",
-                "allele_label",
-                "organelle_fluor",
                 "line_building_stage",
                 "dob",
+                "organelle_fluor",
             ]
         )
 
@@ -147,16 +149,18 @@ def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
         text(
             """
       SELECT
-        tank_code,
-        fish_code,
-        allele_canonical,
-        allele_label,
-        organelle_fluor,
-        line_building_stage,
-        dob
-      FROM public.v11_tank_star
-      WHERE fish_code = ANY(:codes)
-      ORDER BY dob DESC NULLS LAST, tank_code
+        ts.tank_code,
+        ts.fish_code,
+        ts.allele_labels,
+        ts.allele_canonical,
+        ts.line_building_stage,
+        ts.birthday AS dob,
+        COALESCE(fis.all_organelle_fluor_rollup, '') AS organelle_fluor
+      FROM public.v11_tank_star ts
+      LEFT JOIN public.v11_fish_instance_star fis
+        ON fis.fish_code = ts.fish_code
+      WHERE ts.fish_code = ANY(:codes)
+      ORDER BY ts.birthday DESC NULLS LAST, ts.tank_code
     """
         ).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
     )
@@ -255,7 +259,7 @@ tank_picker = st.data_editor(
         [
             t_sel_col,
             "tank_code",
-            "allele_label",
+            "allele_labels",
             "organelle_fluor",
             "line_building_stage",
             "dob",
@@ -266,8 +270,8 @@ tank_picker = st.data_editor(
     column_config={
         t_sel_col: st.column_config.CheckboxColumn("✓", default=False),
         "tank_code": st.column_config.TextColumn("Tank", disabled=True),
-        "allele_label": st.column_config.TextColumn(
-            "Tg(base)label", disabled=True, width="large"
+        "allele_labels": st.column_config.TextColumn(
+            "Tg(base)labels", disabled=True, width="large"
         ),
         "organelle_fluor": st.column_config.TextColumn(
             "Organelle-fluor", disabled=True, width="large"
@@ -309,7 +313,7 @@ _vert_table(
     f"TANK {row.get('tank_code','')}",
     [
         ("Tank code", row.get("tank_code", "")),
-        ("Transgene alleles", row.get("allele_label", "")),
+        ("Transgene alleles", row.get("allele_labels", "")),
         ("Organelle-fluor", row.get("organelle_fluor", "")),
         ("Stage + DOB", stage_dob),
     ],
@@ -326,21 +330,14 @@ for r in chosen_tanks.to_dict(orient="records"):
 
     label_rows.append(
         {
-            # Line 1: header / label (what prints as "line 1")
             "label": r.get("tank_code"),
-            "tank_code": r.get("tank_code"),  # also QR payload
-            # Line 2: nickname (we leave blank)
+            "tank_code": r.get("tank_code"),
             "nickname": "",
-            # Line 3: tank_display → allele_label (canonical label)
-            "tank_display": r.get("allele_label") or "",
-            # Line 4: fusions → organelle-fluor
+            "tank_display": r.get("allele_labels") or "",
             "fusions": r.get("organelle_fluor") or "",
-            # Line 5: genetic_background (unused)
             "genetic_background": "",
-            # Line 6: stage → "stage DOB"
             "line_building_stage": stage_dob,
             "stage": stage_dob,
-            # Line 7: dob (leave None; we already encoded it in stage_dob)
             "dob": None,
         }
     )

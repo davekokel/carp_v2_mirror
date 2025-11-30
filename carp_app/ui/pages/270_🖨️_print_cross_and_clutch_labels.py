@@ -185,9 +185,9 @@ def _load_crosses_v11(
 
 
 # ── loaders: clutches for selected crosses (v11_clutch_star) ─────────────────
-def _load_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
+def _load_clutches_for_crosses(cross_ids: List[str]) -> pd.DataReader:
     """
-    Clutches for the selected crosses, genotype-only (no treatment filter).
+    Clutches for the selected crosses, using v11_clutch_star.
     """
     if not cross_ids:
         return pd.DataFrame(
@@ -196,11 +196,9 @@ def _load_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
                 "clutch_code",
                 "clutch_date",
                 "genotype_pretty",
-                "genotype_basecode_code",
-                "genotype_transgene_allele_code",
+                "genotype_base_codes",
+                "genotype_v11_code",
                 "treat_codes",
-                "all_fluor_tag_rollup",
-                "all_organelle_fluor_rollup",
                 "cross_id",
             ]
         )
@@ -211,20 +209,18 @@ def _load_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
         SELECT unnest(:ids)::uuid AS cross_id
       )
       SELECT
-        c.id::text                    AS clutch_id,
-        COALESCE(c.clutch_code,'')    AS clutch_code,
-        c.clutch_date                 AS clutch_date,
-        COALESCE(s.genotype_pretty,'')           AS genotype_pretty,
-        COALESCE(s.genotype_basecode_code,'')    AS genotype_basecode_code,
-        COALESCE(s.genotype_transgene_allele_code,'') AS genotype_transgene_allele_code,
-        COALESCE(s.treat_codes,'')               AS treat_codes,
-        COALESCE(s.all_fluor_tag_rollup,'')      AS all_fluor_tag_rollup,
-        COALESCE(s.all_organelle_fluor_rollup,'') AS all_organelle_fluor_rollup,
-        c.cross_id::text               AS cross_id
+        c.id::text                 AS clutch_id,
+        COALESCE(c.clutch_code,'') AS clutch_code,
+        c.clutch_date              AS clutch_date,
+        COALESCE(s.genotype_pretty,'')        AS genotype_pretty,
+        COALESCE(s.genotype_base_codes,'')    AS genotype_base_codes,
+        COALESCE(s.genotype_v11_code,'')      AS genotype_v11_code,
+        COALESCE(s.treat_codes,'')            AS treat_codes,
+        c.cross_id::text                      AS cross_id
       FROM public.clutches c
       JOIN picked p ON p.cross_id = c.cross_id
       LEFT JOIN public.v11_clutch_star s
-             ON s.clutch_id = c.id::text
+             ON s.clutch_id = c.id
       ORDER BY c.clutch_date DESC NULLS LAST, c.clutch_code;
     """
     )
@@ -319,8 +315,8 @@ cl_picker = st.data_editor(
             "clutch_code",
             "clutch_date",
             "genotype_pretty",
-            "genotype_basecode_code",
-            "genotype_transgene_allele_code",
+            "genotype_base_codes",
+            "genotype_v11_code",
         ]
     ],
     hide_index=True,
@@ -332,11 +328,11 @@ cl_picker = st.data_editor(
         "genotype_pretty": st.column_config.TextColumn(
             "Genotype (pretty)", disabled=True, width="large"
         ),
-        "genotype_basecode_code": st.column_config.TextColumn(
+        "genotype_base_codes": st.column_config.TextColumn(
             "Genotype basecodes", disabled=True, width="large"
         ),
-        "genotype_transgene_allele_code": st.column_config.TextColumn(
-            "Genotype allele code", disabled=True, width="large"
+        "genotype_v11_code": st.column_config.TextColumn(
+            "Genotype code (v11)", disabled=True, width="large"
         ),
     },
     key="clutch_picker_editor_v11",

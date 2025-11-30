@@ -109,7 +109,7 @@ def main() -> None:
 
     engine = get_engine(args.db_url)
 
-    # ───────────────── map from fish_lines only (no genotype re-matching) ─────────────────
+    # map from fish_lines + join_line_alleles → allele_nick_norm for mapping
     with engine.begin() as cx:
         map_sql = text(
             """
@@ -118,8 +118,16 @@ def main() -> None:
               fl.line_code,
               lower(trim(fl.genetic_background)) AS bg_key,
               lower(trim(fl.nickname)) AS nick_norm,
-              lower(fl.line_building_stage) AS stage_key
+              lower(fl.line_building_stage) AS stage_key,
+              lower(coalesce(ta.allele_nickname::text, '')) AS allele_nick_norm
             FROM public.fish_lines fl
+            LEFT JOIN public.join_line_alleles jla
+              ON jla.line_id = fl.id
+            LEFT JOIN public.constructs c
+              ON c.id = jla.construct_id
+            LEFT JOIN public.transgene_alleles ta
+              ON ta.transgene_base_code = c.base_code
+             AND ta.allele_number       = jla.allele_number
             """
         )
         df_map = pd.read_sql(map_sql, cx)
@@ -127,13 +135,14 @@ def main() -> None:
     df_map["bg_key"] = df_map["bg_key"].apply(norm)
     df_map["stage_key"] = df_map["stage_key"].apply(norm)
     df_map["nick_norm"] = df_map["nick_norm"].apply(norm)
+    df_map["allele_nick_norm"] = df_map["allele_nick_norm"].apply(norm)
 
-    # join ONLY on nickname + background + stage
+    # join on nickname + background + stage + allele_nickname
     merged = df.merge(
         df_map,
         how="left",
-        left_on=["nick_norm", "bg_key", "stage_key"],
-        right_on=["nick_norm", "bg_key", "stage_key"],
+        left_on=["nick_norm", "bg_key", "stage_key", "allele_nick_norm"],
+        right_on=["nick_norm", "bg_key", "stage_key", "allele_nick_norm"],
         suffixes=("_seed", "_line"),
     )
 
