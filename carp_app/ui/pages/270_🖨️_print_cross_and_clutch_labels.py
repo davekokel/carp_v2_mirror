@@ -95,23 +95,25 @@ def _load_crosses_v11(
 
       - mom/dad genotype_pretty (for display / search)
       - mom/dad allele_canonical_rollup  (Tg(base)allele_name)
-      - mom/dad allele_nickname_rollup   (Tg(base)nickname_or_name)
-      - mom/dad all_organelle_fluor_rollup
+      - mom/dad allele_label_rollup      (Tg(base)nickname_or_name)
+      - mom/dad organelle_fluor_rollup   (from v11_fish_marker_rollups)
     """
     mom_col, dad_col = _parent_cols()
+
     sql = text(
         f"""
       WITH fis AS (
         SELECT
           fish_instance_id,
           fish_code,
-          line_id,
-          genotype_pretty,
-          genotype_basecode_code,
-          genotype_transgene_allele_code,
-          all_fluor_tag_rollup,
-          all_organelle_fluor_rollup
+          genotype_pretty
         FROM public.v11_fish_instance_star
+      ),
+      markers AS (
+        SELECT
+          fish_instance_id,
+          organelle_fluor_rollup
+        FROM public.v11_fish_marker_rollups
       )
       SELECT
         cr.id::uuid::text         AS cross_id,
@@ -123,17 +125,17 @@ def _load_crosses_v11(
         tm.tank_code              AS mom_tank_code,
         tf.tank_code              AS dad_tank_code,
 
-        COALESCE(fm.genotype_pretty,'')                AS mom_genotype_pretty,
-        COALESCE(ff.genotype_pretty,'')                AS dad_genotype_pretty,
+        COALESCE(fm.genotype_pretty,'')            AS mom_genotype_pretty,
+        COALESCE(ff.genotype_pretty,'')            AS dad_genotype_pretty,
 
-        COALESCE(lm.allele_canonical_rollup,'')        AS mom_allele_canonical,
-        COALESCE(lf.allele_canonical_rollup,'')        AS dad_allele_canonical,
+        COALESCE(lm.allele_canonical_rollup,'')    AS mom_allele_canonical,
+        COALESCE(lf.allele_canonical_rollup,'')    AS dad_allele_canonical,
 
-        COALESCE(lm.allele_label_rollup,'')            AS mom_allele_nicknames,
-        COALESCE(lf.allele_label_rollup,'')            AS dad_allele_nicknames,
+        COALESCE(lm.allele_label_rollup,'')        AS mom_allele_nicknames,
+        COALESCE(lf.allele_label_rollup,'')        AS dad_allele_nicknames,
 
-        COALESCE(fm.all_organelle_fluor_rollup,'')     AS mom_organelle_fluor_rollup,
-        COALESCE(ff.all_organelle_fluor_rollup,'')     AS dad_organelle_fluor_rollup
+        COALESCE(mm.organelle_fluor_rollup,'')     AS mom_organelle_fluor_rollup,
+        COALESCE(mf.organelle_fluor_rollup,'')     AS dad_organelle_fluor_rollup
 
       FROM public.crosses cr
       LEFT JOIN public.tank_pairs tp ON tp.id = cr.tank_pair_id
@@ -147,6 +149,9 @@ def _load_crosses_v11(
       LEFT JOIN fis fm ON fm.fish_instance_id = fim.id
       LEFT JOIN fis ff ON ff.fish_instance_id = fif.id
 
+      LEFT JOIN markers mm ON mm.fish_instance_id = fim.id
+      LEFT JOIN markers mf ON mf.fish_instance_id = fif.id
+
       LEFT JOIN public.v11_line_allele_rollups lm ON lm.line_id = fim.line_id
       LEFT JOIN public.v11_line_allele_rollups lf ON lf.line_id = fif.line_id
 
@@ -154,12 +159,18 @@ def _load_crosses_v11(
         AND (:d2 IS NULL OR cr.created_at::date <= :d2)
         AND (
           :q IS NULL OR
-          COALESCE(cr.cross_run_code,'')        ILIKE :ql OR
-          tp.tank_pair_code                     ILIKE :ql OR
-          COALESCE(tm.tank_code,'')             ILIKE :ql OR
-          COALESCE(tf.tank_code,'')             ILIKE :ql OR
-          COALESCE(fm.genotype_pretty,'')       ILIKE :ql OR
-          COALESCE(ff.genotype_pretty,'')       ILIKE :ql
+          COALESCE(cr.cross_run_code,'')  ILIKE :ql OR
+          tp.tank_pair_code               ILIKE :ql OR
+          COALESCE(tm.tank_code,'')       ILIKE :ql OR
+          COALESCE(tf.tank_code,'')       ILIKE :ql OR
+          COALESCE(fm.genotype_pretty,'') ILIKE :ql OR
+          COALESCE(ff.genotype_pretty,'') ILIKE :ql
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM public.clutches c
+          WHERE c.cross_id = cr.id
+            AND COALESCE(c.source_system,'') <> 'legacy_imaging'
         )
       ORDER BY cr.created_at DESC NULLS LAST, cr.cross_run_code
       LIMIT :lim;
@@ -185,7 +196,7 @@ def _load_crosses_v11(
 
 
 # ── loaders: clutches for selected crosses (v11_clutch_star) ─────────────────
-def _load_clutches_for_crosses(cross_ids: List[str]) -> pd.DataReader:
+def _load_clutches_for_crosses(cross_ids: List[str]) -> pd.DataFrame:
     """
     Clutches for the selected crosses, using v11_clutch_star.
     """
@@ -212,15 +223,16 @@ def _load_clutches_for_crosses(cross_ids: List[str]) -> pd.DataReader:
         c.id::text                 AS clutch_id,
         COALESCE(c.clutch_code,'') AS clutch_code,
         c.clutch_date              AS clutch_date,
-        COALESCE(s.genotype_pretty,'')        AS genotype_pretty,
-        COALESCE(s.genotype_base_codes,'')    AS genotype_base_codes,
-        COALESCE(s.genotype_v11_code,'')      AS genotype_v11_code,
-        COALESCE(s.treat_codes,'')            AS treat_codes,
-        c.cross_id::text                      AS cross_id
+        COALESCE(s.genotype_pretty,'')         AS genotype_pretty,
+        COALESCE(s.genotype_v11_basecodes,'')  AS genotype_base_codes,
+        COALESCE(s.genotype_v11_code,'')       AS genotype_v11_code,
+        COALESCE(s.treat_codes,'')             AS treat_codes,
+        c.cross_id::text                       AS cross_id
       FROM public.clutches c
       JOIN picked p ON p.cross_id = c.cross_id
       LEFT JOIN public.v11_clutch_star s
              ON s.clutch_id = c.id
+      WHERE COALESCE(c.source_system,'') <> 'legacy_imaging'
       ORDER BY c.clutch_date DESC NULLS LAST, c.clutch_code;
     """
     )

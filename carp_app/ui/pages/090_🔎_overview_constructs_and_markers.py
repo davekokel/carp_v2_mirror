@@ -117,11 +117,11 @@ with tab_constructs:
           construct_name,
           resistance,
           description,
-          n_fusions,
-          fusion_pretty,
-          organelle_fluors,
+          0::int                             AS n_fusions,
+          ''::text                           AS fusion_pretty,
+          ''::text                           AS organelle_fluors,
           created_at
-        FROM public.v10_constructs_overview
+        FROM public.constructs
         WHERE {where_sql}
         ORDER BY created_at DESC NULLS LAST, construct_code
         LIMIT :lim;
@@ -247,7 +247,7 @@ with tab_constructs:
         st.download_button(
             "⬇︎ Download constructs (CSV)",
             data=df_constructs.to_csv(index=False).encode("utf-8"),
-            file_name="v10_constructs_overview.csv",
+            file_name="v_constructs_overview.csv",
             type="secondary",
             mime="text/csv",
         )

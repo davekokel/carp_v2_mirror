@@ -66,20 +66,20 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
             fis.line_code,
             fis.line_nickname                 AS nickname,
             COALESCE(fis.genetic_background,'')    AS genetic_background,
-            COALESCE(fis.line_building_stage,'')   AS stage,
+            COALESCE(fis.instance_stage,'')       AS stage,
             COALESCE(fis.genotype_pretty,'')       AS genotype,
             fis.birthday                      AS birthday,
-            fis.fish_created_at               AS created_at
+            fis.birthday                      AS created_at
           FROM public.v11_fish_instance_star fis
           WHERE (:q IS NULL)
              OR (
                   fis.fish_code                  ILIKE :ql
                OR COALESCE(fis.line_nickname,'') ILIKE :ql
                OR COALESCE(fis.genetic_background,'') ILIKE :ql
-               OR COALESCE(fis.line_building_stage,'') ILIKE :ql
+               OR COALESCE(fis.instance_stage,'')       ILIKE :ql
                OR COALESCE(fis.genotype_pretty,'')    ILIKE :ql
              )
-          ORDER BY fis.fish_created_at DESC NULLS LAST, fis.fish_code
+          ORDER BY fis.birthday DESC NULLS LAST, fis.fish_code
           LIMIT :lim
         ),
         live AS (
@@ -87,8 +87,8 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
             ts.fish_code,
             COUNT(*)::int AS n_live,
             string_agg(DISTINCT ts.tank_code, ', ' ORDER BY ts.tank_code) AS live_tank_codes
-          FROM public.v11_tank_star ts
-          WHERE lower(trim(ts.tank_status)) = 'active'
+          FROM public.v_tanks_overview ts
+          WHERE lower(trim(ts.status)) = 'active'
           GROUP BY ts.fish_code
         )
         SELECT
@@ -133,14 +133,14 @@ def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
           fis.birthday                   AS birthday,
           ts.tank_code,
           ts.tank_id::text               AS tank_id,
-          ts.tank_status                 AS status,
-          ts.tank_created_at             AS created_at
-        FROM public.v11_tank_star ts
+          ts.status                 AS status,
+          ts.created_at             AS created_at
+        FROM public.v_tanks_overview ts
         JOIN public.v11_fish_instance_star fis
           ON fis.fish_code = ts.fish_code
         WHERE ts.fish_code = ANY(:codes)
-          AND lower(trim(ts.tank_status)) = 'active'
-        ORDER BY ts.fish_code, ts.tank_created_at DESC NULLS LAST;
+          AND lower(trim(ts.status)) = 'active'
+        ORDER BY ts.fish_code, ts.created_at DESC NULLS LAST;
         """
     )
     with eng().begin() as cx:

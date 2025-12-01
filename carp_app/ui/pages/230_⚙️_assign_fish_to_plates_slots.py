@@ -380,50 +380,58 @@ with eng().begin() as cx:
         text(
             """
             WITH base AS (
-              SELECT
-                tc.id::uuid                  AS treated_clutch_id,
-                tc.treated_clutch_code,
-                c.id::uuid                   AS clutch_id,
-                c.clutch_code,
-                c.clutch_date,
-                c.genotype_pretty,
-                c.genotype_base_codes        AS genotype_basecodes,
-                t.treat_code                 AS treatment_code,
-                ts.all_fluor_tag_rollup,
-                ts.all_organelle_fluor_rollup
-              FROM public.treated_clutches_v11 tc
-              JOIN public.clutches c
-                ON c.id = tc.clutch_id
-              JOIN public.treatments t
-                ON t.id = tc.treatment_id
-              LEFT JOIN public.v11_treatment_star ts
-                ON ts.treatment_id = t.id::text
-              WHERE c.clutch_date >= (current_date - INTERVAL '14 days')
-            )
-            SELECT
-              treated_clutch_id::text,
-              treated_clutch_code,
-              clutch_id::text,
-              clutch_code,
-              clutch_date,
-              genotype_pretty,
-              genotype_basecodes,
-              treatment_code,
-              all_fluor_tag_rollup,
-              all_organelle_fluor_rollup
-            FROM base
-            WHERE (
-              :q IS NULL
-              OR treated_clutch_code              ILIKE :ql
-              OR clutch_code                      ILIKE :ql
-              OR treatment_code                   ILIKE :ql
-              OR COALESCE(genotype_pretty,'')    ILIKE :ql
-              OR COALESCE(genotype_basecodes,'') ILIKE :ql
-              OR COALESCE(all_fluor_tag_rollup,'')       ILIKE :ql
-              OR COALESCE(all_organelle_fluor_rollup,'') ILIKE :ql
-            )
-            ORDER BY clutch_date DESC, treated_clutch_code
-            LIMIT 500;
+                SELECT
+                    tc.id::uuid                  AS treated_clutch_id,
+                    tc.treated_clutch_code,
+                    c.id::uuid                   AS clutch_id,
+                    c.clutch_code,
+                    c.clutch_date,
+
+                    /* v11 genotype (parent clutch genotype, not expected offspring) */
+                    g.genotype_basecodes::text AS genotype_basecodes,
+                    g.genotype_pretty::text     AS genotype_pretty,
+
+                    t.treat_code                AS treatment_code,
+
+                    ts.all_fluor_tag_rollup,
+                    ts.all_organelle_fluor_rollup
+                FROM public.treated_clutches_v11 tc
+                JOIN public.clutches c
+                    ON c.id = tc.clutch_id
+                LEFT JOIN public.genotypes_v11 g
+                    ON g.id = c.genotype_v11_id
+                LEFT JOIN public.treatments t
+                    ON t.id = tc.treatment_id
+                LEFT JOIN public.v11_treatment_star ts
+                    ON ts.treatment_id = t.id::text
+                WHERE c.clutch_date >= (current_date - INTERVAL '14 days')
+                AND COALESCE(c.source_system, '') <> 'legacy_imaging'
+                  AND COALESCE(c.source_system, '') <> 'legacy_imaging'
+                )
+                SELECT
+                treated_clutch_id::text,
+                treated_clutch_code,
+                clutch_id::text,
+                clutch_code,
+                clutch_date,
+                genotype_pretty,
+                genotype_basecodes,
+                treatment_code,
+                all_fluor_tag_rollup,
+                all_organelle_fluor_rollup
+                FROM base
+                WHERE (
+                :q IS NULL
+                OR treated_clutch_code              ILIKE :ql
+                OR clutch_code                      ILIKE :ql
+                OR treatment_code                   ILIKE :ql
+                OR COALESCE(genotype_pretty,'')    ILIKE :ql
+                OR COALESCE(genotype_basecodes,'') ILIKE :ql
+                OR COALESCE(all_fluor_tag_rollup,'')       ILIKE :ql
+                OR COALESCE(all_organelle_fluor_rollup,'') ILIKE :ql
+                )
+                ORDER BY clutch_date DESC, treated_clutch_code
+                LIMIT 500;
             """
         ),
         cx,
@@ -615,7 +623,6 @@ def _apply_mappings(
     n_c = n_o = n_over = 0
 
     with eng().begin() as cx:
-        # slots on this plate
         slots_df = pd.read_sql(
             text(
                 f"""
@@ -634,7 +641,6 @@ def _apply_mappings(
             )
         }
 
-        # existing memberships on this plate
         memb_df = pd.read_sql(
             text(
                 f"""
@@ -650,7 +656,6 @@ def _apply_mappings(
             cx,
             params={"pid": plate_id},
         )
-        # DB enforces UNIQUE (clutch_id, slot_id), so track exactly that
         existing_memb: set[Tuple[str, str]] = {
             (sid, cid)
             for cid, tcid, sid in zip(
@@ -660,7 +665,6 @@ def _apply_mappings(
             )
         }
 
-        # existing orientations
         slots_ori_df = pd.read_sql(
             text(
                 f"""
@@ -676,83 +680,6 @@ def _apply_mappings(
             sid: (o or "")
             for sid, o in zip(slots_ori_df["slot_id"], slots_ori_df["orientation"])
         }
-
-        # ---- frontfill genotypes_v11 for clutches we touch ----
-        frontfilled_clutches: set[str] = set()
-
-        def _frontfill_clutch_genotype(clutch_id: str) -> None:
-            if not clutch_id or clutch_id in frontfilled_clutches:
-                return
-
-            row = cx.execute(
-                text(
-                    """
-                    SELECT genotype_v11_id, genotype_base_codes
-                    FROM public.clutches
-                    WHERE id = CAST(:cid AS uuid)
-                    LIMIT 1
-                    """
-                ),
-                {"cid": clutch_id},
-            ).fetchone()
-            if not row:
-                frontfilled_clutches.add(clutch_id)
-                return
-
-            g_id, base_codes = row[0], (row[1] or "").strip()
-            # already wired or no basecodes → nothing to do
-            if g_id is not None or not base_codes:
-                frontfilled_clutches.add(clutch_id)
-                return
-
-            # try to reuse an existing genotype_v11 row
-            geno_row = cx.execute(
-                text(
-                    """
-                    SELECT id
-                    FROM public.genotypes_v11
-                    WHERE genotype_basecodes = :bc
-                    LIMIT 1
-                    """
-                ),
-                {"bc": base_codes},
-            ).fetchone()
-
-            if geno_row:
-                new_gid = geno_row[0]
-            else:
-                # create a new genotype_v11 row for these basecodes
-                new_gid = cx.execute(
-                    text(
-                        """
-                        INSERT INTO public.genotypes_v11
-                          (genotype_code, genotype_pretty, genotype_basecodes, created_at)
-                        VALUES (
-                          'G-' || upper(substr(md5(:bc), 1, 10)),
-                          :pretty,
-                          :bc,
-                          now()
-                        )
-                        RETURNING id
-                        """
-                    ),
-                    {
-                        "bc": base_codes,
-                        "pretty": base_codes,
-                    },
-                ).scalar()
-
-            cx.execute(
-                text(
-                    """
-                    UPDATE public.clutches
-                    SET genotype_v11_id = :gid
-                    WHERE id = CAST(:cid AS uuid)
-                    """
-                ),
-                {"gid": new_gid, "cid": clutch_id},
-            )
-            frontfilled_clutches.add(clutch_id)
 
         def treated_mapping_of(code: str) -> Tuple[Optional[str], Optional[str]]:
             if not code:
@@ -795,16 +722,12 @@ def _apply_mappings(
             or "system"
         )
 
-        # ---- treated clutches → imaging_clutch_memberships (+ genotype frontfill) ----
         for code, expr in (clutch_map or {}).items():
             if not (code and expr.strip()):
                 continue
             treated_id, cid = treated_mapping_of(code)
             if not cid:
                 raise RuntimeError(f"Unknown treated/parent clutch code: {code}")
-
-            # frontfill genotype_v11_id for this clutch if possible
-            _frontfill_clutch_genotype(cid)
 
             for (r, c) in _parse_selection(expr):
                 sid = slot_map.get((r, c))
@@ -836,7 +759,6 @@ def _apply_mappings(
                 existing_memb.add(key)
                 n_c += 1
 
-        # ---- orientations ----
         for ori, expr in (ori_map or {}).items():
             if not (ori and expr.strip()):
                 continue
@@ -862,6 +784,7 @@ def _apply_mappings(
                     n_o += 1
 
     return n_c, n_o, n_over
+
 
 
 if st.button("💾 Save mappings", type="primary"):

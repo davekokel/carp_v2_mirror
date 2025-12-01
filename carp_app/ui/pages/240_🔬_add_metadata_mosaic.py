@@ -28,7 +28,6 @@ except Exception:
 from carp_app.ui.lib.app_ctx import get_engine
 
 # v11 views
-V_ROI_STAR = "public.v11_imaging_roi_star"
 V_PLATE_SLOT_OVERVIEW_V11 = "public.v11_imaging_plate_slot_overview"
 V_CLUTCH_STAR = "public.v11_clutch_star"
 
@@ -95,7 +94,6 @@ def _ensure_view(name: str) -> None:
         st.stop()
 
 
-_ensure_view(V_ROI_STAR)
 _ensure_view(V_PLATE_SLOT_OVERVIEW_V11)
 _ensure_view(V_CLUTCH_STAR)
 

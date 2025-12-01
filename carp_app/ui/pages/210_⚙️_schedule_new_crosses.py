@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import os
 import pathlib
+import hashlib
 from datetime import date, timedelta
 from typing import Optional, Tuple, List, Dict, Any
 
@@ -137,11 +138,11 @@ def get_parent_detail(tp_id: str) -> pd.DataFrame:
             mt.tank_code                      AS tank_code,
             mf.id                             AS fish_id,
             mf.fish_code                      AS fish_code,
-            fis.genotype_basecode_code,
-            fis.genotype_transgene_allele_code,
-            fis.treatments_and_transgenes,
-            fis.all_fluor_tag_rollup,
-            fis.all_organelle_fluor_rollup
+            fis.genotype_basecodes            AS genotype_basecode_code,
+            NULL::text                        AS genotype_transgene_allele_code,
+            NULL::text                        AS treatments_and_transgenes,
+            COALESCE(mr.fluor_tag_rollup, '')       AS all_fluor_tag_rollup,
+            COALESCE(mr.organelle_fluor_rollup, '') AS all_organelle_fluor_rollup
           FROM tp
           JOIN public.tanks mt
             ON mt.id = tp.mom_tank_id
@@ -149,6 +150,8 @@ def get_parent_detail(tp_id: str) -> pd.DataFrame:
             ON mf.id = mt.fish_instance_id
           JOIN public.v11_fish_instance_star fis
             ON fis.fish_instance_id = mf.id
+          LEFT JOIN public.v11_fish_marker_rollups mr
+            ON mr.fish_instance_id = mf.id
         ),
         dad AS (
           SELECT
@@ -156,11 +159,11 @@ def get_parent_detail(tp_id: str) -> pd.DataFrame:
             ft.tank_code                      AS tank_code,
             ff.id                             AS fish_id,
             ff.fish_code                      AS fish_code,
-            fis.genotype_basecode_code,
-            fis.genotype_transgene_allele_code,
-            fis.treatments_and_transgenes,
-            fis.all_fluor_tag_rollup,
-            fis.all_organelle_fluor_rollup
+            fis.genotype_basecodes            AS genotype_basecode_code,
+            NULL::text                        AS genotype_transgene_allele_code,
+            NULL::text                        AS treatments_and_transgenes,
+            COALESCE(mr.fluor_tag_rollup, '')       AS all_fluor_tag_rollup,
+            COALESCE(mr.organelle_fluor_rollup, '') AS all_organelle_fluor_rollup
           FROM tp
           JOIN public.tanks ft
             ON ft.id = tp.dad_tank_id
@@ -168,6 +171,8 @@ def get_parent_detail(tp_id: str) -> pd.DataFrame:
             ON ff.id = ft.fish_instance_id
           JOIN public.v11_fish_instance_star fis
             ON fis.fish_instance_id = ff.id
+          LEFT JOIN public.v11_fish_marker_rollups mr
+            ON mr.fish_instance_id = ff.id
         ),
         parents AS (
           SELECT * FROM mom
@@ -510,65 +515,80 @@ def upsert_cross_and_clutch_for_tank_pair(
         clutch_id, clutch_code_out = clutch_row
 
     if not expected_rows.empty:
-        sql_ins = text(
-            """
-            INSERT INTO public.clutch_expected_genotypes_v11 (
-              id,
-              clutch_id,
-              label,
-              treatment_code,
-              genotype_basecode_code,
-              genotype_transgene_allele_code,
-              treatments_and_transgenes,
-              all_fluor_tag_rollup,
-              all_organelle_fluor_rollup,
-              zygocity_vector,
-              expected_fraction,
-              expected_percent_label,
-              is_enabled,
-              notes
-            )
-            VALUES (
-              gen_random_uuid(),
-              :clutch_id,
-              :label,
-              :treatment_code,
-              :genotype_basecode_code,
-              :genotype_transgene_allele_code,
-              :treatments_and_transgenes,
-              :all_fluor_tag_rollup,
-              :all_organelle_fluor_rollup,
-              :zygocity_vector,
-              :expected_fraction,
-              :expected_percent_label,
-              :is_enabled,
-              :notes
-            );
-            """
-        )
         with eng().begin() as cx:
             for _, r in expected_rows.iterrows():
+                basecodes = (r.get("genotype_basecode_code") or "").strip()
+                alleles = (r.get("genotype_transgene_allele_code") or "").strip()
+                if not basecodes:
+                    continue
+
+                key = f"{basecodes}|{alleles}"
+                gcode = "G-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:10].upper()
+                pretty = alleles or basecodes
+
+                res = cx.execute(
+                    text(
+                        """
+                        INSERT INTO public.genotypes_v11 (
+                          id,
+                          genotype_code,
+                          genotype_pretty,
+                          genotype_basecodes,
+                          created_at
+                        )
+                        VALUES (
+                          gen_random_uuid(),
+                          :gcode,
+                          :pretty,
+                          :basecodes,
+                          now()
+                        )
+                        ON CONFLICT (genotype_code) DO UPDATE
+                          SET genotype_pretty    = EXCLUDED.genotype_pretty,
+                              genotype_basecodes = EXCLUDED.genotype_basecodes
+                        RETURNING id;
+                        """
+                    ),
+                    {"gcode": gcode, "pretty": pretty, "basecodes": basecodes},
+                )
+                gid = res.scalar()
+                if gid is None:
+                    gid = cx.execute(
+                        text(
+                            "SELECT id FROM public.genotypes_v11 WHERE genotype_code = :gcode"
+                        ),
+                        {"gcode": gcode},
+                    ).scalar()
+                    if gid is None:
+                        continue
+
                 cx.execute(
-                    sql_ins,
+                    text(
+                        """
+                        INSERT INTO public.clutch_genotypes_v11 (
+                          id,
+                          clutch_id,
+                          genotype_v11_id,
+                          expected_fraction,
+                          expected_percent_label,
+                          notes
+                        )
+                        VALUES (
+                          gen_random_uuid(),
+                          :clutch_id,
+                          :gid,
+                          :expected_fraction,
+                          :expected_percent_label,
+                          :notes
+                        )
+                        ON CONFLICT DO NOTHING;
+                        """
+                    ),
                     {
                         "clutch_id": clutch_id,
-                        "label": r.get("label"),
-                        "treatment_code": r.get("treatment_code"),
-                        "genotype_basecode_code": r.get("genotype_basecode_code"),
-                        "genotype_transgene_allele_code": r.get(
-                            "genotype_transgene_allele_code"
-                        ),
-                        "treatments_and_transgenes": r.get(
-                            "treatments_and_transgenes"
-                        ),
-                        "all_fluor_tag_rollup": r.get("all_fluor_tag_rollup"),
-                        "all_organelle_fluor_rollup": r.get(
-                            "all_organelle_fluor_rollup"
-                        ),
-                        "zygocity_vector": None,
+                        "gid": gid,
                         "expected_fraction": r.get("expected_fraction"),
                         "expected_percent_label": r.get("expected_percent_label"),
-                        "is_enabled": bool(r.get("is_enabled", True)),
                         "notes": r.get("notes"),
                     },
                 )

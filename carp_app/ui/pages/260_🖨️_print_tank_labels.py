@@ -67,71 +67,68 @@ def _safe(v: Any) -> str:
     return str(v)
 
 
+
 # ── data loaders (v11) ───────────────────────────────────────────────────────
 def _load_fish(q: str | None, limit: int) -> pd.DataFrame:
-    """
-    Fish registry for selection: one row per *fish* (true fish_code),
-    via v11_fish_instance_star + fish_instances_v10 + fish_lines.
-    """
     sql = text(
         """
-      WITH fis AS (
+        WITH fis AS (
+          SELECT
+            fish_instance_id,
+            fish_code,
+            birthday,
+            genetic_background,
+            instance_stage,
+            genotype_pretty,
+            line_code,
+            line_nickname
+          FROM public.v11_fish_instance_star
+        ),
+        markers AS (
+          SELECT
+            fish_instance_id,
+            organelle_fluor_rollup
+          FROM public.v11_fish_marker_rollups
+        )
         SELECT
-          fish_instance_id,
-          fish_code,
-          line_id,
-          birthday,
-          genetic_background,
-          line_building_stage,
-          genotype_pretty,
-          all_organelle_fluor_rollup
-        FROM public.v11_fish_instance_star
-      )
-      SELECT
-        COALESCE(fi.fish_code, fis.fish_code)::text AS fish_code,
-        COALESCE(fl.nickname, '')                  AS nickname,
-        fis.birthday                               AS dob,
-        COALESCE(fl.genetic_background,
-                 fis.genetic_background, '')       AS genetic_background,
-        COALESCE(fl.line_building_stage,
-                 fis.line_building_stage, '')      AS line_building_stage,
-        COALESCE(fis.genotype_pretty, '')          AS genotype_pretty,
-        COALESCE(fis.all_organelle_fluor_rollup,'') AS organelle_fluor
-      FROM fis
-      LEFT JOIN public.fish_instances_v10 fi ON fi.id = fis.fish_instance_id
-      LEFT JOIN public.fish_lines fl ON fl.id = fis.line_id
-      WHERE (:q IS NULL)
-         OR COALESCE(fi.fish_code, fis.fish_code) ILIKE :ql
-         OR COALESCE(fl.nickname,'')           ILIKE :ql
-         OR COALESCE(fl.genetic_background,'') ILIKE :ql
-         OR COALESCE(fl.line_building_stage,'')ILIKE :ql
-         OR COALESCE(fis.genotype_pretty,'')   ILIKE :ql
-      ORDER BY fis.birthday DESC NULLS LAST, COALESCE(fi.fish_code, fis.fish_code)
-      LIMIT :lim
-    """
+          fis.fish_code::text                     AS fish_code,
+          COALESCE(fis.line_nickname, '')         AS nickname,
+          fis.birthday                            AS dob,
+          COALESCE(fis.genetic_background, '')    AS genetic_background,
+          COALESCE(fis.instance_stage, '')        AS line_building_stage,
+          COALESCE(fis.genotype_pretty, '')       AS genotype_pretty,
+          COALESCE(mr.organelle_fluor_rollup,'')  AS organelle_fluor
+        FROM fis
+        LEFT JOIN markers mr
+          ON mr.fish_instance_id = fis.fish_instance_id
+        WHERE (:q IS NULL)
+           OR fis.fish_code                 ILIKE :ql
+           OR COALESCE(fis.line_nickname,'')      ILIKE :ql
+           OR COALESCE(fis.genetic_background,'') ILIKE :ql
+           OR COALESCE(fis.instance_stage,'')     ILIKE :ql
+           OR COALESCE(fis.genotype_pretty,'')    ILIKE :ql
+        ORDER BY fis.birthday DESC NULLS LAST, fis.fish_code
+        LIMIT :lim
+        """
     )
+
     qnorm = (q or "").strip()
     params = {
-        "q": (qnorm if qnorm else None),
-        "ql": f"%{qnorm}%",
+        "q": qnorm if qnorm else None,
+        "ql": f"%{qnorm}%" if qnorm else None,
         "lim": int(limit),
     }
+
     with eng().begin() as cx:
         df = pd.read_sql(sql, cx, params=params)
+
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
+
     return df
 
 
 def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
-    """
-    Tanks for the selected fish, via v11_tank_star + v11_fish_instance_star.
-    v11_tank_star exposes:
-      tank_code, fish_code, birthday, line_building_stage,
-      allele_labels, allele_canonical.
-    v11_fish_instance_star provides:
-      all_organelle_fluor_rollup (as organelle_fluor).
-    """
     if not fish_codes:
         return pd.DataFrame(
             columns=[
@@ -148,27 +145,35 @@ def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
     sql = (
         text(
             """
-      SELECT
-        ts.tank_code,
-        ts.fish_code,
-        ts.allele_labels,
-        ts.allele_canonical,
-        ts.line_building_stage,
-        ts.birthday AS dob,
-        COALESCE(fis.all_organelle_fluor_rollup, '') AS organelle_fluor
-      FROM public.v11_tank_star ts
-      LEFT JOIN public.v11_fish_instance_star fis
-        ON fis.fish_code = ts.fish_code
-      WHERE ts.fish_code = ANY(:codes)
-      ORDER BY ts.birthday DESC NULLS LAST, ts.tank_code
-    """
+            SELECT
+              t.tank_code,
+              fis.fish_code,
+              COALESCE(fa.allele_label_rollup, '')      AS allele_labels,
+              COALESCE(fa.allele_canonical_rollup, '')  AS allele_canonical,
+              COALESCE(fis.instance_stage, '')          AS line_building_stage,
+              fis.birthday                              AS dob,
+              COALESCE(mr.organelle_fluor_rollup, '')   AS organelle_fluor
+            FROM public.tanks t
+            JOIN public.fish_instances_v10 fi
+              ON fi.id = t.fish_instance_id
+            LEFT JOIN public.v11_fish_instance_star fis
+              ON fis.fish_instance_id = fi.id
+            LEFT JOIN public.v11_fish_allele_rollups fa
+              ON fa.fish_instance_id = fi.id
+            LEFT JOIN public.v11_fish_marker_rollups mr
+              ON mr.fish_instance_id = fi.id
+            WHERE fis.fish_code = ANY(:codes)
+            ORDER BY fis.birthday DESC NULLS LAST, t.tank_code
+            """
         ).bindparams(bindparam("codes", type_=ARRAY(TEXT())))
     )
 
     with eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": fish_codes})
+
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
+
     return df
 
 

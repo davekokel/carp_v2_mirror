@@ -72,21 +72,23 @@ def load_clutches(
         FROM public.clutches c
         LEFT JOIN public.crosses cr
           ON cr.id = c.cross_id
+        WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
         LEFT JOIN public.tank_pairs tp
           ON tp.id = cr.tank_pair_id
         LEFT JOIN public.fish_instances_v10 mom
           ON mom.id = cr.female_fish_id
         LEFT JOIN public.fish_instances_v10 dad
           ON dad.id = cr.male_fish_id
-        WHERE (
+        WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
+          AND (
                :q IS NULL
             OR c.clutch_code     ILIKE :ql
             OR cr.cross_run_code ILIKE :ql
             OR tp.tank_pair_code ILIKE :ql
             OR (COALESCE(mom.fish_code, '') || ' × ' || COALESCE(dad.fish_code, '')) ILIKE :ql
-        )
-        AND (:from_d IS NULL OR c.clutch_date >= :from_d)
-        AND (:to_d   IS NULL OR c.clutch_date <= :to_d)
+          )
+          AND (:from_d IS NULL OR c.clutch_date >= :from_d)
+          AND (:to_d   IS NULL OR c.clutch_date <= :to_d)
         ORDER BY c.clutch_date DESC NULLS LAST, c.clutch_code
         LIMIT :lim;
         """
@@ -473,15 +475,16 @@ else:
         try:
             merged = treated_groups[["id"]].join(groups_grid)
 
+            updated = 0
             with eng().begin() as cx:
                 for _, row in merged.iterrows():
-                    cx.execute(
+                    res = cx.execute(
                         text(
                             """
                             UPDATE public.treated_clutches_v11
                             SET
-                              treated_clutch_code = :treated_clutch_code,
-                              notes               = :notes
+                            treated_clutch_code = :treated_clutch_code,
+                            notes               = :notes
                             WHERE id = :id;
                             """
                         ),
@@ -491,8 +494,12 @@ else:
                             "notes": (row.get("notes") or "").strip() or None,
                         },
                     )
-            st.success("Updated treated clutch group metadata.")
-            st.rerun()
+                    updated += res.rowcount
+
+            if updated > 0:
+                st.success(f"Updated {updated} treated clutch group(s).")
+            else:
+                st.info("No changes detected; treated clutch groups are unchanged.")
         except Exception as e:
             st.error(f"Save edits failed: {type(e).__name__}: {e}")
 

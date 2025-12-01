@@ -1,6 +1,5 @@
 # carp_app/ui/pages/320_🧱_manage_tanks.py
 # 🧱 Manage tanks (v11) — fish_groups → lines → instances → tanks
-
 from __future__ import annotations
 
 import sys
@@ -23,7 +22,8 @@ from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock() -> None: ...
+    def require_app_unlock() -> None:
+        ...
 from carp_app.ui.lib.app_ctx import get_engine  # core hook
 
 # ───────── auth & page ─────────
@@ -38,12 +38,15 @@ st.set_page_config(
 )
 st.title("🧱 Manage tanks — fish groups → lines → instances → tanks")
 
+
 def eng() -> Engine:
     return get_engine()
+
 
 def _norm(s: str | None) -> Optional[str]:
     s = (s or "").strip()
     return s or None
+
 
 def _exists(qualified: str, kind: str = "view") -> bool:
     schema, name = qualified.split(".", 1)
@@ -80,20 +83,22 @@ def _exists(qualified: str, kind: str = "view") -> bool:
             )
     return not df.empty
 
-# required tables/views
+
+V_FISH_GROUP_STAR = "public.v11_fish_group_star"
+V_FISH_LINE_STAR = "public.v11_fish_line_star"
+V_TANKS_OVERVIEW = "public.v_tanks_overview"
+TANK_STATUS_OPTIONS = ["active", "to_kill", "inactive"]
+
 REQUIRED = [
-    ("public.fish_groups", "table"),
-    ("public.fish_lines", "table"),
+    (V_FISH_GROUP_STAR, "view"),
+    (V_FISH_LINE_STAR, "view"),
     ("public.fish_instances_v10", "table"),
-    ("public.v_tanks_overview", "view"),
+    (V_TANKS_OVERVIEW, "view"),
 ]
 for obj, kind in REQUIRED:
     if not _exists(obj, kind):
         st.error(f"Required {kind} {obj} not found.")
         st.stop()
-
-V_TANKS_OVERVIEW = "public.v_tanks_overview"
-TANK_STATUS_OPTIONS = ["active", "to_kill", "inactive"]
 
 # ════════════════════════════════════════════════════════
 # STEP 1 — FISH GROUPS (with #lines, #instances, #tanks)
@@ -105,7 +110,7 @@ with st.form("group_filters", clear_on_submit=False):
     c1, c2 = st.columns([3, 1])
     with c1:
         g_q_raw = st.text_input(
-            "Search groups (group_code / genotype_key)",
+            "Search groups (construct/genotype rollup / line nicknames / backgrounds)",
             "",
         )
     with c2:
@@ -117,42 +122,63 @@ with st.form("group_filters", clear_on_submit=False):
 g_q = _norm(g_q_raw)
 
 sql_groups = text(
-    """
-    WITH base AS (
+    f"""
+    WITH groups AS (
       SELECT
-        g.id::text           AS group_id,
-        COALESCE(g.group_code, g.genotype_key)::text AS group_label,
-        g.genotype_key::text AS genotype_key,
-        g.created_at         AS created_at
-      FROM public.fish_groups g
-      WHERE (:q IS NULL
-             OR g.group_code ILIKE :ql
-             OR g.genotype_key ILIKE :ql)
-      ORDER BY g.created_at DESC NULLS LAST, g.group_code
-      LIMIT :lim
+        g.group_transgene_rollup       AS group_key,
+        g.group_line_codes             AS group_line_codes,
+        g.group_line_nicknames         AS group_line_nicknames,
+        g.group_genetic_backgrounds    AS group_backgrounds
+      FROM {V_FISH_GROUP_STAR} g
+      WHERE (
+            :q IS NULL
+        OR  g.group_transgene_rollup    ILIKE :ql
+        OR  g.group_line_nicknames      ILIKE :ql
+        OR  g.group_genetic_backgrounds ILIKE :ql
+      )
+    ),
+    line_counts AS (
+      SELECT
+        line_transgene_rollup AS group_key,
+        COUNT(*)::int         AS n_lines
+      FROM {V_FISH_LINE_STAR}
+      GROUP BY line_transgene_rollup
+    ),
+    inst_counts AS (
+      SELECT
+        fls.line_transgene_rollup AS group_key,
+        COUNT(fi.id)::int         AS n_instances
+      FROM public.fish_instances_v10 fi
+      JOIN {V_FISH_LINE_STAR} fls
+        ON fls.line_id = fi.line_id
+      GROUP BY fls.line_transgene_rollup
+    ),
+    tank_counts AS (
+      SELECT
+        fls.line_transgene_rollup AS group_key,
+        COUNT(DISTINCT t.tank_id)::int AS n_tanks
+      FROM public.fish_instances_v10 fi
+      JOIN {V_FISH_LINE_STAR} fls
+        ON fls.line_id = fi.line_id
+      JOIN {V_TANKS_OVERVIEW} t
+        ON t.fish_code = fi.line_instance_code
+      GROUP BY fls.line_transgene_rollup
     )
     SELECT
-      b.group_id,
-      b.group_label,
-      b.genotype_key,
-      b.created_at,
-      -- # lines in group
-      (SELECT COUNT(*)::int
-         FROM public.fish_lines l
-        WHERE l.fish_group_id = b.group_id::uuid)                         AS n_lines,
-      -- # instances in group
-      (SELECT COUNT(*)::int
-         FROM public.fish_instances_v10 fi
-         JOIN public.fish_lines l ON l.id = fi.line_id
-        WHERE l.fish_group_id = b.group_id::uuid)                          AS n_instances,
-      -- # tanks in group (join via line_instance_code → v_tanks_overview.fish_code)
-      (SELECT COUNT(DISTINCT t.tank_id)::int
-         FROM public.fish_lines l
-         JOIN public.fish_instances_v10 fi ON fi.line_id = l.id
-         JOIN public.%s t ON t.fish_code = fi.line_instance_code
-        WHERE l.fish_group_id = b.group_id::uuid)                          AS n_tanks
-    FROM base b;
-    """ % V_TANKS_OVERVIEW.split(".", 1)[1]
+      g.group_key,
+      g.group_line_codes,
+      g.group_line_nicknames,
+      g.group_backgrounds,
+      COALESCE(lc.n_lines, 0)      AS n_lines,
+      COALESCE(ic.n_instances, 0)  AS n_instances,
+      COALESCE(tc.n_tanks, 0)      AS n_tanks
+    FROM groups g
+    LEFT JOIN line_counts lc ON lc.group_key = g.group_key
+    LEFT JOIN inst_counts ic ON ic.group_key = g.group_key
+    LEFT JOIN tank_counts tc ON tc.group_key = g.group_key
+    ORDER BY g.group_key
+    LIMIT :lim;
+    """
 )
 
 params_groups = {
@@ -182,26 +208,32 @@ cx_groups = st.data_editor(
     g_view[
         [
             sel_group_col,
-            "group_label",
-            "genotype_key",
+            "group_key",
+            "group_line_nicknames",
+            "group_backgrounds",
             "n_lines",
             "n_instances",
             "n_tanks",
-            "created_at",
         ]
     ],
     hide_index=True,
     use_container_width=True,
     column_config={
         sel_group_col: st.column_config.CheckboxColumn("✓", default=False),
-        "group_label": st.column_config.TextColumn("Group", disabled=True),
-        "genotype_key": st.column_config.TextColumn("Genotype key", disabled=True),
+        "group_key": st.column_config.TextColumn(
+            "Construct/genotype rollup", disabled=True, width="large"
+        ),
+        "group_line_nicknames": st.column_config.TextColumn(
+            "Line nicknames", disabled=True, width="large"
+        ),
+        "group_backgrounds": st.column_config.TextColumn(
+            "Backgrounds", disabled=True, width="large"
+        ),
         "n_lines": st.column_config.NumberColumn("# lines", disabled=True),
         "n_instances": st.column_config.NumberColumn("# instances", disabled=True),
         "n_tanks": st.column_config.NumberColumn("# tanks", disabled=True),
-        "created_at": st.column_config.DatetimeColumn("Created at", disabled=True),
     },
-    key="group_picker",
+    key="group_picker_v11",
 )
 
 g_mask = (
@@ -216,8 +248,8 @@ if chosen_groups.empty:
     st.stop()
 
 group_row = chosen_groups.iloc[0]
-group_id = group_row["group_id"]
-st.caption(f"Using group: **{group_row['group_label']}**")
+group_key = group_row["group_key"]
+st.caption(f"Using group: **{group_key}**")
 
 # ════════════════════════════════════════════════════════
 # STEP 2 — LINES FOR SELECTED GROUP
@@ -226,17 +258,16 @@ st.caption(f"Using group: **{group_row['group_label']}**")
 st.subheader("Step 2 — Lines in this group", anchor=False)
 
 sql_lines = text(
-    """
+    f"""
     WITH base AS (
       SELECT
-        l.id::text           AS line_id,
-        l.line_code::text    AS line_code,
-        l.nickname::text     AS nickname,
-        COALESCE(l.genetic_background,'')::text   AS genetic_background,
-        COALESCE(l.line_building_stage,'')::text  AS line_building_stage,
-        l.created_at         AS created_at
-      FROM public.fish_lines l
-      WHERE l.fish_group_id = CAST(:gid AS uuid)
+        fls.line_id::text          AS line_id,
+        fls.line_code::text        AS line_code,
+        fls.line_nickname::text    AS nickname,
+        COALESCE(fls.genetic_background,'')::text   AS genetic_background,
+        COALESCE(fls.line_building_stage,'')::text  AS line_building_stage
+      FROM {V_FISH_LINE_STAR} fls
+      WHERE fls.line_transgene_rollup = :gkey
     )
     SELECT
       b.line_id,
@@ -244,21 +275,20 @@ sql_lines = text(
       b.nickname,
       b.genetic_background,
       b.line_building_stage,
-      b.created_at,
       (SELECT COUNT(*)::int
          FROM public.fish_instances_v10 fi
         WHERE fi.line_id = b.line_id::uuid) AS n_instances,
       (SELECT COUNT(DISTINCT t.tank_id)::int
          FROM public.fish_instances_v10 fi
-         JOIN public.%s t ON t.fish_code = fi.line_instance_code
+         JOIN {V_TANKS_OVERVIEW} t ON t.fish_code = fi.line_instance_code
         WHERE fi.line_id = b.line_id::uuid) AS n_tanks
     FROM base b
-    ORDER BY b.created_at DESC NULLS LAST, b.line_code;
-    """ % V_TANKS_OVERVIEW.split(".", 1)[1]
+    ORDER BY b.line_code;
+    """
 )
 
 with eng().begin() as cx:
-    df_lines = pd.read_sql(sql_lines, cx, params={"gid": group_id})
+    df_lines = pd.read_sql(sql_lines, cx, params={"gkey": group_key})
 
 for c in df_lines.select_dtypes(include=["object"]).columns:
     df_lines[c] = df_lines[c].astype("string").fillna("")
@@ -284,7 +314,6 @@ cx_lines = st.data_editor(
             "line_building_stage",
             "n_instances",
             "n_tanks",
-            "created_at",
         ]
     ],
     hide_index=True,
@@ -292,14 +321,17 @@ cx_lines = st.data_editor(
     column_config={
         sel_line_col: st.column_config.CheckboxColumn("✓", default=False),
         "line_code": st.column_config.TextColumn("Line code", disabled=True),
-        "nickname": st.column_config.TextColumn("Nickname", disabled=True, width="large"),
-        "genetic_background": st.column_config.TextColumn("Background", disabled=True),
+        "nickname": st.column_config.TextColumn(
+            "Nickname", disabled=True, width="large"
+        ),
+        "genetic_background": st.column_config.TextColumn(
+            "Background", disabled=True
+        ),
         "line_building_stage": st.column_config.TextColumn("Stage", disabled=True),
         "n_instances": st.column_config.NumberColumn("# instances", disabled=True),
         "n_tanks": st.column_config.NumberColumn("# tanks", disabled=True),
-        "created_at": st.column_config.DatetimeColumn("Created at", disabled=True),
     },
-    key="line_picker",
+    key="line_picker_v11",
 )
 
 l_mask = (
@@ -322,7 +354,7 @@ line_ids = chosen_lines["line_id"].tolist()
 st.subheader("Step 3 — Instances for selected line(s)", anchor=False)
 
 sql_instances = text(
-    """
+    f"""
     WITH picked AS (
       SELECT unnest(:line_ids)::uuid AS line_id
     )
@@ -335,11 +367,11 @@ sql_instances = text(
       COUNT(DISTINCT t.tank_id)    AS n_tanks
     FROM public.fish_instances_v10 fi
     JOIN picked p ON p.line_id = fi.line_id
-    LEFT JOIN public.%s t
+    LEFT JOIN {V_TANKS_OVERVIEW} t
       ON t.fish_code = fi.line_instance_code
     GROUP BY fi.id, fi.fish_code, fi.line_instance_code, fi.birthday, fi.notes
     ORDER BY fi.birthday DESC NULLS LAST, fi.fish_code;
-    """ % V_TANKS_OVERVIEW.split(".", 1)[1]
+    """
 )
 
 with eng().begin() as cx:
@@ -374,13 +406,15 @@ cx_inst = st.data_editor(
     use_container_width=True,
     column_config={
         sel_inst_col: st.column_config.CheckboxColumn("✓", default=False),
-        "fish_code":         st.column_config.TextColumn("Fish code", disabled=True),
-        "line_instance_code": st.column_config.TextColumn("Line instance", disabled=True),
-        "birthday":          st.column_config.DateColumn("Birthday", disabled=True),
-        "n_tanks":           st.column_config.NumberColumn("# tanks", disabled=True),
-        "notes":             st.column_config.TextColumn("Notes", disabled=True, width="large"),
+        "fish_code": st.column_config.TextColumn("Fish code", disabled=True),
+        "line_instance_code": st.column_config.TextColumn(
+            "Line instance", disabled=True
+        ),
+        "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+        "n_tanks": st.column_config.NumberColumn("# tanks", disabled=True),
+        "notes": st.column_config.TextColumn("Notes", disabled=True, width="large"),
     },
-    key="instance_picker",
+    key="instance_picker_v11",
 )
 
 inst_mask = (
@@ -394,7 +428,6 @@ st.caption(f"Selected instance(s): {len(chosen_instances)}")
 if chosen_instances.empty:
     st.stop()
 
-# Use line_instance_code to find tanks (this is what v_tanks_overview.fish_code holds)
 line_instance_codes = chosen_instances["line_instance_code"].tolist()
 
 # ════════════════════════════════════════════════════════
@@ -414,7 +447,7 @@ sql_tanks = text(
     FROM {V_TANKS_OVERVIEW}
     WHERE fish_code = ANY(:codes)
     ORDER BY created_at DESC NULLS LAST, tank_code;
-"""
+    """
 )
 
 with eng().begin() as cx:
@@ -425,7 +458,6 @@ st.caption(f"{len(df_tanks)} tank(s) for selected instance(s)")
 
 if df_tanks.empty:
     st.info("No tanks yet for these instances.")
-    # You can still create new ones below.
 else:
     t_view = df_tanks.copy()
     sel_tank_col = "✓ Select tank"
@@ -446,13 +478,19 @@ else:
         use_container_width=True,
         num_rows="fixed",
         column_config={
-            sel_tank_col:   st.column_config.CheckboxColumn("✓", default=False),
-            "tank_code":    st.column_config.TextColumn("Tank", disabled=True),
-            "fish_code":    st.column_config.TextColumn("Line instance", disabled=True),
-            "status":       st.column_config.SelectboxColumn("Status", options=TANK_STATUS_OPTIONS),
-            "created_at":   st.column_config.DatetimeColumn("Created at", disabled=True),
+            sel_tank_col: st.column_config.CheckboxColumn("✓", default=False),
+            "tank_code": st.column_config.TextColumn("Tank", disabled=True),
+            "fish_code": st.column_config.TextColumn(
+                "Line instance", disabled=True
+            ),
+            "status": st.column_config.SelectboxColumn(
+                "Status", options=TANK_STATUS_OPTIONS
+            ),
+            "created_at": st.column_config.DatetimeColumn(
+                "Created at", disabled=True
+            ),
         },
-        key="tank_picker",
+        key="tank_picker_v11",
     )
 
     t_edited = t_grid.copy()
@@ -484,10 +522,10 @@ else:
                         """
                     )
                     with eng().begin() as cx:
-                        for _, row in changes.iterrows():
+                        for _, r in changes.iterrows():
                             cx.execute(
                                 update_sql,
-                                {"id": row["tank_id"], "status": row["status_new"]},
+                                {"id": r["tank_id"], "status": r["status_new"]},
                             )
                     st.success(f"Updated status for {len(changes)} tank(s).")
             except Exception as e:
@@ -517,7 +555,9 @@ else:
             )
         )
 
-        def _resolve_fish_instance_id_from_line_instance(code: str) -> Optional[str]:
+        def _resolve_fish_instance_id_from_line_instance(
+            code: str,
+        ) -> Optional[str]:
             code = (code or "").strip()
             if not code:
                 return None
@@ -535,11 +575,16 @@ else:
                 ).fetchone()
             return row[0] if row and row[0] else None
 
-        def _create_tank_for_line_instance(line_instance_code: str, status: str, created_at: date) -> str:
+        def _create_tank_for_line_instance(
+            line_instance_code: str, status: str, created_at: date
+        ) -> str:
             fi_id = _resolve_fish_instance_id_from_line_instance(line_instance_code)
             if not fi_id:
-                raise RuntimeError(f"Could not resolve line_instance_code {line_instance_code} to a fish instance.")
+                raise RuntimeError(
+                    f"Could not resolve line_instance_code {line_instance_code} to a fish instance."
+                )
             from uuid import uuid4
+
             tank_code = f"TK-{created_at.strftime('%Y%m%d')}-{uuid4().hex[:4]}"
             with eng().begin() as cx:
                 cx.execute(
@@ -561,27 +606,43 @@ else:
                         )
                         """
                     ),
-                    {"tank_code": tank_code, "fi_id": fi_id, "status": status, "created_at": created_at},
+                    {
+                        "tank_code": tank_code,
+                        "fi_id": fi_id,
+                        "status": status,
+                        "created_at": created_at,
+                    },
                 )
             return tank_code
 
-        if st.button("➕ Create tank(s)", use_container_width=True, key="create_tanks_btn"):
+        if st.button(
+            "➕ Create tank(s)",
+            use_container_width=True,
+            key="create_tanks_btn_v11",
+        ):
             if selected_tanks.empty:
                 st.warning("Select at least one tank row to create new tanks.")
             else:
                 created_codes: List[str] = []
                 try:
                     for _, r in selected_tanks.iterrows():
-                        line_inst = (r.get("fish_code") or "").strip()  # in v_tanks_overview this is line_instance_code
+                        line_inst = (r.get("fish_code") or "").strip()
                         if not line_inst:
                             continue
                         for _ in range(new_count):
-                            code = _create_tank_for_line_instance(line_inst, new_status, tank_date)
+                            code = _create_tank_for_line_instance(
+                                line_inst, new_status, tank_date
+                            )
                             created_codes.append(code)
                 except Exception as e:
                     st.error(f"Failed to create tanks: {type(e).__name__}: {e}")
                 else:
                     if created_codes:
-                        st.success(f"Created {len(created_codes)} tank(s): {', '.join(created_codes)}")
+                        st.success(
+                            f"Created {len(created_codes)} tank(s): "
+                            + ", ".join(created_codes)
+                        )
                     else:
-                        st.info("No tanks were created (no valid line instance code on selected rows).")
+                        st.info(
+                            "No tanks were created (no valid line instance code on selected rows)."
+                        )

@@ -83,6 +83,7 @@ def load_cross_clutch_rows(
             ON mom.id = cr.female_fish_id
           LEFT JOIN public.fish_instances_v10 dad
             ON dad.id = cr.male_fish_id
+          WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
         )
         SELECT
           b.clutch_id::text                    AS clutch_id,
@@ -95,8 +96,6 @@ def load_cross_clutch_rows(
           b.cross_date,
           b.tank_pair_code,
           COALESCE(b.female_fish_code, '') || ' × ' || COALESCE(b.male_fish_code, '') AS parent_cross_pretty,
-          cs.genotype_base_codes,
-          cs.genotype_v11_code,
           cs.genotype_v11_basecodes,
           cs.genotype_pretty,
           cs.treat_codes,
@@ -308,8 +307,6 @@ with tab_fields:
         "cross_date": row.get("cross_date"),
         "tank_pair_code": row.get("tank_pair_code"),
         "parent_cross_pretty": row.get("parent_cross_pretty"),
-        "genotype_base_codes": row.get("genotype_base_codes"),
-        "genotype_v11_code": row.get("genotype_v11_code"),
         "genotype_v11_basecodes": row.get("genotype_v11_basecodes"),
         "treat_codes": row.get("treat_codes"),
         "treat_basecodes": row.get("treat_basecodes"),
