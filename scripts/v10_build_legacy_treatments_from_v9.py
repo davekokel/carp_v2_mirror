@@ -1,357 +1,257 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
-import argparse
-import os
+import argparse, os
 from pathlib import Path
-from typing import Optional, Dict, Set, List
-
+from typing import Dict, Set, List
 import pandas as pd
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
 
-DEFAULT_IN_ROI = "seed_kits/legacy_wrangling_v2/working/legacy_imaging_annotations_for_db_v9.csv"
+DEFAULT_IN_ROI = "seed_kits/organizely_wrangling_v2/working/legacy_imaging_annotations_for_db_v9.csv"
 DEFAULT_OUT    = "seed_kits/2025-11-15-121231-autoload/treatments_v10.csv"
 
-
-def get_engine(db_url: Optional[str]) -> Engine:
+def get_engine(db_url: str | None):
     url = db_url or os.environ.get("DB_URL")
     if not url:
         raise SystemExit("DB_URL must be provided via --db-url or env DB_URL")
     print(f"DB_URL={url}")
     return create_engine(url)
 
-
-def norm(s: str | None) -> str:
-    if s is None:
+def norm(x):
+    if x is None:
         return ""
-    return str(s).strip()
+    return str(x).strip()
 
-
-def split_codes(val: str | None) -> List[str]:
+def split_codes(val):
     if val is None:
         return []
-    text_val = str(val)
-    if text_val.lower().strip() in ("", "nan", "none", "na"):
+    s = str(val)
+    if s.strip() == "" or s.strip().lower() in ("nan", "na", "none"):
         return []
-    text_norm = (
-        text_val.replace(";", ",")
-        .replace("|", ",")
-    )
-    parts: List[str] = []
-    for chunk in text_norm.split(","):
+    parts = []
+    tmp = s.replace(";", ",")
+    for chunk in tmp.split(","):
         c = chunk.strip()
-        if not c:
-            continue
-        parts.append(c)
+        if c:
+            parts.append(c)
     return parts
 
+def find_plasmid_col(df: pd.DataFrame):
+    for c in df.columns:
+        if c == "treatment_plasmid_plasmid_base_code_from_enrich":
+            return c
+        if c == "treatment_plasmid_plasmid_base_code":
+            return c
+    return None
 
-def build_construct_lookup(engine: Engine) -> Dict[str, str]:
-    sql = text(
-        """
-        SELECT
-          c.id::text      AS construct_id,
-          c.construct_code,
-          c.base_code,
-          a.alias
-        FROM public.constructs c
-        LEFT JOIN public.construct_aliases a
-          ON a.construct_id = c.id
-        """
+def find_rna_col(df: pd.DataFrame):
+    for c in df.columns:
+        if c == "treatment_rna_rna_base_code_from_enrich":
+            return c
+        if c == "treatment_rna_rna_base_code":
+            return c
+    return None
+
+def find_extra_dye_col(df: pd.DataFrame):
+    for c in df.columns:
+        if norm(c) == "additonal dye and chemicals":
+            return c
+    return None
+
+def build_construct_lookup(cx) -> Dict[str,str]:
+    df = pd.read_sql(
+        text(
+            """
+            SELECT
+              c.construct_code,
+              c.base_code,
+              a.alias
+            FROM public.constructs c
+            LEFT JOIN public.construct_aliases a
+              ON a.construct_id = c.id
+            """
+        ),
+        cx,
     )
-    with engine.begin() as cx:
-        df = pd.read_sql(sql, cx)
-
-    lookup: Dict[str, str] = {}
-    for _, row in df.iterrows():
-        construct_code = norm(row["construct_code"])
-        base_code      = norm(row["base_code"])
-        alias          = norm(row.get("alias"))
-
-        canon = construct_code or base_code
+    lut: Dict[str,str] = {}
+    for _, r in df.iterrows():
+        canon = norm(r["base_code"] or r["construct_code"])
         if not canon:
             continue
-
         keys: Set[str] = set()
-        for k in (construct_code, base_code, alias):
+        for k in [r["construct_code"], r["base_code"], r["alias"]]:
             k = norm(k)
             if not k:
                 continue
             keys.add(k)
             keys.add(k.lower())
-
+            ks = k.replace(" ", "")
+            kd = k.replace("-", "")
+            if ks:
+                keys.add(ks)
+            if kd:
+                keys.add(kd)
         for k in keys:
-            lookup[k] = canon
+            lut[k] = canon
+    print(f"[v10_build_legacy_treatments] construct alias keys: {len(lut)}")
+    return lut
 
-    print(f"[v10_build_legacy_treatments] construct alias keys: {len(lookup)}")
-    return lookup
-
-
-def build_dye_alias_lookup(engine: Engine) -> Dict[str, str]:
-    """
-    alias -> canonical dye_base_code
-
-    We treat dye_base_code and name as sources of aliases, plus
-    variants with hyphens/spaces removed or swapped so that:
-        JF-635, JF 635, JF635
-    all resolve to the same base dye.
-    """
-    sql = text(
-        """
-        SELECT dye_base_code, name
-        FROM public.dyes
-        """
+def build_dye_lookup(cx) -> Dict[str,str]:
+    df = pd.read_sql(
+        text("SELECT dye_base_code, name FROM public.dyes"),
+        cx,
     )
-    with engine.begin() as cx:
-        df = pd.read_sql(sql, cx)
-
-    alias_to_base: Dict[str, str] = {}
-    for _, row in df.iterrows():
-        base = norm(row["dye_base_code"])
-        name = norm(row.get("name"))
+    lut: Dict[str,str] = {}
+    for _, r in df.iterrows():
+        base = norm(r["dye_base_code"])
         if not base:
             continue
-
-        candidates: Set[str] = set()
-
-        for raw in (base, name):
-            r = norm(raw)
-            if not r:
+        name = norm(r.get("name"))
+        for raw in [base, name]:
+            v = norm(raw)
+            if not v:
                 continue
+            for k in [v, v.lower(), v.replace(" ", ""), v.replace(" ", "").lower(),
+                      v.replace("-", ""), v.replace("-", "").lower()]:
+                if k:
+                    lut[k] = base
+    print(f"[v10_build_legacy_treatments] dye alias keys: {len(lut)}")
+    return lut
 
-            candidates.add(r)
-            candidates.add(r.lower())
-
-            r_no_space = r.replace(" ", "")
-            candidates.add(r_no_space)
-            candidates.add(r_no_space.lower())
-
-            if "-" in r:
-                r_space = r.replace("-", " ")
-                candidates.add(r_space)
-                candidates.add(r_space.lower())
-                r_space_no = r_space.replace(" ", "")
-                candidates.add(r_space_no)
-                candidates.add(r_space_no.lower())
-            if " " in r:
-                r_dash = r.replace(" ", "-")
-                candidates.add(r_dash)
-                candidates.add(r_dash.lower())
-                r_dash_no = r_dash.replace(" ", "")
-                candidates.add(r_dash_no)
-                candidates.add(r_dash_no.lower())
-
-        for key in candidates:
-            alias_to_base[key] = base
-
-    print(f"[v10_build_legacy_treatments] dye alias keys: {len(alias_to_base)}")
-    return alias_to_base
-
-
-def find_plasmid_col(df: pd.DataFrame) -> Optional[str]:
-    if "treatment_plasmid_plasmid_base_code_from_enrich" in df.columns:
-        return "treatment_plasmid_plasmid_base_code_from_enrich"
-    if "treatment_plasmid_plasmid_base_code" in df.columns:
-        return "treatment_plasmid_plasmid_base_code"
-    return None
-
-
-def find_rna_col(df: pd.DataFrame) -> Optional[str]:
-    if "treatment_rna_rna_base_code_from_enrich" in df.columns:
-        return "treatment_rna_rna_base_code_from_enrich"
-    if "treatment_rna_rna_base_code" in df.columns:
-        return "treatment_rna_rna_base_code"
-    return None
-
-
-def find_extra_dye_col(df: pd.DataFrame) -> Optional[str]:
-    for c in df.columns:
-        if c.strip().lower() == "additonal dye and chemicals":
-            return c
-    return None
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="v10: build treatments_v10.csv from legacy v9 imaging annotations."
-    )
-    parser.add_argument(
-        "--roi-csv",
-        default=DEFAULT_IN_ROI,
-        help=f"Path to legacy_imaging_annotations_for_db_v9.csv (default: {DEFAULT_IN_ROI})",
-    )
-    parser.add_argument(
-        "--out-csv",
-        default=DEFAULT_OUT,
-        help=f"Path to write treatments_v10.csv (default: {DEFAULT_OUT})",
-    )
-    parser.add_argument(
-        "--db-url",
-        help="Override DB_URL for construct/dye lookups",
-    )
-    args = parser.parse_args()
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--roi-csv", default=DEFAULT_IN_ROI)
+    p.add_argument("--out-csv", default=DEFAULT_OUT)
+    p.add_argument("--db-url")
+    args = p.parse_args()
 
     roi_path = Path(args.roi_csv)
     if not roi_path.exists():
         raise SystemExit(f"[v10_build_legacy_treatments] ROI CSV not found: {roi_path}")
-
     print(f"[v10_build_legacy_treatments] reading ROI CSV: {roi_path}")
     df = pd.read_csv(roi_path)
 
-    plasmid_col   = find_plasmid_col(df)
-    rna_col       = find_rna_col(df)
+    plasmid_col = find_plasmid_col(df)
+    rna_col = find_rna_col(df)
     extra_dye_col = find_extra_dye_col(df)
 
     if plasmid_col is None and rna_col is None and extra_dye_col is None:
-        print("[v10_build_legacy_treatments] No plasmid, RNA, or extra dye columns; nothing to build.")
-        empty = pd.DataFrame(
-            columns=[
-                "treatment_code",
-                "treatment_name",
-                "kind_code",
-                "mix_code",
-                "ingredient_type",
-                "ingredient_code",
-                "concentration",
-            ]
-        )
-        out = Path(args.out_csv)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        empty.to_csv(out, index=False)
-        print(f"[v10_build_legacy_treatments] wrote EMPTY treatments CSV to {out}")
-        return
+        raise SystemExit("[v10_build_legacy_treatments] no plasmid/RNA/extra-dye columns; cannot build treatments")
 
-    engine           = get_engine(args.db_url)
-    construct_lookup = build_construct_lookup(engine)
-    dye_aliases      = build_dye_alias_lookup(engine)
+    engine = get_engine(args.db_url)
+    records: List[dict] = []
+    unknown_constructs: Set[str] = set()
+    unknown_dyes: Set[str] = set()
 
-    records: list[dict] = []
+    with engine.begin() as cx:
+        c_lut = build_construct_lookup(cx)
+        d_lut = build_dye_lookup(cx)
 
-    for _, row in df.iterrows():
-        plasmid_raw = row[plasmid_col] if plasmid_col and plasmid_col in df.columns else None
-        rna_raw     = row[rna_col]     if rna_col and rna_col in df.columns else None
-        extra_raw   = row[extra_dye_col] if extra_dye_col and extra_dye_col in df.columns else None
+        for _, row in df.iterrows():
+            plasmid_raw = row[plasmid_col] if plasmid_col and plasmid_col in df.columns else None
+            rna_raw = row[rna_col] if rna_col and rna_col in df.columns else None
+            extra_raw = row[extra_dye_col] if extra_dye_col and extra_dye_col in df.columns else None
 
-        plasmid_codes = split_codes(plasmid_raw)
-        rna_codes     = split_codes(rna_raw)
-        extra_dyes_v9 = split_codes(extra_raw)
+            plasmid_codes = split_codes(plasmid_raw)
+            rna_codes = split_codes(rna_raw)
+            extra_dyes = split_codes(extra_raw)
 
-        construct_codes: Set[str] = set()
-        for bc in plasmid_codes + rna_codes:
-            key = norm(bc)
-            if not key:
+            constructs: Set[str] = set()
+            for bc in plasmid_codes + rna_codes:
+                k0 = norm(bc)
+                if not k0:
+                    continue
+                ks = {k0, k0.lower(), k0.replace(" ", ""), k0.replace("-", ""), k0.replace(" ", "").lower()}
+                canon = None
+                for kk in ks:
+                    if kk in c_lut:
+                        canon = c_lut[kk]
+                        break
+                if not canon:
+                    unknown_constructs.add(k0)
+                    continue
+                constructs.add(canon)
+
+            dyes: Set[str] = set()
+            for raw in extra_dyes:
+                k0 = norm(raw)
+                if not k0:
+                    continue
+                ks = {k0, k0.lower(), k0.replace(" ", ""), k0.replace("-", ""), k0.replace(" ", "").lower()}
+                base = None
+                for kk in ks:
+                    if kk in d_lut:
+                        base = d_lut[kk]
+                        break
+                if base is None:
+                    unknown_dyes.add(k0)
+                    continue
+                dyes.add(base)
+
+            if not constructs and not dyes:
                 continue
-            canon = construct_lookup.get(key) or construct_lookup.get(key.lower())
-            if not canon:
-                print(f"[v10_build_legacy_treatments] WARN: unknown construct base_code/alias={bc}")
-                continue
-            construct_codes.add(canon)
 
-        dye_codes_used: Set[str] = set()
-        for raw in extra_dyes_v9:
-            k = norm(raw)
-            if not k:
-                continue
-            k_norms = {
-                k,
-                k.lower(),
-                k.replace(" ", ""),
-                k.replace(" ", "").lower(),
-            }
-            base = None
-            for kk in k_norms:
-                if kk in dye_aliases:
-                    base = dye_aliases[kk]
-                    break
-            if base is None:
-                print(f"[v10_build_legacy_treatments] WARN: unknown dye_base_code={k}")
-                continue
-            dye_codes_used.add(base)
-
-        if not construct_codes and not dye_codes_used:
-            continue
-
-        construct_sig = ",".join(sorted(construct_codes)) if construct_codes else ""
-        dye_sig       = ",".join(sorted(dye_codes_used)) if dye_codes_used else ""
-        sig           = f"constructs={construct_sig}|dyes={dye_sig}"
-
-        records.append(
-            {
-                "signature": sig,
-                "construct_codes": sorted(construct_codes),
-                "dye_codes": sorted(dye_codes_used),
-            }
-        )
-
-    if not records:
-        print("[v10_build_legacy_treatments] No rows with treatment constructs/dyes; writing header-only CSV.")
-        df_out = pd.DataFrame(
-            columns=[
-                "treatment_code",
-                "treatment_name",
-                "kind_code",
-                "mix_code",
-                "ingredient_type",
-                "ingredient_code",
-                "concentration",
-            ]
-        )
-        out = Path(args.out_csv)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        df_out.to_csv(out, index=False)
-        print(f"[v10_build_legacy_treatments] wrote EMPTY treatments CSV to {out}")
-        return
-
-    df_sig = (
-        pd.DataFrame(records)
-        .drop_duplicates(subset=["signature"])
-        .reset_index(drop=True)
-    )
-    print(f"[v10_build_legacy_treatments] unique treatment signatures: {len(df_sig)}")
-
-    rows_out: list[dict] = []
-    for i, row in df_sig.iterrows():
-        constructs: List[str] = row["construct_codes"]
-        dyes: List[str]       = row["dye_codes"]
-
-        treat_code = f"T-LEGACY-{i+1:03d}"
-        treat_name = f"Legacy v9 mix {i+1}"
-        kind_code  = "injection"
-        mix_code   = "M1"
-
-        for c_code in constructs:
-            rows_out.append(
-                {
-                    "treatment_code": treat_code,
-                    "treatment_name": treat_name,
-                    "kind_code": kind_code,
-                    "mix_code": mix_code,
-                    "ingredient_type": "construct",
-                    "ingredient_code": c_code,
-                    "concentration": None,
-                }
+            sig_c = ",".join(sorted(constructs)) if constructs else ""
+            sig_d = ",".join(sorted(dyes)) if dyes else ""
+            sig = f"constructs={sig_c}|dyes={sig_d}"
+            records.append(
+                {"signature": sig, "construct_codes": sorted(constructs), "dye_codes": sorted(dyes)}
             )
 
-        for d_code in dyes:
-            rows_out.append(
-                {
-                    "treatment_code": treat_code,
-                    "treatment_name": treat_name,
-                    "kind_code": kind_code,
-                    "mix_code": mix_code,
-                    "ingredient_type": "dye",
-                    "ingredient_code": d_code,
-                    "concentration": None,
-                }
+        if unknown_constructs or unknown_dyes:
+            parts: List[str] = []
+            if unknown_constructs:
+                parts.append("constructs=" + ",".join(sorted(unknown_constructs)))
+            if unknown_dyes:
+                parts.append("dyes=" + ",".join(sorted(unknown_dyes)))
+            raise SystemExit(
+                "[v10_build_legacy_treatments] unknown codes in ROI sheet or constructs/dyes: " + "; ".join(parts)
             )
 
-    df_out = pd.DataFrame(rows_out)
-    out = Path(args.out_csv)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    df_out.to_csv(out, index=False)
-    print(f"[v10_build_legacy_treatments] wrote {len(df_out)} row(s) to {out}")
+        if not records:
+            raise SystemExit("[v10_build_legacy_treatments] no rows with treatment constructs/dyes; fix ROI/constructs/dyes first")
 
+        sig_df = (
+            pd.DataFrame(records)
+            .drop_duplicates(subset=["signature"])
+            .reset_index(drop=True)
+        )
+        print(f"[v10_build_legacy_treatments] unique treatment signatures: {len(sig_df)}")
 
-if __name__ == "__main__":
-    main()
+        out_rows: List[dict] = []
+        for i, r in sig_df.iterrows():
+            constructs = r["construct_codes"]
+            dyes = r["dye_codes"]
+            tcode = f"T-LEGACY-{i+1:03d}"
+            tname = f"Legacy v9 mix {i+1}"
+            kind = "injection"
+            mix = "M1"
+            for c in constructs:
+                out_rows.append(
+                    {
+                        "treatment_code": tcode,
+                        "treatment_name": tname,
+                        "kind_code": kind,
+                        "mix_code": mix,
+                        "ingredient_type": "construct",
+                        "ingredient_code": c,
+                        "concentration": None,
+                    }
+                )
+            for d in dyes:
+                out_rows.append(
+                    {
+                        "treatment_code": tcode,
+                        "treatment_name": tname,
+                        "kind_code": kind,
+                        "mix_code": mix,
+                        "ingredient_type": "dye",
+                        "ingredient_code": d,
+                        "concentration": None,
+                    }
+                )
+
+        out = Path(args.out_csv)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(out_rows).to_csv(out, index=False)
+        print(f"[v10_build_legacy_treatments] wrote {len(out_rows)} row(s) to {out}")
+

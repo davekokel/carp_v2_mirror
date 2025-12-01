@@ -44,10 +44,12 @@ def main() -> None:
           ON c.id = m.clutch_id
         JOIN public.v11_clutch_star cs
           ON cs.clutch_code = c.clutch_code
+        JOIN LATERAL regexp_split_to_table(cs.treat_codes, ',') AS tc(treat_code)
+          ON TRUE
         JOIN public.treatments t
-          ON t.treat_code = cs.treat_code
-        WHERE cs.treat_code IS NOT NULL
-          AND cs.treat_code <> ''
+          ON t.treat_code = trim(tc.treat_code)
+        WHERE cs.treat_codes IS NOT NULL
+          AND cs.treat_codes <> ''
         ON CONFLICT (treated_clutch_code) DO NOTHING;
         """
     )
