@@ -1,50 +1,49 @@
-alias,line_nickname,score
-Abe (F2 of allele 309),Abe (F2 of allele 309),100.0
-Ben (F2 of allele 310),Ben (F2 of allele 310),100.0
-Chris (F1 of allele 317),Chris (F1 of allele 317),100.0
-Dennis (F2 of allele 318),Dennis (F2 of allele 318),100.0
-Isaac (F2 of allele 314),Isaac (F2 of allele 314),100.0
-Jim (F2 of allele 316),Jim (F2 of allele 316),100.0
-Ken (F2 of allele 320),Ken (F2 of allele 320),100.0
-Liam (F2 of allele 321),Liam (F2 of allele 321),100.0
-MGCO35 (F1 of allele 336),MGCO35 (F1 of allele 336),100.0
-casper/rnf,casper,75.0
-csp/pIGLET 14a,csp/pIGLET 14a,100.0
-ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),100.0
-ef1a:2xLynk:tdm:Halo,membrane tandem Halo (ef1a:2xLynk:tdHalo),59.01639344262295
-ef1a:2xLynk:tdm:mChilada,ef1a:2xLynk:tdmChilada (F1 of allele 315),67.6923076923077
-ef1a:2xLynk:tdm:mHalo,membrane tandem Halo (ef1a:2xLynk:tdHalo),58.06451612903225
-ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315),100.0
-ef1a:2xLynk:tdmSG(J) (F1 of allele 301),ef1a:2xLynk:tdmSG(J) (F1 of allele 301),100.0
-ef1a:2xLynk:tdmSG(J) (F1 of allele 302),ef1a:2xLynk:tdmSG(J) (F1 of allele 302),100.0
-ef1a:2xLynk:tdmSG(J) (F1 of allele 304),ef1a:2xLynk:tdmSG(J) (F1 of allele 304),100.0
-ef1a:2xLynk:tdmSG(J) (F1 of allele 305),ef1a:2xLynk:tdmSG(J) (F1 of allele 301),97.43589743589743
-ef1a:2xLynk:tdmSG(J) (F1 of allele 308),ef1a:2xLynk:tdmSG(J) (F1 of allele 308),100.0
-ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301),100.0
-ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F2 of allele 302),100.0
-ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),100.0
-ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),100.0
-ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 317),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),98.57142857142858
-ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),100.0
-ef1a:H2B:Halo,,40.74074074074075
-er-mSG_mem-mChilada,,45.16129032258065
-from Swinburne lab - tank ID 344 (F1 of allele 45385),,51.28205128205128
-heatshock PhiC,,27.586206896551722
-mem-histone,,43.47826086956522
-mem-kinetocore,,38.46153846153846
-mem-mito,,50.0
-mem:tdmChilada,,46.15384615384615
-membrane Halo,,48.14814814814815
-membrane mChilada,,51.515151515151516
-memrane tdmScarlet3S2 (F1 of allele 325),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),76.54320987654322
-memrane tdmScarlet3S2 (F1 of allele 327),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),76.54320987654322
-mitomSG,,52.63157894736843
-peroxi,,50.0
-skittles,,28.57142857142857
-skittlez,,28.57142857142857
-tandem mem:mStayGold,membrane tandem mSG (ef1a:2xLynk:tdmStayGold),55.38461538461539
-tandem mem:mStayGold; tdmChilada(MAGPV):Histone,,43.47826086956522
-tandem mem:mStayGold; tdmChilada:Histone,,47.05882352941176
-tdmScarlet3S2 (F1 of allele 325),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),84.93150684931507
-tdmScarlet3S2 (F2 of allele 325),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),82.1917808219178
-tdmScarlet3S2:H2B-tol2 (F1 of allele 324),tdmScarlet3S2:H2B-tol2 (F1 of allele 324),100.0
+line_nickname,alias
+Abe (F2 of allele 309),Abe (F2 of allele 309)
+Ben (F2 of allele 310),Ben (F2 of allele 310)
+CDK activity sensor (ef1a-ext:DHB:tdmStayGold),CDK activity sensor (ef1a-ext:DHB:tdmStayGold)
+Chris (F1 of allele 317),Chris (F1 of allele 317)
+Dennis (F2 of allele 318),Dennis (F2 of allele 318)
+Isaac (F2 of allele 314),Isaac (F2 of allele 314)
+Jim (F2 of allele 316),Jim (F2 of allele 316)
+Ken (F2 of allele 320),Ken (F2 of allele 320)
+Liam (F2 of allele 321),Liam (F2 of allele 321)
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325)
+ef1a:2xLynk:tdmChilada (F1 of allele 315),ef1a:2xLynk:tdmChilada (F1 of allele 315)
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),ef1a:2xLynk:tdmSG(J) (F1 of allele 301)
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),ef1a:2xLynk:tdmSG(J) (F1 of allele 302)
+ef1a:2xLynk:tdmSG(J) (F1 of allele 304),ef1a:2xLynk:tdmSG(J) (F1 of allele 304)
+ef1a:2xLynk:tdmSG(J) (F1 of allele 308),ef1a:2xLynk:tdmSG(J) (F1 of allele 308)
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),ef1a:2xLynk:tdmSG(J) (F2 of allele 301)
+ef1a:2xLynk:tdmSG(J) (F2 of allele 302),ef1a:2xLynk:tdmSG(J) (F2 of allele 302)
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309)
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310)
+ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313)
+inducible phiC (hsp:phiCNLS; exorh:mScarlet),inducible phiC (hsp:phiCNLS; exorh:mScarlet)
+mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1),mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1)
+mem-tdmSG-11m,mem-tdmSG-11m
+mem-tdmSG-11m-F1,mem-tdmSG-11m-F1
+mem-tdmSG-11m-F2,mem-tdmSG-11m-F2
+mem-tdmSG-8m,mem-tdmSG-8m
+mem-tdmSG-8m-F1,mem-tdmSG-8m-F1
+mem-tdmSG-8m-F2,mem-tdmSG-8m-F2
+membrane tandem mChilada (ef1a:2xLynk:tdmChilada),membrane tandem mChilada (ef1a:2xLynk:tdmChilada)
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),membrane tandem mSG (ef1a:2xLynk:tdmStayGold)
+membrane tandem mSG (p14a;ef1a:2xlynx:tdmSG),membrane tandem mSG (p14a;ef1a:2xlynx:tdmSG)
+membrane tandem mSG: mChilada H2B (ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B),membrane tandem mSG: mChilada H2B (ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B)
+membrane tandem mSG; mChilada H2B (ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B),membrane tandem mSG; mChilada H2B (ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B)
+membrane tandem mSG; mChilada H2B (ef1a:2xlynk:tdmSG-tPT2A:tdmChilada:H2B),membrane tandem mSG; mChilada H2B (ef1a:2xlynk:tdmSG-tPT2A:tdmChilada:H2B)
+membrane tandem mScarlet3-S2 (FRT-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-FRT3),membrane tandem mScarlet3-S2 (FRT-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-FRT3)
+membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2)
+membrane tandem mScarlet3-S2 (loxP-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-lox2272),membrane tandem mScarlet3-S2 (loxP-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-lox2272)
+membrane tandem mStayGold; tandem mScarlet3-S2 Histone (ef1a-ext::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),membrane tandem mStayGold; tandem mScarlet3-S2 Histone (ef1a-ext::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B)
+membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B)
+skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1),skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1)
+skittlez 4 FP (ef1a:<exorH:GFP>mKate2/Electra2/mKOK/mTFP1),skittlez 4 FP (ef1a:<exorH:GFP>mKate2/Electra2/mKOK/mTFP1)
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1)
+skittlez 5 FP (ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1),skittlez 5 FP (ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1)
+skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1)
+tandem mScarlet3-S2 H2B (ef1a-ext:tdmSc3s2:H2B),tandem mScarlet3-S2 H2B (ef1a-ext:tdmSc3s2:H2B)
+tdmScarlet3-S2:GMN (S/G2 Fucci marker) (ef1a-ext:tdmScarlet3-S2:GMN),tdmScarlet3-S2:GMN (S/G2 Fucci marker) (ef1a-ext:tdmScarlet3-S2:GMN)
+tdmScarlet3-S2:PCNA (S phase reporter) (ef1a-ext:tdmScarlet3-S2:PCNA),tdmScarlet3-S2:PCNA (S phase reporter) (ef1a-ext:tdmScarlet3-S2:PCNA)
+tdmScarlet3S2:H2B-tol2 (F1 of allele 324),tdmScarlet3S2:H2B-tol2 (F1 of allele 324)

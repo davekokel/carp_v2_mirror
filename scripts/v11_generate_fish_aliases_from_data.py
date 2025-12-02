@@ -1,43 +1,42 @@
+#!/usr/bin/env python3
 from __future__ import annotations
-
+import os
 import pandas as pd
-from pathlib import Path
-from rapidfuzz import fuzz, process
+from sqlalchemy import create_engine, text
 
-BASE = Path("seed_kits")
+def engine():
+    url = os.environ.get("DB_URL")
+    if not url:
+        raise SystemExit("DB_URL not set")
+    return create_engine(url)
 
-parents_xlsx = BASE / "legacy_wrangling_v2/raw/Unique_parent_names__mom_dad_combined__preview_dqm.xlsx"
-lines_xlsx   = BASE / "2025-11-15-121231-autoload/fish.xlsx"
-out_csv      = BASE / "legacy_wrangling_v2/working/fish_aliases_v11.csv"
+def main():
+    eng = engine()
 
-# --- load parent labels ---
-df_par = pd.read_excel(parents_xlsx)
-parent_labels = sorted({str(x).strip() for x in df_par.iloc[:,0].dropna() if str(x).strip()})
+    with eng.begin() as cx:
+        df_lines = pd.read_sql(
+            text("SELECT nickname FROM public.fish_lines"),
+            cx,
+        )
 
-# --- load line nicknames ---
-df_lines = pd.read_excel(lines_xlsx)
-line_nicks = sorted({str(x).strip() for x in df_lines["nickname"].dropna()})
+        # all distinct, non-empty nicknames
+        nicks = sorted({str(x).strip() for x in df_lines["nickname"].dropna() if str(x).strip()})
 
-rows = []
+        # loader requires line_nickname and alias columns
+        out = []
+        for nick in nicks:
+            out.append(
+                {
+                    "line_nickname": nick,
+                    "alias": nick,
+                }
+            )
 
-for pl in parent_labels:
-    matches = process.extract(
-        pl,
-        line_nicks,
-        scorer=fuzz.token_sort_ratio,
-        limit=1,
-    )
+        df_out = pd.DataFrame(out)
+        path = "seed_kits/legacy_wrangling_v2/working/fish_aliases_v11.csv"
+        df_out.to_csv(path, index=False)
 
-    if matches:
-        best_nick, score = matches[0][0], matches[0][1]
-        if score >= 55:
-            rows.append({"alias": pl, "line_nickname": best_nick, "score": score})
-        else:
-            rows.append({"alias": pl, "line_nickname": "", "score": score})
-    else:
-        rows.append({"alias": pl, "line_nickname": "", "score": 0})
+        print(f"[OK] wrote {len(df_out)} alias rows → {path}")
 
-df_out = pd.DataFrame(rows)
-df_out.to_csv(out_csv, index=False)
-print(f"[OK] wrote {len(df_out)} alias rows → {out_csv}")
-print("[INFO] Non-empty mappings:", df_out[df_out['line_nickname'] != ""].shape[0])
+if __name__ == "__main__":
+    main()

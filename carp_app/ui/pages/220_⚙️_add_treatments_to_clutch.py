@@ -50,6 +50,7 @@ def _norm(s: str | None) -> Optional[str]:
 
 
 # ───────── loaders ─────────
+@st.cache_data(show_spinner=False)
 def load_clutches(
     q: Optional[str],
     from_date: Optional[str],
@@ -58,38 +59,49 @@ def load_clutches(
 ) -> pd.DataFrame:
     """
     Clutch list using clutches + crosses + tank_pairs + fish_instances_v10.
+    Excludes legacy_imaging clutches.
     """
     sql = text(
         """
+        WITH base AS (
+          SELECT
+            c.id::text               AS clutch_id,
+            c.clutch_code,
+            c.clutch_date,
+            cr.cross_run_code        AS cross_code,
+            cr.cross_date,
+            tp.tank_pair_code        AS tank_pair_code,
+            COALESCE(mom.fish_code, '') || ' × ' || COALESCE(dad.fish_code, '') AS parent_cross_pretty
+          FROM public.clutches c
+          LEFT JOIN public.crosses cr
+            ON cr.id = c.cross_id
+          LEFT JOIN public.tank_pairs tp
+            ON tp.id = cr.tank_pair_id
+          LEFT JOIN public.fish_instances_v10 mom
+            ON mom.id = cr.female_fish_id
+          LEFT JOIN public.fish_instances_v10 dad
+            ON dad.id = cr.male_fish_id
+          WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
+        )
         SELECT
-          c.id::text               AS clutch_id,
-          c.clutch_code,
-          c.clutch_date,
-          cr.cross_run_code        AS cross_code,
-          cr.cross_date,
-          tp.tank_pair_code        AS tank_pair_code,
-          COALESCE(mom.fish_code, '') || ' × ' || COALESCE(dad.fish_code, '') AS parent_cross_pretty
-        FROM public.clutches c
-        LEFT JOIN public.crosses cr
-          ON cr.id = c.cross_id
-        WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
-        LEFT JOIN public.tank_pairs tp
-          ON tp.id = cr.tank_pair_id
-        LEFT JOIN public.fish_instances_v10 mom
-          ON mom.id = cr.female_fish_id
-        LEFT JOIN public.fish_instances_v10 dad
-          ON dad.id = cr.male_fish_id
-        WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
-          AND (
+          b.clutch_id,
+          b.clutch_code,
+          b.clutch_date,
+          b.cross_code,
+          b.cross_date,
+          b.tank_pair_code,
+          b.parent_cross_pretty
+        FROM base b
+        WHERE (
                :q IS NULL
-            OR c.clutch_code     ILIKE :ql
-            OR cr.cross_run_code ILIKE :ql
-            OR tp.tank_pair_code ILIKE :ql
-            OR (COALESCE(mom.fish_code, '') || ' × ' || COALESCE(dad.fish_code, '')) ILIKE :ql
-          )
-          AND (:from_d IS NULL OR c.clutch_date >= :from_d)
-          AND (:to_d   IS NULL OR c.clutch_date <= :to_d)
-        ORDER BY c.clutch_date DESC NULLS LAST, c.clutch_code
+            OR b.clutch_code     ILIKE :ql
+            OR b.cross_code      ILIKE :ql
+            OR b.tank_pair_code  ILIKE :ql
+            OR COALESCE(b.parent_cross_pretty,'') ILIKE :ql
+        )
+        AND (:from_d IS NULL OR b.clutch_date >= :from_d)
+        AND (:to_d   IS NULL OR b.clutch_date <= :to_d)
+        ORDER BY b.clutch_date DESC NULLS LAST, b.clutch_code
         LIMIT :lim;
         """
     )
