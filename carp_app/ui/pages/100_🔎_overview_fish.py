@@ -84,7 +84,7 @@ def load_lines() -> pd.DataFrame:
           fl.line_code                                      AS line_code,
           MAX(fl.nickname)                                  AS line_nickname,
           MAX(fl.genetic_background)                        AS genetic_background,
-          MAX(fl.line_building_stage)                       AS line_building_stage,
+          MAX(fis.instance_stage)                           AS line_building_stage,
           MIN(fi.birthday)                                  AS first_birthday,
           MAX(fi.birthday)                                  AS last_birthday,
           COUNT(*)                                          AS n_instances,
@@ -166,6 +166,41 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
 
 lines_df = load_lines()
 groups_raw = load_groups_raw().copy()
+line_rollups = (
+    lines_df[["line_code", "all_fluor_tag_rollup", "all_organelle_fluor_rollup"]]
+    .set_index("line_code")
+)
+
+def _aggregate_group_rollups(row: pd.Series) -> pd.Series:
+    codes_str = row.get("group_line_codes") or ""
+    codes = [c for c in codes_str.split("||") if c]
+    if not codes:
+        row["all_fluor_tag_rollup"] = ""
+        row["all_organelle_fluor_rollup"] = ""
+        return row
+
+    subset = line_rollups.loc[line_rollups.index.intersection(codes)]
+
+    tags = set()
+    orgs = set()
+
+    for s in subset["all_fluor_tag_rollup"]:
+        for part in str(s).split("||"):
+            part = part.strip()
+            if part:
+                tags.add(part)
+
+    for s in subset["all_organelle_fluor_rollup"]:
+        for part in str(s).split("||"):
+            part = part.strip()
+            if part:
+                orgs.add(part)
+
+    row["all_fluor_tag_rollup"] = "||".join(sorted(tags))
+    row["all_organelle_fluor_rollup"] = "||".join(sorted(orgs))
+    return row
+
+groups_raw = groups_raw.apply(_aggregate_group_rollups, axis=1)
 
 st.subheader("Step 1 — Groups (fish groups)")
 
