@@ -47,8 +47,9 @@ def eng():
 @st.cache_data(show_spinner=False)
 def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
     """
-    Search fish instances (FSH- codes) using v11_fish_instance_star
-    plus live tank counts from v11_tank_star.
+    Search fish instances (FSH codes) using v11_fish_instance_star
+    + live tank counts from v_tanks_overview
+    + marker rollups from v11_fish_marker_rollups.
     """
     qnorm = (q or "").strip()
     params: Dict[str, object] = {
@@ -64,20 +65,20 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
             fis.fish_instance_id,
             fis.fish_code,
             fis.line_code,
-            fis.line_nickname                 AS nickname,
+            fis.line_nickname                      AS nickname,
             COALESCE(fis.genetic_background,'')    AS genetic_background,
-            COALESCE(fis.instance_stage,'')       AS stage,
+            COALESCE(fis.instance_stage,'')        AS stage,
             COALESCE(fis.genotype_pretty,'')       AS genotype,
-            fis.birthday                      AS birthday,
-            fis.birthday                      AS created_at
+            fis.birthday                           AS birthday,
+            fis.birthday                           AS created_at
           FROM public.v11_fish_instance_star fis
           WHERE (:q IS NULL)
              OR (
-                  fis.fish_code                  ILIKE :ql
-               OR COALESCE(fis.line_nickname,'') ILIKE :ql
+                  fis.fish_code                     ILIKE :ql
+               OR COALESCE(fis.line_nickname,'')    ILIKE :ql
                OR COALESCE(fis.genetic_background,'') ILIKE :ql
-               OR COALESCE(fis.instance_stage,'')       ILIKE :ql
-               OR COALESCE(fis.genotype_pretty,'')    ILIKE :ql
+               OR COALESCE(fis.instance_stage,'')   ILIKE :ql
+               OR COALESCE(fis.genotype_pretty,'')  ILIKE :ql
              )
           ORDER BY fis.birthday DESC NULLS LAST, fis.fish_code
           LIMIT :lim
@@ -90,20 +91,31 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
           FROM public.v_tanks_overview ts
           WHERE lower(trim(ts.status)) = 'active'
           GROUP BY ts.fish_code
+        ),
+        marker AS (
+          SELECT
+            mr.fish_instance_id,
+            COALESCE(mr.fluor_tag_rollup,'')       AS all_fluor_tag_rollup,
+            COALESCE(mr.organelle_fluor_rollup,'') AS all_organelle_fluor_rollup
+          FROM public.v11_fish_marker_rollups mr
         )
         SELECT
           b.fish_code,
           b.line_code,
-          b.nickname               AS name,
-          b.genetic_background     AS background,
-          b.stage                  AS stage,
-          b.genotype               AS genotype,
-          b.birthday               AS birthday,
-          COALESCE(l.n_live, 0)    AS live_tanks,
+          b.nickname                  AS name,
+          b.genetic_background        AS background,
+          b.stage                     AS stage,
+          b.genotype                  AS genotype,
+          b.birthday                  AS birthday,
+          COALESCE(m.all_fluor_tag_rollup,'')       AS all_fluor_tag_rollup,
+          COALESCE(m.all_organelle_fluor_rollup,'') AS all_organelle_fluor_rollup,
+          COALESCE(l.n_live, 0)       AS live_tanks,
           COALESCE(l.live_tank_codes,'') AS live_tank_codes
         FROM base b
         LEFT JOIN live l
-          ON l.fish_code = b.fish_code;
+          ON l.fish_code = b.fish_code
+        LEFT JOIN marker m
+          ON m.fish_instance_id = b.fish_instance_id;
         """
     )
 
@@ -111,14 +123,14 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
         df = pd.read_sql(sql, cx, params=params)
     for c in df.select_dtypes(include=["object", "string"]).columns:
         df[c] = df[c].astype("string").fillna("")
-    return df
+    return df.fillna("")
 
 
 @st.cache_data(show_spinner=False)
 def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     """
     Return active tanks for the given FSH fish_codes,
-    with line nickname + genotype + line_code + birthday (v11 views).
+    with line nickname + genotype + line_code + birthday + marker rollups.
     """
     if not codes:
         return pd.DataFrame()
@@ -128,16 +140,20 @@ def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
         SELECT
           ts.fish_code,
           fis.line_code,
-          fis.line_nickname              AS fish_name,
-          COALESCE(fis.genotype_pretty,'') AS genotype,
-          fis.birthday                   AS birthday,
+          fis.line_nickname                      AS fish_name,
+          COALESCE(fis.genotype_pretty,'')       AS genotype,
+          fis.birthday                           AS birthday,
+          COALESCE(mr.fluor_tag_rollup,'')       AS all_fluor_tag_rollup,
+          COALESCE(mr.organelle_fluor_rollup,'') AS all_organelle_fluor_rollup,
           ts.tank_code,
-          ts.tank_id::text               AS tank_id,
-          ts.status                 AS status,
-          ts.created_at             AS created_at
+          ts.tank_id::text                       AS tank_id,
+          ts.status                              AS status,
+          ts.created_at                          AS created_at
         FROM public.v_tanks_overview ts
         JOIN public.v11_fish_instance_star fis
           ON fis.fish_code = ts.fish_code
+        LEFT JOIN public.v11_fish_marker_rollups mr
+          ON mr.fish_instance_id = fis.fish_instance_id
         WHERE ts.fish_code = ANY(:codes)
           AND lower(trim(ts.status)) = 'active'
         ORDER BY ts.fish_code, ts.created_at DESC NULLS LAST;
@@ -145,6 +161,8 @@ def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     )
     with eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"codes": codes})
+    for c in df.select_dtypes(include=["object", "string"]).columns:
+        df[c] = df[c].astype("string").fillna("")
     return df.fillna("")
 
 
@@ -173,12 +191,6 @@ def _tank_pair_parent_cols() -> Tuple[str, str]:
 
 
 def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, note: str):
-    """
-    If a tank pair (mother, father) already exists, update metadata and return its code.
-    Otherwise, insert a new row with:
-      id             = generated UUID
-      tank_pair_code = 'TP-' || first 8 chars of that UUID
-    """
     mom_col, dad_col = _tank_pair_parent_cols()
 
     with eng().begin() as cx:
@@ -194,7 +206,6 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
         )
         cols = set(cols_df["column_name"].tolist())
 
-        # 1) Check if this pair already exists
         row = pd.read_sql(
             text(
                 f"""
@@ -226,7 +237,6 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 )
             return False, str(row.iloc[0]["tank_pair_code"])
 
-        # 2) Insert a new pair
         new_id = str(uuid.uuid4())
         new_code = f"TP-{new_id[:8]}"
 
@@ -284,10 +294,25 @@ if df.empty:
     st.info("No fish match filters.")
     st.stop()
 
-# Step 1 — pick two parent fish (instances)
 st.subheader("Step 1 — Select parents (from fish instances)")
-view = df.copy()
+
+view = df[
+    [
+        "fish_code",
+        "line_code",
+        "name",
+        "background",
+        "stage",
+        "genotype",
+        "birthday",
+        "all_fluor_tag_rollup",
+        "all_organelle_fluor_rollup",
+        "live_tanks",
+        "live_tank_codes",
+    ]
+].copy()
 view.insert(0, "✓ Parent", False)
+
 pick = st.data_editor(
     view,
     key="parent_table_v11",
@@ -297,14 +322,20 @@ pick = st.data_editor(
         "✓ Parent": st.column_config.CheckboxColumn("✓", default=False),
         "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
         "line_code": st.column_config.TextColumn("LINE code", disabled=True),
-        "name": st.column_config.TextColumn("Name", disabled=True),
+        "name": st.column_config.TextColumn("Name", disabled=True, width="large"),
         "background": st.column_config.TextColumn("Background", disabled=True),
         "stage": st.column_config.TextColumn("Stage", disabled=True),
-        "genotype": st.column_config.TextColumn("Genotype", disabled=True),
+        "genotype": st.column_config.TextColumn("Genotype", disabled=True, width="large"),
         "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+        "all_fluor_tag_rollup": st.column_config.TextColumn(
+            "fluor::tag(tag_pos)", disabled=True, width="large"
+        ),
+        "all_organelle_fluor_rollup": st.column_config.TextColumn(
+            "organelle-fluor rollup", disabled=True, width="large"
+        ),
         "live_tanks": st.column_config.NumberColumn("Live tanks", disabled=True),
         "live_tank_codes": st.column_config.TextColumn(
-            "Live tank codes", disabled=True
+            "Live tank codes", disabled=True, width="large"
         ),
     },
 )
@@ -322,14 +353,12 @@ if len(parents) < 2:
 
 st.success(f"Selected parents: {parents[0]} × {parents[1]}")
 
-# Step 2 — load both parents' active tanks
 st.subheader("Step 2 — Choose Mother and Father tanks (active only)")
 live = load_active_tanks_for_fish(parents)
 if live.empty:
     st.warning("No active tanks for selected parents.")
     st.stop()
 
-# Mother candidates = ALL active tanks for BOTH fish
 st.subheader("Mother")
 m_candidates = live.copy()
 m_candidates.insert(0, "✓ Mother", False)
@@ -342,6 +371,8 @@ m_sel = st.data_editor(
             "fish_name",
             "genotype",
             "birthday",
+            "all_fluor_tag_rollup",
+            "all_organelle_fluor_rollup",
             "tank_code",
             "tank_id",
             "status",
@@ -351,6 +382,24 @@ m_sel = st.data_editor(
     key="mother_table_v11",
     width="stretch",
     hide_index=True,
+    column_config={
+        "✓ Mother": st.column_config.CheckboxColumn("✓", default=False),
+        "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
+        "line_code": st.column_config.TextColumn("LINE code", disabled=True),
+        "fish_name": st.column_config.TextColumn("Name", disabled=True, width="large"),
+        "genotype": st.column_config.TextColumn("Genotype", disabled=True, width="large"),
+        "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+        "all_fluor_tag_rollup": st.column_config.TextColumn(
+            "fluor::tag(tag_pos)", disabled=True, width="large"
+        ),
+        "all_organelle_fluor_rollup": st.column_config.TextColumn(
+            "organelle-fluor rollup", disabled=True, width="large"
+        ),
+        "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
+        "tank_id": st.column_config.TextColumn("Tank id", disabled=True),
+        "status": st.column_config.TextColumn("Status", disabled=True),
+        "created_at": st.column_config.DatetimeColumn("Created at", disabled=True),
+    },
 )
 m_pick = m_sel.loc[m_sel["✓ Mother"]] if not m_sel.empty else pd.DataFrame()
 if m_pick.empty:
@@ -361,7 +410,6 @@ mother_row = m_pick.iloc[0]
 mother_fish = str(mother_row["fish_code"])
 mother_tank_id = str(mother_row["tank_id"])
 
-# Father candidates = ALL remaining active tanks for the OTHER fish
 other_fish = next(f for f in parents if f != mother_fish)
 f_candidates = live[live["fish_code"] == other_fish].copy()
 if f_candidates.empty:
@@ -379,6 +427,8 @@ f_sel = st.data_editor(
             "fish_name",
             "genotype",
             "birthday",
+            "all_fluor_tag_rollup",
+            "all_organelle_fluor_rollup",
             "tank_code",
             "tank_id",
             "status",
@@ -388,6 +438,24 @@ f_sel = st.data_editor(
     key="father_table_v11",
     width="stretch",
     hide_index=True,
+    column_config={
+        "✓ Father": st.column_config.CheckboxColumn("✓", default=False),
+        "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
+        "line_code": st.column_config.TextColumn("LINE code", disabled=True),
+        "fish_name": st.column_config.TextColumn("Name", disabled=True, width="large"),
+        "genotype": st.column_config.TextColumn("Genotype", disabled=True, width="large"),
+        "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+        "all_fluor_tag_rollup": st.column_config.TextColumn(
+            "fluor::tag(tag_pos)", disabled=True, width="large"
+        ),
+        "all_organelle_fluor_rollup": st.column_config.TextColumn(
+            "organelle-fluor rollup", disabled=True, width="large"
+        ),
+        "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
+        "tank_id": st.column_config.TextColumn("Tank id", disabled=True),
+        "status": st.column_config.TextColumn("Status", disabled=True),
+        "created_at": st.column_config.DatetimeColumn("Created at", disabled=True),
+    },
 )
 f_pick = f_sel.loc[f_sel["✓ Father"]] if not f_sel.empty else pd.DataFrame()
 if f_pick.empty:
@@ -399,7 +467,6 @@ if mother_tank_id == father_tank_id:
     st.error("Mother and Father cannot be the same tank.")
     st.stop()
 
-# Step 3 — save pairing
 st.subheader("Step 3 — Save tank pairing")
 creator = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
 note = st.text_input("Note (optional)", "")

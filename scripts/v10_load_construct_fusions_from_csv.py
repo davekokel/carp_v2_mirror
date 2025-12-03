@@ -4,12 +4,19 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from carp_app.etl.construct_normalizer import normalize_construct_code
 
 
 def norm(s: str | None) -> str:
@@ -58,29 +65,36 @@ def build_construct_lookup(engine: Engine) -> Dict[str, Tuple[str, str]]:
         df = pd.read_sql(sql, cx)
 
     lookup: Dict[str, Tuple[str, str]] = {}
-    for _, row in df.iterrows():
-        cid = norm(row["construct_id"])
-        code = norm(row["construct_code"])
-        base = norm(row["base_code"])
-        alias = norm(row.get("alias"))
 
-        canon = code or base
-        if not canon:
+    for _, row in df.iterrows():
+        raw_code = norm(row["construct_code"])
+        raw_base = norm(row["base_code"])
+        raw_alias = norm(row.get("alias"))
+
+        seed = raw_code or raw_base or raw_alias
+        if not seed:
             continue
 
+        canonical = normalize_construct_code(seed)
+        if not canonical:
+            continue
+
+        cid = norm(row["construct_id"])
+
         keys = set()
-        if code:
-            keys.add(code)
-            keys.add(code.lower())
-        if base:
-            keys.add(base)
-            keys.add(base.lower())
-        if alias:
-            keys.add(alias)
-            keys.add(alias.lower())
+
+        for raw in (raw_code, raw_base, raw_alias):
+            if not raw:
+                continue
+            s = raw.strip()
+            keys.add(s)
+            keys.add(s.lower())
+
+        keys.add(canonical)
+        keys.add(canonical.lower())
 
         for k in keys:
-            lookup[k] = (cid, canon)
+            lookup[k] = (cid, canonical)
 
     print(f"[v10_load_construct_fusions] construct lookup keys: {len(lookup)}")
     return lookup
@@ -237,8 +251,20 @@ def main() -> None:
             if not plasmid_code_raw or not fluor_code_raw:
                 continue
 
-            c_key = norm_key(plasmid_code_raw)
-            c_match = construct_lookup.get(plasmid_code_raw) or construct_lookup.get(c_key)
+            canonical = normalize_construct_code(plasmid_code_raw)
+            c_match = None
+            if canonical:
+                c_match = (
+                    construct_lookup.get(canonical)
+                    or construct_lookup.get(canonical.lower())
+                )
+
+            if not c_match:
+                c_match = (
+                    construct_lookup.get(plasmid_code_raw)
+                    or construct_lookup.get(plasmid_code_raw.lower())
+                )
+
             if not c_match:
                 if plasmid_code_raw not in unknown_constructs:
                     print(
@@ -246,6 +272,7 @@ def main() -> None:
                     )
                     unknown_constructs.add(plasmid_code_raw)
                 continue
+
             construct_id, canon_code = c_match
 
             f_key = norm_key(fluor_code_raw)

@@ -487,3 +487,120 @@ def create_instances_with_genotype_and_bg(
         n_tanks += 1
 
     return n_instances, n_tanks
+
+def ensure_tank_for_instance(cx, fish_instance_id: str, fish_code: str) -> None:
+    """
+    Ensure there is at least one active tank for this fish instance.
+    Canonical tank_code: 'TANK-' || fish_code || '-T1'.
+    """
+    tank_code = f"TANK-{fish_code}-T1"
+    cx.execute(
+        text(
+            """
+            INSERT INTO public.tanks (
+              fish_instance_id,
+              tank_code,
+              status,
+              created_at
+            )
+            VALUES (
+              :fid::uuid,
+              :tank_code,
+              'active',
+              now()
+            )
+            ON CONFLICT DO NOTHING;
+            """
+        ),
+        {"fid": fish_instance_id, "tank_code": tank_code},
+    )
+
+def ensure_tank_for_instance(cx, fish_instance_id: str, fish_code: str) -> None:
+    """
+    Ensure there is at least one active tank for this fish instance.
+    Canonical tank_code: 'TANK-' || fish_code || '-T1'.
+    """
+    tank_code = f"TANK-{fish_code}-T1"
+    cx.execute(
+        text(
+            """
+            INSERT INTO public.tanks (
+              fish_instance_id,
+              tank_code,
+              status,
+              created_at
+            )
+            VALUES (
+              :fid,
+              :tank_code,
+              'active',
+              now()
+            )
+            ON CONFLICT DO NOTHING;
+            """
+        ),
+        {"fid": fish_instance_id, "tank_code": tank_code},
+    )
+
+from sqlalchemy import text
+
+
+
+def ensure_line_alleles_for_line(cx, line_id, resolved_alleles, constructs_ids_df=None):
+    import pandas as pd
+
+    if not resolved_alleles:
+        return
+
+    if constructs_ids_df is None:
+        constructs_ids_df = pd.read_sql(
+            text(
+                """
+                SELECT
+                  id::text AS construct_id,
+                  construct_code
+                FROM public.constructs
+                """
+            ),
+            cx,
+        )
+
+    code_to_id = {
+        r["construct_code"]: r["construct_id"]
+        for _, r in constructs_ids_df.iterrows()
+    }
+
+    for a in resolved_alleles:
+        base = _norm(a.get("transgene_base_code"))
+        if not base:
+            continue
+        if base not in code_to_id:
+            continue
+        try:
+            anum = int(a.get("allele_number"))
+        except Exception:
+            continue
+
+        cx.execute(
+            text(
+                """
+                INSERT INTO public.join_line_alleles (
+                  line_id,
+                  construct_id,
+                  allele_number
+                )
+                VALUES (
+                  :line_id,
+                  :construct_id,
+                  :allele_number
+                )
+                ON CONFLICT DO NOTHING;
+                """
+            ),
+            {
+                "line_id": line_id,
+                "construct_id": code_to_id[base],
+                "allele_number": anum,
+            },
+        )
+

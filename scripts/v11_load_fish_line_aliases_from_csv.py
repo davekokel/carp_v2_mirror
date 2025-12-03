@@ -19,7 +19,12 @@ def main():
     ap.add_argument("--csv", required=True, help="CSV with alias,line_nickname")
     args = ap.parse_args()
 
-    df = pd.read_csv(args.csv)
+    import pandas as pd
+    try:
+        df = pd.read_csv(args.csv)
+    except pd.errors.EmptyDataError:
+        print(f"[v11_load_fish_line_aliases_from_csv] empty aliases CSV; nothing to do: {args.csv}")
+        return
     df["alias"] = df["alias"].astype(str).str.strip()
     df["line_nickname"] = df["line_nickname"].astype(str).str.strip()
 

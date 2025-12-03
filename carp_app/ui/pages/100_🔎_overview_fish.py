@@ -15,7 +15,6 @@ if str(ROOT) not in sys.path:
 
 from carp_app.ui.auth_gate import require_auth
 from carp_app.ui.email_otp_gate import require_email_otp
-
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
@@ -142,34 +141,91 @@ def load_groups_raw() -> pd.DataFrame:
 def load_instances_for_line(line_id: str) -> pd.DataFrame:
     sql = text(
         """
+        WITH inst AS (
+          SELECT
+            fi.id::text                AS fish_instance_id,
+            fi.fish_code,
+            fi.line_id,
+            fi.line_instance_code,
+            fi.birthday,
+            fi.instance_stage,
+            fi.genetic_background,
+            fis.genotype_pretty,
+            fis.line_code,
+            fis.line_nickname
+          FROM public.fish_instances_v10 fi
+          LEFT JOIN public.v11_fish_instance_star fis
+            ON fis.fish_instance_id = fi.id
+          WHERE fi.line_id = :line_id::uuid
+        ),
+        alleles AS (
+          SELECT
+            fi.id::text AS fish_instance_id,
+            string_agg(
+              DISTINCT (c.construct_code || ':' || j.allele_number)::text,
+              ' + ' ORDER BY c.construct_code, j.allele_number
+            ) AS allele_canonical_rollup,
+            string_agg(
+              DISTINCT
+              (
+                '#' || j.allele_number::text ||
+                CASE
+                  WHEN ta.allele_name IS NOT NULL AND ta.allele_name <> '' THEN ' ' || ta.allele_name
+                  ELSE ''
+                END ||
+                CASE
+                  WHEN ta.allele_nickname IS NOT NULL AND ta.allele_nickname <> '' THEN ' (' || ta.allele_nickname || ')'
+                  ELSE ''
+                END
+              ),
+              ', ' ORDER BY c.construct_code, j.allele_number
+            ) AS allele_label_rollup
+          FROM public.fish_instances_v10 fi
+          JOIN public.fish_lines fl
+            ON fl.id = fi.line_id
+          JOIN public.fish_groups fg
+            ON fg.id = fl.fish_group_id
+          JOIN public.join_fish_group_alleles j
+            ON j.fish_group_id = fg.id
+          JOIN public.constructs c
+            ON c.id = j.construct_id
+          LEFT JOIN public.transgene_alleles ta
+            ON ta.transgene_base_code = c.construct_code
+           AND ta.allele_number = j.allele_number
+          WHERE fi.line_id = :line_id::uuid
+          GROUP BY fi.id
+        )
         SELECT
-          fis.*,
+          i.*,
+          a.allele_canonical_rollup,
+          a.allele_label_rollup,
           mr.n_constructs,
           mr.n_fluors,
           mr.fluor_tag_rollup       AS all_fluor_tag_rollup,
           mr.organelle_fluor_rollup AS all_organelle_fluor_rollup
-        FROM public.v11_fish_instance_star fis
-        JOIN public.fish_instances_v10 fi
-          ON fi.id = fis.fish_instance_id
+        FROM inst i
+        LEFT JOIN alleles a
+          ON a.fish_instance_id = i.fish_instance_id
         LEFT JOIN public.v11_fish_marker_rollups mr
-          ON mr.fish_instance_id = fis.fish_instance_id
-        WHERE fi.line_id = :line_id
-        ORDER BY fis.birthday NULLS LAST, fis.fish_code;
+          ON mr.fish_instance_id = i.fish_instance_id
+        ORDER BY i.birthday NULLS LAST, i.fish_code;
         """
     )
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"line_id": line_id})
-    for c in df.select_dtypes(include=["object", "string"]).columns:
+    for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
     return df.fillna("")
 
-
 lines_df = load_lines()
 groups_raw = load_groups_raw().copy()
+
+# aggregate group-level marker rollups from line-level rollups
 line_rollups = (
     lines_df[["line_code", "all_fluor_tag_rollup", "all_organelle_fluor_rollup"]]
     .set_index("line_code")
 )
+
 
 def _aggregate_group_rollups(row: pd.Series) -> pd.Series:
     codes_str = row.get("group_line_codes") or ""
@@ -199,6 +255,7 @@ def _aggregate_group_rollups(row: pd.Series) -> pd.Series:
     row["all_fluor_tag_rollup"] = "||".join(sorted(tags))
     row["all_organelle_fluor_rollup"] = "||".join(sorted(orgs))
     return row
+
 
 groups_raw = groups_raw.apply(_aggregate_group_rollups, axis=1)
 
@@ -299,7 +356,11 @@ if not selected_group_rows.empty:
 else:
     selected_group = groups_display.iloc[0]
 
-selected_line_codes = selected_group["group_line_codes"].split("||") if selected_group["group_line_codes"] else []
+selected_line_codes = (
+    selected_group["group_line_codes"].split("||")
+    if selected_group["group_line_codes"]
+    else []
+)
 
 st.caption("Select one group above, then drill down to its lines and instances.")
 
@@ -438,7 +499,6 @@ else:
             "genetic_background",
             "genotype_pretty",
             "birthday",
-            "line_instance_code",
             "line_code",
             "allele_canonical_rollup",
             "allele_label_rollup",
@@ -472,10 +532,6 @@ else:
         if "birthday" in inst_df.columns:
             cfg["birthday"] = st.column_config.DateColumn(
                 "Birthday", disabled=True
-            )
-        if "line_instance_code" in inst_df.columns:
-            cfg["line_instance_code"] = st.column_config.TextColumn(
-                "LINE instance code", disabled=True
             )
         if "line_code" in inst_df.columns:
             cfg["line_code"] = st.column_config.TextColumn(
@@ -550,6 +606,7 @@ else:
                 _maybe(d, r, "genetic_background", "background")
                 _maybe(d, r, "genotype_pretty")
                 _maybe(d, r, "birthday")
+                _maybe(d, r, "line_code", "line_code")
                 st.write(d)
 
             with tab2:

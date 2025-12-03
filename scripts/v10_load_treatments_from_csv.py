@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 
@@ -23,6 +24,37 @@ def norm(s: str | None) -> str:
     if s is None:
         return ""
     return str(s).strip()
+
+
+def _construct_key_variants(raw: str | None) -> set[str]:
+    s = norm(raw)
+    if not s:
+        return set()
+
+    keys: set[str] = set()
+    keys.add(s)
+    keys.add(s.lower())
+
+    m = re.match(r"^([A-Za-z]+)[-_]?(0*)(\d+)$", s)
+    if not m:
+        return keys
+
+    prefix = m.group(1).upper()
+    digits = m.group(3)
+
+    try:
+        num = int(digits)
+    except ValueError:
+        return keys
+
+    short = f"{prefix}-{num}"
+    padded3 = f"{prefix}-{num:03d}"
+
+    for v in (short, padded3):
+        keys.add(v)
+        keys.add(v.lower())
+
+    return keys
 
 
 def build_construct_lookup(engine: Engine) -> Dict[str, Tuple[str, str]]:
@@ -52,16 +84,9 @@ def build_construct_lookup(engine: Engine) -> Dict[str, Tuple[str, str]]:
         if not canon:
             continue
 
-        keys = set()
-        if construct_code:
-            keys.add(construct_code)
-            keys.add(construct_code.lower())
-        if base_code:
-            keys.add(base_code)
-            keys.add(base_code.lower())
-        if alias:
-            keys.add(alias)
-            keys.add(alias.lower())
+        keys: set[str] = set()
+        for raw in (construct_code, base_code, alias, canon):
+            keys.update(_construct_key_variants(raw))
 
         for k in keys:
             if not k:

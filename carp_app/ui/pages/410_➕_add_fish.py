@@ -30,6 +30,7 @@ except Exception:
         ...
 
 from carp_app.ui.lib.page_engine import engine as _engine
+from carp_app.etl.fish_v11_shared import ensure_tank_for_instance
 
 # ── auth gates ───────────────────────────────────────────────────────────────
 sb, session, user = require_auth()
@@ -64,9 +65,6 @@ def _coerce_date(value: Any) -> Optional[date]:
         return pd.to_datetime(value).date()
     except Exception:
         return None
-
-
-# ── DB helpers ───────────────────────────────────────────────────────────────
 
 
 @st.cache_data(show_spinner=False)
@@ -150,10 +148,6 @@ def _suggest_line_nickname(
     allele_plan_rows: List[Dict[str, Any]],
     all_alleles_df: pd.DataFrame,
 ) -> Optional[str]:
-    """
-    Suggest a line nickname based on ALL transgenes/alleles:
-      MGCO-051-terzt + PDQM-005-301 → "MGCO-051-terzt+PDQM-005-301"
-    """
     if not allele_plan_rows:
         return None
 
@@ -338,11 +332,6 @@ def _ensure_group_and_genotype_for_alleles(
     resolved_alleles: List[Dict[str, Any]],
     constructs_ids_df: pd.DataFrame,
 ) -> Tuple[str, str, str]:
-    """
-    Given resolved alleles, find or create genotype + fish_group + join_fish_group_alleles.
-
-    Returns (fish_group_id, genotype_v11_id, genotype_code).
-    """
     if not resolved_alleles:
         raise ValueError("No alleles to build genotype / fish_group.")
 
@@ -484,13 +473,6 @@ def _ensure_line_for_description(
     primary_base_code: str,
     default_bg_code: Optional[str],
 ) -> Tuple[str, str, bool]:
-    """
-    Reuse or create a fish_lines row for:
-      (fish_group_id, nickname, primary_base_code)
-
-    We still front-fill fish_lines.genetic_background from default_bg_code for compatibility,
-    but instance-level genetic_background is the real source of truth.
-    """
     nn = _norm(nickname)
     bc = _norm(primary_base_code)
 
@@ -573,12 +555,16 @@ def _create_instances_with_genotype_and_bg(
     """
     Create instances under the given line_id, set genotype_v11_id, genetic_background,
     and create tanks. Returns (n_instances, n_tanks).
+
+    fish_code:      canonical instance ID (FSH-xxxxxxxx by default)
+    line_code:      stable line ID (LINE-xxxxxxxx)
+    line_instance_code: internal per-line instance label (LINE-<frag>-<stage>-NNN)
     """
     n_instances = 0
     n_tanks = 0
 
     for idx, inst in enumerate(instances, start=1):
-        code = _norm(inst.get("fish_code"))
+        provided_fish_code = _norm(inst.get("fish_code"))
         stage = _norm(inst.get("instance_stage"))
         notes = _norm(inst.get("notes"))
         birthday = _coerce_date(inst.get("birthday"))
@@ -589,10 +575,14 @@ def _create_instances_with_genotype_and_bg(
         if not bg_code:
             raise ValueError("Genetic background (bg_code) is required for each instance.")
 
-        if not code:
-            suffix = f"{idx:03d}"
-            prefix = stage or "FSH"
-            code = f"{line_code}-{prefix}-{suffix}"
+        if provided_fish_code:
+            fish_code = provided_fish_code
+        else:
+            fish_code = f"FSH-{uuid.uuid4().hex[:8]}"
+
+        suffix = f"{idx:03d}"
+        prefix = stage or "inst"
+        line_instance_code = f"{line_code}-{prefix}-{suffix}"
 
         ins = cx.execute(
             text(
@@ -624,8 +614,8 @@ def _create_instances_with_genotype_and_bg(
             ),
             {
                 "line_id": line_id,
-                "fish_code": code,
-                "line_instance_code": code,
+                "fish_code": fish_code,
+                "line_instance_code": line_instance_code,
                 "birthday": birthday,
                 "instance_stage": stage,
                 "notes": notes,
@@ -637,27 +627,7 @@ def _create_instances_with_genotype_and_bg(
         fish_id = ins._mapping["fish_instance_id"]
         n_instances += 1
 
-        tank_code = f"{code}-T1"
-        cx.execute(
-            text(
-                """
-                INSERT INTO public.tanks (
-                  fish_instance_id,
-                  tank_code,
-                  status,
-                  created_at
-                )
-                VALUES (
-                  :fid,
-                  :tank_code,
-                  'active',
-                  now()
-                )
-                ON CONFLICT DO NOTHING;
-                """
-            ),
-            {"fid": fish_id, "tank_code": tank_code},
-        )
+        ensure_tank_for_instance(cx, fish_id, fish_code)
         n_tanks += 1
 
     return n_instances, n_tanks
@@ -687,7 +657,6 @@ if constructs.empty:
     )
     st.stop()
 
-# ── Step 1 — selectable constructs table ─────────────────────────────────────
 st.markdown("### Step 1 — Select construct base codes")
 st.caption("Use the ✓ column to choose which constructs will define alleles.")
 
@@ -734,7 +703,6 @@ st.caption(
     + (", ".join(selected_codes) if selected_codes else "none")
 )
 
-# ── Step 1b — per-basecode allele chooser ────────────────────────────────────
 st.markdown("### Step 1b — Define alleles for these constructs")
 
 st.caption(
@@ -836,7 +804,6 @@ if allele_plan_rows:
     plan_df = pd.DataFrame(allele_plan_rows)
     st.dataframe(plan_df, hide_index=True, use_container_width=True)
 
-# ── Step 2 — Line nickname ONLY ──────────────────────────────────────────────
 st.markdown("### Step 2 — Line nickname")
 
 st.caption(
@@ -863,7 +830,6 @@ with c1:
         key="line_nickname_input",
     )
 
-# ── Step 3 — Instances (instance-level background + stage) ───────────────────
 st.markdown("### Step 3 — Define new fish instances")
 
 st.caption(
@@ -914,8 +880,8 @@ inst_grid = st.data_editor(
     column_config={
         "✓ Add": st.column_config.CheckboxColumn("Add", default=True),
         "fish_code": st.column_config.TextColumn(
-            "Fish code (optional)",
-            help="If empty, a code will be generated from the line_code.",
+            "Fish code (optional, FSH-…)",
+            help="If empty, a code like FSH-xxxxxxxx will be generated.",
         ),
         "instance_stage": st.column_config.TextColumn(
             "Instance stage",
@@ -936,7 +902,6 @@ submitted = st.button(
     use_container_width=True,
 )
 
-# ── Submission ────────────────────────────────────────────────────────────────
 if submitted:
     try:
         if not selected_codes:
@@ -971,7 +936,6 @@ if submitted:
         primary_base_code = selected_codes[0] if selected_codes else None
 
         with eng().begin() as cx:
-            # 1) Resolve alleles -> transgene_alleles
             resolved_alleles: List[Dict[str, Any]] = []
             for row in allele_plan_rows:
                 base = row["transgene_base_code"]
@@ -994,17 +958,14 @@ if submitted:
                     }
                 )
 
-            # 2) Allele set -> genotype + fish_group + join_fish_group_alleles
             fish_group_id, genotype_v11_id, genotype_code = _ensure_group_and_genotype_for_alleles(
                 cx,
                 resolved_alleles=resolved_alleles,
                 constructs_ids_df=constructs_ids_df,
             )
 
-            # 3) Pick a default background from the first instance row to stamp on the line (front-fill)
             default_bg_for_line = instance_rows[0]["genetic_background"] if instance_rows else None
 
-            # 4) fish_group + nickname -> fish_lines
             line_id, line_code, created_new_line = _ensure_line_for_description(
                 cx,
                 fish_group_id=fish_group_id,
@@ -1013,7 +974,6 @@ if submitted:
                 default_bg_code=default_bg_for_line,
             )
 
-            # 5) instances -> fish_instances_v10 (with instance-level bg) + tanks
             n_instances, n_tanks = _create_instances_with_genotype_and_bg(
                 cx,
                 line_id=line_id,
