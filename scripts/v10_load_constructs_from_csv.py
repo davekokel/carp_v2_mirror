@@ -76,7 +76,6 @@ def main() -> None:
 
     required = [
         "plasmid_code",
-        "plasmid_name",
         "plasmid_nickname",
         "resistance",
         "plasmid_notes",
@@ -147,8 +146,7 @@ def main() -> None:
         """
     )
 
-    inserted = 0
-    updated = 0
+    upserted = 0
 
     with engine.begin() as cx:
         for _, row in base.iterrows():
@@ -156,10 +154,8 @@ def main() -> None:
             if not raw_code:
                 continue
 
-            # physical kind is always plasmid for this CSV
             construct_kind = "plasmid"
 
-            # canonical code (lowercase prefix + '-' + integer), via shared normalizer
             canonical = normalize_construct_code(raw_code)
             if not canonical:
                 print(
@@ -168,26 +164,26 @@ def main() -> None:
                 )
                 continue
 
-            base_code = canonical  # we treat canonical as both code + base_code
+            base_code = canonical
 
-            name = norm_optional(row.get("plasmid_nickname")) or norm_optional(
-                row.get("plasmid_name")
-            )
+            nickname = norm_optional(row.get("plasmid_nickname"))
+            construct_name = nickname
+
             resistance = norm_optional(row.get("resistance"))
             plasmid_notes = norm_optional(row.get("plasmid_notes"))
-            description = plasmid_notes  # keep description ≈ notes for overview
+            description = plasmid_notes
 
             use_plasmid = as_bool_flag(row.get("used_for_injection_plasmid"))
             use_rna = as_bool_flag(row.get("used_for_injection_rna"))
             use_crispr = as_bool_flag(row.get("used_for_injection_crispr"))
 
-            r = cx.execute(
+            cx.execute(
                 sql_upsert,
                 {
                     "construct_code": canonical,
                     "base_code": base_code,
                     "construct_kind": construct_kind,
-                    "construct_name": name,
+                    "construct_name": construct_name,
                     "resistance": resistance,
                     "plasmid_notes": plasmid_notes,
                     "description": description,
@@ -196,11 +192,9 @@ def main() -> None:
                     "use_crispr": use_crispr,
                 },
             )
-            # We can't easily distinguish insert vs update from here without another query,
-            # so just count total affected rows.
-            inserted += 1
+            upserted += 1
 
-    print(f"[v10_load_constructs] upserted {inserted} construct(s)")
+    print(f"[v10_load_constructs] upserted {upserted} construct(s)")
 
 
 if __name__ == "__main__":
