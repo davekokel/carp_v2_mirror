@@ -51,6 +51,107 @@ def _norm(s: str | None) -> Optional[str]:
 
 # ───────── loaders ─────────
 @st.cache_data(show_spinner=False)
+def load_flat_clutch_treated_selected(
+    q: Optional[str],
+    from_date: Optional[str],
+    to_date: Optional[str],
+    limit: int,
+) -> pd.DataFrame:
+    """
+    Flat overview of all clutches, with treated clutches and selections.
+
+    One row per (clutch × treated_clutch × selection), where treated_clutch
+    and selection columns may be NULL if they don't exist.
+    """
+    sql = text(
+        """
+        WITH base_clutches AS (
+          SELECT
+            c.id::uuid          AS clutch_id,
+            c.clutch_code,
+            c.clutch_date
+          FROM public.clutches c
+          WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
+        ),
+        treated AS (
+          SELECT
+            tc.id::uuid         AS treated_clutch_id,
+            tc.clutch_id::uuid  AS clutch_id,
+            tc.treated_clutch_code,
+            t.treat_code        AS treatment_code,
+            t.treat_text
+          FROM public.treated_clutches_v11 tc
+          LEFT JOIN public.treatments t
+            ON t.id = tc.treatment_id
+        ),
+        sel AS (
+          SELECT
+            cs.selection_event_id::uuid AS selection_event_id,
+            cs.selection_kind,
+            cs.selection_label,
+            cs.is_primary,
+            cs.clutch_id::uuid          AS clutch_id,
+            cs.treated_clutch_id::uuid  AS treated_clutch_id,
+            cs.genotype_code,
+            cs.genotype_basecodes,
+            cs.genotype_pretty
+          FROM public.v11_clutch_selection_star cs
+        )
+        SELECT
+          bc.clutch_id::text            AS clutch_id,
+          bc.clutch_code,
+          bc.clutch_date,
+          tr.treated_clutch_id::text    AS treated_clutch_id,
+          tr.treated_clutch_code,
+          tr.treatment_code,
+          tr.treat_text,
+          s.selection_event_id::text    AS selection_event_id,
+          s.selection_kind,
+          s.selection_label,
+          s.is_primary,
+          s.genotype_code,
+          s.genotype_basecodes,
+          s.genotype_pretty
+        FROM base_clutches bc
+        LEFT JOIN treated tr
+          ON tr.clutch_id = bc.clutch_id
+        LEFT JOIN sel s
+          ON s.clutch_id = bc.clutch_id
+         AND (
+              tr.treated_clutch_id IS NULL
+              OR s.treated_clutch_id = tr.treated_clutch_id
+         )
+        WHERE (
+               :q IS NULL
+            OR bc.clutch_code         ILIKE :ql
+            OR COALESCE(tr.treated_clutch_code,'') ILIKE :ql
+            OR COALESCE(tr.treatment_code,'')      ILIKE :ql
+            OR COALESCE(tr.treat_text,'')          ILIKE :ql
+            OR COALESCE(s.selection_label,'')      ILIKE :ql
+            OR COALESCE(s.genotype_pretty,'')      ILIKE :ql
+        )
+        AND (:from_d IS NULL OR bc.clutch_date >= :from_d)
+        AND (:to_d   IS NULL OR bc.clutch_date <= :to_d)
+        ORDER BY bc.clutch_date DESC NULLS LAST,
+                 bc.clutch_code,
+                 tr.treated_clutch_code NULLS FIRST,
+                 s.selection_label NULLS FIRST
+        LIMIT :lim;
+        """
+    )
+    params = {
+        "q": q,
+        "ql": f"%{q}%" if q else None,
+        "from_d": from_date,
+        "to_d": to_date,
+        "lim": int(limit),
+    }
+    with eng().begin() as cx:
+        df = pd.read_sql(sql, cx, params=params)
+    return df.fillna("")
+
+
+@st.cache_data(show_spinner=False)
 def load_cross_clutch_rows(
     q: Optional[str],
     from_date: Optional[str],
@@ -58,7 +159,9 @@ def load_cross_clutch_rows(
     limit: int,
 ) -> pd.DataFrame:
     """
-    Combined cross + clutch overview using clutches + crosses + tank_pairs + fish_instances_v10 + v11_clutch_star.
+    Combined cross + clutch overview using clutches + crosses + tank_pairs
+    + fish_instances_v10 + v11_clutch_star.
+    Only non-legacy (new) clutches are shown.
     """
     sql = text(
         """
@@ -67,11 +170,11 @@ def load_cross_clutch_rows(
             c.id::uuid                AS clutch_id,
             c.clutch_code,
             c.clutch_date,
-            c.estimated_egg_count,
-            cr.id::uuid               AS cross_id,
+            c.cross_id::uuid          AS cross_id,
             cr.cross_run_code         AS cross_code,
-            cr.cross_date,
-            tp.tank_pair_code,
+            cr.created_at::date       AS cross_date,
+            cr.tank_pair_id::uuid     AS tank_pair_id,
+            tp.tank_pair_code         AS tank_pair_code,
             mom.fish_code             AS female_fish_code,
             dad.fish_code             AS male_fish_code
           FROM public.clutches c
@@ -88,9 +191,8 @@ def load_cross_clutch_rows(
         SELECT
           b.clutch_id::text                    AS clutch_id,
           b.clutch_code,
-          ('CL-' || b.clutch_code)             AS clutch_label,
+          b.clutch_code                        AS clutch_label,
           b.clutch_date,
-          b.estimated_egg_count,
           b.cross_id::text                     AS cross_id,
           b.cross_code,
           b.cross_date,
@@ -133,26 +235,30 @@ def load_cross_clutch_rows(
 
 @st.cache_data(show_spinner=False)
 def load_expected_genotypes(clutch_id: str) -> pd.DataFrame:
+    """
+    Expected genotypes for a clutch from clutch_genotypes_v11 + genotypes_v11.
+
+    Note: treatment assignment is handled at the treated-clutch level; this
+    function does NOT include any treatment_code column.
+    """
     sql = text(
         """
         SELECT
-          id::text                     AS id,
-          label,
-          treatment_code,
-          genotype_basecode_code       AS genotype_basecodes,
-          genotype_transgene_allele_code AS genotype_alleles,
-          treatments_and_transgenes,
-          all_fluor_tag_rollup,
-          all_organelle_fluor_rollup,
-          expected_fraction,
-          expected_percent_label,
-          is_enabled,
-          notes,
-          created_at,
-          created_by
-        FROM public.clutch_expected_genotypes_v11
-        WHERE clutch_id = :cid
-        ORDER BY label;
+          cg.id::text                AS id,
+          g.genotype_code            AS label,
+          g.genotype_basecodes       AS genotype_basecode_code,
+          g.genotype_pretty          AS genotype_transgene_allele_code,
+          cg.is_enabled              AS is_enabled,
+          cg.expected_fraction       AS expected_fraction,
+          cg.expected_percent_label  AS expected_percent_label,
+          cg.notes                   AS notes,
+          cg.created_at,
+          cg.created_by
+        FROM public.clutch_genotypes_v11 cg
+        JOIN public.genotypes_v11 g
+          ON g.id = cg.genotype_v11_id
+        WHERE cg.clutch_id = :cid
+        ORDER BY g.genotype_code;
         """
     )
     with eng().begin() as cx:
@@ -199,6 +305,36 @@ def load_treatment_overview() -> pd.DataFrame:
     )
     with eng().begin() as cx:
         df = pd.read_sql(sql, cx)
+    return df.fillna("")
+
+
+@st.cache_data(show_spinner=False)
+def load_treated_clutches_for_overview(clutch_id: str) -> pd.DataFrame:
+    """
+    Treated clutches for the Overview crosses & clutches page.
+
+    Note: genotype narrowing lives in treated_clutch_genotypes_v11; this loader
+    just returns treated_clutch rows and their treatments.
+    """
+    sql = text(
+        """
+        SELECT
+          tc.id::text              AS treated_clutch_id,
+          tc.treated_clutch_code,
+          t.treat_code             AS treatment_code,
+          t.treat_text,
+          tc.created_at,
+          tc.created_by,
+          COALESCE(tc.notes,'')    AS notes
+        FROM public.treated_clutches_v11 tc
+        LEFT JOIN public.treatments t
+          ON t.id = tc.treatment_id
+        WHERE tc.clutch_id = :cid
+        ORDER BY tc.treated_clutch_code;
+        """
+    )
+    with eng().begin() as cx:
+        df = pd.read_sql(sql, cx, params={"cid": clutch_id})
     return df.fillna("")
 
 
@@ -260,16 +396,10 @@ visible_cols = [
     "clutch_code",
     "clutch_label",
     "clutch_date",
-    "estimated_egg_count",
     "cross_code",
     "cross_date",
     "tank_pair_code",
-    "female_fish_code",
-    "male_fish_code",
-    "genotype_v11_basecodes",
-    "genotype_pretty",
-    "treat_codes",
-    "treat_basecodes",
+    "parent_cross_pretty",
 ]
 visible_cols = [c for c in visible_cols if c in view.columns]
 
@@ -282,7 +412,7 @@ grid = st.data_editor(
 )
 
 sel_mask = grid["✓ Select"] == True if "✓ Select" in grid.columns else pd.Series(False, index=grid.index)
-selected_idx = sel_mask.index[sel_mask]
+selected_idx = grid.index[sel_mask]
 
 if selected_idx.empty:
     st.info("Select one row above to see details.")
@@ -292,7 +422,9 @@ row = rows.loc[selected_idx].iloc[0]
 
 st.subheader("Selected cross & clutch — details", anchor=False)
 
-tab_fields, tab_genotypes, tab_treatments = st.tabs(["Clutch / cross fields", "Expected genotypes", "Treatments"])
+tab_fields, tab_genotypes, tab_treatments = st.tabs(
+    ["Clutch / cross fields", "Expected genotypes", "Treatments"]
+)
 
 # ───────── Tab 1 — clutch / cross fields ─────────
 with tab_fields:
@@ -301,7 +433,6 @@ with tab_fields:
         "clutch_code": row.get("clutch_code"),
         "clutch_label": row.get("clutch_label"),
         "clutch_date": row.get("clutch_date"),
-        "estimated_egg_count": row.get("estimated_egg_count"),
         "cross_id": row.get("cross_id"),
         "cross_code": row.get("cross_code"),
         "cross_date": row.get("cross_date"),
@@ -341,7 +472,6 @@ with tab_genotypes:
     if eg.empty:
         st.info("No expected-genotype rows for this clutch.")
     else:
-        # show the full expected-genotypes (including treatments_and_transgenes) here
         st.dataframe(
             eg,
             hide_index=True,
@@ -359,67 +489,28 @@ with tab_genotypes:
 
 # ───────── Tab 3 — treatments ─────────
 with tab_treatments:
-    st.markdown("### Clutch-level treatments (from expected genotypes)")
-
     clutch_uuid = row["clutch_id"]
     eg = load_expected_genotypes(clutch_uuid)
 
-    # distinct non-empty treatment codes from expected-genotype rows
-    codes: List[str] = []
-    if not eg.empty and "treatment_code" in eg.columns:
-        codes = sorted(
-            set(
-                s
-                for s in eg["treatment_code"].astype(str).str.strip().tolist()
-                if s and s.lower() != "none"
-            )
-        )
+    # ── Section 1: clutch-level treatments inferred from expected genotypes ──
+    st.markdown("### Clutch-level treatments (from expected genotypes)")
 
-    if not codes:
-        st.info("No treatments recorded for this clutch in expected-genotype rows.")
-    else:
-        all_treats = load_treatment_overview()
-        tcl = all_treats[all_treats["treatment_code"].isin(codes)].copy()
+    clutch_treat_codes: List[str] = []
+    if not eg.empty and "label" in eg.columns:
+        # Right now, expected-genotype rows don’t carry treatments directly;
+        # this section will light up once we add genotype→treatment links.
+        pass
 
-        if tcl.empty:
-            st.info("No matching treatments found in v11_treatment_star for these codes.")
-        else:
-            st.dataframe(
-                tcl[
-                    [
-                        "treatment_code",
-                        "kind_code",
-                        "treat_text",
-                        "genotype_basecode_code",
-                        "materials_by_kind",
-                        "n_constructs",
-                        "n_dyes",
-                        "all_fluor_tag_rollup",
-                        "all_organelle_fluor_rollup",
-                    ]
-                ],
-                hide_index=True,
-                width="stretch",
-            )
-            csv_tcl = tcl.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "⬇︎ Download clutch-level treatments (CSV)",
-                data=csv_tcl,
-                file_name=f"{row.get('clutch_code','clutch')}_clutch_treatments_from_expected.csv",
-                type="secondary",
-                mime="text/csv",
-            )
+    st.info("No treatments recorded for this clutch in expected-genotype rows.")
 
+    # ── Section 2: genotype-level treatments (expected genotypes) ──
     st.markdown("### Genotype-level treatments (expected genotypes)")
 
     if eg.empty:
         st.info("No expected-genotype rows for this clutch.")
     else:
-        # genotype-level view WITHOUT treatments_and_transgenes to avoid confusion
-        cols_simple = ["label", "treatment_code", "is_enabled"]
-        cols_simple = [c for c in cols_simple if c in eg.columns]
-        eg_simple = eg[cols_simple].copy()
-
+        eg_simple = eg[["label", "is_enabled"]].copy() if "label" in eg.columns else eg.copy()
+        eg_simple = eg_simple.rename(columns={"label": "genotype_code"})
         st.dataframe(
             eg_simple,
             hide_index=True,
@@ -433,3 +524,73 @@ with tab_treatments:
             type="secondary",
             mime="text/csv",
         )
+
+    # ── Section 3: treated clutches for this clutch ──
+    st.markdown("### Treated clutches for this clutch")
+
+    tc_df = load_treated_clutches_for_overview(clutch_uuid)
+
+    if tc_df.empty:
+        st.info("No treated clutches defined for this clutch yet.")
+    else:
+        st.dataframe(
+            tc_df[
+                [
+                    "treated_clutch_code",
+                    "treatment_code",
+                    "treat_text",
+                    "created_at",
+                    "created_by",
+                    "notes",
+                ]
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+        csv_tc = tc_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇︎ Download treated clutches for this clutch (CSV)",
+            data=csv_tc,
+            file_name=f"{row.get('clutch_code','clutch')}_treated_clutches_v11.csv",
+            type="secondary",
+            mime="text/csv",
+        )
+
+# ───────── Flat overview — all clutches × treatments × selections ─────────
+
+st.subheader("Flat overview — clutches × treated clutches × selections", anchor=False)
+
+flat_df = load_flat_clutch_treated_selected(q, from_d, to_d, lim)
+
+if flat_df.empty:
+    st.info("No clutches with treated clutches or selections in this filter range.")
+else:
+    flat_view = flat_df[
+        [
+            "clutch_code",
+            "clutch_date",
+            "treated_clutch_code",
+            "treatment_code",
+            "treat_text",
+            "selection_label",
+            "selection_kind",
+            "is_primary",
+            "genotype_code",
+            "genotype_pretty",
+        ]
+    ].copy()
+
+    st.dataframe(
+        flat_view,
+        hide_index=True,
+        use_container_width=True,
+    )
+
+    csv_flat = flat_view.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "⬇︎ Download flat clutch × treatment × selection rows (CSV)",
+        data=csv_flat,
+        file_name="clutches_treated_selections_flat_v11.csv",
+        type="secondary",
+        mime="text/csv",
+    )

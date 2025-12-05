@@ -156,14 +156,14 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
           FROM public.fish_instances_v10 fi
           LEFT JOIN public.v11_fish_instance_star fis
             ON fis.fish_instance_id = fi.id
-          WHERE fi.line_id = :line_id::uuid
+          WHERE fi.line_id = :line_id
         ),
         alleles AS (
           SELECT
             fi.id::text AS fish_instance_id,
             string_agg(
               DISTINCT (c.construct_code || ':' || j.allele_number)::text,
-              ' + ' ORDER BY c.construct_code, j.allele_number
+              ' + '
             ) AS allele_canonical_rollup,
             string_agg(
               DISTINCT
@@ -178,7 +178,7 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
                   ELSE ''
                 END
               ),
-              ', ' ORDER BY c.construct_code, j.allele_number
+              ', '
             ) AS allele_label_rollup
           FROM public.fish_instances_v10 fi
           JOIN public.fish_lines fl
@@ -192,7 +192,7 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
           LEFT JOIN public.transgene_alleles ta
             ON ta.transgene_base_code = c.construct_code
            AND ta.allele_number = j.allele_number
-          WHERE fi.line_id = :line_id::uuid
+          WHERE fi.line_id = :line_id
           GROUP BY fi.id
         )
         SELECT
@@ -207,7 +207,7 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
         LEFT JOIN alleles a
           ON a.fish_instance_id = i.fish_instance_id
         LEFT JOIN public.v11_fish_marker_rollups mr
-          ON mr.fish_instance_id = i.fish_instance_id
+          ON mr.fish_instance_id::text = i.fish_instance_id
         ORDER BY i.birthday NULLS LAST, i.fish_code;
         """
     )

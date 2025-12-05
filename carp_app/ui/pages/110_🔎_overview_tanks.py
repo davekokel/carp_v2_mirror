@@ -1,4 +1,4 @@
-#110_🔎_overview_tanks.py
+# 110_🔎_overview_tanks.py
 from __future__ import annotations
 
 import pathlib
@@ -40,7 +40,6 @@ st.title("🔎 Overview: Tanks")
 
 # ───────── engine (centralized) ─────────
 def _eng() -> Engine:
-    """Thin wrapper around the core page_engine hook."""
     return engine()
 
 
@@ -81,7 +80,7 @@ q = _norm(q_raw)
 status_filter = status_choice if status_choice != "all" else None
 
 # ════════════════════════════════════════════════════════
-# MAIN QUERY: v_tanks_overview
+# MAIN QUERY: v_tanks_overview + genotype label styles
 # ════════════════════════════════════════════════════════
 where: List[str] = ["1=1"]
 params: Dict[str, Any] = {"lim": lim}
@@ -90,29 +89,34 @@ if q:
     params["ql"] = f"%{q}%"
     where.append(
         "("
-        "  tank_code ILIKE :ql"
-        " OR fish_code ILIKE :ql"
-        " OR COALESCE(status,'') ILIKE :ql"
+        "  t.tank_code ILIKE :ql"
+        " OR t.fish_code ILIKE :ql"
+        " OR COALESCE(t.status,'') ILIKE :ql"
         ")"
     )
 
 if status_filter:
     params["status"] = status_filter
-    where.append("status = :status")
+    where.append("t.status = :status")
 
 where_sql = " AND ".join(where)
 
 sql = text(
     f"""
     SELECT
-      tank_id,
-      tank_code,
-      fish_code,
-      status,
-      created_at
-    FROM public.v_tanks_overview
+      t.tank_id,
+      t.tank_code,
+      t.fish_code,
+      t.status,
+      t.created_at,
+      fis.genotype_tg_style,
+      fis.genotype_fluortag_style,
+      fis.genotype_fluororganelle_style
+    FROM public.v_tanks_overview t
+    LEFT JOIN public.v11_fish_instance_star_labels fis
+      ON fis.fish_code = t.fish_code
     WHERE {where_sql}
-    ORDER BY created_at DESC, tank_code
+    ORDER BY t.created_at DESC, t.tank_code
     LIMIT :lim;
     """
 )
@@ -124,7 +128,7 @@ df_tanks = df_tanks.fillna("")
 st.caption(f"{len(df_tanks)} tank(s)")
 
 # ════════════════════════════════════════════════════════
-# MAIN TABLE (core tank fields + selection)
+# MAIN TABLE (core tank fields + selection + genotype styles)
 # ════════════════════════════════════════════════════════
 if df_tanks.empty:
     st.info("No tanks match the current filters.")
@@ -144,6 +148,9 @@ grid = st.data_editor(
         "tank_code",
         "status",
         "fish_code",
+        "genotype_tg_style",
+        "genotype_fluortag_style",
+        "genotype_fluororganelle_style",
         "created_at",
     ],
     column_config={
@@ -151,6 +158,15 @@ grid = st.data_editor(
         "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
         "status": st.column_config.TextColumn("Status", disabled=True),
         "fish_code": st.column_config.TextColumn("Fish code", disabled=True),
+        "genotype_tg_style": st.column_config.TextColumn(
+            "Genotype (tg)", disabled=True
+        ),
+        "genotype_fluortag_style": st.column_config.TextColumn(
+            "Genotype (fluor-tag)", disabled=True
+        ),
+        "genotype_fluororganelle_style": st.column_config.TextColumn(
+            "Genotype (fluor-organelle)", disabled=True
+        ),
         "created_at": st.column_config.DatetimeColumn("Created at", disabled=True),
     },
 )
@@ -186,19 +202,22 @@ else:
         sql_fish = text(
             f"""
             SELECT
+              fis.tank_code,
+              fis.tank_status,
               fis.fish_code,
               fis.genetic_background,
               fis.genotype_pretty,
+              fis.genotype_tg_style,
+              fis.genotype_fluortag_style,
+              fis.genotype_fluororganelle_style,
               fis.birthday,
-              fis.tank_status,
-              fis.tank_code,
               fis.line_code,
               fis.group_code,
               fis.line_nickname,
               fis.fluor_codes,
               fis.tag_codes,
               fis.organelle_fluors
-            FROM public.v11_fish_instance_star fis
+            FROM public.v11_fish_instance_star_labels fis
             WHERE fis.tank_code IN ({placeholders})
             ORDER BY fis.tank_code, fis.fish_code;
             """
@@ -211,8 +230,6 @@ else:
         if df_fish.empty:
             st.info("No fish instances found in the selected tank(s).")
         else:
-            # Core fish fields in tank context:
-            # fish_code, genetic_background, genotype_pretty, birthday, status, tank_code
             st.dataframe(
                 df_fish[
                     [
@@ -221,6 +238,9 @@ else:
                         "fish_code",
                         "genetic_background",
                         "genotype_pretty",
+                        "genotype_tg_style",
+                        "genotype_fluortag_style",
+                        "genotype_fluororganelle_style",
                         "birthday",
                         "line_code",
                         "group_code",

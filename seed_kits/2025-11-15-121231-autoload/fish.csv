@@ -1,0 +1,123 @@
+﻿line_nickname,birthday,genetic_background,instance_stage,transgene_base_code,allele_nickname,zygosity,created_by,description
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),8/8/24,casper,injections,pDQM005,,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),8/16/24,casper,P0,pDQM005,301,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),8/16/24,casper,P0,pDQM005,302,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),8/16/24,casper,P0,pDQM005,303,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),8/16/24,casper,P0,pDQM005,305,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),8/16/24,casper,P0,pDQM005,305,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),8/16/24,casper,P0,pDQM005,306,unknown,dqm,tol2
+membrane tandem Halo (ef1a:2xLynk:tdHalo),8/21/24,casper,F1,swin01,swinborne,unknown,dqm,tol2
+skittlez 5 FP (ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1),10/1/24,casper,injections,pDQM034,,unknown,dqm,tol2
+skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1),10/1/24,casper,injections,pDQM036,,unknown,dqm,tol2
+skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1),10/1/24,casper,P0,pDQM036,318,unknown,dqm,tol2
+skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1),10/1/24,casper,P0,pDQM036,319,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),11/12/24,casper,F1,pDQM005,301,unknown,dqm,tol2
+skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),11/20/24,casper,injections,pDQM063,,unknown,dqm,tol2
+skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),11/20/24,casper,P0,pDQM063,311,unknown,dqm,tol2
+skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),11/20/24,casper,P0,pDQM063,312,unknown,dqm,tol2
+skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),11/20/24,casper,P0,pDQM063,313,unknown,dqm,tol2
+skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),11/20/24,casper,P0,pDQM063,314,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),11/25/24,casper,F1,pDQM005,302,unknown,dqm,tol2
+membrane tandem mSG; mChilada H2B (ef1a:2xlynk:tdmSG-tPT2A:tdmChilada:H2B),11/25/24,casper,injection,pDQM065,,unknown,dqm,tol2
+membrane tandem mSG; mChilada H2B (ef1a:2xlynk:tdmSG-tPT2A:tdmChilada:H2B),11/25/24,casper,P0,pDQM065,338,unknown,dqm,tol2
+membrane tandem mSG (p14a;ef1a:2xlynx:tdmSG),12/5/24,casper,injections,pDQM078,,unknown,dqm,phiC; p14a
+membrane tandem mSG; mChilada H2B (ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B),1/2/25,casper,injections,pDQM094,,unknown,dqm,tol2
+membrane tandem mSG: mChilada H2B (ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B),1/7/25,casper,P0,pDQM094,339,unknown,dqm,tol2
+inducible phiC (hsp:phiCNLS; exorh:mScarlet),2/22/25,casper,injections,pDQM112,,unknown,dqm,tol2
+inducible phiC (hsp:phiCNLS; exorh:mScarlet),2/22/25,casper,P0,pDQM112,322,unknown,dqm,tol2
+inducible phiC (hsp:phiCNLS; exorh:mScarlet),2/22/25,casper,P0,pDQM112,323,unknown,dqm,tol2
+skittlez 4 FP (ef1a:<exorH:GFP>mKate2/Electra2/mKOK/mTFP1),2/25/25,casper,injections,pDQM059,,unknown,dqm,tol2
+skittlez 4 FP (ef1a:<exorH:GFP>mKate2/Electra2/mKOK/mTFP1),2/25/25,casper,P0,pDQM059,320,unknown,dqm,tol2
+skittlez 4 FP (ef1a:<exorH:GFP>mKate2/Electra2/mKOK/mTFP1),2/25/25,casper,P0,pDQM059,321,unknown,dqm,tol2
+skittlez 5 FP (ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1),2/26/25,casper,P0,pDQM034,309,unknown,dqm,tol2
+skittlez 5 FP (ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1),2/26/25,casper,P0,pDQM034,310,unknown,dqm,tol2
+skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1),2/26/25,casper,F1,pDQM036,318,unknown,dqm,tol2
+skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1),2/26/25,casper,F1,pDQM036,319,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),3/3/25,casper,F2,pDQM005,302,unknown,dqm,tol2
+tandem mScarlet3-S2 H2B (ef1a-ext:tdmSc3s2:H2B),4/2/25,casper,Injection,pDQM133,,unknown,dqm,tol2
+tandem mScarlet3-S2 H2B (ef1a-ext:tdmSc3s2:H2B),4/8/25,casper,P0,pDQM133,324,unknown,dqm,tol2
+membrane tandem mStayGold; tandem mScarlet3-S2 Histone (ef1a-ext::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),4/15/25,casper,injection,pDQM132,,unknown,dqm,tol2
+membrane tandem mChilada (ef1a:2xLynk:tdmChilada),4/16/25,casper,injections,pDQM082,,unknown,dqm,tol2
+membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),4/16/25,casper,injection,pDQM125,,unknown,dqm,tol2
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),4/17/25,casper,F2,pDQM005,301,unknown,dqm,tol2
+membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),4/18/25,casper,P0,pDQM125,,unknown,dqm,tol2
+membrane tandem mStayGold; tandem mScarlet3-S2 Histone (ef1a-ext::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),4/21/25,casper,P0,pDQM132,,unknown,dqm,tol2
+membrane tandem mChilada (ef1a:2xLynk:tdmChilada),4/22/25,casper,P0,pDQM082,315,unknown,dqm,tol2
+membrane tandem mChilada (ef1a:2xLynk:tdmChilada),4/22/25,casper,F1,pDQM082,315,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),4/22/25,casper,injections,pDQM136,,unknown,dqm,tol2
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),4/22/25,casper,injections,pDQM137,,unknown,dqm,tol2
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),4/22/25,casper,P0,pDQM137,329,unknown,dqm,tol2
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),4/22/25,casper,P0,pDQM137,330,unknown,dqm,tol2
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),4/22/25,casper,P0,pDQM137,331,unknown,dqm,tol2
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),4/22/25,casper,P0,pDQM137,332,unknown,dqm,tol2
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),4/22/25,casper,P0,pDQM137,333,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),4/27/25,casper,P0,pDQM136,325,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),4/27/25,casper,F1,pDQM136,325,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),4/28/25,casper,P0,pDQM136,327,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),4/28/25,casper,F1,pDQM136,327,unknown,dqm,tol2
+membrane tandem Halo (ef1a:2xLynk:tdHalo),4/29/25,casper,F2,swin01,swinborne,unknown,dqm,tol2
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),5/18/25,casper,injections,pDQM137,,unknown,dqm,Meganuclease
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),5/18/25,casper,P0,pDQM137,337,unknown,dqm,Meganuclease
+Mito mScarlet3S2 (ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2),7/25/25,casper,injection,MGCO-35,,unknown,dqm,tol2
+Mito mScarlet3S2 (ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2),7/25/25,casper,P0,MGCO-35,336,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/2/25,casper,injections,pMNM002,,unknown,dqm,tol2-nanos
+membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/2/25,casper,P0,pMNM002,342,unknown,dqm,tol2-nanos
+mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1),8/10/25,casper,injections,pDQM151,,unknown,dqm,tol2
+mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1),8/10/25,casper,P0,pDQM151,341,unknown,dqm,tol2
+mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1),8/10/25,casper,P0,pDQM151,341,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/12/25,casper,injections,pJWL002,,unknown,dqm,phiC; p24b
+membrane tandem mScarlet3-S2 (p24b;ef1a-ext:2x:Lynk:tdmScarlet3S2),8/13/25,casper,injections,pJWL001,,unknown,dqm,phiC; p14a
+membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/13/25,casper,injections,pJWL002,,unknown,dqm,phiC; p14a
+membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),8/14/25,casper,injections,pJWL001,,unknown,dqm,phiC; p24b
+membrane tandem mScarlet3-S2 (p24b;ef1a-ext:2x:Lynk:tdmScarlet3S2),8/14/25,casper,P0,pJWL001,343,unknown,dqm,phiC; p24b
+membrane tandem mScarlet3-S2 (p24b;ef1a-ext:2x:Lynk:tdmScarlet3S2),8/14/25,casper,F1,pJWL001,343,unknown,dqm,phiC; p24b
+tdmScarlet3-S2:PCNA (S phase reporter) (ef1a-ext:tdmScarlet3-S2:PCNA),8/19/25,casper,injections,pDQM154,,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (FRT-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-FRT3),8/25/25,casper,injections,pDQM157,,unknown,dqm,phiC; p24b
+membrane tandem mChilada (ef1a:2xLynk:tdmChilada),8/26/25,casper,F2,pDQM082,315,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (loxP-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-lox2272),8/26/25,casper,injections,pDQM156,,unknown,dqm,phiC; p14a
+membrane tandem mScarlet3-S2 (FRT-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-FRT3),8/26/25,casper,injections,pDQM157,,unknown,dqm,phiC; p14a
+membrane tandem mScarlet3-S2 (loxP-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-lox2272),8/28/25,casper,injections,pDQM156,,unknown,dqm,phiC; p24b
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),9/2/25,casper,F1,pDQM137,337,unknown,dqm,Meganuclease
+tdmScarlet3-S2:GMN (S/G2 Fucci marker) (ef1a-ext:tdmScarlet3-S2:GMN),9/5/25,casper,injections,pDQM160,,unknown,dqm,tol2
+CDK activity sensor (ef1a-ext:DHB:tdmStayGold),9/15/25,casper,injections,pDQM155,,unknown,dqm,tol2
+membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),10/20/25,casper,F1,pMNM002,342,unknown,dqm,tol2-nanos
+Mito mScarlet3S2 (ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2),10/21/25,casper,F1,MGCO-35,336,unknown,dqm,tol2
+mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1),10/28/25,casper,F1,pDQM151,340,unknown,dqm,tol2
+mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1),10/28/25,casper,F1,pDQM151,341,unknown,dqm,tol2
+ef1a:2xLynk:tdmSG(J) (F1 of allele 301),8/16/24,casper,F1,pDQM005,301,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),8/16/24,casper,F1,pDQM005,302,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmSG(J) (F1 of allele 302),11/25/24,casper,F1,pDQM005,302,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmSG(J) (F1 of allele 304),8/16/24,casper,F1,pDQM005,304,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmSG(J) (F1 of allele 308),8/16/24,casper,F1,pDQM005,308,unknown,,from imaging worksheet
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 309),10/1/24,casper,F1,pDQM034,309,unknown,,from imaging worksheet
+ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 310),10/1/24,casper,F1,pDQM034,310,unknown,,from imaging worksheet
+ef1a:<exorh:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1 (F1 of allele 313),11/20/24,casper,F1,pDQM063,313,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmChilada (F1 of allele 315),12/22/24,casper,F1,pDQM082,315,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmChilada (F1 of allele 315),12/22/24,casper,F1,pDQM082,315,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmChilada (F1 of allele 315),12/22/24,casper,F1,pDQM082,315,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmChilada (F1 of allele 315),12/22/24,casper,F1,pDQM082,315,unknown,,from imaging worksheet
+Chris (F1 of allele 317),10/1/24,casper,F1,pDQM034,317,unknown,,from imaging worksheet
+Chris (F1 of allele 317),10/1/24,casper,F1,pDQM034,317,unknown,,from imaging worksheet
+tdmScarlet3S2:H2B-tol2 (F1 of allele 324),4/8/25,casper,F1,pDQM133,324,unknown,,from imaging worksheet
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),4/27/25,casper,F1,pDQM136,325,unknown,,from imaging worksheet
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),4/27/25,casper,F1,pDQM136,325,unknown,,from imaging worksheet
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),4/27/25,casper,F1,pDQM136,325,unknown,,from imaging worksheet
+ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),4/27/25,casper,F1,pDQM136,325,unknown,,from imaging worksheet
+MGCO35 (F1 of allele 336),10/21/25,casper,F1,MGCO-35,336,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmSG(J) (F2 of allele 301),11/12/24,casper,F2,pDQM005,301,unknown,,from imaging worksheet
+ef1a:2xLynk:tdmSG(J) (F2 of allele 302),11/25/24,casper,F2,pDQM005,302,unknown,,from imaging worksheet
+Abe (F2 of allele 309),10/1/24,casper,F2,pDQM034,309,unknown,,from imaging worksheet
+Ben (F2 of allele 310),10/1/24,casper,F2,pDQM034,310,unknown,,from imaging worksheet
+Isaac (F2 of allele 314),11/20/24,casper,F2,pDQM063,314,unknown,,from imaging worksheet
+Jim (F2 of allele 316),2/25/25,casper,F2,pDQM059,316,unknown,,from imaging worksheet
+Dennis (F2 of allele 318),10/1/24,casper,F2,pDQM036,318,unknown,,from imaging worksheet
+Ken (F2 of allele 320),2/25/25,casper,F2,pDQM059,320,unknown,,from imaging worksheet
+Liam (F2 of allele 321),11/3/24,casper,F2,pDQM059,321,unknown,,from imaging worksheet
+mem-tdmSG-8m,8/16/24,casper,founder,pDQM005,301,unknown,dqm,"multiple alleles, male founder #8"
+mem-tdmSG-11m,8/16/24,casper,founder,pDQM005,302,unknown,dqm,"multiple alleles, male founder #11"
+mem-tdmSG-8m-F1,11/24/24,casper,F1,pDQM005,301,unknown,dqm,"multiple alleles, selected brightest"
+mem-tdmSG-11m-F1,11/25/24,casper,F1,pDQM005,302,unknown,dqm,"multiple alleles, selected brightest"
+mem-tdmSG-8m-F2,4/17/25,casper,F2,pDQM005,301,unknown,dqm,"multiple alleles, selected brightest, check for homozygosity"
+mem-tdmSG-11m-F2,3/3/25,casper,F2,pDQM005,302,unknown,dqm,"multiple alleles, selected brightest, check for homozygosity"
+casper,10/8/25,casper,stable,,,,dk,test line
+csp/pIGLET 14a,2/24/25,pIGLET 14a,stable,,,unknown,,from imaging worksheet

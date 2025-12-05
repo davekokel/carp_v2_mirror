@@ -248,7 +248,11 @@ def main() -> None:
             tag_code_raw = norm_optional(row.get("tag_code"))
             tag_pos_raw = norm_optional(row.get("tag_pos"))
 
-            if not plasmid_code_raw or not fluor_code_raw:
+            if not plasmid_code_raw:
+                continue
+
+            # skip rows where fluor_code is empty or a NaN-ish string
+            if not fluor_code_raw or fluor_code_raw.lower() == "nan":
                 continue
 
             canonical = normalize_construct_code(plasmid_code_raw)

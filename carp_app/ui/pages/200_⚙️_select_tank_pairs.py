@@ -1,3 +1,5 @@
+# carp_app/ui/pages/200_⚙️_select_tank_pairs.py
+# ⚙️ Select tank pairings (v11 fish instances & tanks)
 from __future__ import annotations
 
 import os
@@ -44,12 +46,13 @@ def eng():
 
 # ------------------ core queries (v11) ---------------------------------------
 
+
 @st.cache_data(show_spinner=False)
 def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
     """
-    Search fish instances (FSH codes) using v11_fish_instance_star
-    + live tank counts from v_tanks_overview
-    + marker rollups from v11_fish_marker_rollups.
+    Search fish instances (FSH codes) using v11_fish_instance_star_labels
+    + live tank counts from v_tanks_overview.
+    Uses the 3 genotype style fields.
     """
     qnorm = (q or "").strip()
     params: Dict[str, object] = {
@@ -68,17 +71,21 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
             fis.line_nickname                      AS nickname,
             COALESCE(fis.genetic_background,'')    AS genetic_background,
             COALESCE(fis.instance_stage,'')        AS stage,
-            COALESCE(fis.genotype_pretty,'')       AS genotype,
+            COALESCE(fis.genotype_tg_style,'')          AS genotype_tg_style,
+            COALESCE(fis.genotype_fluortag_style,'')    AS genotype_fluortag_style,
+            COALESCE(fis.genotype_fluororganelle_style,'') AS genotype_fluororganelle_style,
             fis.birthday                           AS birthday,
             fis.birthday                           AS created_at
-          FROM public.v11_fish_instance_star fis
+          FROM public.v11_fish_instance_star_labels fis
           WHERE (:q IS NULL)
              OR (
-                  fis.fish_code                     ILIKE :ql
-               OR COALESCE(fis.line_nickname,'')    ILIKE :ql
-               OR COALESCE(fis.genetic_background,'') ILIKE :ql
-               OR COALESCE(fis.instance_stage,'')   ILIKE :ql
-               OR COALESCE(fis.genotype_pretty,'')  ILIKE :ql
+                  fis.fish_code                        ILIKE :ql
+               OR COALESCE(fis.line_nickname,'')       ILIKE :ql
+               OR COALESCE(fis.genetic_background,'')  ILIKE :ql
+               OR COALESCE(fis.instance_stage,'')      ILIKE :ql
+               OR COALESCE(fis.genotype_tg_style,'')   ILIKE :ql
+               OR COALESCE(fis.genotype_fluortag_style,'') ILIKE :ql
+               OR COALESCE(fis.genotype_fluororganelle_style,'') ILIKE :ql
              )
           ORDER BY fis.birthday DESC NULLS LAST, fis.fish_code
           LIMIT :lim
@@ -91,13 +98,6 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
           FROM public.v_tanks_overview ts
           WHERE lower(trim(ts.status)) = 'active'
           GROUP BY ts.fish_code
-        ),
-        marker AS (
-          SELECT
-            mr.fish_instance_id,
-            COALESCE(mr.fluor_tag_rollup,'')       AS all_fluor_tag_rollup,
-            COALESCE(mr.organelle_fluor_rollup,'') AS all_organelle_fluor_rollup
-          FROM public.v11_fish_marker_rollups mr
         )
         SELECT
           b.fish_code,
@@ -105,17 +105,15 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
           b.nickname                  AS name,
           b.genetic_background        AS background,
           b.stage                     AS stage,
-          b.genotype                  AS genotype,
+          b.genotype_tg_style,
+          b.genotype_fluortag_style,
+          b.genotype_fluororganelle_style,
           b.birthday                  AS birthday,
-          COALESCE(m.all_fluor_tag_rollup,'')       AS all_fluor_tag_rollup,
-          COALESCE(m.all_organelle_fluor_rollup,'') AS all_organelle_fluor_rollup,
           COALESCE(l.n_live, 0)       AS live_tanks,
           COALESCE(l.live_tank_codes,'') AS live_tank_codes
         FROM base b
         LEFT JOIN live l
-          ON l.fish_code = b.fish_code
-        LEFT JOIN marker m
-          ON m.fish_instance_id = b.fish_instance_id;
+          ON l.fish_code = b.fish_code;
         """
     )
 
@@ -130,7 +128,7 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
 def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
     """
     Return active tanks for the given FSH fish_codes,
-    with line nickname + genotype + line_code + birthday + marker rollups.
+    with line nickname + 3 genotype display styles.
     """
     if not codes:
         return pd.DataFrame()
@@ -141,19 +139,17 @@ def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
           ts.fish_code,
           fis.line_code,
           fis.line_nickname                      AS fish_name,
-          COALESCE(fis.genotype_pretty,'')       AS genotype,
+          COALESCE(fis.genotype_tg_style,'')          AS genotype_tg_style,
+          COALESCE(fis.genotype_fluortag_style,'')    AS genotype_fluortag_style,
+          COALESCE(fis.genotype_fluororganelle_style,'') AS genotype_fluororganelle_style,
           fis.birthday                           AS birthday,
-          COALESCE(mr.fluor_tag_rollup,'')       AS all_fluor_tag_rollup,
-          COALESCE(mr.organelle_fluor_rollup,'') AS all_organelle_fluor_rollup,
           ts.tank_code,
           ts.tank_id::text                       AS tank_id,
           ts.status                              AS status,
           ts.created_at                          AS created_at
         FROM public.v_tanks_overview ts
-        JOIN public.v11_fish_instance_star fis
+        JOIN public.v11_fish_instance_star_labels fis
           ON fis.fish_code = ts.fish_code
-        LEFT JOIN public.v11_fish_marker_rollups mr
-          ON mr.fish_instance_id = fis.fish_instance_id
         WHERE ts.fish_code = ANY(:codes)
           AND lower(trim(ts.status)) = 'active'
         ORDER BY ts.fish_code, ts.created_at DESC NULLS LAST;
@@ -303,10 +299,10 @@ view = df[
         "name",
         "background",
         "stage",
-        "genotype",
+        "genotype_tg_style",
+        "genotype_fluortag_style",
+        "genotype_fluororganelle_style",
         "birthday",
-        "all_fluor_tag_rollup",
-        "all_organelle_fluor_rollup",
         "live_tanks",
         "live_tank_codes",
     ]
@@ -325,14 +321,16 @@ pick = st.data_editor(
         "name": st.column_config.TextColumn("Name", disabled=True, width="large"),
         "background": st.column_config.TextColumn("Background", disabled=True),
         "stage": st.column_config.TextColumn("Stage", disabled=True),
-        "genotype": st.column_config.TextColumn("Genotype", disabled=True, width="large"),
+        "genotype_tg_style": st.column_config.TextColumn(
+            "Genotype (tg)", disabled=True, width="large"
+        ),
+        "genotype_fluortag_style": st.column_config.TextColumn(
+            "Genotype (fluor-tag)", disabled=True, width="large"
+        ),
+        "genotype_fluororganelle_style": st.column_config.TextColumn(
+            "Genotype (fluor-organelle)", disabled=True, width="large"
+        ),
         "birthday": st.column_config.DateColumn("Birthday", disabled=True),
-        "all_fluor_tag_rollup": st.column_config.TextColumn(
-            "fluor::tag(tag_pos)", disabled=True, width="large"
-        ),
-        "all_organelle_fluor_rollup": st.column_config.TextColumn(
-            "organelle-fluor rollup", disabled=True, width="large"
-        ),
         "live_tanks": st.column_config.NumberColumn("Live tanks", disabled=True),
         "live_tank_codes": st.column_config.TextColumn(
             "Live tank codes", disabled=True, width="large"
@@ -369,10 +367,10 @@ m_sel = st.data_editor(
             "fish_code",
             "line_code",
             "fish_name",
-            "genotype",
+            "genotype_tg_style",
+            "genotype_fluortag_style",
+            "genotype_fluororganelle_style",
             "birthday",
-            "all_fluor_tag_rollup",
-            "all_organelle_fluor_rollup",
             "tank_code",
             "tank_id",
             "status",
@@ -387,14 +385,16 @@ m_sel = st.data_editor(
         "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
         "line_code": st.column_config.TextColumn("LINE code", disabled=True),
         "fish_name": st.column_config.TextColumn("Name", disabled=True, width="large"),
-        "genotype": st.column_config.TextColumn("Genotype", disabled=True, width="large"),
+        "genotype_tg_style": st.column_config.TextColumn(
+            "Genotype (tg)", disabled=True, width="large"
+        ),
+        "genotype_fluortag_style": st.column_config.TextColumn(
+            "Genotype (fluor-tag)", disabled=True, width="large"
+        ),
+        "genotype_fluororganelle_style": st.column_config.TextColumn(
+            "Genotype (fluor-organelle)", disabled=True, width="large"
+        ),
         "birthday": st.column_config.DateColumn("Birthday", disabled=True),
-        "all_fluor_tag_rollup": st.column_config.TextColumn(
-            "fluor::tag(tag_pos)", disabled=True, width="large"
-        ),
-        "all_organelle_fluor_rollup": st.column_config.TextColumn(
-            "organelle-fluor rollup", disabled=True, width="large"
-        ),
         "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
         "tank_id": st.column_config.TextColumn("Tank id", disabled=True),
         "status": st.column_config.TextColumn("Status", disabled=True),
@@ -425,10 +425,10 @@ f_sel = st.data_editor(
             "fish_code",
             "line_code",
             "fish_name",
-            "genotype",
+            "genotype_tg_style",
+            "genotype_fluortag_style",
+            "genotype_fluororganelle_style",
             "birthday",
-            "all_fluor_tag_rollup",
-            "all_organelle_fluor_rollup",
             "tank_code",
             "tank_id",
             "status",
@@ -443,14 +443,16 @@ f_sel = st.data_editor(
         "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
         "line_code": st.column_config.TextColumn("LINE code", disabled=True),
         "fish_name": st.column_config.TextColumn("Name", disabled=True, width="large"),
-        "genotype": st.column_config.TextColumn("Genotype", disabled=True, width="large"),
+        "genotype_tg_style": st.column_config.TextColumn(
+            "Genotype (tg)", disabled=True, width="large"
+        ),
+        "genotype_fluortag_style": st.column_config.TextColumn(
+            "Genotype (fluor-tag)", disabled=True, width="large"
+        ),
+        "genotype_fluororganelle_style": st.column_config.TextColumn(
+            "Genotype (fluor-organelle)", disabled=True, width="large"
+        ),
         "birthday": st.column_config.DateColumn("Birthday", disabled=True),
-        "all_fluor_tag_rollup": st.column_config.TextColumn(
-            "fluor::tag(tag_pos)", disabled=True, width="large"
-        ),
-        "all_organelle_fluor_rollup": st.column_config.TextColumn(
-            "organelle-fluor rollup", disabled=True, width="large"
-        ),
         "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
         "tank_id": st.column_config.TextColumn("Tank id", disabled=True),
         "status": st.column_config.TextColumn("Status", disabled=True),

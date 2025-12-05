@@ -82,24 +82,24 @@ def list_tank_pairs(q: str, limit: int) -> pd.DataFrame:
             mt.id              AS mom_tank_id,
             mt.tank_code       AS mom_tank_code,
             mf.fish_code       AS mom_fish_code,
-            mfi.genotype_pretty AS mom_genotype,
+            COALESCE(mfis.genotype_tg_style,'') AS mom_genotype,
             ft.id              AS dad_tank_id,
             ft.tank_code       AS dad_tank_code,
             ff.fish_code       AS dad_fish_code,
-            ffi.genotype_pretty AS dad_genotype
+            COALESCE(dfis.genotype_tg_style,'') AS dad_genotype
           FROM public.tank_pairs tp
           LEFT JOIN public.tanks mt
                  ON mt.id = tp.{mom_col}
           LEFT JOIN public.fish_instances_v10 mf
                  ON mf.id = mt.fish_instance_id
-          LEFT JOIN public.v11_fish_instance_star mfi
-                 ON mfi.fish_instance_id = mf.id
+          LEFT JOIN public.v11_fish_instance_star_labels mfis
+                 ON mfis.fish_instance_id = mf.id
           LEFT JOIN public.tanks ft
                  ON ft.id = tp.{dad_col}
           LEFT JOIN public.fish_instances_v10 ff
                  ON ff.id = ft.fish_instance_id
-          LEFT JOIN public.v11_fish_instance_star ffi
-                 ON ffi.fish_instance_id = ff.id
+          LEFT JOIN public.v11_fish_instance_star_labels dfis
+                 ON dfis.fish_instance_id = ff.id
         )
         SELECT *
         FROM pairs
@@ -132,71 +132,90 @@ def get_parent_detail(tp_id: str) -> pd.DataFrame:
           FROM public.tank_pairs
           WHERE id = :tp_id
         ),
+
         mom AS (
           SELECT
             'mother'                          AS role,
             mt.tank_code                      AS tank_code,
             mf.id                             AS fish_id,
             mf.fish_code                      AS fish_code,
+
+            -- v11 genotype basecodes
             fis.genotype_basecodes            AS genotype_basecode_code,
+
+            -- modern genotype styles
+            lbl.genotype_tg_style                  AS genotype_tg_style,
+            lbl.genotype_fluortag_style            AS genotype_fluortag_style,
+            lbl.genotype_fluororganelle_style      AS genotype_fluororganelle_style,
+
+            -- leave these NULL (not used)
             NULL::text                        AS genotype_transgene_allele_code,
             NULL::text                        AS treatments_and_transgenes,
-            COALESCE(mr.fluor_tag_rollup, '')       AS all_fluor_tag_rollup,
-            COALESCE(mr.organelle_fluor_rollup, '') AS all_organelle_fluor_rollup
+
+            -- allele rollups
+            fa.allele_canonical_rollup,
+            fa.allele_label_rollup
+
           FROM tp
           JOIN public.tanks mt
             ON mt.id = tp.mom_tank_id
           JOIN public.fish_instances_v10 mf
             ON mf.id = mt.fish_instance_id
+
           JOIN public.v11_fish_instance_star fis
             ON fis.fish_instance_id = mf.id
-          LEFT JOIN public.v11_fish_marker_rollups mr
-            ON mr.fish_instance_id = mf.id
+
+          LEFT JOIN public.v11_fish_instance_star_labels lbl
+            ON lbl.fish_instance_id = mf.id
+
+          LEFT JOIN public.v11_fish_allele_rollups fa
+            ON fa.fish_instance_id = mf.id
         ),
+
         dad AS (
           SELECT
             'father'                          AS role,
             ft.tank_code                      AS tank_code,
             ff.id                             AS fish_id,
             ff.fish_code                      AS fish_code,
+
             fis.genotype_basecodes            AS genotype_basecode_code,
+
+            lbl.genotype_tg_style                  AS genotype_tg_style,
+            lbl.genotype_fluortag_style            AS genotype_fluortag_style,
+            lbl.genotype_fluororganelle_style      AS genotype_fluororganelle_style,
+
             NULL::text                        AS genotype_transgene_allele_code,
             NULL::text                        AS treatments_and_transgenes,
-            COALESCE(mr.fluor_tag_rollup, '')       AS all_fluor_tag_rollup,
-            COALESCE(mr.organelle_fluor_rollup, '') AS all_organelle_fluor_rollup
+
+            fa.allele_canonical_rollup,
+            fa.allele_label_rollup
+
           FROM tp
           JOIN public.tanks ft
             ON ft.id = tp.dad_tank_id
           JOIN public.fish_instances_v10 ff
             ON ff.id = ft.fish_instance_id
+
           JOIN public.v11_fish_instance_star fis
             ON fis.fish_instance_id = ff.id
-          LEFT JOIN public.v11_fish_marker_rollups mr
-            ON mr.fish_instance_id = ff.id
-        ),
-        parents AS (
-          SELECT * FROM mom
-          UNION ALL
-          SELECT * FROM dad
+
+          LEFT JOIN public.v11_fish_instance_star_labels lbl
+            ON lbl.fish_instance_id = ff.id
+
+          LEFT JOIN public.v11_fish_allele_rollups fa
+            ON fa.fish_instance_id = ff.id
         )
-        SELECT
-          p.role,
-          p.tank_code,
-          p.fish_id,
-          p.fish_code,
-          p.genotype_basecode_code,
-          p.genotype_transgene_allele_code,
-          p.treatments_and_transgenes,
-          p.all_fluor_tag_rollup,
-          p.all_organelle_fluor_rollup,
-          fa.allele_canonical_rollup,
-          fa.allele_label_rollup
-        FROM parents p
-        LEFT JOIN public.v11_fish_allele_rollups fa
-          ON fa.fish_instance_id = p.fish_id
-        ORDER BY p.role;
+
+        SELECT *
+        FROM mom
+        UNION ALL
+        SELECT *
+        FROM dad
+        ORDER BY role;
         """
     )
+
     with eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"tp_id": tp_id})
     return df.fillna("")
@@ -212,8 +231,6 @@ def compute_expected_genotypes_for_tank_pair(tp_id: str) -> pd.DataFrame:
                 "genotype_basecode_code",
                 "genotype_transgene_allele_code",
                 "treatments_and_transgenes",
-                "all_fluor_tag_rollup",
-                "all_organelle_fluor_rollup",
                 "expected_fraction",
                 "expected_percent_label",
                 "is_enabled",
@@ -221,7 +238,6 @@ def compute_expected_genotypes_for_tank_pair(tp_id: str) -> pd.DataFrame:
             ]
         )
 
-    # helper: parse "BASE:guN; BASE2:guM" into {base: [token,...]}
     def _parse_alleles(s: Any) -> Dict[str, List[str]]:
         txt = (str(s) if s is not None else "").strip()
         out: Dict[str, List[str]] = {}
@@ -241,7 +257,6 @@ def compute_expected_genotypes_for_tank_pair(tp_id: str) -> pd.DataFrame:
             out.setdefault(base, []).append(f"{base}:{allele}")
         return out
 
-    # helper: parse "BASE || label; BASE2 || label2" into {base: [full_token,...]}
     def _parse_treatments(s: Any) -> Dict[str, List[str]]:
         txt = (str(s) if s is not None else "").strip()
         out: Dict[str, List[str]] = {}
@@ -260,70 +275,32 @@ def compute_expected_genotypes_for_tank_pair(tp_id: str) -> pd.DataFrame:
                 out.setdefault(base, []).append(t)
         return out
 
-    # identify mother/father rows
     mother = parents[parents["role"] == "mother"].iloc[0] if (parents["role"] == "mother").any() else None
     father = parents[parents["role"] == "father"].iloc[0] if (parents["role"] == "father").any() else None
 
-    # allele maps per parent from allele_canonical_rollup
     alleles_m: Dict[str, List[str]] = _parse_alleles(mother["allele_canonical_rollup"]) if mother is not None else {}
     alleles_f: Dict[str, List[str]] = _parse_alleles(father["allele_canonical_rollup"]) if father is not None else {}
 
-    # basecodes present in either parent
     all_bases = sorted(set(alleles_m.keys()) | set(alleles_f.keys()))
 
-    # treatment maps per parent from treatments_and_transgenes
     tx_m = _parse_treatments(mother["treatments_and_transgenes"]) if mother is not None else {}
     tx_f = _parse_treatments(father["treatments_and_transgenes"]) if father is not None else {}
 
-    # fluor / organelle rollups: union of parents (same for all classes for now)
-    fluor_union_parts: List[str] = []
-    for src in [
-        mother["all_fluor_tag_rollup"] if mother is not None else "",
-        father["all_fluor_tag_rollup"] if father is not None else "",
-    ]:
-        txt = (str(src) if src is not None else "").strip()
-        if not txt:
-            continue
-        for tok in txt.split(","):
-            t = tok.strip()
-            if t and t not in fluor_union_parts:
-                fluor_union_parts.append(t)
-    fluor_union = ", ".join(fluor_union_parts)
-
-    org_union_parts: List[str] = []
-    for src in [
-        mother["all_organelle_fluor_rollup"] if mother is not None else "",
-        father["all_organelle_fluor_rollup"] if father is not None else "",
-    ]:
-        txt = (str(src) if src is not None else "").strip()
-        if not txt:
-            continue
-        for tok in txt.split(","):
-            t = tok.strip()
-            if t and t not in org_union_parts:
-                org_union_parts.append(t)
-    org_union = ", ".join(org_union_parts)
-
-    # build all genotype combinations across bases
-    combos: List[Dict[str, List[str]]] = [dict()]  # start with empty combo
+    combos: List[Dict[str, List[str]]] = [dict()]
 
     for base in all_bases:
         m_opts = alleles_m.get(base, [])
         f_opts = alleles_f.get(base, [])
         options: List[List[str]] = []
 
-        # always allow "no allele" (empty set)
         options.append([])
 
-        # mother-only
         if m_opts:
             options.append(m_opts)
 
-        # father-only (if different from mother)
         if f_opts and f_opts != m_opts:
             options.append(f_opts)
 
-        # both parents (if both present and at least one differs)
         if m_opts and f_opts:
             if m_opts != f_opts:
                 merged = sorted(set(m_opts + f_opts))
@@ -339,7 +316,6 @@ def compute_expected_genotypes_for_tank_pair(tp_id: str) -> pd.DataFrame:
                     if base in new_c:
                         new_c.pop(base)
                 new_combos.append(new_c)
-        # dedupe combos by a stable key
         seen_keys = set()
         deduped: List[Dict[str, List[str]]] = []
         for c in new_combos:
@@ -362,7 +338,6 @@ def compute_expected_genotypes_for_tank_pair(tp_id: str) -> pd.DataFrame:
         genotype_base = ",".join(bases)
         genotype_alleles = "; ".join(alleles)
 
-        # treatments filtered by bases in this genotype
         tx_tokens: List[str] = []
         for b in bases:
             for t in tx_m.get(b, []):
@@ -380,8 +355,6 @@ def compute_expected_genotypes_for_tank_pair(tp_id: str) -> pd.DataFrame:
                 "genotype_basecode_code": genotype_base,
                 "genotype_transgene_allele_code": genotype_alleles,
                 "treatments_and_transgenes": treatments,
-                "all_fluor_tag_rollup": fluor_union,
-                "all_organelle_fluor_rollup": org_union,
                 "expected_fraction": None,
                 "expected_percent_label": "",
                 "is_enabled": True,
@@ -396,13 +369,14 @@ def upsert_cross_and_clutch_for_tank_pair(
     tp_id: str,
     run_date: date,
     expected_rows: pd.DataFrame,
-) -> Tuple[str, str, str, str]:
+) -> Tuple[str, str]:
     mom_col, dad_col = _tank_pair_parent_cols()
     cross_date = run_date
     clutch_date = run_date + timedelta(days=1)
     d_cross = str(cross_date)
     d_clutch = str(clutch_date)
 
+    # ── Step 1: upsert cross + clutch ────────────────────────────────
     with eng().begin() as cx:
         cross_sql = text(
             f"""
@@ -420,6 +394,7 @@ def upsert_cross_and_clutch_for_tank_pair(
                 tank_pair_id,
                 female_fish_id,
                 male_fish_id,
+                cross_date,
                 created_at,
                 cross_run_code
               )
@@ -428,6 +403,7 @@ def upsert_cross_and_clutch_for_tank_pair(
                 tp.id                              AS tank_pair_id,
                 mf.id                              AS female_fish_id,
                 ff.id                              AS male_fish_id,
+                CAST(:d_cross AS date)             AS cross_date,
                 CAST(:d_cross AS date)             AS created_at,
                 'CR-' || left(new_id.id::text, 8)  AS cross_run_code
               FROM new_id
@@ -445,7 +421,7 @@ def upsert_cross_and_clutch_for_tank_pair(
                 SELECT 1
                 FROM public.crosses c
                 WHERE c.tank_pair_id = tp.id
-                  AND DATE(c.created_at) = CAST(:d_cross AS date)
+                  AND c.cross_date = CAST(:d_cross AS date)
               )
               RETURNING id, cross_run_code
             )
@@ -455,7 +431,7 @@ def upsert_cross_and_clutch_for_tank_pair(
             SELECT id, cross_run_code
             FROM public.crosses c
             WHERE c.tank_pair_id = :tp_id
-              AND DATE(c.created_at) = CAST(:d_cross AS date)
+              AND c.cross_date = CAST(:d_cross AS date)
               AND NOT EXISTS (SELECT 1 FROM ins)
             LIMIT 1;
             """
@@ -514,6 +490,9 @@ def upsert_cross_and_clutch_for_tank_pair(
             raise RuntimeError("Failed to insert or locate clutch for cross.")
         clutch_id, clutch_code_out = clutch_row
 
+    # ── Step 2: expected genotypes → genotypes_v11 + clutch_genotypes_v11 + join_genotype_constructs ─────────
+    primary_candidates: List[Tuple[str, float]] = []  # (genotype_v11_id, expected_fraction)
+
     if not expected_rows.empty:
         with eng().begin() as cx:
             for _, r in expected_rows.iterrows():
@@ -526,6 +505,7 @@ def upsert_cross_and_clutch_for_tank_pair(
                 gcode = "G-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:10].upper()
                 pretty = alleles or basecodes
 
+                # 2a. upsert genotype_v11
                 res = cx.execute(
                     text(
                         """
@@ -562,6 +542,42 @@ def upsert_cross_and_clutch_for_tank_pair(
                     if gid is None:
                         continue
 
+                # 2b. wire genotype → constructs based on basecodes
+                base_tokens = [tok.strip() for tok in basecodes.split(",") if tok.strip()]
+                for bc in base_tokens:
+                    construct_row = cx.execute(
+                        text(
+                            """
+                            SELECT id::uuid AS construct_id
+                            FROM public.constructs
+                            WHERE base_code = :bc
+                            LIMIT 1;
+                            """
+                        ),
+                        {"bc": bc},
+                    ).fetchone()
+                    if construct_row:
+                        construct_id = construct_row._mapping["construct_id"]
+                        cx.execute(
+                            text(
+                                """
+                                INSERT INTO public.join_genotype_constructs_v11 (
+                                  genotype_id,
+                                  construct_id,
+                                  created_at
+                                )
+                                VALUES (
+                                  :gid::uuid,
+                                  :cid::uuid,
+                                  now()
+                                )
+                                ON CONFLICT DO NOTHING;
+                                """
+                            ),
+                            {"gid": gid, "cid": construct_id},
+                        )
+
+                # 2c. insert clutch_genotypes_v11 row
                 cx.execute(
                     text(
                         """
@@ -593,7 +609,31 @@ def upsert_cross_and_clutch_for_tank_pair(
                     },
                 )
 
-    return str(cross_id), str(cross_run_code), str(clutch_id), str(clutch_code_out)
+                # track candidate for primary genotype
+                frac = r.get("expected_fraction")
+                try:
+                    frac_val = float(frac) if frac is not None else 0.0
+                except Exception:
+                    frac_val = 0.0
+                primary_candidates.append((str(gid), frac_val))
+
+            # 2d. choose primary genotype and set clutches.genotype_v11_id
+            if primary_candidates:
+                primary_candidates.sort(key=lambda t: t[1], reverse=True)
+                primary_gid, _ = primary_candidates[0]
+                cx.execute(
+                    text(
+                        """
+                        UPDATE public.clutches
+                        SET genotype_v11_id = :gid::uuid
+                        WHERE id = :clutch_id::uuid
+                          AND genotype_v11_id IS NULL;
+                        """
+                    ),
+                    {"gid": primary_gid, "clutch_id": clutch_id},
+                )
+
+    return str(cross_run_code), str(clutch_code_out)
 
 
 with st.form("tank_pair_filters", clear_on_submit=False):
@@ -622,42 +662,58 @@ if pairs.empty:
     st.stop()
 
 st.subheader("Step 1 — Select a tank pair", anchor=False)
-tp_view = pairs.copy()
+tp_view = pairs[
+    [
+        "tank_pair_code",
+        "mom_fish_code",
+        "mom_tank_code",
+        "mom_genotype",
+        "dad_fish_code",
+        "dad_tank_code",
+        "dad_genotype",
+        "created_at",
+    ]
+].copy()
 tp_view.insert(0, "✓", False)
 
 tp_grid = st.data_editor(
-    tp_view[
-        [
-            "✓",
-            "tank_pair_id",
-            "tank_pair_code",
-            "mom_fish_code",
-            "mom_tank_code",
-            "mom_genotype",
-            "dad_fish_code",
-            "dad_tank_code",
-            "dad_genotype",
-            "created_at",
-        ]
-    ],
+    tp_view,
     key="tank_pairs_picker_for_cross",
     hide_index=True,
     use_container_width=True,
     num_rows="fixed",
+    column_config={
+        "✓": st.column_config.CheckboxColumn("✓", default=False),
+        "tank_pair_code": st.column_config.TextColumn("Tank pair", disabled=True),
+        "mom_fish_code": st.column_config.TextColumn("Mother FSH", disabled=True),
+        "mom_tank_code": st.column_config.TextColumn("Mother tank", disabled=True),
+        "mom_genotype": st.column_config.TextColumn("Mother genotype (tg)", disabled=True, width="large"),
+        "dad_fish_code": st.column_config.TextColumn("Father FSH", disabled=True),
+        "dad_tank_code": st.column_config.TextColumn("Father tank", disabled=True),
+        "dad_genotype": st.column_config.TextColumn("Father genotype (tg)", disabled=True, width="large"),
+        "created_at": st.column_config.DatetimeColumn("Created at", disabled=True),
+    },
 )
 
-tp_sel = tp_grid.loc[tp_grid["✓"] == True] if "✓" in tp_grid.columns else pd.DataFrame()
-if tp_sel.empty:
+tp_sel_mask = (
+    tp_grid.get("✓", pd.Series(False, index=tp_grid.index))
+    .fillna(False)
+    .astype(bool)
+)
+if not tp_sel_mask.any():
     st.info("Select a tank pair above to schedule a cross.")
     st.stop()
 
-tp_row = tp_sel.iloc[0]
+sel_idx = tp_grid.index[tp_sel_mask].tolist()[0]
+tp_row = pairs.iloc[sel_idx]
 tp_id = tp_row["tank_pair_id"]
 tp_code = tp_row["tank_pair_code"]
 
 st.success(f"Selected tank pair: {tp_code}")
 
+# -------- Step 1a — Parents (modern genotype styles) --------
 st.subheader("Step 1a — Parents (tanks, fish, v11 genotype + alleles)", anchor=False)
+
 parents_df = get_parent_detail(tp_id)
 
 mother = parents_df[parents_df["role"] == "mother"].iloc[0] if (
@@ -667,25 +723,26 @@ father = parents_df[parents_df["role"] == "father"].iloc[0] if (
     not parents_df.empty and "father" in parents_df["role"].values
 ) else None
 
+
 def _pv(row: Optional[pd.Series], col: str) -> str:
     if row is None:
         return ""
     return str(row.get(col, "") or "")
 
+
 pivot_rows = [
     ("Fish code", _pv(mother, "fish_code"), _pv(father, "fish_code")),
     ("Tank code", _pv(mother, "tank_code"), _pv(father, "tank_code")),
-    ("Genotype basecode code", _pv(mother, "genotype_basecode_code"), _pv(father, "genotype_basecode_code")),
-    ("Genotype transgene/allele code", _pv(mother, "genotype_transgene_allele_code"), _pv(father, "genotype_transgene_allele_code")),
-    ("Treatments & transgenes", _pv(mother, "treatments_and_transgenes"), _pv(father, "treatments_and_transgenes")),
-    ("Fluor::tag rollup", _pv(mother, "all_fluor_tag_rollup"), _pv(father, "all_fluor_tag_rollup")),
-    ("Organelle-fluor rollup", _pv(mother, "all_organelle_fluor_rollup"), _pv(father, "all_organelle_fluor_rollup")),
+    ("Genotype (tg)", _pv(mother, "genotype_tg_style"), _pv(father, "genotype_tg_style")),
+    ("Genotype (fluor-tag)", _pv(mother, "genotype_fluortag_style"), _pv(father, "genotype_fluortag_style")),
+    ("Genotype (fluor-organelle)", _pv(mother, "genotype_fluororganelle_style"), _pv(father, "genotype_fluororganelle_style")),
     ("Allele canonical rollup", _pv(mother, "allele_canonical_rollup"), _pv(father, "allele_canonical_rollup")),
     ("Allele label rollup", _pv(mother, "allele_label_rollup"), _pv(father, "allele_label_rollup")),
 ]
 
 pivot_df = pd.DataFrame(pivot_rows, columns=["Field", "Mother", "Father"])
 st.dataframe(pivot_df, use_container_width=True, hide_index=True)
+
 
 st.subheader("Step 2 — Expected offspring genotypes (union summary)", anchor=False)
 df_expected = compute_expected_genotypes_for_tank_pair(tp_id)
@@ -709,14 +766,25 @@ else:
                 "genotype_basecode_code",
                 "genotype_transgene_allele_code",
                 "treatments_and_transgenes",
-                "all_fluor_tag_rollup",
-                "all_organelle_fluor_rollup",
             ]
         ],
         key="expected_genotypes_picker",
         hide_index=True,
         use_container_width=True,
         num_rows="fixed",
+        column_config={
+            "✓": st.column_config.CheckboxColumn("✓", default=True),
+            "label": st.column_config.TextColumn("Label", disabled=True),
+            "genotype_basecode_code": st.column_config.TextColumn(
+                "Genotype basecodes", disabled=True, width="large"
+            ),
+            "genotype_transgene_allele_code": st.column_config.TextColumn(
+                "Genotype transgene/allele code", disabled=True, width="large"
+            ),
+            "treatments_and_transgenes": st.column_config.TextColumn(
+                "Treatments & transgenes", disabled=True, width="large"
+            ),
+        },
     )
 
     expected_selected = (
@@ -734,17 +802,15 @@ st.subheader("Step 4 — Save cross + clutch", anchor=False)
 
 if st.button("💾 Schedule cross + clutch", type="primary", use_container_width=True):
     try:
-        cross_id, cross_run_code, clutch_id, clutch_code = (
-            upsert_cross_and_clutch_for_tank_pair(
-                tp_id,
-                run_date,
-                expected_selected,
-            )
+        cross_run_code, clutch_code = upsert_cross_and_clutch_for_tank_pair(
+            tp_id,
+            run_date,
+            expected_selected,
         )
         label_str = f"{tp_code} @ {run_date.isoformat()}"
         st.success(
-            f"Cross scheduled: {cross_run_code} ({label_str}) (id={cross_id}); "
-            f"Clutch created: {clutch_code} (id={clutch_id}); "
+            f"Cross scheduled: {cross_run_code} ({label_str}); "
+            f"Clutch created: {clutch_code}; "
             f"Expected genotype rows saved: {len(expected_selected)}"
         )
     except Exception as e:

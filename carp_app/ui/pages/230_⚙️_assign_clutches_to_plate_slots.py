@@ -376,62 +376,91 @@ clutch_q = st.text_input(
 )
 
 with eng().begin() as cx:
-    df_treated = pd.read_sql(
+    df_groups = pd.read_sql(
         text(
             """
-            WITH base AS (
+            WITH treated AS (
+              SELECT
+                tc.id::uuid                  AS treated_clutch_id,
+                tc.treated_clutch_code,
+                c.id::uuid                   AS clutch_id,
+                c.clutch_code,
+                c.clutch_date,
+
+                g.genotype_basecodes::text   AS genotype_basecodes,
+                g.genotype_pretty::text      AS genotype_pretty,
+
+                t.treat_code                 AS treatment_code,
+                ts.all_fluor_tag_rollup,
+                ts.all_organelle_fluor_rollup,
+
+                -- what the UI will type into the wells
+                tc.treated_clutch_code       AS assign_code
+              FROM public.treated_clutches_v11 tc
+              JOIN public.clutches c
+                ON c.id = tc.clutch_id
+              LEFT JOIN public.genotypes_v11 g
+                ON g.id = c.genotype_v11_id
+              LEFT JOIN public.treatments t
+                ON t.id = tc.treatment_id
+              LEFT JOIN public.v11_treatment_star ts
+                ON ts.treatment_id = t.id::text
+              WHERE c.clutch_date >= (current_date - INTERVAL '14 days')
+                AND COALESCE(c.source_system, '') <> 'legacy_imaging'
+            ),
+            untreated AS (
                 SELECT
-                    tc.id::uuid                  AS treated_clutch_id,
-                    tc.treated_clutch_code,
-                    c.id::uuid                   AS clutch_id,
+                    NULL::uuid                    AS treated_clutch_id,
+                    NULL::text                    AS treated_clutch_code,
+                    c.id::uuid                    AS clutch_id,
                     c.clutch_code,
                     c.clutch_date,
 
-                    /* v11 genotype (parent clutch genotype, not expected offspring) */
-                    g.genotype_basecodes::text AS genotype_basecodes,
-                    g.genotype_pretty::text     AS genotype_pretty,
+                    g.genotype_basecodes::text    AS genotype_basecodes,
+                    g.genotype_pretty::text       AS genotype_pretty,
 
-                    t.treat_code                AS treatment_code,
+                    NULL::text                    AS treatment_code,
+                    ''::text                      AS all_fluor_tag_rollup,
+                    ''::text                      AS all_organelle_fluor_rollup,
 
-                    ts.all_fluor_tag_rollup,
-                    ts.all_organelle_fluor_rollup
-                FROM public.treated_clutches_v11 tc
-                JOIN public.clutches c
-                    ON c.id = tc.clutch_id
+                    -- for untreated, assign using the parent clutch code
+                    c.clutch_code                 AS assign_code
+                FROM public.clutches c
                 LEFT JOIN public.genotypes_v11 g
                     ON g.id = c.genotype_v11_id
-                LEFT JOIN public.treatments t
-                    ON t.id = tc.treatment_id
-                LEFT JOIN public.v11_treatment_star ts
-                    ON ts.treatment_id = t.id::text
                 WHERE c.clutch_date >= (current_date - INTERVAL '14 days')
-                AND COALESCE(c.source_system, '') <> 'legacy_imaging'
-                  AND COALESCE(c.source_system, '') <> 'legacy_imaging'
-                )
-                SELECT
-                treated_clutch_id::text,
-                treated_clutch_code,
-                clutch_id::text,
-                clutch_code,
-                clutch_date,
-                genotype_pretty,
-                genotype_basecodes,
-                treatment_code,
-                all_fluor_tag_rollup,
-                all_organelle_fluor_rollup
-                FROM base
-                WHERE (
-                :q IS NULL
-                OR treated_clutch_code              ILIKE :ql
-                OR clutch_code                      ILIKE :ql
-                OR treatment_code                   ILIKE :ql
-                OR COALESCE(genotype_pretty,'')    ILIKE :ql
-                OR COALESCE(genotype_basecodes,'') ILIKE :ql
-                OR COALESCE(all_fluor_tag_rollup,'')       ILIKE :ql
-                OR COALESCE(all_organelle_fluor_rollup,'') ILIKE :ql
-                )
-                ORDER BY clutch_date DESC, treated_clutch_code
-                LIMIT 500;
+                    AND COALESCE(c.source_system, '') <> 'legacy_imaging'
+                ),
+            all_groups AS (
+              SELECT * FROM treated
+              UNION ALL
+              SELECT * FROM untreated
+            )
+            SELECT
+              treated_clutch_id::text,
+              treated_clutch_code,
+              clutch_id::text,
+              clutch_code,
+              clutch_date,
+              genotype_pretty,
+              genotype_basecodes,
+              treatment_code,
+              all_fluor_tag_rollup,
+              all_organelle_fluor_rollup,
+              assign_code
+            FROM all_groups
+            WHERE (
+                 :q IS NULL
+              OR assign_code                    ILIKE :ql
+              OR clutch_code                    ILIKE :ql
+              OR COALESCE(treatment_code,'')    ILIKE :ql
+              OR COALESCE(genotype_pretty,'')   ILIKE :ql
+              OR COALESCE(genotype_basecodes,'') ILIKE :ql
+              OR COALESCE(all_fluor_tag_rollup,'')       ILIKE :ql
+              OR COALESCE(all_organelle_fluor_rollup,'') ILIKE :ql
+            )
+            ORDER BY clutch_date DESC, assign_code
+            LIMIT 500;
             """
         ),
         cx,
@@ -441,16 +470,17 @@ with eng().begin() as cx:
         },
     )
 
-if df_treated.empty:
-    st.info("No treated clutches in the last 2 weeks match your search.")
+if df_groups.empty:
+    st.info("No clutches (treated or untreated) in the last 2 weeks match your search.")
     selected_groups: List[Dict[str, Any]] = []
 else:
-    t_view = df_treated.fillna("").copy()
+    t_view = df_groups.fillna("").copy()
     t_view.insert(0, "✓ Select", False)
     t_grid = st.data_editor(
         t_view[
             [
                 "✓ Select",
+                "assign_code",
                 "treated_clutch_code",
                 "clutch_code",
                 "clutch_date",
@@ -468,6 +498,7 @@ else:
         height=260,
         column_config={
             "✓ Select":              st.column_config.CheckboxColumn("✓", default=False),
+            "assign_code":           st.column_config.TextColumn("Code (treated or parent)", disabled=True),
             "treated_clutch_code":   st.column_config.TextColumn("Treated clutch", disabled=True),
             "clutch_code":           st.column_config.TextColumn("Parent clutch", disabled=True),
             "clutch_date":           st.column_config.DateColumn("Date", disabled=True),
@@ -479,9 +510,9 @@ else:
         },
     )
     mask = t_grid["✓ Select"] == True if "✓ Select" in t_grid.columns else pd.Series(False, index=t_grid.index)
-    selected_groups = df_treated.loc[mask].to_dict(orient="records") if mask.any() else []
+    selected_groups = df_groups.loc[mask].to_dict(orient="records") if mask.any() else []
 
-st.caption(f"Selected treated clutches: {len(selected_groups)}")
+st.caption(f"Selected groups (treated or plain clutches): {len(selected_groups)}")
 
 
 # ════════════════════════════════════════════════════════
@@ -519,17 +550,18 @@ if not existing_m.empty:
 
 clutch_map: Dict[str, str] = {}
 if not selected_groups:
-    st.info("Select treated clutches above to assign.")
+    st.info("Select treated clutches or plain clutches above to assign.")
 else:
     cols = st.columns(2)
     for i, g in enumerate(selected_groups):
-        tcode = g["treated_clutch_code"]
-        default_expr = initial_map.get(tcode, "")
+        code = g["assign_code"]
+        default_expr = initial_map.get(code, "")
+        label = g["treated_clutch_code"] or g["clutch_code"]
         with cols[i % 2]:
-            clutch_map[tcode] = st.text_input(
-                f"{tcode} — wells",
+            clutch_map[code] = st.text_input(
+                f"{label} — wells",
                 value=default_expr,
-                key=f"tcells_{tcode}",
+                key=f"tcells_{code}",
             )
 
 

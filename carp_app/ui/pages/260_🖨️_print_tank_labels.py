@@ -148,11 +148,22 @@ def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
             SELECT
               t.tank_code,
               fis.fish_code,
-              COALESCE(fa.allele_label_rollup, '')      AS allele_labels,
-              COALESCE(fa.allele_canonical_rollup, '')  AS allele_canonical,
-              COALESCE(fis.instance_stage, '')          AS line_building_stage,
-              fis.birthday                              AS dob,
-              COALESCE(mr.organelle_fluor_rollup, '')   AS organelle_fluor
+              -- canonical-only rollup
+              COALESCE(fa.allele_canonical_rollup, '')      AS allele_canonical,
+              -- canonical + pretty label for display on labels
+              COALESCE(
+                NULLIF(fa.allele_canonical_rollup, ''),
+                ''
+              ) ||
+              CASE
+                WHEN fa.allele_label_rollup IS NOT NULL
+                     AND fa.allele_label_rollup <> ''
+                  THEN ' ' || fa.allele_label_rollup
+                ELSE ''
+              END                                           AS allele_labels,
+              COALESCE(fis.instance_stage, '')              AS line_building_stage,
+              fis.birthday                                  AS dob,
+              COALESCE(mr.organelle_fluor_rollup, '')       AS organelle_fluor
             FROM public.tanks t
             JOIN public.fish_instances_v10 fi
               ON fi.id = t.fish_instance_id

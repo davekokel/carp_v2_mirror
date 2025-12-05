@@ -20,8 +20,7 @@ try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
     def require_app_unlock(): ...
-from carp_app.ui.lib.page_engine import engine  # ← core engine hook
-# from carp_app.lib.time import utc_now  # import when needed
+from carp_app.ui.lib.page_engine import engine
 
 # ───────── auth & page ─────────
 sb, session, user = require_auth()
@@ -36,9 +35,7 @@ st.set_page_config(
 st.title("🔎 Overview: Constructs & Markers")
 
 
-# ───────── engine (centralized) ─────────
 def _eng() -> Engine:
-    """Thin wrapper around the core page_engine hook."""
     return engine()
 
 
@@ -46,7 +43,6 @@ def _norm(s: Optional[str]) -> str:
     return (s or "").strip()
 
 
-# ───────── tabs ─────────
 tab_constructs, tab_fluors, tab_tags, tab_dyes = st.tabs(
     ["Constructs", "Fluors", "Tags", "Dyes"]
 )
@@ -58,19 +54,25 @@ with tab_constructs:
     st.subheader("Constructs")
 
     with st.form("construct_filters", clear_on_submit=False):
-        c1, c2, c3 = st.columns([3, 1.3, 0.8])
+        c1, c2, c3, c4 = st.columns([3, 1.3, 1.5, 0.8])
         with c1:
             q_raw = st.text_input(
-                "Search (code / name / kind / resistance / description / fusions / organelles)",
+                "Search (code / name / kind / resistance / description / markers)",
                 "",
             )
         with c2:
             kind_choice = st.selectbox(
-                "Kind contains…",
-                ["(any)", "plasmid", "rna", "crispr"],
+                "Kind (physical)",
+                ["(any)", "plasmid"],
                 index=0,
             )
         with c3:
+            inj_mode = st.selectbox(
+                "Injection usage",
+                ["(any)", "plasmid", "rna", "crispr"],
+                index=0,
+            )
+        with c4:
             lim_constructs = int(
                 st.number_input(
                     "Limit",
@@ -85,6 +87,7 @@ with tab_constructs:
 
     q = _norm(q_raw)
     kind_token = kind_choice if kind_choice != "(any)" else None
+    inj_token = inj_mode if inj_mode != "(any)" else None
 
     where = ["1=1"]
     params: Dict[str, object] = {"lim": lim_constructs}
@@ -107,6 +110,13 @@ with tab_constructs:
         params["kind_like"] = f"%{kind_token}%"
         where.append("construct_kind ILIKE :kind_like")
 
+    if inj_token == "plasmid":
+        where.append("injection_use_plasmid IS TRUE")
+    elif inj_token == "rna":
+        where.append("injection_use_rna IS TRUE")
+    elif inj_token == "crispr":
+        where.append("injection_use_crispr IS TRUE")
+
     where_sql = " AND ".join(where)
 
     sql_constructs = text(
@@ -117,11 +127,14 @@ with tab_constructs:
           construct_name,
           resistance,
           description,
-          0::int                             AS n_fusions,
-          ''::text                           AS fusion_pretty,
-          ''::text                           AS organelle_fluors,
+          n_fusions,
+          fusion_pretty,
+          organelle_fluors,
+          injection_use_plasmid,
+          injection_use_rna,
+          injection_use_crispr,
           created_at
-        FROM public.constructs
+        FROM public.v_constructs_overview
         WHERE {where_sql}
         ORDER BY created_at DESC NULLS LAST, construct_code
         LIMIT :lim;
@@ -139,7 +152,6 @@ with tab_constructs:
 
         st.caption(f"{len(df_constructs)} construct(s)")
 
-        # Canonical "construct/marker" identity block
         view_constructs = pd.DataFrame(
             {
                 "code": df_constructs["construct_code"],
@@ -151,6 +163,9 @@ with tab_constructs:
                 "linked_markers": df_constructs["fusion_pretty"],
                 "organelle_fluors": df_constructs["organelle_fluors"],
                 "n_fusions": df_constructs["n_fusions"],
+                "inj_plasmid": df_constructs["injection_use_plasmid"].fillna(False),
+                "inj_rna": df_constructs["injection_use_rna"].fillna(False),
+                "inj_crispr": df_constructs["injection_use_crispr"].fillna(False),
                 "created_at": df_constructs["created_at"],
             }
         )
@@ -159,7 +174,7 @@ with tab_constructs:
 
         grid_constructs = st.data_editor(
             view_constructs,
-            key="constructs_overview_v10core",
+            key="constructs_overview_v11",
             hide_index=True,
             use_container_width=True,
             num_rows="fixed",
@@ -178,13 +193,22 @@ with tab_constructs:
                     "description", disabled=True, width="large"
                 ),
                 "linked_markers": st.column_config.TextColumn(
-                    "fusions fluor::tag(tag_pos)", disabled=True, width="large"
+                    "fusions fluor-tag(pos)", disabled=True, width="large"
                 ),
                 "organelle_fluors": st.column_config.TextColumn(
                     "organelle-fluors", disabled=True, width="large"
                 ),
                 "n_fusions": st.column_config.NumberColumn(
                     "n_fusions", disabled=True
+                ),
+                "inj_plasmid": st.column_config.CheckboxColumn(
+                    "inj: plasmid", disabled=True
+                ),
+                "inj_rna": st.column_config.CheckboxColumn(
+                    "inj: rna", disabled=True
+                ),
+                "inj_crispr": st.column_config.CheckboxColumn(
+                    "inj: crispr", disabled=True
                 ),
                 "created_at": st.column_config.DatetimeColumn(
                     "created_at", disabled=True
@@ -218,6 +242,9 @@ with tab_constructs:
                         "base_code": row["base_code"],
                         "resistance": row["resistance"],
                         "description": row["description"],
+                        "inj_plasmid": bool(row["inj_plasmid"]),
+                        "inj_rna": bool(row["inj_rna"]),
+                        "inj_crispr": bool(row["inj_crispr"]),
                     }
                 )
             with tab2:
@@ -230,7 +257,19 @@ with tab_constructs:
         else:
             subset = grid_constructs.loc[selected_idxs].reset_index(drop=True)
             st.write("Summary for selected constructs:")
-            st.dataframe(subset[["type", "code", "name", "n_fusions"]])
+            st.dataframe(
+                subset[
+                    [
+                        "type",
+                        "code",
+                        "name",
+                        "n_fusions",
+                        "inj_plasmid",
+                        "inj_rna",
+                        "inj_crispr",
+                    ]
+                ]
+            )
 
             if st.checkbox("Show constructs by kind", key="constructs_pivot_kind"):
                 pt = (
