@@ -98,10 +98,14 @@ def build_construct_lookup(engine: Engine) -> Dict[str, Tuple[str, str]]:
 
 
 def build_dye_lookup(engine: Engine) -> Dict[str, str]:
+    """
+    v11: build dye lookup from dyes.nickname (base code).
+    Returns mapping from base_code (and lowercase) -> dye_id (as text).
+    """
     sql = text(
         """
         SELECT id::text AS dye_id,
-               dye_base_code
+               nickname
         FROM public.dyes
         """
     )
@@ -111,7 +115,7 @@ def build_dye_lookup(engine: Engine) -> Dict[str, str]:
     lookup: Dict[str, str] = {}
     for _, row in df.iterrows():
         dye_id = norm(row["dye_id"])
-        code = norm(row["dye_base_code"])
+        code = norm(row["nickname"])
         if not code:
             continue
         lookup[code] = dye_id

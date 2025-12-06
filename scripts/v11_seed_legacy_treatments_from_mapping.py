@@ -67,19 +67,29 @@ def main() -> None:
                 {"codes": codes},
             )
         }
-        missing = [code for code in codes if code not in existing]
 
-        if not missing:
-            print(
-                f"[OK] legacy treatments validation: all {len(codes)} treat_code(s) present in public.treatments."
-            )
-            return
+    missing = [code for code in codes if code not in existing]
 
-        missing_list = ", ".join(sorted(missing))
-        raise SystemExit(
-            f"[ERROR] mapping CSV references treat_code(s) not present in public.treatments: {missing_list}. "
-            f"Fix treatments_v10 / v10_load_treatments_from_csv before applying mapping."
+    if not missing:
+        print(
+            f"[OK] legacy treatments validation: all {len(codes)} treat_code(s) present in public.treatments."
         )
+        return
+
+    # v11 behaviour: warn but do not abort.
+    n_missing = len(missing)
+    n_total = len(codes)
+    print(
+        f"[WARN] legacy treatments validation: {n_total - n_missing} of {n_total} treat_code(s) "
+        f"present in public.treatments; {n_missing} missing."
+    )
+    print(
+        "[WARN] mapping CSV references treat_code(s) not present in public.treatments: "
+        + ", ".join(sorted(missing))
+    )
+    print(
+        "[WARN] Proceeding anyway; subsequent mapping/apply steps will skip missing treatments."
+    )
 
 
 if __name__ == "__main__":

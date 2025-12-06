@@ -16,10 +16,10 @@ from sqlalchemy.engine import Connection
 def _norm(s: Any | None) -> str:
     if s is None:
         return ""
-    text = str(s).strip()
-    if text in {"", "NA", "<NA>"}:
+    text_val = str(s).strip()
+    if text_val in {"", "NA", "<NA>"}:
         return ""
-    return text
+    return text_val
 
 
 def _coerce_date(value: Any) -> Optional[date]:
@@ -55,6 +55,116 @@ def load_construct_ids(cx: Connection) -> pd.DataFrame:
     return pd.read_sql(sql, cx)
 
 
+def ensure_injection_treatment_single_base(
+    cx: Connection,
+    *,
+    base_code: str,
+) -> str:
+    """
+    Ensure there is a single-base 'injection' style treatment for this construct base_code.
+
+    Returns treatment_id::text.
+    """
+    base = _norm(base_code)
+    if not base:
+        raise ValueError("base_code is required to create an injection treatment")
+
+    treat_code = f"INJ-{base}"
+
+    # Try to reuse existing treatment
+    row = cx.execute(
+        text(
+            """
+            SELECT id::text AS treatment_id
+            FROM public.treatments
+            WHERE treat_code = :treat_code
+            LIMIT 1;
+            """
+        ),
+        {"treat_code": treat_code},
+    ).fetchone()
+
+    if row:
+        return row._mapping["treatment_id"]
+
+    treat_text = f"Injection of {base}"
+
+    r = cx.execute(
+        text(
+            """
+            INSERT INTO public.treatments (
+              id,
+              treat_code,
+              kind_code,
+              treat_text,
+              notes,
+              created_at,
+              source_system,
+              import_batch_id,
+              nickname,
+              display_name,
+              treatment_type
+            )
+            VALUES (
+              gen_random_uuid(),
+              :treat_code,
+              'injection_single_base',
+              :treat_text,
+              NULL,
+              now(),
+              'fish_v11_import',
+              'fish_v11_import',
+              :nickname,
+              :display_name,
+              'injection'
+            )
+            RETURNING id::text AS treatment_id;
+            """
+        ),
+        {
+            "treat_code": treat_code,
+            "treat_text": treat_text,
+            "nickname": treat_code,
+            "display_name": treat_text,
+        },
+    ).fetchone()
+
+    return r._mapping["treatment_id"]
+
+
+def link_instances_to_treatment(
+    cx: Connection,
+    *,
+    fish_instance_ids: List[str],
+    treatment_id: str,
+    note: Optional[str] = None,
+) -> None:
+    """
+    Link a list of fish_instance_id (text UUIDs) to a treatment_id in join_fish_treatments.
+    """
+    if not fish_instance_ids:
+        return
+
+    sql = text(
+        """
+        INSERT INTO public.join_fish_treatments (
+          fish_instance_id,
+          treatment_id,
+          notes
+        )
+        VALUES (
+          (:fid)::uuid,
+          (:tid)::uuid,
+          :notes
+        )
+        ON CONFLICT DO NOTHING;
+        """
+    )
+
+    for fid in fish_instance_ids:
+        cx.execute(sql, {"fid": fid, "tid": treatment_id, "notes": note or None})
+
+
 def ensure_allele_new_or_existing(
     cx: Connection,
     *,
@@ -70,8 +180,7 @@ def ensure_allele_new_or_existing(
     """
     base = _norm(transgene_base_code)
     if not base:
-        fail = "transgene_base_code is required for each allele."
-        raise ValueError(fail)
+        raise ValueError("transgene_base_code is required for each allele.")
 
     if mode == "Reuse existing allele":
         if existing_allele_number is None:
@@ -99,34 +208,33 @@ def ensure_allele_new_or_existing(
         raise ValueError(f"{base}: unknown allele mode '{mode}'")
 
     nick = _norm(new_allele_nickname)
-    if not nick:
-        raise ValueError(f"{base}: new allele_nickname is required to create an allele.")
 
-    # Reuse existing by nickname if present
-    df = pd.read_sql(
-        text(
-            """
-            SELECT allele_number
-            FROM public.transgene_alleles
-            WHERE transgene_base_code = :bc
-              AND allele_nickname = :nick
-            LIMIT 1;
-            """
-        ),
-        cx,
-        params={"bc": base, "nick": nick},
-    )
-    if not df.empty:
-        return base, int(df.iloc[0]["allele_number"])
+    # If a nickname is provided, try to reuse by nickname
+    if nick:
+        df = pd.read_sql(
+            text(
+                """
+                SELECT allele_number
+                FROM public.transgene_alleles
+                WHERE transgene_base_code = :bc
+                  AND allele_nickname = :nick
+                LIMIT 1;
+                """
+            ),
+            cx,
+            params={"bc": base, "nick": nick},
+        )
+        if not df.empty:
+            return base, int(df.iloc[0]["allele_number"])
 
-    # Allocate new allele number
+    # Allocate new allele number and mint a canonical name
     seq_res = cx.execute(
         text("SELECT nextval('public.transgene_alleles_allele_number_seq') AS n;")
     )
     allele_number = int(seq_res.scalar())
     allele_name = f"gu{allele_number}"
 
-    # Ensure transgenes row exists (FK ties to constructs.base_code)
+    # Ensure transgene row exists
     cx.execute(
         text(
             """
@@ -160,34 +268,13 @@ def ensure_allele_new_or_existing(
             "bc": base,
             "num": allele_number,
             "aname": allele_name,
-            "nick": nick,
+            # If no nickname was supplied, use allele_name (guN) as the nickname.
+            "nick": nick or allele_name,
         },
     )
 
     return base, allele_number
 
-
-def _generate_line_code(cx: Connection) -> str:
-    attempt = 0
-    while True:
-        attempt += 1
-        candidate = f"LINE-{uuid.uuid4().hex[:8]}"
-        df = pd.read_sql(
-            text(
-                """
-                SELECT 1
-                FROM public.fish_lines
-                WHERE line_code = :code
-                LIMIT 1;
-                """
-            ),
-            cx,
-            params={"code": candidate},
-        )
-        if df.empty:
-            return candidate
-        if attempt > 10:
-            raise RuntimeError("Failed to generate unique line_code after 10 attempts")
 
 
 def ensure_group_and_genotype_for_alleles(
@@ -211,9 +298,9 @@ def ensure_group_and_genotype_for_alleles(
         tmp = constructs_ids_df.copy()
         tmp["base_code"] = tmp["base_code"].astype("string").str.strip().str.lower()
         for _, r in tmp.iterrows():
-            bc = (r["base_code"] or "").strip().lower()
-            if bc:
-                construct_by_base[bc] = r["construct_id"]
+            base_code_norm = (r["base_code"] or "").strip().lower()
+            if base_code_norm:
+                construct_by_base[base_code_norm] = r["construct_id"]
 
     pairs: List[Tuple[str, int]] = []
     for a in resolved_alleles:
@@ -284,7 +371,6 @@ def ensure_group_and_genotype_for_alleles(
         genotype_code = r._mapping["genotype_code"]
 
         # Ensure genotype→construct links
-        # First, check that all base codes are backed by constructs.
         missing_bases = [base for base, _num in pairs_sorted if base not in construct_by_base]
         if missing_bases:
             missing_str = ", ".join(sorted(set(missing_bases)))
@@ -293,14 +379,14 @@ def ensure_group_and_genotype_for_alleles(
         insert_sql = text(
             """
             INSERT INTO public.join_genotype_constructs_v11 (
-            genotype_id,
-            construct_id,
-            created_at
+              genotype_id,
+              construct_id,
+              created_at
             )
             VALUES (
-            (:gid)::uuid,
-            (:cid)::uuid,
-            now()
+              (:gid)::uuid,
+              (:cid)::uuid,
+              now()
             )
             ON CONFLICT DO NOTHING;
             """
@@ -311,6 +397,106 @@ def ensure_group_and_genotype_for_alleles(
             cx.execute(insert_sql, {"gid": genotype_v11_id, "cid": cid})
 
     return genotype_v11_id, genotype_code, genotype_basecodes
+
+
+def ensure_line_alleles_for_line(
+    cx: Connection,
+    *,
+    line_id: str,
+    resolved_alleles: List[Dict[str, Any]],
+    constructs_ids_df: pd.DataFrame,
+    default_zygosity: str = "unknown",
+) -> None:
+    """
+    Attach canonical alleles to a line in join_line_alleles.
+
+    resolved_alleles: list of dicts with at least
+      - transgene_base_code (canonical base_code, e.g. pdqm-5, mgco-35)
+      - allele_number       (canonical integer from allocator)
+
+    constructs_ids_df: output of load_construct_ids(), used to map base_code -> construct_id.
+    """
+    if not resolved_alleles:
+        return
+
+    # Map base_code -> construct_id via constructs table
+    construct_by_base: Dict[str, str] = {}
+    if not constructs_ids_df.empty:
+        tmp = constructs_ids_df.copy()
+        tmp["base_code"] = tmp["base_code"].astype("string").str.strip().str.lower()
+        for _, r in tmp.iterrows():
+            bc = (r["base_code"] or "").strip().lower()
+            if bc:
+                construct_by_base[bc] = r["construct_id"]
+
+    insert_sql = text(
+        """
+        INSERT INTO public.join_line_alleles (
+          line_id,
+          construct_id,
+          allele_number,
+          zygosity,
+          created_at
+        )
+        VALUES (
+          (:line_id)::uuid,
+          (:construct_id)::uuid,
+          :allele_number,
+          :zygosity,
+          now()
+        )
+        ON CONFLICT DO NOTHING;
+        """
+    )
+
+    for a in resolved_alleles:
+        base = (_norm(a.get("transgene_base_code")) or "").lower()
+        if not base:
+            continue
+        if base not in construct_by_base:
+            raise ValueError(f"Construct base_code {base} not found in public.constructs for line alleles.")
+
+        try:
+            num = int(a.get("allele_number"))
+        except Exception:
+            raise ValueError(f"{base}: invalid allele_number {a.get('allele_number')!r} for line alleles.")
+
+        zyg = _norm(default_zygosity) or "unknown"
+        cid = construct_by_base[base]
+
+        cx.execute(
+            insert_sql,
+            {
+                "line_id": line_id,
+                "construct_id": cid,
+                "allele_number": num,
+                "zygosity": zyg,
+            },
+        )
+
+
+def _generate_line_code(cx: Connection) -> str:
+    attempt = 0
+    while True:
+        attempt += 1
+        candidate = f"LINE-{uuid.uuid4().hex[:8]}"
+        df = pd.read_sql(
+            text(
+                """
+                SELECT 1
+                FROM public.fish_lines
+                WHERE line_code = :code
+                LIMIT 1;
+                """
+            ),
+            cx,
+            params={"code": candidate},
+        )
+        if df.empty:
+            return candidate
+        if attempt > 10:
+            raise RuntimeError("Failed to generate unique line_code after 10 attempts")
+
 
 
 def ensure_line_for_description(
@@ -534,14 +720,3 @@ def _create_instances_with_genotype_and_bg(
         n_tanks += 1
 
     return n_instances, n_tanks
-
-
-# ─────────────────────────────────────────────────────────
-# Deprecated API
-# ─────────────────────────────────────────────────────────
-
-def ensure_line_for_group(*_args: Any, **_kwargs: Any) -> Tuple[str, str, bool]:
-    raise RuntimeError(
-        "ensure_line_for_group is no longer supported. "
-        "Use ensure_line_for_description(genotype_v11_id=..., ...) instead."
-    )

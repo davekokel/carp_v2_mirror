@@ -101,11 +101,15 @@ def build_construct_lookup(engine: Engine) -> Dict[str, Tuple[str, str]]:
 
 
 def build_fluor_lookup(engine: Engine) -> Dict[str, str]:
+    """
+    v11: build fluor lookup from fluors.nickname/display_name and fluor_aliases.alias.
+    Returns mapping from normalized key -> fluor_id (as text).
+    """
     sql = text(
         """
         SELECT
           f.id::text   AS fluor_id,
-          f.fluor_code,
+          COALESCE(f.nickname, f.display_name, f.code) AS fluor_label,
           a.alias
         FROM public.fluors f
         LEFT JOIN public.fluor_aliases a
@@ -118,10 +122,10 @@ def build_fluor_lookup(engine: Engine) -> Dict[str, str]:
     lookup: Dict[str, str] = {}
     for _, row in df.iterrows():
         fid = norm(row["fluor_id"])
-        code = norm(row["fluor_code"])
+        label = norm(row["fluor_label"])
         alias = norm(row.get("alias"))
 
-        for raw in (code, alias):
+        for raw in (label, alias):
             k = norm_key(raw)
             if not k:
                 continue
@@ -132,9 +136,15 @@ def build_fluor_lookup(engine: Engine) -> Dict[str, str]:
 
 
 def build_tag_lookup(engine: Engine) -> Dict[str, str]:
+    """
+    v11: build tag lookup from tags.nickname/display_name instead of tag_code.
+    Returns mapping from normalized key -> tag_id (as text).
+    """
     sql = text(
         """
-        SELECT id::text AS tag_id, tag_code
+        SELECT
+          id::text AS tag_id,
+          COALESCE(nickname, display_name, code) AS tag_label
         FROM public.tags
         """
     )
@@ -143,7 +153,7 @@ def build_tag_lookup(engine: Engine) -> Dict[str, str]:
 
     lookup: Dict[str, str] = {}
     for _, row in df.iterrows():
-        k = norm_key(row["tag_code"])
+        k = norm_key(row["tag_label"])
         if not k:
             continue
         lookup[k] = norm(row["tag_id"])

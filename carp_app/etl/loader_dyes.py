@@ -72,6 +72,13 @@ def _normalize_dye_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, list[str]]:
 
 
 def load_dyes_from_csv(csv_path: str | Path, engine: Optional[Engine] = None) -> dict:
+    """v11: Load / upsert dyes into public.dyes using nickname/display_name.
+
+    CSV still uses columns: dye_base_code, name, notes.
+    We map:
+      dye_base_code -> dyes.nickname
+      name          -> dyes.display_name
+    """
     path = Path(csv_path)
     if not path.exists():
         raise FileNotFoundError(f"Dye CSV not found: {path}")
@@ -87,14 +94,15 @@ def load_dyes_from_csv(csv_path: str | Path, engine: Optional[Engine] = None) ->
 
     unique_codes = df["dye_base_code"].unique().tolist()
 
+    # existing dyes keyed by nickname
     with engine.begin() as cx:
         existing_codes = set(
             cx.execute(
                 text(
                     """
-                    SELECT dye_base_code
+                    SELECT nickname
                     FROM public.dyes
-                    WHERE dye_base_code = ANY(:codes)
+                    WHERE nickname = ANY(:codes)
                     """
                 ),
                 {"codes": unique_codes},
@@ -104,12 +112,12 @@ def load_dyes_from_csv(csv_path: str | Path, engine: Optional[Engine] = None) ->
     sql = text(
         """
         INSERT INTO public.dyes
-          (dye_base_code, name, notes)
+          (nickname, display_name, notes)
         VALUES
-          (:base_code, NULLIF(:name, ''), NULLIF(:notes, ''))
-        ON CONFLICT (dye_base_code) DO UPDATE
-        SET name  = EXCLUDED.name,
-            notes = EXCLUDED.notes
+          (:nickname, NULLIF(:display_name, ''), NULLIF(:notes, ''))
+        ON CONFLICT (nickname) DO UPDATE
+        SET display_name = EXCLUDED.display_name,
+            notes        = EXCLUDED.notes
         """
     )
 
@@ -120,8 +128,8 @@ def load_dyes_from_csv(csv_path: str | Path, engine: Optional[Engine] = None) ->
         for _, row in df.iterrows():
             base_code = row["dye_base_code"]
             params = {
-                "base_code": base_code,
-                "name": row.get("name", "") or "",
+                "nickname": base_code,
+                "display_name": row.get("name", "") or "",
                 "notes": row.get("notes", "") or "",
             }
             cx.execute(sql, params)
@@ -161,3 +169,77 @@ def main(argv: Optional[list[str]] = None) -> None:
 
 if __name__ == "__main__":
     main()
+
+# ───────────────────────────────────────────────────────
+# v11 PATCH: override load_dyes_from_csv to use nickname/display_name
+# ───────────────────────────────────────────────────────
+def load_dyes_from_csv(csv_path: str | Path, engine: Optional[Engine] = None) -> dict:
+    """
+    v11: Load / upsert dyes into public.dyes.
+    CSV is expected to have columns: dye_base_code, name, notes (same as before),
+    but we now map:
+      dye_base_code -> nickname
+      name          -> display_name
+    """
+    path = Path(csv_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Dye CSV not found: {path}")
+
+    df_raw = _load_csv_normalized(path)
+    df, warnings = _normalize_dye_columns(df_raw)
+
+    if df.empty:
+        return {"rows": 0, "inserted": 0, "updated": 0, "warnings": warnings}
+
+    if engine is None:
+        engine = get_engine_from_env()
+
+    unique_codes = df["dye_base_code"].unique().tolist()
+
+    # existing dyes by nickname
+    with engine.begin() as cx:
+        existing_codes = set(
+            cx.execute(
+                text(
+                    """
+                    SELECT nickname
+                    FROM public.dyes
+                    WHERE nickname = ANY(:codes)
+                    """
+                ),
+                {"codes": unique_codes},
+            ).scalars().all()
+        )
+
+    sql = text(
+        """
+        INSERT INTO public.dyes
+          (nickname, display_name, notes)
+        VALUES
+          (:nickname, NULLIF(:display_name, ''), NULLIF(:notes, ''))
+        ON CONFLICT (nickname) DO UPDATE
+        SET display_name = EXCLUDED.display_name,
+            notes        = EXCLUDED.notes
+        """
+    )
+
+    inserted = 0
+    updated = 0
+
+    with engine.begin() as cx:
+        for _, row in df.iterrows():
+            base_code = row["dye_base_code"]
+            params = {
+                "nickname": base_code,
+                "display_name": row.get("name", "") or "",
+                "notes": row.get("notes", "") or "",
+            }
+            cx.execute(sql, params)
+            if base_code in existing_codes:
+                updated += 1
+            else:
+                inserted += 1
+                existing_codes.add(base_code)
+
+    return {"rows": len(df), "inserted": inserted, "updated": updated, "warnings": warnings}
+

@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import Tuple
+from typing import Tuple, Dict
 
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -16,11 +16,14 @@ def get_engine() -> Engine:
 
 
 def upsert_fluors(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
+    """
+    v11: upsert fluors using nickname/display_name.
+    Expected CSV columns: nickname, excitation_nm, emission_nm.
+    """
     inserted = 0
     updated = 0
 
-    # Your CSV has: nickname, excitation_nm, emission_nm, note, aliases
-    required_cols = {"nickname", "excitation_nm", "emission_nm"}
+    required_cols = {"nickname"}
     missing = required_cols - set(df.columns)
     if missing:
         raise ValueError(f"fluors CSV is missing required columns: {missing}")
@@ -28,22 +31,17 @@ def upsert_fluors(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
     sql = text(
         """
         INSERT INTO public.fluors (
-          fluor_code,
-          fluor_name,
+          nickname,
+          display_name,
           excitation_nm,
           emission_nm
         )
         VALUES (
-          :fluor_code,
-          :fluor_name,
+          :nickname,
+          :display_name,
           :excitation_nm,
           :emission_nm
         )
-        ON CONFLICT (fluor_code) DO UPDATE
-        SET
-          fluor_name    = EXCLUDED.fluor_name,
-          excitation_nm = EXCLUDED.excitation_nm,
-          emission_nm   = EXCLUDED.emission_nm
         """
     )
 
@@ -53,12 +51,20 @@ def upsert_fluors(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
             if not nickname:
                 continue
 
-            excitation = int(row["excitation_nm"]) if pd.notna(row["excitation_nm"]) else None
-            emission = int(row["emission_nm"]) if pd.notna(row["emission_nm"]) else None
+            excitation = (
+                int(row["excitation_nm"])
+                if "excitation_nm" in row and pd.notna(row["excitation_nm"])
+                else None
+            )
+            emission = (
+                int(row["emission_nm"])
+                if "emission_nm" in row and pd.notna(row["emission_nm"])
+                else None
+            )
 
             params = {
-                "fluor_code": nickname,
-                "fluor_name": nickname,  # for now, use nickname as display name too
+                "nickname": nickname,
+                "display_name": nickname,  # for now, nickname doubles as display_name
                 "excitation_nm": excitation,
                 "emission_nm": emission,
             }
@@ -69,10 +75,13 @@ def upsert_fluors(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
 
 
 def upsert_tags(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
+    """
+    v11: upsert tags using nickname/display_name.
+    Expected CSV columns: nickname, localization?, note?.
+    """
     inserted = 0
     updated = 0
 
-    # tags.xlsx: nickname, localization, note, citation_link, aliases
     required_cols = {"nickname"}
     missing = required_cols - set(df.columns)
     if missing:
@@ -80,12 +89,18 @@ def upsert_tags(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
 
     sql = text(
         """
-        INSERT INTO public.tags (tag_code, tag_name, localization, notes)
-        VALUES (:tag_code, :tag_name, :localization, :notes)
-        ON CONFLICT (tag_code) DO UPDATE
-        SET tag_name    = EXCLUDED.tag_name,
-            localization = EXCLUDED.localization,
-            notes        = EXCLUDED.notes
+        INSERT INTO public.tags (
+          nickname,
+          display_name,
+          localization,
+          notes
+        )
+        VALUES (
+          :nickname,
+          :display_name,
+          :localization,
+          :notes
+        )
         """
     )
 
@@ -99,18 +114,78 @@ def upsert_tags(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
             note = str(row.get("note") or "").strip() or None
 
             params = {
-                "tag_code": nickname,
-                "tag_name": nickname,  # nickname doubles as name
+                "nickname": nickname,
+                "display_name": nickname,  # nickname doubles as display_name
                 "localization": localization,
                 "notes": note,
             }
             cx.execute(sql, params)
-            inserted += 1  # count rows we upserted
+            inserted += 1
 
     return inserted, updated
 
 
+def _build_fluor_lookup(engine: Engine) -> Dict[str, str]:
+    """
+    Build a mapping from CSV fluor_code → fluors.id (as text),
+    using fluors.nickname/display_name.
+    """
+    sql = text(
+        """
+        SELECT
+          id::text AS fluor_id,
+          COALESCE(nickname, display_name, code) AS fluor_label
+        FROM public.fluors
+        """
+    )
+    with engine.begin() as cx:
+        df = pd.read_sql(sql, cx)
+
+    lookup: Dict[str, str] = {}
+    for _, row in df.iterrows():
+        fid = str(row["fluor_id"]).strip()
+        label = str(row["fluor_label"]).strip()
+        if not fid or not label:
+            continue
+        lookup[label] = fid
+        lookup[label.lower()] = fid
+
+    return lookup
+
+
+def _build_tag_lookup(engine: Engine) -> Dict[str, str]:
+    """
+    Build a mapping from CSV tag_code → tags.id (as text),
+    using tags.nickname/display_name.
+    """
+    sql = text(
+        """
+        SELECT
+          id::text AS tag_id,
+          COALESCE(nickname, display_name, code) AS tag_label
+        FROM public.tags
+        """
+    )
+    with engine.begin() as cx:
+        df = pd.read_sql(sql, cx)
+
+    lookup: Dict[str, str] = {}
+    for _, row in df.iterrows():
+        tid = str(row["tag_id"]).strip()
+        label = str(row["tag_label"]).strip()
+        if not tid or not label:
+            continue
+        lookup[label] = tid
+        lookup[label.lower()] = tid
+
+    return lookup
+
+
 def upsert_fusions(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
+    """
+    v11: upsert fusions.
+    Expected CSV columns: fusion_code, fluor_code, tag_code, tag_pos?, description?.
+    """
     inserted = 0
     updated = 0
 
@@ -119,60 +194,71 @@ def upsert_fusions(engine: Engine, df: pd.DataFrame) -> Tuple[int, int]:
     if missing:
         raise ValueError(f"fusions CSV is missing required columns: {missing}")
 
-    fusion_sql = text(
+    fluor_lookup = _build_fluor_lookup(engine)
+    tag_lookup = _build_tag_lookup(engine)
+
+    sql = text(
         """
-        INSERT INTO public.fusions (fusion_code, fluor_id, tag_id, description)
-        VALUES (:fusion_code, :fluor_id, :tag_id, :description)
-        ON CONFLICT (fusion_code) DO UPDATE
-        SET
-          fluor_id    = EXCLUDED.fluor_id,
-          tag_id      = EXCLUDED.tag_id,
-          description = EXCLUDED.description
+        INSERT INTO public.fusions (
+          fluor_id,
+          tag_id,
+          tag_pos,
+          created_at,
+          nickname,
+          display_name
+        )
+        VALUES (
+          :fluor_id,
+          :tag_id,
+          :tag_pos,
+          now(),
+          :nickname,
+          :display_name
+        )
         """
     )
 
-    fluor_lookup_sql = text(
-        "SELECT id FROM public.fluors WHERE fluor_code = :fluor_code"
-    )
-    tag_lookup_sql = text(
-        "SELECT id FROM public.tags WHERE tag_code = :tag_code"
-    )
+    def _norm_key(s: str) -> str:
+        return (s or "").strip().lower()
 
     with engine.begin() as cx:
         for _, row in df.iterrows():
             fusion_code = str(row["fusion_code"]).strip()
-            fluor_code = str(row["fluor_code"]).strip() if pd.notna(row["fluor_code"]) else None
-            tag_code = str(row["tag_code"]).strip() if pd.notna(row["tag_code"]) else None
+            fluor_code = str(row["fluor_code"]).strip() if pd.notna(row["fluor_code"]) else ""
+            tag_code = str(row["tag_code"]).strip() if pd.notna(row["tag_code"]) else ""
+            tag_pos = (
+                str(row["tag_pos"]).strip()
+                if "tag_pos" in df.columns and pd.notna(row["tag_pos"])
+                else None
+            )
             description = (
                 str(row["description"]).strip()
                 if "description" in df.columns and pd.notna(row["description"])
                 else None
             )
 
-            fluor_id = None
-            tag_id = None
+            if not fusion_code or not fluor_code:
+                continue
 
-            if fluor_code:
-                fluor_id = cx.execute(fluor_lookup_sql, {"fluor_code": fluor_code}).scalar()
-                if fluor_id is None:
-                    raise RuntimeError(
-                        f"Fusion {fusion_code}: fluor_code '{fluor_code}' not found in public.fluors"
-                    )
+            fkey = _norm_key(fluor_code)
+            fluor_id = fluor_lookup.get(fkey)
+            if fluor_id is None:
+                print(f"[WARN] fusion {fusion_code}: fluor_code '{fluor_code}' not found; skipping")
+                continue
 
-            if tag_code:
-                tag_id = cx.execute(tag_lookup_sql, {"tag_code": tag_code}).scalar()
-                if tag_id is None:
-                    raise RuntimeError(
-                        f"Fusion {fusion_code}: tag_code '{tag_code}' not found in public.tags"
-                    )
+            tkey = _norm_key(tag_code) if tag_code else ""
+            tag_id = tag_lookup.get(tkey) if tkey else None
 
-            params = {
-                "fusion_code": fusion_code,
-                "fluor_id": fluor_id,
-                "tag_id": tag_id,
-                "description": description,
-            }
-            cx.execute(fusion_sql, params)
+            cx.execute(
+                sql,
+                {
+                    "fluor_id": fluor_id,
+                    "tag_id": tag_id,
+                    "tag_pos": tag_pos,
+                    "nickname": fusion_code,
+                    "display_name": fusion_code,
+                },
+            )
             inserted += 1
 
     return inserted, updated

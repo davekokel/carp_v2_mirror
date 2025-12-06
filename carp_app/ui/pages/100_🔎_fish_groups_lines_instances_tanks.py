@@ -162,13 +162,13 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
           SELECT
             fi.id::text AS fish_instance_id,
             string_agg(
-              DISTINCT (c.construct_code || ':' || j.allele_number)::text,
+              DISTINCT (c.construct_code || ':' || jla.allele_number)::text,
               ' + '
             ) AS allele_canonical_rollup,
             string_agg(
               DISTINCT
               (
-                '#' || j.allele_number::text ||
+                '#' || jla.allele_number::text ||
                 CASE
                   WHEN ta.allele_name IS NOT NULL AND ta.allele_name <> '' THEN ' ' || ta.allele_name
                   ELSE ''
@@ -183,20 +183,28 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
           FROM public.fish_instances_v10 fi
           JOIN public.fish_lines fl
             ON fl.id = fi.line_id
-          JOIN public.fish_groups fg
-            ON fg.id = fl.fish_group_id
-          JOIN public.join_fish_group_alleles j
-            ON j.fish_group_id = fg.id
+          JOIN public.join_line_alleles jla
+            ON jla.line_id = fl.id
           JOIN public.constructs c
-            ON c.id = j.construct_id
+            ON c.id = jla.construct_id
           LEFT JOIN public.transgene_alleles ta
             ON ta.transgene_base_code = c.construct_code
-           AND ta.allele_number = j.allele_number
+           AND ta.allele_number = jla.allele_number
           WHERE fi.line_id = :line_id
           GROUP BY fi.id
         )
         SELECT
-          i.*,
+          -- keep fish_instance_id only for joins, we will drop it in the UI
+          i.fish_instance_id,
+          i.fish_code,
+          i.line_id,
+          i.line_instance_code,
+          i.birthday,
+          i.instance_stage,
+          i.genetic_background,
+          i.genotype_pretty,
+          i.line_code,
+          i.line_nickname,
           a.allele_canonical_rollup,
           a.allele_label_rollup,
           mr.n_constructs,
@@ -213,8 +221,11 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
     )
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"line_id": line_id})
+
+    # Ensure string-ish columns are clean
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
+
     return df.fillna("")
 
 lines_df = load_lines()
@@ -225,6 +236,37 @@ line_rollups = (
     lines_df[["line_code", "all_fluor_tag_rollup", "all_organelle_fluor_rollup"]]
     .set_index("line_code")
 )
+
+@st.cache_data(show_spinner=False)
+def load_tanks_for_line(line_id: str) -> pd.DataFrame:
+    """
+    Return all tanks for instances belonging to the given line_id.
+    """
+    sql = text(
+        """
+        SELECT
+          t.tank_code,
+          t.status,
+          fi.fish_code,
+          fi.line_instance_code,
+          fi.birthday,
+          fi.instance_stage,
+          fi.genetic_background,
+          t.created_at
+        FROM public.tanks t
+        JOIN public.fish_instances_v10 fi
+          ON fi.id = t.fish_instance_id
+        WHERE fi.line_id = :line_id
+        ORDER BY t.tank_code, fi.fish_code;
+        """
+    )
+    with _eng().begin() as cx:
+        df = pd.read_sql(sql, cx, params={"line_id": line_id})
+
+    for c in df.select_dtypes(include="object").columns:
+        df[c] = df[c].astype("string").fillna("")
+
+    return df.fillna("")
 
 
 def _aggregate_group_rollups(row: pd.Series) -> pd.Series:
@@ -413,9 +455,9 @@ if filtered_lines.empty:
 
 st.caption(f"{len(filtered_lines)} line(s) in selected group")
 
+# Build a display-only view of lines (no IDs), but keep filtered_lines for selection.
 lines_display = filtered_lines[
     [
-        "line_id",
         "line_code",
         "line_nickname",
         "genetic_background",
@@ -439,7 +481,6 @@ edited_lines = st.data_editor(
     key="lines_editor_v11_overview",
     column_config={
         "✓": st.column_config.CheckboxColumn("Select", width=60),
-        "line_id": st.column_config.Column("line_id", width=0, disabled=True),
         "line_code": st.column_config.TextColumn("Line code", disabled=True),
         "line_nickname": st.column_config.TextColumn(
             "Nickname", disabled=True, width="large"
@@ -475,11 +516,15 @@ edited_lines = st.data_editor(
     hide_index=True,
 )
 
+# Recover selected line_id using the index (line_id stays only in filtered_lines)
 selected_line_rows = edited_lines[edited_lines["✓"]]
 if not selected_line_rows.empty:
-    selected_line_id = selected_line_rows.iloc[0]["line_id"]
+    sel_idx = selected_line_rows.index[0]
 else:
-    selected_line_id = lines_display.iloc[0]["line_id"]
+    sel_idx = edited_lines.index[0]  # default to first visible row
+
+selected_line_id = filtered_lines.loc[sel_idx, "line_id"]
+
 
 st.caption("Select one line above to see its linked instances.")
 
@@ -638,3 +683,65 @@ else:
                 subset[cols_summary],
                 use_container_width=True,
             )
+
+    # ─────────────────────────────────────────────────────
+    # Step 4 — Tanks for selected line
+    # ─────────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("Step 4 — Tanks for selected line")
+
+    tanks_df = load_tanks_for_line(selected_line_id)
+
+    if tanks_df.empty:
+        st.caption("No tanks found for instances in this line.")
+    else:
+        st.caption(f"{len(tanks_df)} tank(s) for instances in this line")
+
+        view_tanks = tanks_df[
+            [
+                "tank_code",
+                "status",
+                "fish_code",
+                "line_instance_code",
+                "instance_stage",
+                "genetic_background",
+                "birthday",
+                "created_at",
+            ]
+        ].copy()
+
+        grid_tanks = st.data_editor(
+            view_tanks,
+            key=f"tanks_overview_{selected_line_id}",
+            hide_index=True,
+            use_container_width=True,
+            num_rows="fixed",
+            column_config={
+                "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
+                "status": st.column_config.TextColumn("Status", disabled=True),
+                "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
+                "line_instance_code": st.column_config.TextColumn(
+                    "Instance code", disabled=True
+                ),
+                "instance_stage": st.column_config.TextColumn(
+                    "Stage", disabled=True
+                ),
+                "genetic_background": st.column_config.TextColumn(
+                    "Background", disabled=True
+                ),
+                "birthday": st.column_config.DateColumn(
+                    "Birthday", disabled=True
+                ),
+                "created_at": st.column_config.DatetimeColumn(
+                    "Created at", disabled=True
+                ),
+            },
+        )
+
+        st.download_button(
+            "⬇︎ Download tanks for selected line (CSV)",
+            data=tanks_df.to_csv(index=False).encode("utf-8"),
+            file_name="tanks_for_line.csv",
+            type="secondary",
+            mime="text/csv",
+        )

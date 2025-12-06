@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import shlex
 import pathlib
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, Any, List, Optional
 
 import pandas as pd
 import streamlit as st
@@ -19,20 +20,22 @@ from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock(): ...
+    def require_app_unlock() -> None:
+        ...
 from carp_app.ui.lib.page_engine import engine
 
 # ───────── auth & page ─────────
+st.set_page_config(
+    page_title="CARP — Overview: Constructs • Fusions • Fluors • Tags",
+    page_icon="🔎",
+    layout="wide",
+)
+
 sb, session, user = require_auth()
 require_email_otp()
 require_app_unlock()
 
-st.set_page_config(
-    page_title="CARP — Overview: Constructs & Markers",
-    page_icon="🔎",
-    layout="wide",
-)
-st.title("🔎 Overview: Constructs & Markers")
+st.title("🔎 Overview: Constructs • Fusions • Fluors • Tags")
 
 
 def _eng() -> Engine:
@@ -43,8 +46,8 @@ def _norm(s: Optional[str]) -> str:
     return (s or "").strip()
 
 
-tab_constructs, tab_fluors, tab_tags, tab_dyes = st.tabs(
-    ["Constructs", "Fluors", "Tags", "Dyes"]
+tab_constructs, tab_fusions, tab_fluors, tab_tags = st.tabs(
+    ["Constructs", "Fusions", "Fluors", "Tags"]
 )
 
 # ════════════════════════════════════════════════════════
@@ -53,11 +56,11 @@ tab_constructs, tab_fluors, tab_tags, tab_dyes = st.tabs(
 with tab_constructs:
     st.subheader("Constructs")
 
-    with st.form("construct_filters", clear_on_submit=False):
+    with st.form("construct_filters_cf", clear_on_submit=False):
         c1, c2, c3, c4 = st.columns([3, 1.3, 1.5, 0.8])
         with c1:
             q_raw = st.text_input(
-                "Search (code / name / kind / resistance / description / markers)",
+                "Search (code / nickname / display_name / kind / resistance / description / markers)",
                 "",
             )
         with c2:
@@ -80,7 +83,7 @@ with tab_constructs:
                     max_value=5000,
                     value=1000,
                     step=50,
-                    key="constructs_limit",
+                    key="constructs_cf_limit",
                 )
             )
         _ = st.form_submit_button("Apply")
@@ -96,47 +99,53 @@ with tab_constructs:
         params["ql"] = f"%{q}%"
         where.append(
             "("
-            "  construct_code ILIKE :ql"
-            " OR construct_name ILIKE :ql"
-            " OR COALESCE(construct_kind,'') ILIKE :ql"
-            " OR COALESCE(resistance,'') ILIKE :ql"
-            " OR COALESCE(description,'') ILIKE :ql"
-            " OR COALESCE(fusion_pretty,'') ILIKE :ql"
-            " OR COALESCE(organelle_fluors,'') ILIKE :ql"
+            "  c.code ILIKE :ql"
+            " OR COALESCE(c.nickname,'') ILIKE :ql"
+            " OR COALESCE(c.display_name,'') ILIKE :ql"
+            " OR COALESCE(v.construct_kind,'') ILIKE :ql"
+            " OR COALESCE(v.resistance,'') ILIKE :ql"
+            " OR COALESCE(v.description,'') ILIKE :ql"
+            " OR COALESCE(v.fusion_pretty,'') ILIKE :ql"
+            " OR COALESCE(v.organelle_fluors,'') ILIKE :ql"
             ")"
         )
 
     if kind_token:
         params["kind_like"] = f"%{kind_token}%"
-        where.append("construct_kind ILIKE :kind_like")
+        where.append("v.construct_kind ILIKE :kind_like")
 
     if inj_token == "plasmid":
-        where.append("injection_use_plasmid IS TRUE")
+        where.append("v.injection_use_plasmid IS TRUE")
     elif inj_token == "rna":
-        where.append("injection_use_rna IS TRUE")
+        where.append("v.injection_use_rna IS TRUE")
     elif inj_token == "crispr":
-        where.append("injection_use_crispr IS TRUE")
+        where.append("v.injection_use_crispr IS TRUE")
 
     where_sql = " AND ".join(where)
 
     sql_constructs = text(
         f"""
         SELECT
-          construct_code,
-          construct_kind,
-          construct_name,
-          resistance,
-          description,
-          n_fusions,
-          fusion_pretty,
-          organelle_fluors,
-          injection_use_plasmid,
-          injection_use_rna,
-          injection_use_crispr,
-          created_at
-        FROM public.v_constructs_overview
+          c.id::text              AS id,
+          c.code                  AS code,
+          c.nickname              AS nickname,
+          c.display_name          AS display_name,
+          v.construct_code        AS legacy_construct_code,
+          v.construct_kind        AS construct_kind,
+          v.resistance            AS resistance,
+          v.description           AS description,
+          v.n_fusions             AS n_fusions,
+          v.fusion_pretty         AS fusion_pretty,
+          v.organelle_fluors      AS organelle_fluors,
+          v.injection_use_plasmid AS injection_use_plasmid,
+          v.injection_use_rna     AS injection_use_rna,
+          v.injection_use_crispr  AS injection_use_crispr,
+          v.created_at            AS created_at
+        FROM public.v_constructs_overview v
+        JOIN public.constructs c
+          ON c.construct_code = v.construct_code
         WHERE {where_sql}
-        ORDER BY created_at DESC NULLS LAST, construct_code
+        ORDER BY v.created_at DESC NULLS LAST, c.code
         LIMIT :lim;
         """
     )
@@ -154,10 +163,11 @@ with tab_constructs:
 
         view_constructs = pd.DataFrame(
             {
-                "code": df_constructs["construct_code"],
-                "name": df_constructs["construct_name"],
-                "type": df_constructs["construct_kind"],
-                "base_code": df_constructs["construct_code"],
+                "code": df_constructs["code"],
+                "nickname": df_constructs["nickname"],
+                "display_name": df_constructs["display_name"],
+                "kind": df_constructs["construct_kind"],
+                "legacy_construct_code": df_constructs["legacy_construct_code"],
                 "resistance": df_constructs["resistance"],
                 "description": df_constructs["description"],
                 "linked_markers": df_constructs["fusion_pretty"],
@@ -167,6 +177,7 @@ with tab_constructs:
                 "inj_rna": df_constructs["injection_use_rna"].fillna(False),
                 "inj_crispr": df_constructs["injection_use_crispr"].fillna(False),
                 "created_at": df_constructs["created_at"],
+                "id": df_constructs["id"],
             }
         )
 
@@ -174,18 +185,21 @@ with tab_constructs:
 
         grid_constructs = st.data_editor(
             view_constructs,
-            key="constructs_overview_v11",
+            key="constructs_overview_cf",
             hide_index=True,
-            use_container_width=True,
             num_rows="fixed",
+            width="stretch",
             column_config={
                 "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-                "code": st.column_config.TextColumn("code", disabled=True),
-                "name": st.column_config.TextColumn(
-                    "name", disabled=True, width="large"
+                "code": st.column_config.TextColumn("code (CONSTR-…)", disabled=True),
+                "nickname": st.column_config.TextColumn("nickname", disabled=True),
+                "display_name": st.column_config.TextColumn(
+                    "display_name", disabled=True, width="large"
                 ),
-                "type": st.column_config.TextColumn("kind", disabled=True),
-                "base_code": st.column_config.TextColumn("base_code", disabled=True),
+                "kind": st.column_config.TextColumn("kind", disabled=True),
+                "legacy_construct_code": st.column_config.TextColumn(
+                    "legacy construct_code", disabled=True
+                ),
                 "resistance": st.column_config.TextColumn(
                     "resistance", disabled=True
                 ),
@@ -213,6 +227,7 @@ with tab_constructs:
                 "created_at": st.column_config.DatetimeColumn(
                     "created_at", disabled=True
                 ),
+                "id": st.column_config.TextColumn("id", disabled=True),
             },
         )
 
@@ -231,15 +246,15 @@ with tab_constructs:
             st.info("Select one or more constructs above to see details.")
         elif len(selected_idxs) == 1:
             row = grid_constructs.loc[selected_idxs[0]]
-
             tab1, tab2 = st.tabs(["Overview", "Markers"])
             with tab1:
                 st.write(
                     {
                         "code": row["code"],
-                        "name": row["name"],
-                        "type": row["type"],
-                        "base_code": row["base_code"],
+                        "nickname": row["nickname"],
+                        "display_name": row["display_name"],
+                        "kind": row["kind"],
+                        "legacy_construct_code": row["legacy_construct_code"],
                         "resistance": row["resistance"],
                         "description": row["description"],
                         "inj_plasmid": bool(row["inj_plasmid"]),
@@ -260,50 +275,274 @@ with tab_constructs:
             st.dataframe(
                 subset[
                     [
-                        "type",
+                        "kind",
                         "code",
-                        "name",
+                        "nickname",
+                        "display_name",
                         "n_fusions",
                         "inj_plasmid",
                         "inj_rna",
                         "inj_crispr",
                     ]
-                ]
+                ],
+                width="stretch",
             )
-
-            if st.checkbox("Show constructs by kind", key="constructs_pivot_kind"):
-                pt = (
-                    subset.pivot_table(
-                        index="type",
-                        values="code",
-                        aggfunc="count",
-                    )
-                    .rename(columns={"code": "n_constructs"})
-                    .reset_index()
-                )
-                st.dataframe(pt, use_container_width=True)
 
         st.download_button(
             "⬇︎ Download constructs (CSV)",
             data=df_constructs.to_csv(index=False).encode("utf-8"),
-            file_name="v_constructs_overview.csv",
+            file_name="constructs_overview_v11.csv",
             type="secondary",
             mime="text/csv",
         )
 
 # ════════════════════════════════════════════════════════
-# TAB 2 — FLUORS
+# TAB 2 — FUSIONS
+# ════════════════════════════════════════════════════════
+with tab_fusions:
+    st.subheader("Fusions")
+
+    with st.form("fusion_filters_cf", clear_on_submit=False):
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            q_raw_fus = st.text_input(
+                "Search (supports fluor:, tag:, pos:, name:, -negation)",
+                "",
+            )
+        with c2:
+            lim_fusions = int(
+                st.number_input(
+                    "Limit (fusions)",
+                    min_value=50,
+                    max_value=5000,
+                    value=1500,
+                    step=100,
+                    key="fusions_cf_limit",
+                )
+            )
+        _ = st.form_submit_button("Apply", key="fusions_cf_apply")
+
+    q_fus = _norm(q_raw_fus) or ""
+
+    def _build_fusion_query(q: str, limit: int) -> tuple[str, Dict[str, Any]]:
+        tokens = [t for t in shlex.split(q or "") if t and t.upper() != "AND"]
+        params: Dict[str, Any] = {"lim": int(limit)}
+        where: List[str] = []
+
+        c_fluor = "fluor_label"
+        c_tag = "tag_label"
+        c_pos = "tag_pos"
+        c_name = "fusion_name"
+
+        field_map = {"fluor": c_fluor, "tag": c_tag, "pos": c_pos, "name": c_name}
+        haystack = f"concat_ws(' ', {c_fluor}, {c_tag}, {c_pos}, {c_name})"
+
+        for i, tok in enumerate(tokens):
+            neg = tok.startswith("-")
+            core = tok[1:] if neg else tok
+            if ":" in core:
+                k, v = core.split(":", 1)
+                k = k.lower().strip()
+                v = v.strip().strip('"')
+                if k in field_map:
+                    key = f"p{i}"
+                    params[key] = f"%{v}%"
+                    where.append(
+                        f"{'NOT ' if neg else ''}{field_map[k]} ILIKE :{key}"
+                    )
+                    continue
+            key = f"p{i}"
+            params[key] = f"%{core}%"
+            where.append(f"{'NOT ' if neg else ''}{haystack} ILIKE :{key}")
+
+        where_sql = "WHERE " + " AND ".join(where) if where else ""
+
+        sql = f"""
+        WITH fusions_core AS (
+          SELECT
+            f.id::text AS id,
+            COALESCE(f.display_name, f.nickname, f.id::text) AS fusion_name,
+            COALESCE(fl.nickname, fl.display_name, fl.code) AS fluor_label,
+            COALESCE(tg.nickname, tg.display_name, tg.code) AS tag_label,
+            f.tag_pos,
+            COUNT(DISTINCT cf.construct_id) AS n_constructs,
+            COALESCE(f.created_at, MIN(cf.created_at)) AS created_at
+          FROM public.fusions f
+          LEFT JOIN public.fluors fl
+            ON fl.id = f.fluor_id
+          LEFT JOIN public.tags tg
+            ON tg.id = f.tag_id
+          LEFT JOIN public.construct_fusions cf
+            ON cf.fusion_id = f.id
+          GROUP BY
+            f.id,
+            f.display_name,
+            f.nickname,
+            fl.nickname,
+            fl.display_name,
+            fl.code,
+            tg.nickname,
+            tg.display_name,
+            tg.code,
+            f.tag_pos,
+            f.created_at
+        )
+        SELECT
+          id,
+          fusion_name,
+          fluor_label AS fluor,
+          tag_label   AS tag,
+          tag_pos,
+          n_constructs,
+          created_at
+        FROM fusions_core
+        {where_sql}
+        ORDER BY
+          n_constructs DESC,
+          fluor,
+          tag     NULLS FIRST,
+          tag_pos NULLS FIRST,
+          created_at DESC
+        LIMIT :lim;
+        """
+
+        return sql, params
+
+    def _load_fusions(q: str, lim: int) -> pd.DataFrame:
+        sql, params = _build_fusion_query(q, lim)
+        with _eng().begin() as cx:
+            df = pd.read_sql(text(sql), cx, params=params)
+        for c in df.select_dtypes(include=["object", "string"]).columns:
+            df[c] = df[c].astype("string").fillna("")
+        return df
+
+    try:
+        df_fusions = _load_fusions(q_fus, lim_fusions)
+    except Exception as e:
+        st.error(f"Query error while loading fusions: {type(e).__name__}: {e}")
+        st.stop()
+
+    st.caption(f"{len(df_fusions)} fusion(s)")
+
+    view_fusions = df_fusions.copy()
+    view_fusions.insert(0, "✓ Select", False)
+
+    grid_fusions = st.data_editor(
+        view_fusions,
+        hide_index=True,
+        num_rows="fixed",
+        width="stretch",
+        key="fusions_overview_cf",
+        column_order=[
+            "✓ Select",
+            "fusion_name",
+            "fluor",
+            "tag",
+            "tag_pos",
+            "n_constructs",
+            "created_at",
+        ],
+        column_config={
+            "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
+            "fusion_name": st.column_config.TextColumn("Fusion", disabled=True),
+            "fluor": st.column_config.TextColumn("Fluor", disabled=True),
+            "tag": st.column_config.TextColumn("Tag", disabled=True),
+            "tag_pos": st.column_config.TextColumn("Pos", disabled=True),
+            "n_constructs": st.column_config.NumberColumn(
+                "Constructs", disabled=True
+            ),
+            "created_at": st.column_config.DatetimeColumn(
+                "Created", disabled=True
+            ),
+        },
+    )
+
+    st.divider()
+    st.subheader("Constructs containing selected fusion")
+
+    selected_ids: List[str] = []
+    fusion_names: Dict[str, str] = {}
+
+    if isinstance(grid_fusions, pd.DataFrame) and "✓ Select" in grid_fusions.columns:
+        sel = grid_fusions.loc[grid_fusions["✓ Select"] == True]
+        if not sel.empty and "id" in sel.columns:
+            selected_ids = sel["id"].astype(str).tolist()
+            fusion_names = dict(zip(sel["id"].astype(str), sel["fusion_name"]))
+
+    if len(selected_ids) == 1:
+        fusion_id = selected_ids[0]
+        fusion_label = fusion_names.get(fusion_id, fusion_id)
+
+        with _eng().begin() as cx:
+            constructs_df = pd.read_sql(
+                text(
+                    """
+                    SELECT
+                      c.code       AS construct_code,
+                      c.display_name,
+                      c.nickname,
+                      c.construct_kind,
+                      c.created_at
+                    FROM public.construct_fusions cf
+                    JOIN public.constructs c
+                      ON c.id = cf.construct_id
+                    WHERE cf.fusion_id = :fid::uuid
+                    ORDER BY c.created_at DESC NULLS LAST, c.code
+                    """
+                ),
+                cx,
+                params={"fid": fusion_id},
+            )
+
+        st.subheader(f"Constructs containing: {fusion_label}")
+        if constructs_df.empty:
+            st.info("No constructs linked to this fusion.")
+        else:
+            st.dataframe(
+                constructs_df[
+                    [
+                        "construct_code",
+                        "display_name",
+                        "nickname",
+                        "construct_kind",
+                        "created_at",
+                    ]
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+            st.download_button(
+                "⬇︎ Download constructs (CSV)",
+                data=constructs_df.to_csv(index=False).encode("utf-8"),
+                file_name=f"constructs_for_fusion_{fusion_label}.csv",
+                type="secondary",
+            )
+    elif len(selected_ids) > 1:
+        st.info("Select exactly one fusion to preview its constructs.")
+    else:
+        st.caption("Tip: check a fusion row above to preview its constructs.")
+
+    st.download_button(
+        "⬇︎ Download full fusion table (CSV)",
+        data=df_fusions.to_csv(index=False).encode("utf-8"),
+        file_name="fusions_overview_v11.csv",
+        type="secondary",
+        mime="text/csv",
+    )
+
+# ════════════════════════════════════════════════════════
+# TAB 3 — FLUORS
 # ════════════════════════════════════════════════════════
 with tab_fluors:
     st.subheader("Fluors")
 
-    with st.form("fluor_filters", clear_on_submit=False):
+    with st.form("fluor_filters_cf", clear_on_submit=False):
         c1, c2 = st.columns([3, 1])
         with c1:
             q_raw_f = st.text_input(
-                "Search (code / name / alt_names / notes)",
+                "Search (code / nickname / display_name / alt_names / notes)",
                 "",
-                key="fluors_search",
+                key="fluors_cf_search",
             )
         with c2:
             lim_f = int(
@@ -313,10 +552,10 @@ with tab_fluors:
                     max_value=5000,
                     value=1000,
                     step=50,
-                    key="fluors_limit",
+                    key="fluors_cf_limit",
                 )
             )
-        _ = st.form_submit_button("Apply", key="fluors_apply")
+        _ = st.form_submit_button("Apply", key="fluors_cf_apply")
 
     q_f = _norm(q_raw_f)
     q_f_param = q_f or None
@@ -325,8 +564,9 @@ with tab_fluors:
         """
         SELECT
           id::text                        AS id,
-          COALESCE(fluor_code,'')         AS code,
-          COALESCE(fluor_name,'')         AS name,
+          code                            AS code,
+          COALESCE(nickname,'')           AS nickname,
+          COALESCE(display_name,'')       AS display_name,
           COALESCE(excitation_nm,0)::int  AS excitation_nm,
           COALESCE(emission_nm,0)::int    AS emission_nm,
           COALESCE(
@@ -340,9 +580,10 @@ with tab_fluors:
         FROM public.fluors
         WHERE (
           :q IS NULL
-          OR COALESCE(fluor_code,'') ILIKE :ql
-          OR COALESCE(fluor_name,'') ILIKE :ql
-          OR COALESCE(notes,'')      ILIKE :ql
+          OR code                      ILIKE :ql
+          OR COALESCE(nickname,'')     ILIKE :ql
+          OR COALESCE(display_name,'') ILIKE :ql
+          OR COALESCE(notes,'')        ILIKE :ql
           OR COALESCE(
                CASE
                  WHEN pg_typeof(alt_names)::text = 'text[]'
@@ -351,7 +592,7 @@ with tab_fluors:
                END,''
              ) ILIKE :ql
         )
-        ORDER BY fluor_name, fluor_code
+        ORDER BY display_name, code
         LIMIT :lim;
         """
     )
@@ -374,9 +615,8 @@ with tab_fluors:
         view_f = pd.DataFrame(
             {
                 "code": df_f["code"],
-                "name": df_f["name"],
-                "type": ["fluor"] * len(df_f),
-                "base_code": df_f["code"],
+                "nickname": df_f["nickname"],
+                "display_name": df_f["display_name"],
                 "excitation_nm": df_f["excitation_nm"],
                 "emission_nm": df_f["emission_nm"],
                 "alt_names": df_f["alt_names"],
@@ -388,16 +628,17 @@ with tab_fluors:
 
         grid_f = st.data_editor(
             view_f,
-            key="fluors_overview_v10core",
-            use_container_width=True,
+            key="fluors_overview_cf",
             hide_index=True,
             num_rows="fixed",
+            width="stretch",
             column_config={
                 "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-                "code": st.column_config.TextColumn("Code", disabled=True),
-                "name": st.column_config.TextColumn("Name", disabled=True),
-                "type": st.column_config.TextColumn("Type", disabled=True),
-                "base_code": st.column_config.TextColumn("base_code", disabled=True),
+                "code": st.column_config.TextColumn("code (FLUOR-…)", disabled=True),
+                "nickname": st.column_config.TextColumn("nickname", disabled=True),
+                "display_name": st.column_config.TextColumn(
+                    "display_name", disabled=True
+                ),
                 "excitation_nm": st.column_config.NumberColumn(
                     "Excitation (nm)", disabled=True
                 ),
@@ -430,7 +671,8 @@ with tab_fluors:
                 st.write(
                     {
                         "code": row["code"],
-                        "name": row["name"],
+                        "nickname": row["nickname"],
+                        "display_name": row["display_name"],
                         "alt_names": row["alt_names"],
                         "notes": row["notes"],
                     }
@@ -445,29 +687,40 @@ with tab_fluors:
         else:
             subset = grid_f.loc[sel_f_idxs].reset_index(drop=True)
             st.write("Summary for selected fluors:")
-            st.dataframe(subset[["code", "name", "excitation_nm", "emission_nm"]])
+            st.dataframe(
+                subset[
+                    [
+                        "code",
+                        "nickname",
+                        "display_name",
+                        "excitation_nm",
+                        "emission_nm",
+                    ]
+                ],
+                width="stretch",
+            )
 
         st.download_button(
             "⬇︎ Download fluors (CSV)",
             data=df_f.to_csv(index=False).encode("utf-8"),
-            file_name="fluors_overview.csv",
+            file_name="fluors_overview_v11.csv",
             type="secondary",
             mime="text/csv",
         )
 
 # ════════════════════════════════════════════════════════
-# TAB 3 — TAGS
+# TAB 4 — TAGS
 # ════════════════════════════════════════════════════════
 with tab_tags:
     st.subheader("Tags")
 
-    with st.form("tag_filters", clear_on_submit=False):
+    with st.form("tag_filters_cf", clear_on_submit=False):
         c1, c2 = st.columns([3, 1])
         with c1:
             q_raw_t = st.text_input(
-                "Search tag_code / tag_name / localization / notes",
+                "Search (code / nickname / display_name / localization / notes)",
                 "",
-                key="tags_search",
+                key="tags_cf_search",
             )
         with c2:
             lim_t = int(
@@ -477,41 +730,44 @@ with tab_tags:
                     max_value=5000,
                     value=1000,
                     step=50,
-                    key="tags_limit",
+                    key="tags_cf_limit",
                 )
             )
-        _ = st.form_submit_button("Apply", key="tags_apply")
+        _ = st.form_submit_button("Apply", key="tags_cf_apply")
 
     def _normalize_tag(s: str | None) -> Optional[str]:
         s = (s or "").strip()
         return s or None
 
     q_t = _normalize_tag(q_raw_t)
+    q_t_param = q_t or None
 
     sql_tags = text(
         """
         SELECT
-          id::text   AS id,
-          tag_code,
-          tag_name,
+          id::text           AS id,
+          code               AS code,
+          COALESCE(nickname,'')     AS nickname,
+          COALESCE(display_name,'') AS display_name,
           localization,
           notes,
           created_at
         FROM public.tags
         WHERE (
              :q IS NULL
-          OR  tag_code     ILIKE :ql
-          OR  tag_name     ILIKE :ql
+          OR  code                      ILIKE :ql
+          OR  COALESCE(nickname,'')     ILIKE :ql
+          OR  COALESCE(display_name,'') ILIKE :ql
           OR  COALESCE(localization,'') ILIKE :ql
           OR  COALESCE(notes,'')        ILIKE :ql
         )
-        ORDER BY tag_code
+        ORDER BY display_name, code
         LIMIT :limit;
         """
     )
 
     params_t = {
-        "q": q_t,
+        "q": q_t_param,
         "ql": f"%{q_t}%" if q_t else None,
         "limit": lim_t,
     }
@@ -524,8 +780,9 @@ with tab_tags:
 
     view_t = pd.DataFrame(
         {
-            "code": df_t["tag_code"],
-            "name": df_t["tag_name"],
+            "code": df_t["code"],
+            "nickname": df_t["nickname"],
+            "display_name": df_t["display_name"],
             "type": ["tag"] * len(df_t),
             "localization": df_t["localization"],
             "notes": df_t["notes"],
@@ -537,14 +794,15 @@ with tab_tags:
 
     grid_t = st.data_editor(
         view_t,
-        key="tags_overview_v10core",
+        key="tags_overview_cf",
         hide_index=True,
-        use_container_width=True,
         num_rows="fixed",
+        width="stretch",
         column_order=[
             "✓ Select",
             "code",
-            "name",
+            "nickname",
+            "display_name",
             "type",
             "localization",
             "notes",
@@ -552,8 +810,11 @@ with tab_tags:
         ],
         column_config={
             "✓ Select": st.column_config.CheckboxColumn("✓ Select", default=False),
-            "code": st.column_config.TextColumn("Tag code", disabled=True),
-            "name": st.column_config.TextColumn("Name", disabled=True),
+            "code": st.column_config.TextColumn("code (TAG-…)", disabled=True),
+            "nickname": st.column_config.TextColumn("nickname", disabled=True),
+            "display_name": st.column_config.TextColumn(
+                "display_name", disabled=True
+            ),
             "type": st.column_config.TextColumn("Type", disabled=True),
             "localization": st.column_config.TextColumn("Localization", disabled=True),
             "notes": st.column_config.TextColumn("Notes", disabled=True),
@@ -576,7 +837,8 @@ with tab_tags:
         st.write(
             {
                 "code": row["code"],
-                "name": row["name"],
+                "nickname": row["nickname"],
+                "display_name": row["display_name"],
                 "localization": row["localization"],
                 "notes": row["notes"],
             }
@@ -584,185 +846,22 @@ with tab_tags:
     else:
         subset = grid_t[grid_t["id"].isin(sel_t_ids)].reset_index(drop=True)
         st.write("Summary for selected tags:")
-        st.dataframe(subset[["code", "name", "localization"]])
+        st.dataframe(
+            subset[
+                [
+                    "code",
+                    "nickname",
+                    "display_name",
+                    "localization",
+                ]
+            ],
+            width="stretch",
+        )
 
     st.download_button(
         "⬇︎ Download tags (CSV)",
         data=df_t.to_csv(index=False).encode("utf-8"),
-        file_name="tags_overview.csv",
+        file_name="tags_overview_v11.csv",
         type="secondary",
         mime="text/csv",
     )
-
-# ════════════════════════════════════════════════════════
-# TAB 4 — DYES
-# ════════════════════════════════════════════════════════
-with tab_dyes:
-    st.subheader("Dyes")
-
-    with st.form("dye_filters", clear_on_submit=False):
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            q_raw_dye = st.text_input(
-                "Search (base code / name / notes / fluor)",
-                "",
-                key="dyes_search",
-            )
-        with c2:
-            lim_dyes = int(
-                st.number_input(
-                    "Limit (dyes)",
-                    min_value=50,
-                    max_value=5000,
-                    value=1000,
-                    step=50,
-                    key="dyes_limit",
-                )
-            )
-        _ = st.form_submit_button("Apply", key="dyes_apply")
-
-    q_dye = _norm(q_raw_dye)
-    q_param = q_dye or None
-
-    sql_dyes = text(
-        """
-        SELECT
-          id,
-          dye_base_code,
-          name,
-          notes,
-          created_at,
-          fluor_code,
-          fluor_name,
-          excitation_nm,
-          emission_nm
-        FROM public.v_dyes_overview
-        WHERE (
-             :q IS NULL
-          OR  dye_base_code ILIKE :ql
-          OR  name          ILIKE :ql
-          OR  notes         ILIKE :ql
-          OR  fluor_code    ILIKE :ql
-          OR  fluor_name    ILIKE :ql
-        )
-        ORDER BY dye_base_code, name
-        LIMIT :lim;
-        """
-    )
-
-    params_dyes = {
-        "q": q_param,
-        "ql": f"%{q_dye}%" if q_dye else None,
-        "lim": lim_dyes,
-    }
-
-    with _eng().begin() as cx:
-        df_dyes = pd.read_sql(sql_dyes, cx, params=params_dyes)
-
-    if df_dyes.empty:
-        st.info("No dyes match these filters.")
-    else:
-        df_dyes = df_dyes.fillna("")
-        st.caption(f"{len(df_dyes)} dye(s)")
-
-        view_dyes = pd.DataFrame(
-            {
-                "code": df_dyes["dye_base_code"],
-                "name": df_dyes["name"],
-                "type": ["dye"] * len(df_dyes),
-                "base_code": df_dyes["dye_base_code"],
-                "linked_markers": df_dyes["fluor_code"],
-                "notes": df_dyes["notes"],
-                "fluor_name": df_dyes["fluor_name"],
-                "excitation_nm": df_dyes["excitation_nm"],
-                "emission_nm": df_dyes["emission_nm"],
-                "created_at": df_dyes["created_at"],
-                "id": df_dyes["id"],
-            }
-        )
-
-        view_dyes.insert(0, "✓ Select", False)
-
-        grid_dyes = st.data_editor(
-            view_dyes,
-            key="dyes_overview_v10core",
-            use_container_width=True,
-            hide_index=True,
-            num_rows="fixed",
-            column_config={
-                "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-                "code": st.column_config.TextColumn("Base code", disabled=True),
-                "name": st.column_config.TextColumn("Name", disabled=True),
-                "type": st.column_config.TextColumn("Type", disabled=True),
-                "base_code": st.column_config.TextColumn("base_code", disabled=True),
-                "linked_markers": st.column_config.TextColumn(
-                    "Fluor code", disabled=True
-                ),
-                "notes": st.column_config.TextColumn("Notes", disabled=True),
-                "fluor_name": st.column_config.TextColumn(
-                    "Fluor name", disabled=True
-                ),
-                "excitation_nm": st.column_config.NumberColumn(
-                    "Ex (nm)", disabled=True
-                ),
-                "emission_nm": st.column_config.NumberColumn(
-                    "Em (nm)", disabled=True
-                ),
-                "created_at": st.column_config.DatetimeColumn(
-                    "Created", disabled=True
-                ),
-                "id": st.column_config.TextColumn("ID", disabled=True),
-            },
-        )
-
-        st.divider()
-        st.subheader("Dye details")
-
-        selected_dye_idxs: List[int] = []
-        if "✓ Select" in grid_dyes.columns:
-            selected_dye_idxs = (
-                grid_dyes.index[grid_dyes["✓ Select"] == True]
-                .to_series()
-                .tolist()
-            )
-
-        if not selected_dye_idxs:
-            st.info("Select one or more dyes above to see details.")
-        elif len(selected_dye_idxs) == 1:
-            row = grid_dyes.loc[selected_dye_idxs[0]]
-
-            tab1, tab2 = st.tabs(["Overview", "Spectra"])
-            with tab1:
-                st.write(
-                    {
-                        "code": row["code"],
-                        "name": row["name"],
-                        "type": row["type"],
-                        "base_code": row["base_code"],
-                        "notes": row["notes"],
-                        "linked_fluor": f"{row['linked_markers']} ({row['fluor_name']})",
-                    }
-                )
-            with tab2:
-                st.write(
-                    {
-                        "excitation_nm": row["excitation_nm"],
-                        "emission_nm": row["emission_nm"],
-                    }
-                )
-        else:
-            subset = grid_dyes.loc[selected_dye_idxs].reset_index(drop=True)
-            st.write("Summary for selected dyes:")
-            st.dataframe(
-                subset[
-                    ["code", "name", "linked_markers", "excitation_nm", "emission_nm"]
-                ]
-            )
-
-        st.download_button(
-            "⬇︎ Download dyes (CSV)",
-            data=df_dyes.to_csv(index=False).encode("utf-8"),
-            file_name="dyes_overview.csv",
-            type="secondary",
-            mime="text/csv",
-        )

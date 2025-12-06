@@ -35,6 +35,7 @@ def main() -> None:
     if missing:
         raise ValueError(f"alias.csv is missing required columns: {missing}")
 
+    # only keep fluor rows
     df = df[df["target_kind"] == "fluor"].copy()
     if df.empty:
         print("No fluor rows in alias.csv; nothing to do.")
@@ -42,12 +43,13 @@ def main() -> None:
 
     engine = get_engine()
 
-    # CASE-INSENSITIVE match: target_key → fluors.fluor_code
+    # v11: CASE-INSENSITIVE match against nickname / display_name
     lookup_sql = text(
         """
         SELECT id
         FROM public.fluors
-        WHERE lower(fluor_code) = lower(:fluor_code)
+        WHERE lower(nickname) = lower(:label)
+           OR lower(display_name) = lower(:label)
         """
     )
     upsert_sql = text(
@@ -71,10 +73,13 @@ def main() -> None:
                 continue
 
             fluor_id = cx.execute(
-                lookup_sql, {"fluor_code": target_key}
+                lookup_sql, {"label": target_key}
             ).scalar()
             if fluor_id is None:
-                print(f"[WARN] alias '{alias}': target_key '{target_key}' not found in public.fluors; skipping")
+                print(
+                    f"[WARN] alias '{alias}': target_key '{target_key}' "
+                    "not found in public.fluors; skipping"
+                )
                 skipped += 1
                 continue
 
