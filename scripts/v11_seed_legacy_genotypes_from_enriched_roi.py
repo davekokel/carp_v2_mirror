@@ -321,7 +321,7 @@ def apply_genotypes_to_clutches(
                 text(
                     """
                     UPDATE public.clutches
-                    SET genotype_v11_id = :gid::uuid
+                    SET genotype_v11_id = CAST(:gid AS uuid)
                     WHERE id = :cid
                       AND genotype_v11_id IS NULL;
                     """
