@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pathlib
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 import pandas as pd
 import streamlit as st
@@ -19,7 +19,8 @@ from carp_app.ui.email_otp_gate import require_email_otp
 try:
     from carp_app.ui.auth_gate import require_app_unlock
 except Exception:
-    def require_app_unlock(): ...
+    def require_app_unlock():
+        ...
 from carp_app.ui.lib.page_engine import engine
 
 # ───────── auth & page ─────────
@@ -51,6 +52,7 @@ tab_constructs, tab_fluors, tab_tags, tab_dyes = st.tabs(
 # Helpers for selectlists
 # ────────────────────────────────────────────────────────
 
+
 def _load_construct_choices(q: str | None, limit: int = 200) -> pd.DataFrame:
     where = ["1=1"]
     params: Dict[str, object] = {"lim": limit}
@@ -63,7 +65,7 @@ def _load_construct_choices(q: str | None, limit: int = 200) -> pd.DataFrame:
             " OR COALESCE(c.nickname,'') ILIKE :ql"
             " OR COALESCE(c.display_name,'') ILIKE :ql"
             " OR c.construct_code ILIKE :ql"
-            " OR c.construct_name ILIKE :ql"
+            " OR COALESCE(c.construct_name,'') ILIKE :ql"
             " OR COALESCE(c.description,'') ILIKE :ql"
             ")"
         )
@@ -98,8 +100,7 @@ def _load_fluor_choices(q: str | None, limit: int = 200) -> pd.DataFrame:
             "  code ILIKE :ql"
             " OR COALESCE(nickname,'') ILIKE :ql"
             " OR COALESCE(display_name,'') ILIKE :ql"
-            " OR COALESCE(fluor_code,'') ILIKE :ql"
-            " OR COALESCE(fluor_name,'') ILIKE :ql"
+            " OR COALESCE(notes,'') ILIKE :ql"
             ")"
         )
     where_sql = " AND ".join(where)
@@ -110,11 +111,13 @@ def _load_fluor_choices(q: str | None, limit: int = 200) -> pd.DataFrame:
           code            AS code,
           nickname        AS nickname,
           display_name    AS display_name,
-          fluor_code,
-          fluor_name
+          excitation_nm,
+          emission_nm,
+          alt_names,
+          notes
         FROM public.fluors
         WHERE {where_sql}
-        ORDER BY display_name, fluor_name, fluor_code
+        ORDER BY display_name, nickname, code
         LIMIT :lim;
         """
     )
@@ -132,9 +135,8 @@ def _load_tag_choices(q: str | None, limit: int = 200) -> pd.DataFrame:
             "  code ILIKE :ql"
             " OR COALESCE(nickname,'') ILIKE :ql"
             " OR COALESCE(display_name,'') ILIKE :ql"
-            " OR tag_code ILIKE :ql"
-            " OR tag_name ILIKE :ql"
             " OR COALESCE(localization,'') ILIKE :ql"
+            " OR COALESCE(notes,'') ILIKE :ql"
             ")"
         )
     where_sql = " AND ".join(where)
@@ -145,11 +147,11 @@ def _load_tag_choices(q: str | None, limit: int = 200) -> pd.DataFrame:
           code            AS code,
           nickname        AS nickname,
           display_name    AS display_name,
-          tag_code,
-          tag_name
+          localization,
+          notes
         FROM public.tags
         WHERE {where_sql}
-        ORDER BY display_name, tag_code
+        ORDER BY display_name, nickname, code
         LIMIT :lim;
         """
     )
@@ -167,8 +169,6 @@ def _load_dye_choices(q: str | None, limit: int = 200) -> pd.DataFrame:
             "  d.code ILIKE :ql"
             " OR COALESCE(d.nickname,'') ILIKE :ql"
             " OR COALESCE(d.display_name,'') ILIKE :ql"
-            " OR d.dye_base_code ILIKE :ql"
-            " OR d.name ILIKE :ql"
             " OR COALESCE(d.notes,'') ILIKE :ql"
             ")"
         )
@@ -180,11 +180,11 @@ def _load_dye_choices(q: str | None, limit: int = 200) -> pd.DataFrame:
           d.code            AS code,
           d.nickname        AS nickname,
           d.display_name    AS display_name,
-          d.dye_base_code   AS dye_base_code,
-          d.name            AS dye_name
+          d.nickname        AS dye_base_code,
+          d.display_name    AS dye_name
         FROM public.dyes d
         WHERE {where_sql}
-        ORDER BY d.display_name, d.dye_base_code
+        ORDER BY d.display_name, d.nickname
         LIMIT :lim;
         """
     )
@@ -200,7 +200,6 @@ with tab_constructs:
 
     c_left, c_right = st.columns([1.1, 2.0])
 
-    # ── left: picker ─────────────────────────────────────
     with c_left:
         st.caption("Pick an existing construct or start a new one.")
         q_pick = st.text_input(
@@ -219,7 +218,6 @@ with tab_constructs:
                 for _, row in df_choices.iterrows()
             ]
             codes = df_choices["code"].tolist()
-            index = 0
             selected_opt = st.selectbox(
                 "Existing constructs",
                 ["(none — create new)"] + options,
@@ -235,7 +233,6 @@ with tab_constructs:
         st.markdown("---")
         new_clicked = st.button("➕ Start new construct", key="constructs_new_btn")
 
-    # ── right: form ──────────────────────────────────────
     with c_right:
         st.caption("Construct details")
 
@@ -435,13 +432,14 @@ with tab_fluors:
             "",
             key="fluors_edit_filter",
         )
-        df_f_choices = _load_fluor_choices(_norm(q_pick_f))
+    df_f_choices = _load_fluor_choices(_norm(q_pick_f)) if 'q_pick_f' in locals() else _load_fluor_choices("")
+    with c_left:
         if df_f_choices.empty:
             st.info("No fluors match this filter.")
             selected_f_code = None
         else:
             options_f = [
-                f"{row.display_name} [{row.fluor_code}] ({row.code})"
+                f"{row.display_name} ({row.nickname}) [{row.code}]"
                 for _, row in df_f_choices.iterrows()
             ]
             codes_f = df_f_choices["code"].tolist()
@@ -467,8 +465,6 @@ with tab_fluors:
             "code": "",
             "nickname": "",
             "display_name": "",
-            "fluor_code": "",
-            "fluor_name": "",
             "excitation_nm": 0,
             "emission_nm": 0,
             "alt_names": "",
@@ -483,8 +479,6 @@ with tab_fluors:
                   code,
                   nickname,
                   display_name,
-                  fluor_code,
-                  fluor_name,
                   excitation_nm,
                   emission_nm,
                   alt_names,
@@ -500,7 +494,6 @@ with tab_fluors:
                 for k in init_f.keys():
                     if k in r and r[k] is not None:
                         if k == "alt_names":
-                            # alt_names may be array or text
                             init_f[k] = (
                                 ", ".join(r[k])
                                 if isinstance(r[k], list)
@@ -518,20 +511,12 @@ with tab_fluors:
                     disabled=True,
                 )
                 f_nickname = st.text_input(
-                    "nickname",
+                    "nickname (base code)",
                     value=str(init_f["nickname"]),
                 )
                 f_display_name = st.text_input(
                     "display_name",
                     value=str(init_f["display_name"]),
-                )
-                f_fluor_code = st.text_input(
-                    "fluor_code (domain code)",
-                    value=str(init_f["fluor_code"]),
-                )
-                f_fluor_name = st.text_input(
-                    "fluor_name",
-                    value=str(init_f["fluor_name"]),
                 )
             with c2:
                 f_exc = st.number_input(
@@ -575,8 +560,6 @@ with tab_fluors:
                                 SET
                                   nickname      = :nickname,
                                   display_name  = :display_name,
-                                  fluor_code    = :fluor_code,
-                                  fluor_name    = :fluor_name,
                                   excitation_nm = :excitation_nm,
                                   emission_nm   = :emission_nm,
                                   alt_names     = CASE
@@ -592,8 +575,6 @@ with tab_fluors:
                                 "code": f_code_display or selected_f_code,
                                 "nickname": f_nickname or None,
                                 "display_name": f_display_name or None,
-                                "fluor_code": f_fluor_code or None,
-                                "fluor_name": f_fluor_name or None,
                                 "excitation_nm": int(f_exc) if f_exc else None,
                                 "emission_nm": int(f_em) if f_em else None,
                                 "alt_names": f_alt or None,
@@ -607,8 +588,6 @@ with tab_fluors:
                                 INSERT INTO public.fluors (
                                   nickname,
                                   display_name,
-                                  fluor_code,
-                                  fluor_name,
                                   excitation_nm,
                                   emission_nm,
                                   alt_names,
@@ -617,8 +596,6 @@ with tab_fluors:
                                 VALUES (
                                   :nickname,
                                   :display_name,
-                                  :fluor_code,
-                                  :fluor_name,
                                   :excitation_nm,
                                   :emission_nm,
                                   CASE
@@ -633,8 +610,6 @@ with tab_fluors:
                             {
                                 "nickname": f_nickname or None,
                                 "display_name": f_display_name or None,
-                                "fluor_code": f_fluor_code or None,
-                                "fluor_name": f_fluor_name or None,
                                 "excitation_nm": int(f_exc) if f_exc else None,
                                 "emission_nm": int(f_em) if f_em else None,
                                 "alt_names": f_alt or None,
@@ -666,7 +641,7 @@ with tab_tags:
             selected_t_code = None
         else:
             options_t = [
-                f"{row.display_name} [{row.tag_code}] ({row.code})"
+                f"{row.display_name} ({row.nickname}) [{row.code}]"
                 for _, row in df_t_choices.iterrows()
             ]
             codes_t = df_t_choices["code"].tolist()
@@ -692,8 +667,6 @@ with tab_tags:
             "code": "",
             "nickname": "",
             "display_name": "",
-            "tag_code": "",
-            "tag_name": "",
             "localization": "",
             "notes": "",
         }
@@ -706,8 +679,6 @@ with tab_tags:
                   code,
                   nickname,
                   display_name,
-                  tag_code,
-                  tag_name,
                   localization,
                   notes
                 FROM public.tags
@@ -731,20 +702,12 @@ with tab_tags:
                     disabled=True,
                 )
                 t_nickname = st.text_input(
-                    "nickname",
+                    "nickname (base code)",
                     value=str(init_t["nickname"]),
                 )
                 t_display_name = st.text_input(
                     "display_name",
                     value=str(init_t["display_name"]),
-                )
-                t_tag_code = st.text_input(
-                    "tag_code (domain code)",
-                    value=str(init_t["tag_code"]),
-                )
-                t_tag_name = st.text_input(
-                    "tag_name",
-                    value=str(init_t["tag_name"]),
                 )
             with c2:
                 t_loc = st.text_input(
@@ -773,8 +736,6 @@ with tab_tags:
                                 SET
                                   nickname     = :nickname,
                                   display_name = :display_name,
-                                  tag_code     = :tag_code,
-                                  tag_name     = :tag_name,
                                   localization = :localization,
                                   notes        = :notes
                                 WHERE code = :code;
@@ -784,8 +745,6 @@ with tab_tags:
                                 "code": t_code_display or selected_t_code,
                                 "nickname": t_nickname or None,
                                 "display_name": t_display_name or None,
-                                "tag_code": t_tag_code or None,
-                                "tag_name": t_tag_name or None,
                                 "localization": t_loc or None,
                                 "notes": t_notes or None,
                             },
@@ -797,16 +756,12 @@ with tab_tags:
                                 INSERT INTO public.tags (
                                   nickname,
                                   display_name,
-                                  tag_code,
-                                  tag_name,
                                   localization,
                                   notes
                                 )
                                 VALUES (
                                   :nickname,
                                   :display_name,
-                                  :tag_code,
-                                  :tag_name,
                                   :localization,
                                   :notes
                                 );
@@ -815,8 +770,6 @@ with tab_tags:
                             {
                                 "nickname": t_nickname or None,
                                 "display_name": t_display_name or None,
-                                "tag_code": t_tag_code or None,
-                                "tag_name": t_tag_name or None,
                                 "localization": t_loc or None,
                                 "notes": t_notes or None,
                             },
@@ -872,7 +825,6 @@ with tab_dyes:
             "code": "",
             "nickname": "",
             "display_name": "",
-            "dye_base_code": "",
             "dye_name": "",
             "notes": "",
             "linked_fluor_code": "",
@@ -888,12 +840,10 @@ with tab_dyes:
                   d.id::text      AS id,
                   d.code,
                   d.nickname,
-                  d.display_name,
-                  d.dye_base_code,
-                  d.name          AS dye_name,
+                  d.display_name  AS dye_name,
                   d.notes,
-                  f.fluor_code    AS linked_fluor_code,
-                  f.fluor_name    AS fluor_name,
+                  f.nickname      AS linked_fluor_code,
+                  f.display_name  AS fluor_name,
                   f.excitation_nm AS excitation_nm,
                   f.emission_nm   AS emission_nm
                 FROM public.dyes d
@@ -919,26 +869,18 @@ with tab_dyes:
                     disabled=True,
                 )
                 d_nickname = st.text_input(
-                    "nickname",
+                    "nickname (base code)",
                     value=str(init_d["nickname"]),
                 )
                 d_display_name = st.text_input(
                     "display_name",
-                    value=str(init_d["display_name"]),
-                )
-                d_base = st.text_input(
-                    "dye_base_code (vendor or shorthand)",
-                    value=str(init_d["dye_base_code"]),
-                )
-                d_name = st.text_input(
-                    "name",
                     value=str(init_d["dye_name"]),
                 )
             with c2:
                 d_link_fluor = st.text_input(
-                    "linked fluor_code (optional)",
+                    "linked fluor (fluor nickname, optional)",
                     value=str(init_d["linked_fluor_code"]),
-                    help="If provided, dye will be linked to the fluor with this fluor_code.",
+                    help="If provided, dye will be linked to the fluor with this nickname.",
                 )
                 d_notes = st.text_area(
                     "notes",
@@ -960,18 +902,16 @@ with tab_dyes:
                                 """
                                 UPDATE public.dyes
                                 SET
-                                  nickname      = :nickname,
-                                  display_name  = :display_name,
-                                  dye_base_code = :dye_base_code,
-                                  name          = :dye_name,
-                                  notes         = :notes,
-                                  fluor_id      = CASE
+                                  nickname     = :nickname,
+                                  display_name = :display_name,
+                                  notes        = :notes,
+                                  fluor_id     = CASE
                                     WHEN :linked_fluor_code IS NULL OR :linked_fluor_code = ''
                                       THEN NULL
                                     ELSE (
                                       SELECT id
                                       FROM public.fluors
-                                      WHERE fluor_code = :linked_fluor_code
+                                      WHERE nickname = :linked_fluor_code
                                       LIMIT 1
                                     )
                                   END
@@ -982,8 +922,6 @@ with tab_dyes:
                                 "code": d_code_display or selected_d_code,
                                 "nickname": d_nickname or None,
                                 "display_name": d_display_name or None,
-                                "dye_base_code": d_base or None,
-                                "dye_name": d_name or None,
                                 "notes": d_notes or None,
                                 "linked_fluor_code": d_link_fluor or None,
                             },
@@ -995,16 +933,12 @@ with tab_dyes:
                                 INSERT INTO public.dyes (
                                   nickname,
                                   display_name,
-                                  dye_base_code,
-                                  name,
                                   notes,
                                   fluor_id
                                 )
                                 VALUES (
                                   :nickname,
                                   :display_name,
-                                  :dye_base_code,
-                                  :dye_name,
                                   :notes,
                                   CASE
                                     WHEN :linked_fluor_code IS NULL OR :linked_fluor_code = ''
@@ -1012,7 +946,7 @@ with tab_dyes:
                                     ELSE (
                                       SELECT id
                                       FROM public.fluors
-                                      WHERE fluor_code = :linked_fluor_code
+                                      WHERE nickname = :linked_fluor_code
                                       LIMIT 1
                                     )
                                   END
@@ -1022,8 +956,6 @@ with tab_dyes:
                             {
                                 "nickname": d_nickname or None,
                                 "display_name": d_display_name or None,
-                                "dye_base_code": d_base or None,
-                                "dye_name": d_name or None,
                                 "notes": d_notes or None,
                                 "linked_fluor_code": d_link_fluor or None,
                             },

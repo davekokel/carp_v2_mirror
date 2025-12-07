@@ -303,7 +303,7 @@ st.subheader("Step 1b — Select slot(s) on this plate", anchor=False)
 
 df_slots = df_plate_only.copy()
 
-# orientation column may or may not exist; load defensively
+# orientation column may or may not exist; load for display only
 with eng().begin() as cx:
     try:
         df_orient = pd.read_sql(
@@ -369,7 +369,7 @@ slots_grid = st.data_editor(
         "✓ Select":            st.column_config.CheckboxColumn("✓"),
         "slot_label":          st.column_config.TextColumn("Slot", disabled=True),
         "slot_index":          st.column_config.NumberColumn("Index", disabled=True),
-        "orientation":         st.column_config.TextColumn("Orientation", disabled=False),
+        "orientation":         st.column_config.TextColumn("Orientation", disabled=True),
         "planned_n_rois":      st.column_config.NumberColumn("Planned #ROIs", disabled=True),
         "n_rois":              st.column_config.NumberColumn("Existing #ROIs", disabled=True),
         "clutch_code":         st.column_config.TextColumn("Parent clutch", disabled=True),
@@ -380,28 +380,7 @@ slots_grid = st.data_editor(
 
 selected_slots = slots_grid[slots_grid["✓ Select"] == True]["slot_label"].tolist()
 
-c1, c2, c3 = st.columns(3)
-with c1:
-    if st.button("💾 Save slot metadata (orientation)"):
-        with eng().begin() as cx:
-            for _, row in slots_grid.iterrows():
-                if not row["✓ Select"]:
-                    continue
-                cx.execute(
-                    text(
-                        """
-                        UPDATE public.imaging_slots
-                        SET orientation = :o
-                        WHERE id = :sid
-                        """
-                    ),
-                    {
-                        "o": row["orientation"] or None,
-                        "sid": row["slot_id"],
-                    },
-                )
-        st.success("Saved slot metadata.")
-
+c2, c3 = st.columns(2)
 with c2:
     if st.button("➕ Add ROI to selected slots"):
         for sl in selected_slots:

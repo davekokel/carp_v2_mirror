@@ -1,10 +1,9 @@
-# carp_app/ui/pages/230_🔎_overview_clutches_flat.py
 from __future__ import annotations
 
 import sys
 import pathlib
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
@@ -59,131 +58,45 @@ def load_flat_clutch_treated_selected(
     """
     Flat overview of clutches with treated clutches and selections.
 
-    Three levels:
-      • level = 'clutch'         → base clutch row
-      • level = 'treated_clutch' → one per treated_clutches_v11
-      • level = 'selection'      → one per selection event
+    Data source: public.v11_clutch_flat_overview
     """
     sql = text(
         """
-        WITH base_clutches AS (
-          SELECT
-            c.id::uuid          AS clutch_id,
-            c.clutch_code,
-            c.clutch_date
-          FROM public.clutches c
-          WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
-        ),
-        treated AS (
-          SELECT
-            tc.id::uuid         AS treated_clutch_id,
-            tc.clutch_id::uuid  AS clutch_id,
-            tc.treated_clutch_code,
-            t.treat_code        AS treatment_code,
-            t.treat_text
-          FROM public.treated_clutches_v11 tc
-          LEFT JOIN public.treatments t
-            ON t.id = tc.treatment_id
-        ),
-        sel AS (
-          SELECT
-            cs.selection_event_id::uuid AS selection_event_id,
-            cs.selection_kind,
-            cs.selection_label,
-            cs.is_primary,
-            cs.clutch_id::uuid          AS clutch_id,
-            cs.treated_clutch_id::uuid  AS treated_clutch_id,
-            cs.genotype_code,
-            cs.genotype_basecodes,
-            cs.genotype_pretty
-          FROM public.v11_clutch_selection_star cs
-        ),
-
-        clutch_rows AS (
-          SELECT
-            'clutch'                    AS level,
-            bc.clutch_id::text          AS clutch_id,
-            bc.clutch_code,
-            bc.clutch_date,
-            NULL::text                  AS treated_clutch_id,
-            NULL::text                  AS treated_clutch_code,
-            NULL::text                  AS treatment_code,
-            NULL::text                  AS treat_text,
-            NULL::text                  AS selection_event_id,
-            NULL::text                  AS selection_kind,
-            NULL::text                  AS selection_label,
-            NULL::boolean               AS is_primary,
-            NULL::text                  AS genotype_code,
-            NULL::text                  AS genotype_basecodes,
-            NULL::text                  AS genotype_pretty
-          FROM base_clutches bc
-        ),
-
-        treated_rows AS (
-          SELECT
-            'treated_clutch'            AS level,
-            bc.clutch_id::text          AS clutch_id,
-            bc.clutch_code,
-            bc.clutch_date,
-            tr.treated_clutch_id::text  AS treated_clutch_id,
-            tr.treated_clutch_code,
-            tr.treatment_code,
-            tr.treat_text,
-            NULL::text                  AS selection_event_id,
-            NULL::text                  AS selection_kind,
-            NULL::text                  AS selection_label,
-            NULL::boolean               AS is_primary,
-            NULL::text                  AS genotype_code,
-            NULL::text                  AS genotype_basecodes,
-            NULL::text                  AS genotype_pretty
-          FROM base_clutches bc
-          JOIN treated tr
-            ON tr.clutch_id = bc.clutch_id
-        ),
-
-        selection_rows AS (
-          SELECT
-            'selection'                 AS level,
-            bc.clutch_id::text          AS clutch_id,
-            bc.clutch_code,
-            bc.clutch_date,
-            tr.treated_clutch_id::text  AS treated_clutch_id,
-            tr.treated_clutch_code,
-            tr.treatment_code,
-            tr.treat_text,
-            s.selection_event_id::text  AS selection_event_id,
-            s.selection_kind,
-            s.selection_label,
-            s.is_primary,
-            s.genotype_code,
-            s.genotype_basecodes,
-            s.genotype_pretty
-          FROM base_clutches bc
-          LEFT JOIN treated tr
-            ON tr.clutch_id = bc.clutch_id
-          JOIN sel s
-            ON s.clutch_id = bc.clutch_id
-           AND (tr.treated_clutch_id IS NULL OR s.treated_clutch_id = tr.treated_clutch_id)
-        ),
-
-        all_rows AS (
-          SELECT * FROM clutch_rows
-          UNION ALL
-          SELECT * FROM treated_rows
-          UNION ALL
-          SELECT * FROM selection_rows
-        )
-
-        SELECT *
-        FROM all_rows
+        SELECT
+          level,
+          clutch_code,
+          clutch_date,
+          cross_code,
+          cross_date,
+          tank_pair_code,
+          parent_cross_pretty,
+          treated_clutch_code,
+          treatment_code,
+          treat_text,
+          selection_label,
+          genotype_code,
+          genotype_basecodes,
+          genotype_pretty,
+          transgene_label,
+          fluor_tag_label,
+          organelle_fluor_label,
+          marker_basecode_style,
+          marker_fluortag_style,
+          marker_organelle_style
+        FROM public.v11_clutch_flat_overview
         WHERE (
                :q IS NULL
-            OR clutch_code                    ILIKE :ql
-            OR COALESCE(treated_clutch_code,'') ILIKE :ql
-            OR COALESCE(treatment_code,'')      ILIKE :ql
-            OR COALESCE(treat_text,'')          ILIKE :ql
-            OR COALESCE(selection_label,'')     ILIKE :ql
-            OR COALESCE(genotype_pretty,'')     ILIKE :ql
+            OR clutch_code                         ILIKE :ql
+            OR COALESCE(treated_clutch_code,'')   ILIKE :ql
+            OR COALESCE(treatment_code,'')        ILIKE :ql
+            OR COALESCE(treat_text,'')            ILIKE :ql
+            OR COALESCE(selection_label,'')       ILIKE :ql
+            OR COALESCE(genotype_pretty,'')       ILIKE :ql
+            OR COALESCE(genotype_basecodes,'')    ILIKE :ql
+            OR COALESCE(parent_cross_pretty,'')   ILIKE :ql
+            OR COALESCE(marker_basecode_style,'') ILIKE :ql
+            OR COALESCE(marker_fluortag_style,'') ILIKE :ql
+            OR COALESCE(marker_organelle_style,'') ILIKE :ql
         )
         AND (:from_d IS NULL OR clutch_date >= :from_d)
         AND (:to_d   IS NULL OR clutch_date <= :to_d)
@@ -212,7 +125,7 @@ with st.form("flat_clutch_filters", clear_on_submit=False):
     c1, c2, c3, c4 = st.columns([3, 1.5, 1.5, 1])
     with c1:
         q_raw = st.text_input(
-            "Search (clutch / treated clutch / treatment / selection / genotype)",
+            "Search (clutch / treated clutch / treatment / selection / genotype / markers)",
             "",
         )
     with c2:
@@ -258,23 +171,35 @@ st.caption(f"{len(flat_df)} flat row(s) (clutch × treated_clutch × selection)"
 
 # ───────── main flat table ─────────
 
+df = flat_df.copy()
+
 view_cols = [
     "level",
     "clutch_code",
     "clutch_date",
-    "treated_clutch_code",
+    "cross_code",
+    "cross_date",
+    "tank_pair_code",
+    "parent_cross_pretty",
+    # marker roll-ups (DB-defined, no Python munging)
+    "marker_basecode_style",
+    "marker_fluortag_style",
+    "marker_organelle_style",
+    # codes for reference
+    "genotype_code",
     "treatment_code",
+    # everything else after
+    "treated_clutch_code",
     "treat_text",
     "selection_label",
     "selection_kind",
     "is_primary",
-    "genotype_code",
     "genotype_basecodes",
     "genotype_pretty",
 ]
-view_cols = [c for c in view_cols if c in flat_df.columns]
+view_cols = [c for c in view_cols if c in df.columns]
 
-flat_view = flat_df[view_cols].copy()
+flat_view = df[view_cols].copy()
 
 st.data_editor(
     flat_view,
@@ -286,15 +211,54 @@ st.data_editor(
         "level": st.column_config.TextColumn("Level", disabled=True),
         "clutch_code": st.column_config.TextColumn("Clutch", disabled=True),
         "clutch_date": st.column_config.DateColumn("Clutch date", disabled=True),
-        "treated_clutch_code": st.column_config.TextColumn("Treated clutch", disabled=True),
-        "treatment_code": st.column_config.TextColumn("Treatment code", disabled=True),
-        "treat_text": st.column_config.TextColumn("Treatment text", disabled=True, width="large"),
-        "selection_label": st.column_config.TextColumn("Selection label", disabled=True, width="large"),
-        "selection_kind": st.column_config.TextColumn("Selection kind", disabled=True),
-        "is_primary": st.column_config.CheckboxColumn("Primary?", disabled=True),
-        "genotype_code": st.column_config.TextColumn("Genotype code", disabled=True),
-        "genotype_basecodes": st.column_config.TextColumn("Genotype basecodes", disabled=True, width="large"),
-        "genotype_pretty": st.column_config.TextColumn("Genotype pretty", disabled=True, width="large"),
+        "cross_code": st.column_config.TextColumn("Cross code", disabled=True),
+        "cross_date": st.column_config.DateColumn("Cross date", disabled=True),
+        "tank_pair_code": st.column_config.TextColumn("Tank pair", disabled=True),
+        "parent_cross_pretty": st.column_config.TextColumn(
+            "Parents", disabled=True, width="large"
+        ),
+        "marker_basecode_style": st.column_config.TextColumn(
+            "Markers — basecode (treat_basecodes > genotype_basecodes)",
+            disabled=True,
+            width="large",
+        ),
+        "marker_fluortag_style": st.column_config.TextColumn(
+            "Markers — fluor::tag(tag_pos) (treat > genotype)",
+            disabled=True,
+            width="large",
+        ),
+        "marker_organelle_style": st.column_config.TextColumn(
+            "Markers — organelle–fluor (treat > genotype)",
+            disabled=True,
+            width="large",
+        ),
+        "genotype_code": st.column_config.TextColumn(
+            "Genotype code", disabled=True
+        ),
+        "treatment_code": st.column_config.TextColumn(
+            "Treatment code", disabled=True
+        ),
+        "treated_clutch_code": st.column_config.TextColumn(
+            "Treated clutch code", disabled=True
+        ),
+        "treat_text": st.column_config.TextColumn(
+            "Treatment text", disabled=True, width="large"
+        ),
+        "selection_label": st.column_config.TextColumn(
+            "Selection label", disabled=True, width="large"
+        ),
+        "selection_kind": st.column_config.TextColumn(
+            "Selection kind", disabled=True
+        ),
+        "is_primary": st.column_config.CheckboxColumn(
+            "Primary?", disabled=True
+        ),
+        "genotype_basecodes": st.column_config.TextColumn(
+            "Genotype basecodes", disabled=True, width="large"
+        ),
+        "genotype_pretty": st.column_config.TextColumn(
+            "Genotype pretty", disabled=True, width="large"
+        ),
     },
 )
 

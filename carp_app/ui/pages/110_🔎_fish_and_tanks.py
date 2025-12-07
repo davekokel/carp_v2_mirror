@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 import pathlib
 from typing import Any, Dict, List, Optional
@@ -45,7 +44,6 @@ def _norm(s: Optional[str]) -> str:
     return (s or "").strip()
 
 
-@st.cache_data(show_spinner=False)
 def load_tanks() -> pd.DataFrame:
     """
     Tank overview with fish + line + genotype + treatment labels.
@@ -78,7 +76,7 @@ def load_tanks() -> pd.DataFrame:
         JOIN public.fish_lines fl
           ON fl.id = fi.line_id
         LEFT JOIN public.v11_fish_instance_star_labels fis
-          ON fis.fish_instance_id = fi.id::text
+          ON fis.fish_instance_id = fi.id
         ORDER BY t.tank_code, fi.fish_code;
         """
     )
@@ -180,12 +178,16 @@ else:
             "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
             "status": st.column_config.TextColumn("Status", disabled=True),
             "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
-            "fish_nickname": st.column_config.TextColumn("Fish nickname", disabled=True),
+            "fish_nickname": st.column_config.TextColumn(
+                "Fish nickname", disabled=True
+            ),
             "line_code": st.column_config.TextColumn("Line code", disabled=True),
             "line_nickname": st.column_config.TextColumn(
                 "Line nickname", disabled=True, width="large"
             ),
-            "genetic_background": st.column_config.TextColumn("Background", disabled=True),
+            "genetic_background": st.column_config.TextColumn(
+                "Background", disabled=True
+            ),
             "instance_stage": st.column_config.TextColumn("Stage", disabled=True),
             "line_building_stage": st.column_config.TextColumn(
                 "Line type", disabled=True
@@ -200,7 +202,9 @@ else:
             "treatment_label_tg_style": st.column_config.TextColumn(
                 "Treatment • genotype", disabled=True, width="large"
             ),
-            "created_at": st.column_config.DatetimeColumn("Created at", disabled=True),
+            "created_at": st.column_config.DatetimeColumn(
+                "Created at", disabled=True
+            ),
         },
     )
 

@@ -30,7 +30,7 @@ WITH base AS (
 ),
 treat_rollups AS (
   SELECT
-    jft.fish_instance_id::text AS fish_instance_id,
+    jft.fish_instance_id AS fish_instance_id,
     string_agg(
       DISTINCT t.treat_code,
       ' || ' ORDER BY t.treat_code

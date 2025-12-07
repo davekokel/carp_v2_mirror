@@ -58,50 +58,36 @@ def load_clutches(
     limit: int,
 ) -> pd.DataFrame:
     """
-    Clutch list using clutches + crosses + tank_pairs + fish_instances_v10.
-    Excludes legacy_imaging clutches.
+    Clutch list using v11_clutch_flat_overview (level = 'clutch').
+
+    Includes cross / tank / parents and standard label fields.
+    Excludes legacy_imaging clutches indirectly via the underlying views.
     """
     sql = text(
         """
-        WITH base AS (
-          SELECT
-            c.id::text               AS clutch_id,
-            c.clutch_code,
-            c.clutch_date,
-            cr.cross_run_code        AS cross_code,
-            cr.cross_date,
-            tp.tank_pair_code        AS tank_pair_code,
-            COALESCE(mom.fish_code, '') || ' × ' || COALESCE(dad.fish_code, '') AS parent_cross_pretty
-          FROM public.clutches c
-          LEFT JOIN public.crosses cr
-            ON cr.id = c.cross_id
-          LEFT JOIN public.tank_pairs tp
-            ON tp.id = cr.tank_pair_id
-          LEFT JOIN public.fish_instances_v10 mom
-            ON mom.id = cr.female_fish_id
-          LEFT JOIN public.fish_instances_v10 dad
-            ON dad.id = cr.male_fish_id
-          WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
-        )
         SELECT
-          b.clutch_id,
-          b.clutch_code,
-          b.clutch_date,
-          b.cross_code,
-          b.cross_date,
-          b.tank_pair_code,
-          b.parent_cross_pretty
-        FROM base b
-        WHERE (
+          clutch_id::text AS clutch_id,
+          clutch_code,
+          clutch_date,
+          cross_code,
+          cross_date,
+          tank_pair_code,
+          parent_cross_pretty,
+          transgene_label,
+          fluor_tag_label,
+          organelle_fluor_label
+        FROM public.v11_clutch_flat_overview
+        WHERE level = 'clutch'
+          AND (
                :q IS NULL
-            OR b.clutch_code     ILIKE :ql
-            OR b.cross_code      ILIKE :ql
-            OR b.tank_pair_code  ILIKE :ql
-            OR COALESCE(b.parent_cross_pretty,'') ILIKE :ql
-        )
-        AND (:from_d IS NULL OR b.clutch_date >= :from_d)
-        AND (:to_d   IS NULL OR b.clutch_date <= :to_d)
-        ORDER BY b.clutch_date DESC NULLS LAST, b.clutch_code
+            OR clutch_code          ILIKE :ql
+            OR COALESCE(cross_code,'')     ILIKE :ql
+            OR COALESCE(tank_pair_code,'') ILIKE :ql
+            OR COALESCE(parent_cross_pretty,'') ILIKE :ql
+          )
+          AND (:from_d IS NULL OR clutch_date >= :from_d)
+          AND (:to_d   IS NULL OR clutch_date <= :to_d)
+        ORDER BY clutch_date DESC NULLS LAST, clutch_code
         LIMIT :lim;
         """
     )
@@ -119,13 +105,20 @@ def load_clutches(
 
 def load_treatments() -> pd.DataFrame:
     """
-    Treatment overview from v11_treatment_star plus counts.
+    Treatment overview using label styles from v11_treatment_label_star
+    and counts from treatment_mixes / constructs / dyes.
+
+    Includes:
+      • n_constructs / n_dyes (from mix tables)
+      • genotype_basecode_code  → tg(basecode) style
+      • fluor_tag_style         → fluor::tag(tag_pos)
+      • fluor_organelle_style   → organelle–fluor
     """
     sql = text(
         """
         WITH mix_counts AS (
           SELECT
-            tm.treatment_id,
+            tm.treatment_id::text AS treatment_id,
             COUNT(DISTINCT tmc.construct_id) AS n_constructs,
             COUNT(DISTINCT tmd.dye_id)       AS n_dyes
           FROM public.treatment_mixes tm
@@ -136,18 +129,19 @@ def load_treatments() -> pd.DataFrame:
           GROUP BY tm.treatment_id
         )
         SELECT
-          ts.treatment_id,
-          ts.treatment_code,
-          ts.kind_code,
-          ts.treat_text,
-          COALESCE(mc.n_constructs, 0)       AS n_constructs,
-          COALESCE(mc.n_dyes, 0)             AS n_dyes,
-          ts.all_fluor_tag_rollup,
-          ts.all_organelle_fluor_rollup
-        FROM public.v11_treatment_star ts
+          tl.treatment_id,
+          tl.treat_code             AS treatment_code,
+          tl.kind_code,
+          tl.treat_text,
+          COALESCE(mc.n_constructs, 0)    AS n_constructs,
+          COALESCE(mc.n_dyes, 0)          AS n_dyes,
+          tl.genotype_basecode_code,
+          tl.fluor_tag_style,
+          tl.fluor_organelle_style
+        FROM public.v11_treatment_label_star tl
         LEFT JOIN mix_counts mc
-          ON mc.treatment_id::text = ts.treatment_id
-        ORDER BY ts.treatment_code;
+          ON mc.treatment_id = tl.treatment_id
+        ORDER BY tl.treat_code;
         """
     )
     with eng().begin() as cx:
@@ -157,20 +151,37 @@ def load_treatments() -> pd.DataFrame:
 
 def load_treated_clutches(clutch_id: str) -> pd.DataFrame:
     """
-    Treated clutch subgroups for a given clutch.
+    Treated clutch subgroups for a given clutch, with standard display fields.
+
+    Uses v11_clutch_flat_overview (level = 'treated_clutch') for labels,
+    and treated_clutches_v11 for notes.
     """
     sql = text(
         """
+        WITH flat AS (
+          SELECT
+            treated_clutch_id,
+            treated_clutch_code,
+            treatment_code,
+            transgene_label,
+            fluor_tag_label,
+            organelle_fluor_label
+          FROM public.v11_clutch_flat_overview
+          WHERE level = 'treated_clutch'
+            AND clutch_id::text = :cid
+        )
         SELECT
           tc.id::text              AS id,
-          tc.treated_clutch_code,
-          t.treat_code             AS treatment_code,
+          f.treated_clutch_code,
+          f.treatment_code,
+          f.transgene_label,
+          f.fluor_tag_label,
+          f.organelle_fluor_label,
           tc.notes
         FROM public.treated_clutches_v11 tc
-        LEFT JOIN public.treatments t
-          ON t.id = tc.treatment_id
-        WHERE tc.clutch_id = :cid
-        ORDER BY tc.treated_clutch_code;
+        JOIN flat f
+          ON f.treated_clutch_id = tc.id
+        ORDER BY f.treated_clutch_code;
         """
     )
     with eng().begin() as cx:
@@ -238,8 +249,33 @@ visible_cols = [
     "cross_date",
     "tank_pair_code",
     "parent_cross_pretty",
+    "transgene_label",
+    "fluor_tag_label",
+    "organelle_fluor_label",
 ]
 visible_cols = [c for c in visible_cols if c in clutch_rows.columns]
+
+clutch_column_config: dict[str, st.column_config.BaseColumn] = {
+    "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
+    "clutch_code": st.column_config.TextColumn("Clutch", disabled=True),
+    "clutch_date": st.column_config.TextColumn("Clutch date", disabled=True),
+    "cross_code": st.column_config.TextColumn("Cross", disabled=True),
+    "cross_date": st.column_config.TextColumn("Cross date", disabled=True),
+    "tank_pair_code": st.column_config.TextColumn("Tank pair", disabled=True),
+    "parent_cross_pretty": st.column_config.TextColumn("Parents", disabled=True),
+}
+if "transgene_label" in clutch_rows.columns:
+    clutch_column_config["transgene_label"] = st.column_config.TextColumn(
+        "Transgene tg(basecode)allele", disabled=True
+    )
+if "fluor_tag_label" in clutch_rows.columns:
+    clutch_column_config["fluor_tag_label"] = st.column_config.TextColumn(
+        "Fluor–tag fluor::tag(tag_pos)", disabled=True
+    )
+if "organelle_fluor_label" in clutch_rows.columns:
+    clutch_column_config["organelle_fluor_label"] = st.column_config.TextColumn(
+        "Organelles organelle–fluor", disabled=True
+    )
 
 clutch_grid = st.data_editor(
     clutch_rows[visible_cols],
@@ -247,6 +283,7 @@ clutch_grid = st.data_editor(
     hide_index=True,
     width="stretch",
     num_rows="fixed",
+    column_config=clutch_column_config,
 )
 
 sel_mask = clutch_grid["✓ Select"] == True if "✓ Select" in clutch_grid.columns else pd.Series(False, index=clutch_grid.index)
@@ -302,8 +339,9 @@ else:
             t_view["treatment_code"].str.contains(t_filter, case=False, na=False)
             | t_view["kind_code"].str.contains(t_filter, case=False, na=False)
             | t_view["treat_text"].str.contains(t_filter, case=False, na=False)
-            | t_view["all_fluor_tag_rollup"].str.contains(t_filter, case=False, na=False)
-            | t_view["all_organelle_fluor_rollup"].str.contains(t_filter, case=False, na=False)
+            | t_view["genotype_basecode_code"].str.contains(t_filter, case=False, na=False)
+            | t_view["fluor_tag_style"].str.contains(t_filter, case=False, na=False)
+            | t_view["fluor_organelle_style"].str.contains(t_filter, case=False, na=False)
         )
         t_view = t_view[mask].copy()
 
@@ -322,8 +360,9 @@ else:
                     "treat_text",
                     "n_constructs",
                     "n_dyes",
-                    "all_fluor_tag_rollup",
-                    "all_organelle_fluor_rollup",
+                    "genotype_basecode_code",
+                    "fluor_tag_style",
+                    "fluor_organelle_style",
                 ]
             ],
             key="treatment_picker_grid_v11",
@@ -337,8 +376,15 @@ else:
                 "treat_text": st.column_config.TextColumn("Description", disabled=True),
                 "n_constructs": st.column_config.NumberColumn("n_constructs", disabled=True),
                 "n_dyes": st.column_config.NumberColumn("n_dyes", disabled=True),
-                "all_fluor_tag_rollup": st.column_config.TextColumn("fluor::tag(tag_pos)", disabled=True),
-                "all_organelle_fluor_rollup": st.column_config.TextColumn("organelle-fluor", disabled=True),
+                "genotype_basecode_code": st.column_config.TextColumn(
+                    "Transgene tg(basecode)allele", disabled=True
+                ),
+                "fluor_tag_style": st.column_config.TextColumn(
+                    "Fluor–tag fluor::tag(tag_pos)", disabled=True
+                ),
+                "fluor_organelle_style": st.column_config.TextColumn(
+                    "Organelles organelle–fluor", disabled=True
+                ),
             },
         )
 
@@ -459,7 +505,14 @@ if treated_groups.empty:
     st.info("No treated groups defined yet for this clutch.")
 else:
     groups_view = treated_groups[
-        ["treated_clutch_code", "treatment_code", "notes"]
+        [
+            "treated_clutch_code",
+            "treatment_code",
+            "transgene_label",
+            "fluor_tag_label",
+            "organelle_fluor_label",
+            "notes",
+        ]
     ].copy()
 
     groups_grid = st.data_editor(
@@ -471,6 +524,9 @@ else:
         column_config={
             "treated_clutch_code": st.column_config.TextColumn("Treated clutch code"),
             "treatment_code": st.column_config.TextColumn("Treatment code", disabled=True),
+            "transgene_label": st.column_config.TextColumn("Transgene tg(basecode)allele", disabled=True),
+            "fluor_tag_label": st.column_config.TextColumn("Fluor–tag fluor::tag(tag_pos)", disabled=True),
+            "organelle_fluor_label": st.column_config.TextColumn("Organelles organelle–fluor", disabled=True),
             "notes": st.column_config.TextColumn("Notes"),
         },
     )

@@ -30,22 +30,22 @@ WITH base AS (
 ),
 treat_rollups AS (
   SELECT
-    jft.fish_instance_id::text AS fish_instance_id,
+    jft.fish_instance_id AS fish_instance_id,
     string_agg(
       DISTINCT t.treat_code,
       ' || ' ORDER BY t.treat_code
     ) AS treatment_codes,
     string_agg(
       DISTINCT NULLIF(tls.treatment_display, ''),
-      ' || ' ORDER BY tls.treatment_display
+      ' || ' ORDER BY NULLIF(tls.treatment_display, '')
     ) AS treatment_label_tg_style,
     string_agg(
       DISTINCT NULLIF(tls.fluor_tag_style, ''),
-      ' || ' ORDER BY tls.fluor_tag_style
+      ' || ' ORDER BY NULLIF(tls.fluor_tag_style, '')
     ) AS treatment_label_fluortag_style,
     string_agg(
       DISTINCT NULLIF(tls.fluor_organelle_style, ''),
-      ' || ' ORDER BY tls.fluor_organelle_style
+      ' || ' ORDER BY NULLIF(tls.fluor_organelle_style, '')
     ) AS treatment_label_fluororganelle_style
   FROM public.join_fish_treatments jft
   JOIN public.treatments t
@@ -56,9 +56,9 @@ treat_rollups AS (
 )
 SELECT
   b.*,
-  COALESCE(tr.treatment_codes, '')                  AS treatment_codes,
-  COALESCE(tr.treatment_label_tg_style, '')         AS treatment_label_tg_style,
-  COALESCE(tr.treatment_label_fluortag_style, '')   AS treatment_label_fluortag_style,
+  COALESCE(tr.treatment_codes, '')                      AS treatment_codes,
+  COALESCE(tr.treatment_label_tg_style, '')             AS treatment_label_tg_style,
+  COALESCE(tr.treatment_label_fluortag_style, '')       AS treatment_label_fluortag_style,
   COALESCE(tr.treatment_label_fluororganelle_style, '') AS treatment_label_fluororganelle_style
 FROM base b
 LEFT JOIN treat_rollups tr
