@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import pathlib
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any, List
 
 import pandas as pd
 import streamlit as st
@@ -58,7 +58,7 @@ def load_flat_clutch_treated_selected(
     """
     Flat overview of clutches with treated clutches and selections.
 
-    Data source: public.v11_clutch_flat_overview
+    Data source: public.v11_clutch_flat_overview_with_parents
     """
     sql = text(
         """
@@ -69,7 +69,7 @@ def load_flat_clutch_treated_selected(
           cross_code,
           cross_date,
           tank_pair_code,
-          parent_cross_pretty,
+          parents,
           treated_clutch_code,
           treatment_code,
           treat_text,
@@ -83,7 +83,7 @@ def load_flat_clutch_treated_selected(
           marker_basecode_style,
           marker_fluortag_style,
           marker_organelle_style
-        FROM public.v11_clutch_flat_overview
+        FROM public.v11_clutch_flat_overview_with_parents
         WHERE (
                :q IS NULL
             OR clutch_code                         ILIKE :ql
@@ -93,7 +93,7 @@ def load_flat_clutch_treated_selected(
             OR COALESCE(selection_label,'')       ILIKE :ql
             OR COALESCE(genotype_pretty,'')       ILIKE :ql
             OR COALESCE(genotype_basecodes,'')    ILIKE :ql
-            OR COALESCE(parent_cross_pretty,'')   ILIKE :ql
+            OR COALESCE(parents,'')               ILIKE :ql
             OR COALESCE(marker_basecode_style,'') ILIKE :ql
             OR COALESCE(marker_fluortag_style,'') ILIKE :ql
             OR COALESCE(marker_organelle_style,'') ILIKE :ql
@@ -125,7 +125,7 @@ with st.form("flat_clutch_filters", clear_on_submit=False):
     c1, c2, c3, c4 = st.columns([3, 1.5, 1.5, 1])
     with c1:
         q_raw = st.text_input(
-            "Search (clutch / treated clutch / treatment / selection / genotype / markers)",
+            "Search (clutch / treated clutch / treatment / selection / parents / markers)",
             "",
         )
     with c2:
@@ -169,6 +169,7 @@ if flat_df.empty:
 
 st.caption(f"{len(flat_df)} flat row(s) (clutch × treated_clutch × selection)")
 
+
 # ───────── main flat table ─────────
 
 df = flat_df.copy()
@@ -180,20 +181,15 @@ view_cols = [
     "cross_code",
     "cross_date",
     "tank_pair_code",
-    "parent_cross_pretty",
-    # marker roll-ups (DB-defined, no Python munging)
+    "parents",
     "marker_basecode_style",
     "marker_fluortag_style",
     "marker_organelle_style",
-    # codes for reference
     "genotype_code",
     "treatment_code",
-    # everything else after
     "treated_clutch_code",
     "treat_text",
     "selection_label",
-    "selection_kind",
-    "is_primary",
     "genotype_basecodes",
     "genotype_pretty",
 ]
@@ -214,7 +210,7 @@ st.data_editor(
         "cross_code": st.column_config.TextColumn("Cross code", disabled=True),
         "cross_date": st.column_config.DateColumn("Cross date", disabled=True),
         "tank_pair_code": st.column_config.TextColumn("Tank pair", disabled=True),
-        "parent_cross_pretty": st.column_config.TextColumn(
+        "parents": st.column_config.TextColumn(
             "Parents", disabled=True, width="large"
         ),
         "marker_basecode_style": st.column_config.TextColumn(
@@ -246,12 +242,6 @@ st.data_editor(
         ),
         "selection_label": st.column_config.TextColumn(
             "Selection label", disabled=True, width="large"
-        ),
-        "selection_kind": st.column_config.TextColumn(
-            "Selection kind", disabled=True
-        ),
-        "is_primary": st.column_config.CheckboxColumn(
-            "Primary?", disabled=True
         ),
         "genotype_basecodes": st.column_config.TextColumn(
             "Genotype basecodes", disabled=True, width="large"
