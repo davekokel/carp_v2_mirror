@@ -138,31 +138,63 @@ def link_instances_to_treatment(
     fish_instance_ids: List[str],
     treatment_id: str,
     note: Optional[str] = None,
+    enzyme: Optional[str] = None,
 ) -> None:
     """
-    Link a list of fish_instance_id (text UUIDs) to a treatment_id in join_fish_treatments.
+    Link one or more fish instances to a treatment, optionally recording
+    an injection enzyme (tol2, phiC, Meganuclease, etc.).
+
+    Writes into join_fish_treatments_v11 if it exists, otherwise falls
+    back to join_fish_treatments. On conflict (fish_instance_id, treatment_id),
+    it preserves any existing notes/enzyme unless the incoming values are
+    non-empty.
     """
+    # Decide which join table to use
+    tbl = "public.join_fish_treatments_v11"
+    has_v11 = cx.execute(
+        text("SELECT to_regclass('public.join_fish_treatments_v11') IS NOT NULL")
+    ).scalar()
+    if not has_v11:
+        tbl = "public.join_fish_treatments"
+
     if not fish_instance_ids:
         return
 
-    sql = text(
-        """
-        INSERT INTO public.join_fish_treatments (
-          fish_instance_id,
-          treatment_id,
-          notes
-        )
-        VALUES (
-          (:fid)::uuid,
-          (:tid)::uuid,
-          :notes
-        )
-        ON CONFLICT DO NOTHING;
-        """
-    )
+    clean_note = (note or "").strip() or None
+    clean_enzyme = (enzyme or "").strip() or None
 
     for fid in fish_instance_ids:
-        cx.execute(sql, {"fid": fid, "tid": treatment_id, "notes": note or None})
+        cx.execute(
+            text(
+                f"""
+                INSERT INTO {tbl} (
+                  id,
+                  fish_instance_id,
+                  treatment_id,
+                  created_at,
+                  notes,
+                  enzyme
+                )
+                VALUES (
+                  gen_random_uuid(),
+                  CAST(:fid AS uuid),
+                  CAST(:tid AS uuid),
+                  now(),
+                  :note,
+                  :enzyme
+                )
+                ON CONFLICT (fish_instance_id, treatment_id) DO UPDATE
+                  SET notes  = COALESCE(EXCLUDED.notes, {tbl}.notes),
+                      enzyme = COALESCE(EXCLUDED.enzyme, {tbl}.enzyme);
+                """
+            ),
+            {
+                "fid": fid,
+                "tid": treatment_id,
+                "note": clean_note,
+                "enzyme": clean_enzyme,
+            },
+        )
 
 
 def ensure_allele_new_or_existing(
@@ -240,7 +272,7 @@ def ensure_allele_new_or_existing(
             """
             INSERT INTO public.transgenes (transgene_base_code, description, transgene_name)
             VALUES (:bc, NULL, :bc)
-            ON CONFLICT (transgene_base_code) DO NOTHING;
+            ON CONSUME CONFLICT (transgene_base_code) DO NOTHING;
             """
         ),
         {"bc": base},
@@ -268,13 +300,11 @@ def ensure_allele_new_or_existing(
             "bc": base,
             "num": allele_number,
             "aname": allele_name,
-            # If no nickname was supplied, use allele_name (guN) as the nickname.
             "nick": nick or allele_name,
         },
     )
 
     return base, allele_number
-
 
 
 def ensure_group_and_genotype_for_alleles(
@@ -498,7 +528,6 @@ def _generate_line_code(cx: Connection) -> str:
             raise RuntimeError("Failed to generate unique line_code after 10 attempts")
 
 
-
 def ensure_line_for_description(
     cx: Connection,
     *,
@@ -541,7 +570,7 @@ def ensure_line_for_description(
     )
 
     if not df.empty:
-        r = df.iloc(0)[0]
+        r = df.iloc[0]
         return r["line_id"], r["line_code"], False
 
     line_code = _generate_line_code(cx)

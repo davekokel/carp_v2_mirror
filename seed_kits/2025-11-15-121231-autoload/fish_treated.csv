@@ -1,31 +1,31 @@
-﻿line_nickname,birthday,genetic_background,instance_stage,treatment_basecode,transgene_basecode,allele_nickname,zygosity,created_by,description
-membrane tandem mSG; mChilada H2B (ef1a:2xlynk:tdmSG-tPT2A:tdmChilada:H2B),11/25/24,casper,injection,pDQM065,,,unknown,dqm,tol2
-tandem mScarlet3-S2 H2B (ef1a-ext:tdmSc3s2:H2B),4/2/25,casper,Injection,"pDQM133,pDQM125","pDQM005,pDQM136","301,325",unknown,dqm,tol2
-membrane tandem mStayGold; tandem mScarlet3-S2 Histone (ef1a-ext::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),4/15/25,casper,injection,pDQM133,"pDQM005,pDQM136","301,325",unknown,dqm,tol2
-membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),4/16/25,casper,injection,pDQM125,pDQM005,301,unknown,dqm,tol2
-Mito mScarlet3S2 (ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2),7/25/25,casper,injection,MGCO-35,pDQM005,301,unknown,dqm,tol2
-membrane tandem mSG (ef1a:2xLynk:tdmStayGold),8/8/24,casper,injections,pDQM005,pDQM005,301,unknown,dqm,tol2
-skittlez 5 FP (ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1),10/1/24,casper,injections,pDQM034,pDQM005,301,unknown,dqm,tol2
-skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1),10/1/24,casper,injections,pDQM036,pDQM005,301,unknown,dqm,tol2
-skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),11/20/24,casper,injections,pDQM063,pDQM005,301,unknown,dqm,tol2
-membrane tandem mSG (p14a;ef1a:2xlynx:tdmSG),12/5/24,casper,injections,pDQM078,pDQM005,301,unknown,dqm,phiC; p14a
-membrane tandem mSG; mChilada H2B (ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B),1/2/25,casper,injections,pDQM094,pDQM005,301,unknown,dqm,tol2
-inducible phiC (hsp:phiCNLS; exorh:mScarlet),2/22/25,casper,injections,pDQM112,pDQM005,301,unknown,dqm,tol2
-skittlez 4 FP (ef1a:<exorH:GFP>mKate2/Electra2/mKOK/mTFP1),2/25/25,casper,injections,pDQM059,pDQM005,301,unknown,dqm,tol2
-membrane tandem mChilada (ef1a:2xLynk:tdmChilada),4/16/25,casper,injections,pDQM082,pDQM005,301,unknown,dqm,tol2
-membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),4/22/25,casper,injections,pDQM136,pDQM005,301,unknown,dqm,tol2
-skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),4/22/25,casper,injections,pDQM137,pDQM005,301,unknown,dqm,tol2
-skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),5/18/25,casper,injections,pDQM137,pDQM005,301,unknown,dqm,Meganuclease
-membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/2/25,casper,injections,pMNM002,pDQM005,301,unknown,dqm,tol2-nanos
-mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1),8/10/25,casper,injections,pDQM151,pDQM005,301,unknown,dqm,tol2
-membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/12/25,casper,injections,pJWL002,pDQM005,301,unknown,dqm,phiC; p24b
-membrane tandem mScarlet3-S2 (p24b;ef1a-ext:2x:Lynk:tdmScarlet3S2),8/13/25,casper,injections,pJWL001,pDQM005,301,unknown,dqm,phiC; p14a
-membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/13/25,casper,injections,pJWL002,pDQM005,301,unknown,dqm,phiC; p14a
-membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),8/14/25,casper,injections,pJWL001,pDQM005,301,unknown,dqm,phiC; p24b
-tdmScarlet3-S2:PCNA (S phase reporter) (ef1a-ext:tdmScarlet3-S2:PCNA),8/19/25,casper,injections,pDQM154,pDQM005,301,unknown,dqm,tol2
-membrane tandem mScarlet3-S2 (FRT-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-FRT3),8/25/25,casper,injections,pDQM157,pDQM005,301,unknown,dqm,phiC; p24b
-membrane tandem mScarlet3-S2 (loxP-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-lox2272),8/26/25,casper,injections,pDQM156,pDQM005,301,unknown,dqm,phiC; p14a
-membrane tandem mScarlet3-S2 (FRT-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-FRT3),8/26/25,casper,injections,pDQM157,pDQM005,301,unknown,dqm,phiC; p14a
-membrane tandem mScarlet3-S2 (loxP-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-lox2272),8/28/25,casper,injections,pDQM156,pDQM005,301,unknown,dqm,phiC; p24b
-tdmScarlet3-S2:GMN (S/G2 Fucci marker) (ef1a-ext:tdmScarlet3-S2:GMN),9/5/25,casper,injections,pDQM160,pDQM005,301,unknown,dqm,tol2
-CDK activity sensor (ef1a-ext:DHB:tdmStayGold),9/15/25,casper,injections,pDQM155,pDQM005,301,unknown,dqm,tol2
+﻿line_nickname,birthday,genetic_background,instance_stage,treatment_basecode,transgene_basecode,allele_nickname,zygosity,created_by,enzyme,description
+membrane tandem mSG; mChilada H2B (ef1a:2xlynk:tdmSG-tPT2A:tdmChilada:H2B),11/25/24,casper,injection,pDQM065,,,unknown,dqm,tol2,
+tandem mScarlet3-S2 H2B (ef1a-ext:tdmSc3s2:H2B),4/2/25,casper,Injection,"pDQM133,pDQM125","pDQM005,pDQM136","301,325",unknown,dqm,tol2,
+membrane tandem mStayGold; tandem mScarlet3-S2 Histone (ef1a-ext::2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),4/15/25,casper,injection,pDQM133,"pDQM005,pDQM136","301,325",unknown,dqm,tol2,
+membrane tandem mStayGold; tandem mScarlet3-S2 histone (ef1a:2xLynk:tdmSG:tPT2A:tdmScarlet3-S2:H2B),4/16/25,casper,injection,pDQM125,pDQM005,301,unknown,dqm,tol2,
+Mito mScarlet3S2 (ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2),7/25/25,casper,injection,MGCO-35,pDQM005,301,unknown,dqm,tol2,
+membrane tandem mSG (ef1a:2xLynk:tdmStayGold),8/8/24,casper,injections,pDQM005,pDQM005,301,unknown,dqm,tol2,
+skittlez 5 FP (ef1a:<cryaa:mSc>mKate2/mCitrine/Electra2/mKOK/mTFP1),10/1/24,casper,injections,pDQM034,pDQM005,301,unknown,dqm,tol2,
+skittlez 4 FP (ef1a:<cryaa:mSc>mKate2/Electra2/mKOK/mTFP1),10/1/24,casper,injections,pDQM036,pDQM005,301,unknown,dqm,tol2,
+skittlez 5 FP (ef1a:<exorH:GFP>mKate2/mCitrine/Electra2/mKOK/mTFP1),11/20/24,casper,injections,pDQM063,pDQM005,301,unknown,dqm,tol2,
+membrane tandem mSG (p14a;ef1a:2xlynx:tdmSG),12/5/24,casper,injections,pDQM078,pDQM005,301,unknown,dqm,phiC; p14a,
+membrane tandem mSG; mChilada H2B (ef1a:2xLynk:tdmSG:tPT2A:tdmChilada-MAGPV:H2B),1/2/25,casper,injections,pDQM094,pDQM005,301,unknown,dqm,tol2,
+inducible phiC (hsp:phiCNLS; exorh:mScarlet),2/22/25,casper,injections,pDQM112,pDQM005,301,unknown,dqm,tol2,
+skittlez 4 FP (ef1a:<exorH:GFP>mKate2/Electra2/mKOK/mTFP1),2/25/25,casper,injections,pDQM059,pDQM005,301,unknown,dqm,tol2,
+membrane tandem mChilada (ef1a:2xLynk:tdmChilada),4/16/25,casper,injections,pDQM082,pDQM005,301,unknown,dqm,tol2,
+membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),4/22/25,casper,injections,pDQM136,pDQM005,301,unknown,dqm,tol2,
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),4/22/25,casper,injections,pDQM137,pDQM005,301,unknown,dqm,tol2,
+skittlez 5 FP (ef1a-ext:<mem:mSG>Halo/Electra2/mBeRFP/mScarlet3S2/mTFP1),5/18/25,casper,injections,pDQM137,pDQM005,301,unknown,dqm,Meganuclease,
+membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/2/25,casper,injections,pMNM002,pDQM005,301,unknown,dqm,tol2-nanos,
+mStayGold CDT1 (G0/G1 Fucci marker) (ef1a-ext:mSG:CDT1),8/10/25,casper,injections,pDQM151,pDQM005,301,unknown,dqm,tol2,
+membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/12/25,casper,injections,pJWL002,pDQM005,301,unknown,dqm,phiC; p24b,
+membrane tandem mScarlet3-S2 (p24b;ef1a-ext:2x:Lynk:tdmScarlet3S2),8/13/25,casper,injections,pJWL001,pDQM005,301,unknown,dqm,phiC; p14a,
+membrane tandem mScarlet3-S2 (A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2),8/13/25,casper,injections,pJWL002,pDQM005,301,unknown,dqm,phiC; p14a,
+membrane tandem mScarlet3-S2 (ef1a-ext:2x:Lynk:tdmScarlet3S2),8/14/25,casper,injections,pJWL001,pDQM005,301,unknown,dqm,phiC; p24b,
+tdmScarlet3-S2:PCNA (S phase reporter) (ef1a-ext:tdmScarlet3-S2:PCNA),8/19/25,casper,injections,pDQM154,pDQM005,301,unknown,dqm,tol2,
+membrane tandem mScarlet3-S2 (FRT-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-FRT3),8/25/25,casper,injections,pDQM157,pDQM005,301,unknown,dqm,phiC; p24b,
+membrane tandem mScarlet3-S2 (loxP-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-lox2272),8/26/25,casper,injections,pDQM156,pDQM005,301,unknown,dqm,phiC; p14a,
+membrane tandem mScarlet3-S2 (FRT-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-FRT3),8/26/25,casper,injections,pDQM157,pDQM005,301,unknown,dqm,phiC; p14a,
+membrane tandem mScarlet3-S2 (loxP-A2UCOE-ef1a-ext:2x:Lynk:tdmScarlet3S2-lox2272),8/28/25,casper,injections,pDQM156,pDQM005,301,unknown,dqm,phiC; p24b,
+tdmScarlet3-S2:GMN (S/G2 Fucci marker) (ef1a-ext:tdmScarlet3-S2:GMN),9/5/25,casper,injections,pDQM160,pDQM005,301,unknown,dqm,tol2,
+CDK activity sensor (ef1a-ext:DHB:tdmStayGold),9/15/25,casper,injections,pDQM155,pDQM005,301,unknown,dqm,tol2,

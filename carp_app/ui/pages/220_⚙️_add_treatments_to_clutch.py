@@ -58,36 +58,39 @@ def load_clutches(
     limit: int,
 ) -> pd.DataFrame:
     """
-    Clutch list using v11_clutch_flat_overview (level = 'clutch').
+    Clutch list using v11_clutch_flat_overview (level = 'clutch'),
+    limited to modern clutches (excludes source_system = 'legacy_imaging').
 
     Includes cross / tank / parents and standard label fields.
-    Excludes legacy_imaging clutches indirectly via the underlying views.
     """
     sql = text(
         """
         SELECT
-          clutch_id::text AS clutch_id,
-          clutch_code,
-          clutch_date,
-          cross_code,
-          cross_date,
-          tank_pair_code,
-          parent_cross_pretty,
-          transgene_label,
-          fluor_tag_label,
-          organelle_fluor_label
-        FROM public.v11_clutch_flat_overview
-        WHERE level = 'clutch'
+          f.clutch_id::text AS clutch_id,
+          f.clutch_code,
+          f.clutch_date,
+          f.cross_code,
+          f.cross_date,
+          f.tank_pair_code,
+          f.parent_cross_pretty,
+          f.transgene_label,
+          f.fluor_tag_label,
+          f.organelle_fluor_label
+        FROM public.v11_clutch_flat_overview AS f
+        JOIN public.clutches AS c
+          ON c.id = f.clutch_id
+        WHERE f.level = 'clutch'
+          AND (c.source_system IS NULL OR c.source_system <> 'legacy_imaging')
           AND (
                :q IS NULL
-            OR clutch_code          ILIKE :ql
-            OR COALESCE(cross_code,'')     ILIKE :ql
-            OR COALESCE(tank_pair_code,'') ILIKE :ql
-            OR COALESCE(parent_cross_pretty,'') ILIKE :ql
+            OR f.clutch_code             ILIKE :ql
+            OR COALESCE(f.cross_code,'') ILIKE :ql
+            OR COALESCE(f.tank_pair_code,'') ILIKE :ql
+            OR COALESCE(f.parent_cross_pretty,'') ILIKE :ql
           )
-          AND (:from_d IS NULL OR clutch_date >= :from_d)
-          AND (:to_d   IS NULL OR clutch_date <= :to_d)
-        ORDER BY clutch_date DESC NULLS LAST, clutch_code
+          AND (:from_d IS NULL OR f.clutch_date >= :from_d)
+          AND (:to_d   IS NULL OR f.clutch_date <= :to_d)
+        ORDER BY f.clutch_date DESC NULLS LAST, f.clutch_code
         LIMIT :lim;
         """
     )

@@ -202,6 +202,7 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
         )
         cols = set(cols_df["column_name"].tolist())
 
+        # 1) Try to find an existing tank_pair for this mother/father
         row = pd.read_sql(
             text(
                 f"""
@@ -233,6 +234,7 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 )
             return False, str(row.iloc[0]["tank_pair_code"])
 
+        # 2) Insert a new tank_pair
         new_id = str(uuid.uuid4())
         new_code = f"TP-{new_id[:8]}"
 
@@ -251,7 +253,6 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 id,
                 {mom_col},
                 {dad_col},
-                active_from,
                 created_at,
                 tank_pair_code,
                 notes
@@ -260,7 +261,6 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
                 :id,
                 :m,
                 :d,
-                now(),
                 now(),
                 :tp_code,
                 NULLIF(:note,'')

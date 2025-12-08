@@ -43,18 +43,20 @@ def eng() -> Engine:
     return _engine()
 
 
-# ───────── explainer (short) ─────────
+# ───────── short explainer ─────────
 
 st.markdown(
     """
-for double injection
+This importer expects each row to describe **one treated fish instance**:
 
-construct_code:      COMBO-125_132  
-construct_name:      Tandem insertion of pdqm-125 + pdqm-132  
-base_code:           combo-125_132     (canonical lower-case basecode)  
-kind:                transgenic_combo  (you can assign a kind if needed)
+- `treatment_basecode`: injection mix basecode(s), e.g. `pDQM133` or `pDQM133,pDQM125`.
+- `transgene_basecode` + `allele_nickname`: the **stable line(s)** this fish was injected into.
+- `enzyme`: optional helper for the injection system (e.g. `tol2`, `Meganuclease`, `phiC; p14a`).
 
-### **✔️ 2. Add it to the** constructs table like any other plasmid
+The ETL will:
+- resolve or create the injection **treatment** from `treatment_basecode` (+ `enzyme`),
+- resolve or create **transgene alleles** from `(transgene_basecode, allele_nickname)` pairs,
+- create fish instances and link them to both the genotype and treatment.
 """
 )
 
@@ -70,6 +72,7 @@ template_cols = [
     "allele_nickname",
     "zygosity",
     "created_by",
+    "enzyme",
     "description",
 ]
 
@@ -85,6 +88,7 @@ template_df = pd.DataFrame(
             "allele_nickname": "",
             "zygosity": "unknown",
             "created_by": "dqm",
+            "enzyme": "tol2",
             "description": "tol2 injection into pdqm005:301 line",
         }
     ],

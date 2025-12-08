@@ -221,6 +221,10 @@ if miss:
 # ════════════════════════════════════════════════════════
 st.subheader("0) Choose imaging plate", anchor=False)
 
+# Default to "Create new plate" on first load; afterwards Streamlit preserves choice
+if "plate_mode" not in st.session_state:
+    st.session_state["plate_mode"] = "Create new plate"
+
 mode = st.radio(
     "Plate mode",
     ["Select existing plate", "Create new plate"],
@@ -368,10 +372,10 @@ all_cells = {(int(r), int(c)) for r, c in zip(slots["well_row"], slots["well_col
 # ════════════════════════════════════════════════════════
 # STEP 1 — PICK TREATED CLUTCHES (WITH GENOTYPE + MARKERS)
 # ════════════════════════════════════════════════════════
-st.subheader("1) Pick treated clutches", anchor=False)
+st.subheader("1) Pick treated clutches (or plain clutches)", anchor=False)
 
 clutch_q = st.text_input(
-    "Search treated clutches (code / parent clutch / treatment / genotype / markers)",
+    "Search groups (treated or parent) by code / clutch / treatment / genotype / markers",
     "",
 )
 
@@ -379,85 +383,30 @@ with eng().begin() as cx:
     df_groups = pd.read_sql(
         text(
             """
-            WITH treated AS (
-              SELECT
-                tc.id::uuid                  AS treated_clutch_id,
-                tc.treated_clutch_code,
-                c.id::uuid                   AS clutch_id,
-                c.clutch_code,
-                c.clutch_date,
-
-                g.genotype_basecodes::text   AS genotype_basecodes,
-                g.genotype_pretty::text      AS genotype_pretty,
-
-                t.treat_code                 AS treatment_code,
-                ts.all_fluor_tag_rollup,
-                ts.all_organelle_fluor_rollup,
-
-                -- what the UI will type into the wells
-                tc.treated_clutch_code       AS assign_code
-              FROM public.treated_clutches_v11 tc
-              JOIN public.clutches c
-                ON c.id = tc.clutch_id
-              LEFT JOIN public.genotypes_v11 g
-                ON g.id = c.genotype_v11_id
-              LEFT JOIN public.treatments t
-                ON t.id = tc.treatment_id
-              LEFT JOIN public.v11_treatment_star ts
-                ON ts.treatment_id = t.id::text
-              WHERE c.clutch_date >= (current_date - INTERVAL '14 days')
-                AND COALESCE(c.source_system, '') <> 'legacy_imaging'
-            ),
-            untreated AS (
-                SELECT
-                    NULL::uuid                    AS treated_clutch_id,
-                    NULL::text                    AS treated_clutch_code,
-                    c.id::uuid                    AS clutch_id,
-                    c.clutch_code,
-                    c.clutch_date,
-
-                    g.genotype_basecodes::text    AS genotype_basecodes,
-                    g.genotype_pretty::text       AS genotype_pretty,
-
-                    NULL::text                    AS treatment_code,
-                    ''::text                      AS all_fluor_tag_rollup,
-                    ''::text                      AS all_organelle_fluor_rollup,
-
-                    -- for untreated, assign using the parent clutch code
-                    c.clutch_code                 AS assign_code
-                FROM public.clutches c
-                LEFT JOIN public.genotypes_v11 g
-                    ON g.id = c.genotype_v11_id
-                WHERE c.clutch_date >= (current_date - INTERVAL '14 days')
-                    AND COALESCE(c.source_system, '') <> 'legacy_imaging'
-                ),
-            all_groups AS (
-              SELECT * FROM treated
-              UNION ALL
-              SELECT * FROM untreated
-            )
             SELECT
-              treated_clutch_id::text,
+              treated_clutch_id,
               treated_clutch_code,
-              clutch_id::text,
+              clutch_id,
               clutch_code,
               clutch_date,
               genotype_pretty,
               genotype_basecodes,
               treatment_code,
-              all_fluor_tag_rollup,
-              all_organelle_fluor_rollup,
+              marker_basecode_style,
+              marker_fluortag_style,
+              marker_organelle_style,
               assign_code
-            FROM all_groups
+            FROM public.v11_clutch_treated_groups_flat
             WHERE (
                  :q IS NULL
-              OR assign_code                    ILIKE :ql
-              OR clutch_code                    ILIKE :ql
-              OR COALESCE(treatment_code,'')    ILIKE :ql
-              OR COALESCE(genotype_pretty,'')   ILIKE :ql
+              OR assign_code                     ILIKE :ql
+              OR clutch_code                     ILIKE :ql
+              OR COALESCE(treatment_code,'')     ILIKE :ql
+              OR COALESCE(genotype_pretty,'')    ILIKE :ql
               OR COALESCE(genotype_basecodes,'') ILIKE :ql
-              OR COALESCE(all_fluor_tag_rollup,'')       ILIKE :ql
-              OR COALESCE(all_organelle_fluor_rollup,'') ILIKE :ql
+              OR COALESCE(marker_basecode_style,'')      ILIKE :ql
+              OR COALESCE(marker_fluortag_style,'')      ILIKE :ql
+              OR COALESCE(marker_organelle_style,'')     ILIKE :ql
             )
             ORDER BY clutch_date DESC, assign_code
             LIMIT 500;
@@ -471,7 +420,7 @@ with eng().begin() as cx:
     )
 
 if df_groups.empty:
-    st.info("No clutches (treated or untreated) in the last 2 weeks match your search.")
+    st.info("No clutches (treated or plain) match your search.")
     selected_groups: List[Dict[str, Any]] = []
 else:
     t_view = df_groups.fillna("").copy()
@@ -487,8 +436,9 @@ else:
                 "treatment_code",
                 "genotype_pretty",
                 "genotype_basecodes",
-                "all_fluor_tag_rollup",
-                "all_organelle_fluor_rollup",
+                "marker_basecode_style",
+                "marker_fluortag_style",
+                "marker_organelle_style",
             ]
         ],
         key="treated_clutch_picker",
@@ -498,15 +448,32 @@ else:
         height=260,
         column_config={
             "✓ Select":              st.column_config.CheckboxColumn("✓", default=False),
-            "assign_code":           st.column_config.TextColumn("Code (treated or parent)", disabled=True),
+            "assign_code":           st.column_config.TextColumn(
+                "Code (treated or parent)", disabled=True
+            ),
             "treated_clutch_code":   st.column_config.TextColumn("Treated clutch", disabled=True),
             "clutch_code":           st.column_config.TextColumn("Parent clutch", disabled=True),
             "clutch_date":           st.column_config.DateColumn("Date", disabled=True),
             "treatment_code":        st.column_config.TextColumn("Treatment", disabled=True),
-            "genotype_pretty":       st.column_config.TextColumn("Genotype (pretty)", disabled=True, width="large"),
-            "genotype_basecodes":    st.column_config.TextColumn("Genotype basecodes", disabled=True, width="large"),
-            "all_fluor_tag_rollup":  st.column_config.TextColumn("fluor::tag(tag_pos)", disabled=True, width="large"),
-            "all_organelle_fluor_rollup": st.column_config.TextColumn("organelle-fluor", disabled=True, width="large"),
+            "genotype_pretty":       st.column_config.TextColumn(
+                "Genotype (pretty)", disabled=True, width="large"
+            ),
+            "genotype_basecodes":    st.column_config.TextColumn(
+                "Genotype basecodes", disabled=True, width="large"
+            ),
+            "marker_basecode_style": st.column_config.TextColumn(
+                "Markers — basecode (treat > genotype)", disabled=True, width="large"
+            ),
+            "marker_fluortag_style": st.column_config.TextColumn(
+                "Markers — fluor::tag(tag_pos) (treat > genotype)",
+                disabled=True,
+                width="large",
+            ),
+            "marker_organelle_style": st.column_config.TextColumn(
+                "Markers — organelle–fluor (treat > genotype)",
+                disabled=True,
+                width="large",
+            ),
         },
     )
     mask = t_grid["✓ Select"] == True if "✓ Select" in t_grid.columns else pd.Series(False, index=t_grid.index)

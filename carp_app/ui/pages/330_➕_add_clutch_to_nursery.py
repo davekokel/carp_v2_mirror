@@ -6,7 +6,7 @@ from __future__ import annotations
 import sys
 import pathlib
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional, Dict, List
 
 import pandas as pd
@@ -73,48 +73,52 @@ def load_clutches_for_nursery(
     limit: int,
 ) -> pd.DataFrame:
     """
-    Flat clutch overview for nursery based on v11_clutch_label_star.
+    Flat clutch overview for nursery based on v11_clutch_label_star,
+    excluding legacy_imaging clutches.
     """
     sql = text(
         """
         SELECT
-          clutch_kind,
-          clutch_id::text            AS clutch_id,
-          treated_clutch_id::text    AS treated_clutch_id,
-          selection_event_id::text   AS selection_event_id,
-          clutch_code,
-          clutch_date,
-          treated_clutch_code,
-          treatment_code,
-          treat_text,
-          selection_label,
-          genotype_v11_id::text      AS genotype_v11_id,
-          genotype_code,
-          genotype_basecodes,
-          genotype_pretty,
-          genotype_tg_style,
-          genotype_fluortag_style,
-          genotype_fluororganelle_style,
-          label_tg_style,
-          label_fluortag_style,
-          label_fluororganelle_style
-        FROM public.v11_clutch_label_star
-        WHERE (
+          v.clutch_kind,
+          v.clutch_id::text            AS clutch_id,
+          v.treated_clutch_id::text    AS treated_clutch_id,
+          v.selection_event_id::text   AS selection_event_id,
+          v.clutch_code,
+          v.clutch_date,
+          v.treated_clutch_code,
+          v.treatment_code,
+          v.treat_text,
+          v.selection_label,
+          v.genotype_v11_id::text      AS genotype_v11_id,
+          v.genotype_code,
+          v.genotype_basecodes,
+          v.genotype_pretty,
+          v.genotype_tg_style,
+          v.genotype_fluortag_style,
+          v.genotype_fluororganelle_style,
+          v.label_tg_style,
+          v.label_fluortag_style,
+          v.label_fluororganelle_style
+        FROM public.v11_clutch_label_star v
+        JOIN public.clutches c
+          ON c.id = v.clutch_id
+        WHERE COALESCE(c.source_system, '') <> 'legacy_imaging'
+          AND (
                :q IS NULL
-            OR clutch_code ILIKE :ql
-            OR COALESCE(treated_clutch_code,'') ILIKE :ql
-            OR COALESCE(treatment_code,'')      ILIKE :ql
-            OR COALESCE(treat_text,'')          ILIKE :ql
-            OR COALESCE(selection_label,'')     ILIKE :ql
-            OR COALESCE(label_tg_style,'')      ILIKE :ql
-        )
-        AND (:from_d IS NULL OR clutch_date >= :from_d)
-        AND (:to_d   IS NULL OR clutch_date <= :to_d)
-        ORDER BY clutch_date DESC NULLS LAST,
-                 clutch_code,
-                 clutch_kind,
-                 treated_clutch_code NULLS FIRST,
-                 selection_label NULLS FIRST
+            OR v.clutch_code                 ILIKE :ql
+            OR COALESCE(v.treated_clutch_code,'') ILIKE :ql
+            OR COALESCE(v.treatment_code,'')      ILIKE :ql
+            OR COALESCE(v.treat_text,'')          ILIKE :ql
+            OR COALESCE(v.selection_label,'')     ILIKE :ql
+            OR COALESCE(v.label_tg_style,'')      ILIKE :ql
+          )
+          AND (:from_d IS NULL OR v.clutch_date >= :from_d)
+          AND (:to_d   IS NULL OR v.clutch_date <= :to_d)
+        ORDER BY v.clutch_date DESC NULLS LAST,
+                 v.clutch_code,
+                 v.clutch_kind,
+                 v.treated_clutch_code NULLS FIRST,
+                 v.selection_label NULLS FIRST
         LIMIT :lim;
         """
     )
@@ -189,6 +193,15 @@ def load_candidate_lines_for_clutch(clutch_id: str) -> pd.DataFrame:
 # STEP 1 — FLAT CLUTCH TABLE (v11_clutch_label_star)
 # ════════════════════════════════════════════════════════
 
+# Time-window selector: default to last 21 days
+window_mode = st.radio(
+    "Clutch time window",
+    options=["Last 21 days", "All"],
+    index=0,
+    horizontal=True,
+    key="nursery_clutch_window",
+)
+
 with st.form("clutch_filters_for_nursery", clear_on_submit=False):
     c1, c2, c3, c4 = st.columns([3, 1.5, 1.5, 1])
     with c1:
@@ -216,11 +229,19 @@ q = _norm(q_raw)
 from_d: Optional[date] = None
 to_d: Optional[date] = None
 
+# Default window logic:
+# • If user supplies explicit from/to, we honor those.
+# • Otherwise, "Last 21 days" mode sets from_d = today-21; "All" leaves from_d None.
+today = date.today()
+
 if from_raw:
     try:
         from_d = datetime.strptime(from_raw, "%Y-%m-%d").date()
     except ValueError:
         st.warning("From date must be YYYY-MM-DD if provided.")
+elif window_mode == "Last 21 days":
+    from_d = today - timedelta(days=21)
+
 if to_raw:
     try:
         to_d = datetime.strptime(to_raw, "%Y-%m-%d").date()
@@ -230,7 +251,7 @@ if to_raw:
 clutches = load_clutches_for_nursery(q, from_d, to_d, lim)
 
 if clutches.empty:
-    st.info("No clutches match the current filters.")
+    st.info("No clutches match the current filters (after time-window + non-legacy filter).")
     st.stop()
 
 st.subheader("Step 1 — Select a clutch (flat view)", anchor=False)

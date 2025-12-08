@@ -170,9 +170,11 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
     v11 loader for treated fish instances:
 
       • Creates / reuses injection treatments (INJ-<base>).
-      • Optionally attaches genotypes / lines via transgene_basecode + allele_nickname.
+      • Optionally attaches genotypes / lines via transgene_basecode + allele_nickname
+        (supports comma-separated lists, aligned by position).
       • Creates fish_instances_v10 + tanks.
-      • Links instances to treatments via join_fish_treatments.
+      • Links instances to treatments via join_fish_treatments, carrying description
+        and enzyme (if supplied).
 
     It assumes the genetics loader has already set up constructs, backgrounds, etc.
     """
@@ -189,6 +191,7 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
         "allele_nickname",
         "zygosity",
         "created_by",
+        "enzyme",
         "description",
         "fish_nickname",
         "notes",
@@ -236,7 +239,7 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
             "rejected_rows": rejected,
         }
 
-    # Grouping keys (treatment + genetic + line context)
+    # Grouping keys (treatment + genetic + line context + enzyme)
     df["_key_treat"] = df["treatment_basecode"].map(lambda s: ",".join(_parse_base_list(s)) or "")
     df["_key_tg_base"] = df.get("transgene_basecode", "").map(
         lambda s: ",".join(_parse_base_list(s)) or ""
@@ -244,9 +247,10 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
     df["_key_allele"] = df.get("allele_nickname", "").map(_norm)
     df["_key_line"] = df["line_nickname"].map(_norm)
     df["_key_bg"] = df["_bg_norm"]
+    df["_key_enzyme"] = df.get("enzyme", "").map(_norm)
 
     grouped = df.groupby(
-        ["_key_treat", "_key_tg_base", "_key_allele", "_key_line", "_key_bg"],
+        ["_key_treat", "_key_tg_base", "_key_allele", "_key_line", "_key_bg", "_key_enzyme"],
         dropna=False,
         sort=False,
     )
@@ -262,7 +266,7 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
     n_lines_reused = 0
     group_errors: List[pd.DataFrame] = []
 
-    for (_treat_key, _tg_key, _allele_key, _line_key, _bg_key), g in grouped:
+    for (_treat_key, _tg_key, _allele_key, _line_key, _bg_key, _enz_key), g in grouped:
         head = g.iloc[0]
 
         try:
@@ -438,13 +442,24 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
             n_instances += n_i
             n_tanks += n_t
 
+            # build a group-level note that preserves description + enzyme
+            desc = _norm(head.get("description"))
+            enzyme_val = _norm(head.get("enzyme"))
+            note_parts: List[str] = []
+            if desc:
+                note_parts.append(desc)
+            if enzyme_val:
+                note_parts.append(f"enzyme={enzyme_val}")
+            link_note = " | ".join(note_parts) if note_parts else None
+
             # link each instance to all treatments in this group
             for tid in treatment_ids:
                 link_instances_to_treatment(
                     cx,
                     fish_instance_ids=fish_ids,
                     treatment_id=tid,
-                    note=_norm(head.get("description")),
+                    note=link_note,
+                    enzyme=enzyme_val,
                 )
                 n_instances_linked += len(fish_ids)
 
@@ -455,7 +470,7 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
             continue
 
     if rejected_chunks or group_errors:
-        rejected_all = []
+        rejected_all: List[pd.DataFrame] = []
         rejected_all.extend(rejected_chunks)
         rejected_all.extend(group_errors)
         rejected_df = pd.concat(rejected_all, ignore_index=True)
