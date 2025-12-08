@@ -29,7 +29,7 @@ WITH treated AS (
   LEFT JOIN public.treatments t
     ON t.id = tc.treatment_id
   LEFT JOIN public.v11_treatment_label_star tls
-    ON tls.treatment_id = t.id
+    ON tls.treatment_id = t.id::text
   WHERE c.clutch_date >= (current_date - INTERVAL '14 days')
     AND COALESCE(c.source_system, '') <> 'legacy_imaging'
 ),

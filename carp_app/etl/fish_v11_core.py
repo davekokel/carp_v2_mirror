@@ -272,7 +272,7 @@ def ensure_allele_new_or_existing(
             """
             INSERT INTO public.transgenes (transgene_base_code, description, transgene_name)
             VALUES (:bc, NULL, :bc)
-            ON CONSUME CONFLICT (transgene_base_code) DO NOTHING;
+            ON CONFLICT (transgene_base_code) DO NOTHING;
             """
         ),
         {"bc": base},
