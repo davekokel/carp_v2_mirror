@@ -65,12 +65,22 @@ def _normalize_url(url: Optional[str]) -> str:
 
 def _resolve_db_url():
     """
-    Resolve DB_URL dynamically — prefer environment or carp_app.lib.config first.
+    Resolve DB_URL dynamically:
+
+    1. Environment variable DB_URL (e.g. use_local/use_staging_direct, Streamlit env)
+    2. Streamlit secrets["DB_URL"] (cloud deployment config)
+    3. carp_app.lib.config.DB_URL fallback
     """
     from carp_app.lib.config import DB_URL as CONFIG_URL
 
-    # Always pull from current shell env first, then config fallback
-    url = os.environ.get("DB_URL") or CONFIG_URL
+    # Prefer env, then secrets, then config
+    secrets_url = ""
+    try:
+        secrets_url = st.secrets.get("DB_URL", "")
+    except Exception:
+        secrets_url = ""
+
+    url = os.environ.get("DB_URL") or secrets_url or CONFIG_URL
     url = _normalize_url(url)
 
     # Mirror into session for display (Diagnostics etc.)
