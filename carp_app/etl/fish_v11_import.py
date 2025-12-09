@@ -30,6 +30,72 @@ REQUIRED_COLS = {
     "genetic_background",
 }
 
+def _norm_bg(raw: Any | None) -> str:
+    """
+    Normalize a genetic_background value for matching against bg_code.
+
+    - Treat None/NA as empty string.
+    - Replace NBSP with a normal space.
+    - Strip leading/trailing whitespace.
+    - Lowercase.
+    - Remove ALL internal whitespace.
+    - Normalize spaces around '/'.
+
+    Examples:
+      'Piglet24b'           -> 'piglet24b'
+      'Piglet14a\xa0'       -> 'piglet14a'
+      'pIGLET 14a'          -> 'piglet14a'
+      'Casper/ AB'          -> 'casper/ab'
+      'casper/rnf'          -> 'casper/rnf'
+    """
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return ""
+
+    s = str(raw).replace("\xa0", " ").strip().lower()
+    if not s:
+        return ""
+
+    # Remove all whitespace
+    s = re.sub(r"\s+", "", s)
+
+    # Normalize spaces around '/'
+    s = s.replace(" /", "/").replace("/ ", "/")
+
+    return s
+
+def _ensure_known_construct_basecodes(cx: Connection, basecodes: set[str]) -> None:
+    """
+    Ensure all construct basecodes exist in public.constructs.
+
+    Raises ValueError listing any missing codes.
+    """
+    cleaned = {_norm(bc) for bc in basecodes if _norm(bc)}
+    if not cleaned:
+        return
+
+    rows = cx.execute(
+        text(
+            """
+            SELECT construct_code
+            FROM public.constructs
+            WHERE construct_code = ANY(:codes)
+            """
+        ),
+        {"codes": list(cleaned)},
+    ).scalars().all()
+
+    known = set(rows)
+    missing = sorted(cleaned - known)
+    if missing:
+        msg = (
+            "Unknown construct basecodes in fish CSV "
+            "(no matching rows in public.constructs): "
+            + ", ".join(missing)
+            + ". Add these constructs to the constructs CSV/metadata and "
+            + "reload constructs before importing fish."
+        )
+        raise ValueError(msg)
+    
 
 def _normalize_base_code(raw: Any) -> Optional[str]:
     """
@@ -110,7 +176,7 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
         - allele_nickname      (allele nickname)
         - instance_stage       (e.g. P0, F1, juvenile)
         - birthday             (YYYY-MM-DD)
-        - genetic_background   (bg_code from genetic_backgrounds)
+        - genetic_background   (bg_code from genetic_backgrounds or alias)
 
       OPTIONAL columns (auto-created as empty if missing):
         - fish_nickname        (per-fish nickname; used to seed fish_code if present)
@@ -121,20 +187,16 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
     """
     df = df_raw.copy()
 
-    # Normalize column names (strip spaces)
     df.columns = [c.strip() for c in df.columns]
 
-    # Ensure required structural columns are present
     missing = REQUIRED_COLS.difference(df.columns)
     if missing:
         raise ValueError(f"Missing required columns in CSV: {sorted(missing)!r}")
 
-    # Ensure optional columns exist; synthesize empty ones if absent
     for col in ("fish_nickname", "notes", "zygosity", "created_by", "description"):
         if col not in df.columns:
             df[col] = ""
 
-    # Coerce to strings where appropriate
     for col in [
         "transgene_base_code",
         "line_nickname",
@@ -150,16 +212,25 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
         if col in df.columns:
             df[col] = df[col].astype("string")
 
-    # Normalize base codes into canonical base_code (may be NULL)
     df["norm_base_code"] = df["transgene_base_code"].map(_normalize_base_code)
 
-    # Validate genetic_background values
+    # ── Backgrounds: normalize + canonicalize against genetic_backgrounds ──
     bg_df = pd.read_sql(
         text("SELECT bg_code FROM public.genetic_backgrounds;"),
         cx,
     )
-    bg_set = {(_norm(b) or "") for b in bg_df["bg_code"].astype("string")}
-    df["_bg_norm"] = df["genetic_background"].map(_norm)
+    # Build mapping from normalized form -> canonical bg_code
+    bg_df["bg_norm"] = bg_df["bg_code"].astype("string").map(_norm_bg)
+    bg_map: Dict[str, str] = {}
+    for _, row in bg_df.iterrows():
+        n = row["bg_norm"]
+        code = row["bg_code"]
+        if n and n not in bg_map:
+            bg_map[n] = code
+
+    # Normalize CSV backgrounds and check membership
+    df["_bg_norm"] = df["genetic_background"].map(_norm_bg)
+    bg_set = set(bg_map.keys())
     good_bg_mask = df["_bg_norm"].map(lambda v: (v or "") in bg_set)
 
     rejected_chunks: List[pd.DataFrame] = []
@@ -188,11 +259,19 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
             "rejected_rows": rejected,
         }
 
-    # Normalised grouping keys
+    # Overwrite genetic_background with canonical bg_code
+    df["genetic_background"] = df["_bg_norm"].map(lambda n: bg_map.get(n, n))
+
+    # Enforce: all normalized basecodes must exist in public.constructs
+    all_bases: set[str] = {
+        _norm(bc) for bc in df["norm_base_code"].tolist() if _norm(bc)
+    }
+    _ensure_known_construct_basecodes(cx, all_bases)
+
     df["_key_base"] = df["norm_base_code"].map(_norm)
     df["_key_allele"] = df["allele_nickname"].map(_norm)
     df["_key_line"] = df["line_nickname"].map(_norm)
-    df["_key_bg"] = df["_bg_norm"]
+    df["_key_bg"] = df["genetic_background"].map(_norm)
 
     constructs_ids_df = load_construct_ids(cx)
 
@@ -223,7 +302,6 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
             has_base = bool(base_norm)
             has_allele = bool(allele_nick)
 
-            # Does this group contain any line-building rows? (P0 / stable / founder)
             line_building_stages = {"P0", "STABLE", "FOUNDER"}
             group_has_line_building = False
             if "instance_stage" in g.columns:
@@ -232,7 +310,6 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
                     for s in g["instance_stage"]
                 )
 
-            # ── Case 1: base+allele → transgenic genetics ──────────────────────
             if has_base and has_allele:
                 base_code, allele_number = ensure_allele_new_or_existing(
                     cx,
@@ -248,7 +325,6 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
                     }
                 )
 
-                # Genetics helper returns (genotype_v11_id, genotype_code, genotype_basecodes)
                 genotype_v11_id, genotype_code, genotype_basecodes = (
                     ensure_group_and_genotype_for_alleles(
                         cx,
@@ -281,15 +357,13 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
                     created_new_line=created_new_line,
                 )
 
-            # ── Case 2: base present, allele empty, but group has line-building rows ──
             elif has_base and not has_allele and group_has_line_building:
-                # Auto-mint allele_number and guN nickname
                 base_code, allele_number = ensure_allele_new_or_existing(
                     cx,
                     transgene_base_code=base_norm,
                     mode="Create new allele",
                     existing_allele_number=None,
-                    new_allele_nickname=None,  # let allocator mint guN
+                    new_allele_nickname=None,
                 )
                 resolved_alleles.append(
                     {
@@ -324,14 +398,12 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
                     default_zygosity=group_zygosity,
                 )
 
-                # We treat this as “has allele” from a genetics POV
                 origin_kind = _classify_origin_kind(
                     base_norm=base_norm,
                     allele_nick="AUTO",
                     created_new_line=created_new_line,
                 )
 
-            # ── Case 3: no base & no allele → background-only line ──────────────
             elif not has_base and not has_allele:
                 nn = line_nickname or (bg_code or "background")
 
@@ -408,7 +480,6 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
                     created_new_line=created_new_line,
                 )
 
-            # ── Case 4: anything else (base-only without P0, allele-only, etc.) ─────
             else:
                 raise ValueError(
                     "Genetics loader requires either (base + allele_nickname) or both empty, "
@@ -416,7 +487,6 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
                     "For injections/treatments, use the separate fish_v11_treatments CSV."
                 )
 
-            # Build instance rows for this group (unchanged)
             instance_rows: List[Dict[str, Any]] = []
             for _, r in g.iterrows():
                 instance_rows.append(
@@ -451,7 +521,6 @@ def load_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
             group_errors.append(g_err)
             continue
 
-    # Stitch together rejected rows (bad bg + group-level failures)
     if rejected_chunks or group_errors:
         rejected_all = []
         rejected_all.extend(rejected_chunks)

@@ -1,4 +1,7 @@
 bg_code,bg_name,bg_category,source_system,description
 casper,casper,core,standard_seedkit,
 casper/rnf,casper/rnf,alias_of_casper,standard_seedkit,Alias for background 'casper'
-pIGLET 14a,pIGLET 14a,core,standard_seedkit,
+pIGLET14a,pIGLET14a,core,standard_seedkit,
+casper_ab,casper_ab,core,standard_seedkit,
+casper/AB,casper/AB,alias_of_casper_ab,standard_seedkit,Alias for background 'casper_ab'
+piglet24b,piglet24b,core,standard_seedkit,

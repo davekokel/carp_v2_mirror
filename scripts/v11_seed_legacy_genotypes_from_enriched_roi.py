@@ -20,6 +20,16 @@ def get_engine(db_url: str | None) -> Engine:
 
 
 def normalize_basecode(raw: str | None) -> str | None:
+    """
+    Normalize legacy parent plasmid basecodes into canonical base_code.
+
+      pDQM005   -> pdqm-5
+      PDQM034   -> pdqm-34
+      MGCO-35   -> mgco-35
+      mgco-35   -> mgco-35
+      pSWIN01   -> pswin-1
+      SWIN01    -> swin-1
+    """
     s = (raw or "").strip()
     if not s:
         return None
@@ -41,6 +51,10 @@ def normalize_basecode(raw: str | None) -> str | None:
 def load_roi_basecodes(engine: Engine) -> Dict[str, Tuple[str, str]]:
     """
     legacy_clutch_key (ROI) -> (raw_basecodes, normalized_basecodes)
+
+    For v11, we allow multi-base genotypes here: normalized_basecodes is a
+    comma-separated list of canonical basecodes (e.g. 'pdqm-5,pdqm-133').
+    We enforce that each token exists in constructs via verify_tokens_against_constructs.
     """
     sql = text(
         """
@@ -54,6 +68,7 @@ def load_roi_basecodes(engine: Engine) -> Dict[str, Tuple[str, str]]:
         df = pd.read_sql(sql, cx)
 
     mapping: Dict[str, Tuple[str, str]] = {}
+    multi: Dict[str, str] = {}
 
     for _, row in df.iterrows():
         key = (row["legacy_clutch_key"] or "").strip()
@@ -61,8 +76,9 @@ def load_roi_basecodes(engine: Engine) -> Dict[str, Tuple[str, str]]:
         if not key or not raw_codes:
             continue
 
+        # Split on both '|' and ',' – both are used as separators in legacy ROI data.
         parts: List[str] = []
-        for token in raw_codes.split("|"):
+        for token in re.split(r"[|,]", raw_codes):
             t = token.strip()
             if not t:
                 continue
@@ -80,14 +96,25 @@ def load_roi_basecodes(engine: Engine) -> Dict[str, Tuple[str, str]]:
         uniq = sorted(set(norm_tokens))
         norm_str = ",".join(uniq)
 
+        if len(uniq) > 1:
+            multi[key] = norm_str
+
         if key in mapping:
             prev_raw, prev_norm = mapping[key]
             combined_raw = f"{prev_raw}|{raw_codes}"
             combined_tokens = set(prev_norm.split(",")) | set(norm_str.split(","))
-            combined_norm = ",".join(sorted(combined_tokens))
+            combined_norm = ",".join(sorted(t for t in combined_tokens if t))
             mapping[key] = (combined_raw, combined_norm)
         else:
             mapping[key] = (raw_codes, norm_str)
+
+    if multi:
+        print(
+            "[v11_seed_legacy_genotypes_from_enriched_roi] "
+            "INFO: multi-base genotypes detected for legacy_clutch_key (allowed):"
+        )
+        for k, v in sorted(multi.items()):
+            print(f"  - {k}: {v}")
 
     print(f"[v11_seed_legacy_genotypes_from_enriched_roi] legacy_clutch_key with basecodes: {len(mapping)}")
     return mapping
@@ -117,6 +144,11 @@ def verify_tokens_against_constructs(
     roi_basecodes: Dict[str, Tuple[str, str]],
     construct_basecodes: Set[str],
 ) -> None:
+    """
+    Verify that all normalized basecodes from ROI data exist in constructs.
+
+    Raises SystemExit if any normalized basecode is unknown.
+    """
     seen_bad: Set[str] = set()
     for _legacy_key, (_raw, norm) in roi_basecodes.items():
         for t in norm.split(","):
@@ -127,9 +159,13 @@ def verify_tokens_against_constructs(
                 seen_bad.add(t)
 
     if seen_bad:
-        print("[WARN] normalized genotype basecodes not found in constructs.base_code (normalized):")
+        print("[ERROR] normalized genotype basecodes not found in constructs.base_code (normalized):")
         for t in sorted(seen_bad):
             print("  -", t)
+        raise SystemExit(
+            "Cannot seed legacy genotypes: some normalized basecodes are not present in constructs. "
+            "Add these constructs (with correct base_code) or fix the legacy ROI data."
+        )
     else:
         print("[INFO] all normalized genotype basecodes found in constructs.base_code")
 
@@ -226,6 +262,9 @@ def ensure_genotype(
     base = norm_basecodes.strip()
     if not base:
         raise ValueError("empty norm_basecodes in ensure_genotype")
+
+    # base may be a single canonical basecode or a comma-separated list
+    # of canonical basecodes (e.g. 'pdqm-5,pdqm-133').
 
     if base in existing:
         return existing[base]

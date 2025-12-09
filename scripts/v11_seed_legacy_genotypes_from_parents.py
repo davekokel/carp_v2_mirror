@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from typing import Dict, List, Optional, Set
 
 import pandas as pd
@@ -16,6 +17,63 @@ def get_engine() -> Engine:
         raise SystemExit("DB_URL must be set")
     print(f"DB_URL={url}")
     return create_engine(url)
+
+
+def normalize_basecode(raw: str | None) -> str | None:
+    """
+    Normalize legacy parent plasmid basecodes into canonical base_code.
+
+      pDQM005   -> pdqm-5
+      PDQM034   -> pdqm-34
+      MGCO-35   -> mgco-35
+      mgco-35   -> mgco-35
+      pSWIN01   -> pswin-1
+      SWIN01    -> swin-1
+    """
+    s = (raw or "").strip()
+    if not s:
+        return None
+
+    m = re.match(r"^([A-Za-z]+)[-_]?(0*)(\d+)$", s)
+    if not m:
+        return s.lower()
+
+    prefix = m.group(1).lower()
+    digits = m.group(3)
+    try:
+        num = int(digits)
+    except ValueError:
+        return s.lower()
+
+    return f"{prefix}-{num}"
+
+
+def load_construct_basecodes(engine: Engine) -> Set[str]:
+    """
+    Load canonical construct basecodes from public.constructs.base_code,
+    normalized with the same normalize_basecode helper.
+    """
+    sql = text(
+        """
+        SELECT base_code
+        FROM public.constructs
+        WHERE COALESCE(base_code, '') <> ''
+        """
+    )
+    with engine.begin() as cx:
+        df = pd.read_sql(sql, cx)
+
+    basecodes: Set[str] = set()
+    for _, row in df.iterrows():
+        bc = normalize_basecode(row["base_code"])
+        if bc:
+            basecodes.add(bc)
+
+    print(
+        f"[v11_seed_legacy_genotypes_from_parents] normalized construct basecodes: "
+        f"{len(basecodes)}"
+    )
+    return basecodes
 
 
 def load_missing_legacy_clutches(engine: Engine) -> pd.DataFrame:
@@ -167,7 +225,7 @@ def ensure_genotype(
     return gid
 
 
-def apply_parent_based_genotypes(engine: Engine) -> None:
+def apply_parent_based_genotypes(engine: Engine, construct_basecodes: Set[str]) -> None:
     missing = load_missing_legacy_clutches(engine)
     parents = load_clutch_parents(engine)
     defs = load_parent_definitions(engine)
@@ -186,16 +244,36 @@ def apply_parent_based_genotypes(engine: Engine) -> None:
         f_defs = lookup_parent(defs, f_label)
         m_defs = lookup_parent(defs, m_label)
 
-        f_plasmids: Set[str] = {r["plasmid_base_code"] for r in f_defs if r["plasmid_base_code"]}
-        m_plasmids: Set[str] = {r["plasmid_base_code"] for r in m_defs if r["plasmid_base_code"]}
+        raw_f_plasmids: Set[str] = {r["plasmid_base_code"] for r in f_defs if r["plasmid_base_code"]}
+        raw_m_plasmids: Set[str] = {r["plasmid_base_code"] for r in m_defs if r["plasmid_base_code"]}
 
-        parent_plasmids = sorted(f_plasmids | m_plasmids)
+        parent_plasmids_raw = sorted(raw_f_plasmids | raw_m_plasmids)
 
-        if not parent_plasmids:
+        if not parent_plasmids_raw:
             print(f"[v11_seed_legacy_genotypes_from_parents] no parent plasmids for clutch {clutch_code}, skipping")
             continue
 
-        basecodes_str = ",".join(parent_plasmids)
+        normalized_parent_plasmids: Set[str] = set()
+        for raw_code in parent_plasmids_raw:
+            nb = normalize_basecode(raw_code)
+            if not nb:
+                continue
+            if nb not in construct_basecodes:
+                raise SystemExit(
+                    f"[v11_seed_legacy_genotypes_from_parents] ERROR: parent basecode '{raw_code}' "
+                    f"normalized to '{nb}', but no matching construct base_code exists. "
+                    f"Add this construct or fix legacy_parent_definitions_v9 before seeding."
+                )
+            normalized_parent_plasmids.add(nb)
+
+        if not normalized_parent_plasmids:
+            print(
+                f"[v11_seed_legacy_genotypes_from_parents] clutch {clutch_code} has parent plasmids "
+                f"but none map to known constructs; skipping"
+            )
+            continue
+
+        basecodes_str = ",".join(sorted(normalized_parent_plasmids))
         records.append(
             {
                 "clutch_id": clutch_id,
@@ -254,7 +332,8 @@ def apply_parent_based_genotypes(engine: Engine) -> None:
 
 def main() -> None:
     eng = get_engine()
-    apply_parent_based_genotypes(eng)
+    construct_basecodes = load_construct_basecodes(eng)
+    apply_parent_based_genotypes(eng, construct_basecodes)
 
     with eng.begin() as cx:
         n_clutches, n_with = cx.execute(

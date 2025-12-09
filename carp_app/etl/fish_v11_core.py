@@ -4,6 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+import re
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
@@ -12,6 +13,61 @@ from sqlalchemy.engine import Connection
 # ─────────────────────────────────────────────────────────
 # Small utilities
 # ─────────────────────────────────────────────────────────
+_NUM_LIKE = re.compile(r"^[0-9]+(\.0+)?$")
+
+def _clean_allele_nickname(raw: Any | None) -> str:
+    """
+    Canonicalize allele nicknames so numeric-looking values become
+    integer strings:
+
+      324      -> "324"
+      324.0    -> "324"
+      "324.000"-> "324"
+
+    Everything else is passed through as a trimmed string.
+    """
+    s = _norm(raw)
+    if not s:
+        return ""
+    if _NUM_LIKE.match(s):
+        try:
+            return str(int(float(s)))
+        except Exception:
+            # if something weird happens, just fall back to the original
+            return s
+    return s
+
+def _ensure_construct_base_exists(cx: Connection, base_code: str) -> str:
+    """
+    Ensure a construct base_code exists in public.constructs.
+
+    Returns the normalized base_code, or raises ValueError if missing.
+    """
+    base = _norm(base_code)
+    if not base:
+        raise ValueError("Construct base_code is required.")
+
+    row = cx.execute(
+        text(
+            """
+            SELECT 1
+            FROM public.constructs
+            WHERE construct_code = :bc
+            LIMIT 1;
+            """
+        ),
+        {"bc": base},
+    ).fetchone()
+
+    if not row:
+        raise ValueError(
+            f"Unknown construct base_code '{base}' "
+            f"(no matching row in public.constructs). "
+            f"Add this construct to the constructs CSV/metadata and reload constructs "
+            f"before importing fish/treatments."
+        )
+
+    return base
 
 def _norm(s: Any | None) -> str:
     if s is None:
@@ -65,9 +121,8 @@ def ensure_injection_treatment_single_base(
 
     Returns treatment_id::text.
     """
-    base = _norm(base_code)
-    if not base:
-        raise ValueError("base_code is required to create an injection treatment")
+    # Enforce that this base_code is a real construct, not a fabricated label.
+    base = _ensure_construct_base_exists(cx, base_code)
 
     treat_code = f"INJ-{base}"
 
@@ -239,7 +294,8 @@ def ensure_allele_new_or_existing(
     if mode != "Create new allele":
         raise ValueError(f"{base}: unknown allele mode '{mode}'")
 
-    nick = _norm(new_allele_nickname)
+    # ⬇️ this is the important line: clean numeric-looking nicknames
+    nick = _clean_allele_nickname(new_allele_nickname)
 
     # If a nickname is provided, try to reuse by nickname
     if nick:
@@ -318,6 +374,11 @@ def ensure_group_and_genotype_for_alleles(
     and that join_genotype_constructs_v11 links it to the constructs.
 
     Returns (genotype_v11_id, genotype_code, genotype_basecodes).
+
+    resolved_alleles is expected to contain one entry per atomic allele, with
+      - transgene_base_code (canonical base_code, e.g. pdqm-5, mgco-35)
+      - allele_number       (integer)
+    and MUST NOT contain comma-bundled basecodes like 'pdqm-136,pdqm-82'.
     """
     if not resolved_alleles:
         raise ValueError("No alleles to build genotype / fish_group.")
@@ -334,9 +395,20 @@ def ensure_group_and_genotype_for_alleles(
 
     pairs: List[Tuple[str, int]] = []
     for a in resolved_alleles:
-        base = (_norm(a.get("transgene_base_code")) or "").lower()
+        raw_base = _norm(a.get("transgene_base_code"))
+        base = (raw_base or "").lower()
         if not base:
             continue
+
+        # Front-fill guard: no comma-bundled basecodes in resolved_alleles.
+        if "," in base:
+            raise ValueError(
+                f"Comma-bundled base_code '{raw_base}' in resolved_alleles; "
+                f"each allele must have a single canonical base_code "
+                f"(e.g. 'pdqm-136' and 'pdqm-82' as separate entries), "
+                f"with allele nicknames split accordingly."
+            )
+
         if base not in construct_by_base:
             raise ValueError(f"Construct base_code {base} not found in public.constructs.")
         try:
@@ -400,7 +472,6 @@ def ensure_group_and_genotype_for_alleles(
         genotype_v11_id = r._mapping["genotype_v11_id"]
         genotype_code = r._mapping["genotype_code"]
 
-        # Ensure genotype→construct links
         missing_bases = [base for base, _num in pairs_sorted if base not in construct_by_base]
         if missing_bases:
             missing_str = ", ".join(sorted(set(missing_bases)))
@@ -551,6 +622,9 @@ def ensure_line_for_description(
         raise ValueError("Primary construct base_code is required for line.")
     if not genotype_v11_id:
         raise ValueError("genotype_v11_id is required to create a line.")
+
+    # Enforce that the primary construct base_code is a real construct.
+    bc = _ensure_construct_base_exists(cx, bc)
 
     df = pd.read_sql(
         text(

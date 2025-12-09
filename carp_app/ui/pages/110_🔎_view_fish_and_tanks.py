@@ -46,38 +46,35 @@ def _norm(s: Optional[str]) -> str:
 
 def load_tanks() -> pd.DataFrame:
     """
-    Tank overview with fish + line + genotype + treatment labels.
+    Tank overview with fish + line + genotype + treatment labels via v_tanks_overview.
     """
     sql = text(
         """
         SELECT
-          t.tank_code,
-          t.status,
-          fi.fish_code,
-          fi.nickname          AS fish_nickname,
-          fi.instance_stage,
-          fi.birthday,
-          fi.genetic_background,
-          fl.line_code,
-          fl.nickname          AS line_nickname,
-          fl.line_building_stage,
-          fis.genotype_pretty,
-          fis.genotype_tg_style,
-          fis.genotype_fluortag_style,
-          fis.genotype_fluororganelle_style,
-          fis.treatment_codes,
-          fis.treatment_label_tg_style,
-          fis.treatment_label_fluortag_style,
-          fis.treatment_label_fluororganelle_style,
-          t.created_at
-        FROM public.tanks t
-        JOIN public.fish_instances_v10 fi
-          ON fi.id = t.fish_instance_id
-        JOIN public.fish_lines fl
-          ON fl.id = fi.line_id
-        LEFT JOIN public.v11_fish_instance_star_labels fis
-          ON fis.fish_instance_id = fi.id
-        ORDER BY t.tank_code, fi.fish_code;
+          tank_id,
+          tank_code,
+          status,
+          fish_code,
+          fish_nickname,
+          instance_stage,
+          birthday,
+          genetic_background,
+          line_code,
+          line_nickname,
+          line_building_stage,
+          genotype_tg_style,
+          genotype_fluortag_style,
+          genotype_fluororganelle_style,
+          treatment_codes,
+          treatment_label_tg_style,
+          treatment_label_fluortag_style,
+          treatment_label_fluororganelle_style,
+          treatment_or_genotype_tg_style,
+          treatment_or_genotype_fluortag_style,
+          treatment_or_genotype_fluororganelle_style,
+          created_at
+        FROM public.v_tanks_overview
+        ORDER BY created_at DESC NULLS LAST, tank_code;
         """
     )
     with eng().begin() as cx:
@@ -117,28 +114,46 @@ with st.form("tank_filters", clear_on_submit=False):
                 key="tank_limit",
             )
         )
-    _ = st.form_submit_button("Apply", use_container_width=True)
+    _ = st.form_submit_button("Apply")
 
 df = tanks_df.copy()
 
-if status_filter != "all":
+# status filter
+if status_filter != "all" and "status" in df.columns:
     df = df[df["status"] == status_filter]
 
+# search filter
 if search.strip():
     q = search.strip().lower()
-    mask = (
-        df["tank_code"].str.lower().str.contains(q, na=False)
-        | df["fish_code"].str.lower().str.contains(q, na=False)
-        | df["fish_nickname"].str.lower().str.contains(q, na=False)
-        | df["line_code"].str.lower().str.contains(q, na=False)
-        | df["line_nickname"].str.lower().str.contains(q, na=False)
-        | df["genotype_pretty"].str.lower().str.contains(q, na=False)
-        | df["genotype_tg_style"].str.lower().str.contains(q, na=False)
-        | df["treatment_codes"].str.lower().str.contains(q, na=False)
-        | df["treatment_label_tg_style"].str.lower().str.contains(q, na=False)
-        | df["status"].str.lower().str.contains(q, na=False)
-    )
-    df = df[mask]
+    mask_parts: List[pd.Series] = []
+
+    def add_mask(col: str) -> None:
+        if col in df.columns:
+            mask_parts.append(df[col].str.lower().str.contains(q, na=False))
+
+    add_mask("tank_code")
+    add_mask("fish_code")
+    add_mask("fish_nickname")
+    add_mask("line_code")
+    add_mask("line_nickname")
+    add_mask("genetic_background")
+    add_mask("genotype_tg_style")
+    add_mask("genotype_fluortag_style")
+    add_mask("genotype_fluororganelle_style")
+    add_mask("treatment_codes")
+    add_mask("treatment_label_tg_style")
+    add_mask("treatment_label_fluortag_style")
+    add_mask("treatment_label_fluororganelle_style")
+    add_mask("treatment_or_genotype_tg_style")
+    add_mask("treatment_or_genotype_fluortag_style")
+    add_mask("treatment_or_genotype_fluororganelle_style")
+    add_mask("status")
+
+    if mask_parts:
+        mask = mask_parts[0]
+        for m in mask_parts[1:]:
+            mask = mask | m
+        df = df[mask]
 
 if df.empty:
     st.info("No tanks match these filters.")
@@ -146,66 +161,145 @@ else:
     df = df.head(lim)
     st.caption(f"{len(df)} tank(s)")
 
-    view = df[
-        [
-            "tank_code",
-            "status",
-            "fish_code",
-            "fish_nickname",
-            "line_code",
-            "line_nickname",
-            "genetic_background",
-            "instance_stage",
-            "line_building_stage",
-            "birthday",
-            "genotype_tg_style",
-            "treatment_codes",
-            "treatment_label_tg_style",
-            "created_at",
-        ]
-    ].copy()
+    # Show genotype-only, treatment-only, and combined label columns
+    desired_cols = [
+        "tank_code",
+        "status",
+        "fish_code",
+        "fish_nickname",
+        "line_code",
+        "line_nickname",
+        "genetic_background",
+        "instance_stage",
+        "line_building_stage",
+        "birthday",
+        # genotype-only
+        "genotype_tg_style",
+        "genotype_fluortag_style",
+        "genotype_fluororganelle_style",
+        # treatment-only
+        "treatment_codes",
+        "treatment_label_tg_style",
+        "treatment_label_fluortag_style",
+        "treatment_label_fluororganelle_style",
+        # combined “treatment > genotype”
+        "treatment_or_genotype_tg_style",
+        "treatment_or_genotype_fluortag_style",
+        "treatment_or_genotype_fluororganelle_style",
+        "created_at",
+    ]
 
+    present_cols = [c for c in desired_cols if c in df.columns]
+    view = df[present_cols].copy()
     view.insert(0, "✓", False)
+
+    column_config: Dict[str, Any] = {
+        "✓": st.column_config.CheckboxColumn("Select", width=60),
+    }
+
+    if "tank_code" in view.columns:
+        column_config["tank_code"] = st.column_config.TextColumn(
+            "Tank code", disabled=True
+        )
+    if "status" in view.columns:
+        column_config["status"] = st.column_config.TextColumn("Status", disabled=True)
+    if "fish_code" in view.columns:
+        column_config["fish_code"] = st.column_config.TextColumn(
+            "FSH code", disabled=True
+        )
+    if "fish_nickname" in view.columns:
+        column_config["fish_nickname"] = st.column_config.TextColumn(
+            "Fish nickname", disabled=True
+        )
+    if "line_code" in view.columns:
+        column_config["line_code"] = st.column_config.TextColumn(
+            "Line code", disabled=True
+        )
+    if "line_nickname" in view.columns:
+        column_config["line_nickname"] = st.column_config.TextColumn(
+            "Line nickname", disabled=True, width="large"
+        )
+    if "genetic_background" in view.columns:
+        column_config["genetic_background"] = st.column_config.TextColumn(
+            "Background", disabled=True
+        )
+    if "instance_stage" in view.columns:
+        column_config["instance_stage"] = st.column_config.TextColumn(
+            "Stage", disabled=True
+        )
+    if "line_building_stage" in view.columns:
+        column_config["line_building_stage"] = st.column_config.TextColumn(
+            "Line type", disabled=True
+        )
+    if "birthday" in view.columns:
+        column_config["birthday"] = st.column_config.DateColumn(
+            "Birthday", disabled=True
+        )
+
+    # genotype-only labels
+    if "genotype_tg_style" in view.columns:
+        column_config["genotype_tg_style"] = st.column_config.TextColumn(
+            "Genotype (tg-style)", disabled=True, width="large"
+        )
+    if "genotype_fluortag_style" in view.columns:
+        column_config["genotype_fluortag_style"] = st.column_config.TextColumn(
+            "Genotype (fluor-tag)", disabled=True, width="large"
+        )
+    if "genotype_fluororganelle_style" in view.columns:
+        column_config["genotype_fluororganelle_style"] = st.column_config.TextColumn(
+            "Genotype (organelle)", disabled=True, width="large"
+        )
+
+    # treatment-only labels
+    if "treatment_codes" in view.columns:
+        column_config["treatment_codes"] = st.column_config.TextColumn(
+            "Treatment code(s)", disabled=True, width="large"
+        )
+    if "treatment_label_tg_style" in view.columns:
+        column_config["treatment_label_tg_style"] = st.column_config.TextColumn(
+            "Treatment (tg-style)", disabled=True, width="large"
+        )
+    if "treatment_label_fluortag_style" in view.columns:
+        column_config["treatment_label_fluortag_style"] = st.column_config.TextColumn(
+            "Treatment (fluor-tag)", disabled=True, width="large"
+        )
+    if "treatment_label_fluororganelle_style" in view.columns:
+        column_config["treatment_label_fluororganelle_style"] = (
+            st.column_config.TextColumn(
+                "Treatment (organelle)", disabled=True, width="large"
+            )
+        )
+
+    # combined labels
+    if "treatment_or_genotype_tg_style" in view.columns:
+        column_config["treatment_or_genotype_tg_style"] = st.column_config.TextColumn(
+            "Treatment • genotype (tg)", disabled=True, width="large"
+        )
+    if "treatment_or_genotype_fluortag_style" in view.columns:
+        column_config["treatment_or_genotype_fluortag_style"] = (
+            st.column_config.TextColumn(
+                "Treatment • genotype (fluor-tag)", disabled=True, width="large"
+            )
+        )
+    if "treatment_or_genotype_fluororganelle_style" in view.columns:
+        column_config["treatment_or_genotype_fluororganelle_style"] = (
+            st.column_config.TextColumn(
+                "Treatment • genotype (organelle)", disabled=True, width="large"
+            )
+        )
+
+    if "created_at" in view.columns:
+        column_config["created_at"] = st.column_config.DatetimeColumn(
+            "Created at", disabled=True
+        )
 
     grid = st.data_editor(
         view,
         key="tanks_overview_v11",
         hide_index=True,
-        use_container_width=True,
         num_rows="fixed",
-        column_config={
-            "✓": st.column_config.CheckboxColumn("Select", width=60),
-            "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
-            "status": st.column_config.TextColumn("Status", disabled=True),
-            "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
-            "fish_nickname": st.column_config.TextColumn(
-                "Fish nickname", disabled=True
-            ),
-            "line_code": st.column_config.TextColumn("Line code", disabled=True),
-            "line_nickname": st.column_config.TextColumn(
-                "Line nickname", disabled=True, width="large"
-            ),
-            "genetic_background": st.column_config.TextColumn(
-                "Background", disabled=True
-            ),
-            "instance_stage": st.column_config.TextColumn("Stage", disabled=True),
-            "line_building_stage": st.column_config.TextColumn(
-                "Line type", disabled=True
-            ),
-            "birthday": st.column_config.DateColumn("Birthday", disabled=True),
-            "genotype_tg_style": st.column_config.TextColumn(
-                "Genotype (tg-style)", disabled=True, width="large"
-            ),
-            "treatment_codes": st.column_config.TextColumn(
-                "Treatment code(s)", disabled=True, width="large"
-            ),
-            "treatment_label_tg_style": st.column_config.TextColumn(
-                "Treatment • genotype", disabled=True, width="large"
-            ),
-            "created_at": st.column_config.DatetimeColumn(
-                "Created at", disabled=True
-            ),
-        },
+        width="stretch",
+        column_config=column_config,
     )
 
     st.download_button(
@@ -218,5 +312,4 @@ else:
 
 st.markdown("---")
 st.subheader("Fish in selected tank(s)")
-
 st.caption("Select one or more tanks above to see their instances.")

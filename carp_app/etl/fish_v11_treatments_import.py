@@ -34,6 +34,79 @@ REQUIRED_COLS = {
     "treatment_basecode",
 }
 
+def _norm_bg(raw: Any | None) -> str:
+    """
+    Normalize a genetic_background value for matching against bg_code.
+
+    - Treat None/NA as empty string.
+    - Replace NBSP with a normal space.
+    - Strip leading/trailing whitespace.
+    - Lowercase.
+    - Remove ALL internal whitespace.
+    - Normalize spaces around '/'.
+
+    Examples:
+      'Piglet24b'      -> 'piglet24b'
+      'Piglet14a\xa0'  -> 'piglet14a'
+      'pIGLET14a'      -> 'piglet14a'
+      'Casper/ AB'     -> 'casper/ab'
+    """
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return ""
+
+    s = str(raw).replace("\xa0", " ").strip().lower()
+    if not s:
+        return ""
+
+    # Remove all whitespace
+    s = re.sub(r"\s+", "", s)
+
+    # Normalize spaces around '/'
+    s = s.replace(" /", "/").replace("/ ", "/")
+
+    return s
+
+def _norm(s: object | None) -> str:
+    if s is None:
+        return ""
+    text_val = str(s).strip()
+    if text_val in {"", "NA", "<NA>"}:
+        return ""
+    return text_val
+
+
+def _ensure_known_construct_basecodes(cx: Connection, basecodes: set[str]) -> None:
+    """
+    Ensure all construct basecodes exist in public.constructs.
+
+    Raises ValueError listing any missing codes.
+    """
+    basecodes = {_norm(bc) for bc in basecodes if _norm(bc)}
+    if not basecodes:
+        return
+
+    rows = cx.execute(
+        text(
+            """
+            SELECT construct_code
+            FROM public.constructs
+            WHERE construct_code = ANY(:codes)
+            """
+        ),
+        {"codes": list(basecodes)},
+    ).scalars().all()
+
+    known = set(rows)
+    missing = sorted(basecodes - known)
+    if missing:
+        msg = (
+            "Unknown construct basecodes in treatments "
+            "(no matching rows in public.constructs): "
+            + ", ".join(missing)
+            + ". Add these constructs to the constructs CSV/metadata and "
+            + "reload constructs before importing treatments."
+        )
+        raise ValueError(msg)
 
 def _normalize_base_code(raw: Any) -> Optional[str]:
     """
@@ -47,6 +120,11 @@ def _normalize_base_code(raw: Any) -> Optional[str]:
     s = _norm(str(raw) if raw is not None else None)
     if not s:
         return None
+
+    # Treat 'nan' / 'na' / '<na>' as missing, not as a basecode
+    if s.lower() in {"nan", "na", "<na>"}:
+        return None
+
     s = s.replace(" ", "")
     m = re.match(r"^([A-Za-z]+)[-_]?0*([0-9]+)$", s)
     if not m:
@@ -185,7 +263,6 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
     if missing:
         raise ValueError(f"Missing required columns in treated-fish CSV: {sorted(missing)!r}")
 
-    # Optional columns
     for col in (
         "transgene_basecode",
         "allele_nickname",
@@ -199,15 +276,27 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
         if col not in df.columns:
             df[col] = ""
 
-    # Coerce to string-ish
     for col in df.columns:
         if df[col].dtype == "O":
             df[col] = df[col].astype("string")
 
-    # Normalize backgrounds
-    bg_df = pd.read_sql(text("SELECT bg_code FROM public.genetic_backgrounds;"), cx)
-    bg_set = {(_norm(b) or "") for b in bg_df["bg_code"].astype("string")}
-    df["_bg_norm"] = df["genetic_background"].map(_norm)
+    # ── Backgrounds: normalize + canonicalize against genetic_backgrounds ──
+    bg_df = pd.read_sql(
+        text("SELECT bg_code FROM public.genetic_backgrounds;"),
+        cx,
+    )
+    # Map normalized form -> canonical bg_code
+    bg_df["bg_norm"] = bg_df["bg_code"].astype("string").map(_norm_bg)
+    bg_map: Dict[str, str] = {}
+    for _, row in bg_df.iterrows():
+        n = row["bg_norm"]
+        code = row["bg_code"]
+        if n and n not in bg_map:
+            bg_map[n] = code
+
+    # Normalize CSV backgrounds and check membership
+    df["_bg_norm"] = df["genetic_background"].map(_norm_bg)
+    bg_set = set(bg_map.keys())
     good_bg_mask = df["_bg_norm"].map(lambda v: (v or "") in bg_set)
 
     rejected_chunks: List[pd.DataFrame] = []
@@ -239,8 +328,18 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
             "rejected_rows": rejected,
         }
 
-    # Grouping keys (treatment + genetic + line context + enzyme)
-    df["_key_treat"] = df["treatment_basecode"].map(lambda s: ",".join(_parse_base_list(s)) or "")
+    # Overwrite genetic_background with canonical bg_code
+    df["genetic_background"] = df["_bg_norm"].map(lambda n: bg_map.get(n, n))
+
+    all_treat_bases: set[str] = set()
+    for raw in df["treatment_basecode"]:
+        for b in _parse_base_list(raw):
+            all_treat_bases.add(b)
+    _ensure_known_construct_basecodes(cx, all_treat_bases)
+
+    df["_key_treat"] = df["treatment_basecode"].map(
+        lambda s: ",".join(_parse_base_list(s)) or ""
+    )
     df["_key_tg_base"] = df.get("transgene_basecode", "").map(
         lambda s: ",".join(_parse_base_list(s)) or ""
     )
@@ -274,12 +373,10 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
             bg_code = _norm(head.get("genetic_background"))
             zygosity = _norm(head.get("zygosity")) or "unknown"
 
-            # treatment basecodes (may be multiple)
             treat_bases = _parse_base_list(head.get("treatment_basecode"))
             if not treat_bases:
                 raise ValueError("treatment_basecode is required for treated fish.")
 
-            # transgene basecodes / alleles (may be multiple or empty)
             tg_bases = _parse_base_list(head.get("transgene_basecode"))
             allele_nicks = _parse_allele_list(head.get("allele_nickname"))
 
@@ -288,21 +385,17 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
                     "transgene_basecode and allele_nickname must have the same number of comma-separated entries."
                 )
 
-            # ensure injection treatments (one per treatment base)
             treatment_ids: List[str] = []
             for tb in treat_bases:
                 tid = ensure_injection_treatment_single_base(cx, base_code=tb)
                 treatment_ids.append(tid)
                 n_treatments_touched.add(tb)
 
-            # genotype / line resolution
             resolved_alleles: List[Dict[str, Any]] = []
             genotype_v11_id: Optional[str] = None
             genotype_basecodes: Optional[str] = None
 
-            # transgenic treated case
             if tg_bases:
-                # If no allele_nicks supplied, auto-mint guN per base.
                 if not allele_nicks:
                     allele_nicks = [None] * len(tg_bases)
 
@@ -354,7 +447,6 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
                     n_lines_reused += 1
 
             else:
-                # treatment only, background-only line
                 nn = line_nickname or (bg_code or "treated_background")
                 line_row = pd.read_sql(
                     text(
@@ -429,7 +521,6 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
                 else:
                     n_lines_reused += 1
 
-            # insert instances for this group
             n_i, n_t, fish_ids = _insert_instances_for_group(
                 cx,
                 line_id=line_id,
@@ -442,7 +533,6 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
             n_instances += n_i
             n_tanks += n_t
 
-            # build a group-level note that preserves description + enzyme
             desc = _norm(head.get("description"))
             enzyme_val = _norm(head.get("enzyme"))
             note_parts: List[str] = []
@@ -452,7 +542,6 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
                 note_parts.append(f"enzyme={enzyme_val}")
             link_note = " | ".join(note_parts) if note_parts else None
 
-            # link each instance to all treatments in this group
             for tid in treatment_ids:
                 link_instances_to_treatment(
                     cx,

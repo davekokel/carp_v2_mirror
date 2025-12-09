@@ -294,6 +294,12 @@ MGCO-54,LEMD2-mStayGold,Amp,,1,0,0,1,mStayGold,LEMD2,N
 MGCO-55,pex3-mStayGold,Amp,,1,0,0,1,mStayGold,pex3,N
 MGCO-56,tubba-mStayGold,Amp,,1,0,0,1,mStayGold,tubba,N
 MGCO-57,mStayGold-C4-CENPA,Amp,,1,0,0,1,mStayGold,CENPA,C
-swin-1,membrane tandem Halo (ef1a:2xLynk:tdHalo),,,1,0,0,1,halo,,
+pswin-1,membrane tandem Halo (ef1a:2xLynk:tdHalo),,,1,0,0,1,halo,,
+pswin-2,ef1a:H2B:Halo,,,1,0,0,1,halo,h2b,N
 pMNM002,A2UCOE-ef1a-extended-link-tdm:mScarlet3S2,Amp,,1,0,0,1,tdmScarlet3S2,,
-pJWL001,ef1a-extended-2xLynk:tdmSc3S2-SV40-attB-tol2,Amp,,1,0,0,1,mScarlet3S2,,
+pJWL001,ef1a-extended-2xLynk:tdmSc3S2-SV40-attB-tol2,Amp,,1,0,0,1,mScarlet3S2,2xLynk,N
+pJWL002,A2UCOE-ef1a-extended-2xLynk:tdmSc3S2-SV40-attB-tol2,Amp,,1,0,0,1,mScarlet3S2,2xLynk,N
+MGCO-58,A2UCOE-attb_entire+PDQM148-mStayGold-C4-centrin2,Amp,,1,0,0,,mStayGold,centrin2,C
+MGCO-59,A2UCOE-attb_entire+PDQM148-mStayGold-C4-Fibrillain,Amp,,1,0,0,,mStayGold,Fibrillain,C
+MGCO-60,A2UCOE-attb_entire+PDQM148-mStayGold-C4-moesin,Amp,,1,0,0,,mStayGold,moesin,C
+MGCO-62,A2UCOE-attb_entire+PDQM148-mStayGold-C4-myosin1A,Amp,,1,0,0,,mStayGold,myosin1A,C
