@@ -268,17 +268,17 @@ def build_petri_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
 
 def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     """
-    2.4\" × 1.5\"; paddings L/R/T/B = 10/10/8/8 pt; QR = 40 pt; gap = 6 pt.
+    2.4\" × 1.5\" tank labels with QR.
 
-    We intentionally show FUSIONS ONLY as the construct line (no genotype):
+    Lines:
 
-      line 1: header / label        (nickname or label)
-      line 2: nickname              (if different from header; otherwise blank)
-      line 3: tank_display          (e.g. TANK(FSH-…)#1)
-      line 4: fusions               (e.g. tdmstaygold)
-      line 5: genetic_background
-      line 6: stage
-      line 7: dob
+      1. tank code (header)
+      2. nickname
+      3. tg_style         — treatment > genotype / genotype / "background only"
+      4. tag_style        — treatment > tag-style / tag-style / "background only"
+      5. org_style        — treatment > org-style / org-style / "background only"
+      6. stage            — e.g. "Tank 1 P0"
+      7. dob              — "DOB:YYYY-MM-DD" (always last line)
     """
     canvas, stringWidth, inch, mm, TTFont, pdfmetrics = _rl_or_none()
     W = 2.4 * 72.0
@@ -286,37 +286,33 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     PAD_L, PAD_R, PAD_T, PAD_B = 10.0, 10.0, 8.0, 8.0
     QR_SIZE, QR_GAP = 40.0, 6.0
     TOP_PAD_FRAC = 0.82
-    MIN_FS = 7.0
+    MIN_FS = 6.5
 
-    # Fallback if ReportLab isn't available: basic one-up PDF using our generic renderer
+    # Fallback if ReportLab isn't available
     if canvas is None:
         pages: List[List[str]] = []
         for r in rows:
-            header_name = _safe(r.get("label") or r.get("nickname") or r.get("tank_code"))
-            nick = _safe(r.get("nickname"))
-            tankdisp = _safe(r.get("tank_display") or r.get("tank_code"))
-            fusions  = _safe(r.get("fusions"))
-            backgrnd = _safe(r.get("genetic_background"))
-            stage    = _safe(r.get("stage") or r.get("line_building_stage"))
-            dob      = _safe(r.get("dob"))
+            header = _safe(r.get("label") or r.get("tank_code") or r.get("nickname"))
+            nickname = _safe(r.get("nickname"))
+            tg_style = _safe(r.get("tg_style") or r.get("tank_display"))
+            tag_style = _safe(r.get("tag_style"))
+            org_style = _safe(r.get("org_style"))
+            stage = _safe(r.get("stage") or r.get("line_building_stage"))
+            dob = _safe(r.get("dob"))
 
-            lines = [header_name]
-            # only add a second line if nickname isn't already used as header
-            if nick and nick != header_name:
-                lines.append(nick)
-            lines += [
-                tankdisp,
-                fusions,
-                backgrnd,
-                stage,
-                dob,
-            ]
+            lines = [header]
+            if nickname:
+                lines.append(nickname)
+            lines.extend([tg_style, tag_style, org_style, stage, dob])
             pages.append(lines)
 
         return _labels_pdf_pages(
             pages=pages,
-            width_in=2.4, height_in=1.5,
-            header_pt=11.0, body_pt=8.2, leading_pt=9.0,
+            width_in=2.4,
+            height_in=1.5,
+            header_pt=10.0,
+            body_pt=7.0,
+            leading_pt=7.8,
         )
 
     # ReportLab path
@@ -336,7 +332,7 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     c = canvas.Canvas(buf, pagesize=(W, H))
 
     text_w_full = W - PAD_L - PAD_R
-    text_w_qr   = W - PAD_L - PAD_R - QR_SIZE - QR_GAP
+    text_w_qr = W - PAD_L - PAD_R - QR_SIZE - QR_GAP
 
     def _ellipsize(txt: str, font_name: str, font_size: float, max_w: float) -> str:
         if not txt:
@@ -358,8 +354,10 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
         try:
             code = qr.QrCodeWidget(payload or "")
             bx0, by0, bx1, by1 = code.getBounds()
-            bw = max(1.0, bx1 - bx0); bh = max(1.0, by1 - by0)
-            sx = size / bw; sy = size / bh
+            bw = max(1.0, bx1 - bx0)
+            bh = max(1.0, by1 - by0)
+            sx = size / bw
+            sy = size / bh
             d = Drawing(size, size, transform=[sx, 0, 0, sy, 0, 0])
             d.add(code)
             renderPDF.draw(d, c, x, y)
@@ -368,28 +366,28 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
 
     for r in rows:
         x0, y0 = PAD_L, PAD_B
-        w  = W - PAD_L - PAD_R
-        h  = H - PAD_B - PAD_T
+        w = W - PAD_L - PAD_R
+        h = H - PAD_B - PAD_T
 
         qr_x, qr_y = x0 + w - QR_SIZE, y0
 
-        # Header / nickname / tank / fusions / background / stage / dob
-        header    = _safe(r.get("label") or r.get("nickname") or r.get("tank_code"))
-        nickname  = _safe(r.get("nickname"))
-        tankdisp  = _safe(r.get("tank_display") or r.get("tank_code"))
-        fusions   = _safe(r.get("fusions"))
-        backgrnd  = _safe(r.get("genetic_background"))
-        stage     = _safe(r.get("stage") or r.get("line_building_stage"))
-        dob       = _safe(r.get("dob"))
+        header = _safe(r.get("label") or r.get("tank_code") or r.get("nickname"))
+        nickname = _safe(r.get("nickname"))
+        tg_style = _safe(r.get("tg_style") or r.get("tank_display"))
+        tag_style = _safe(r.get("tag_style"))
+        org_style = _safe(r.get("org_style"))
+        stage = _safe(r.get("stage") or r.get("line_building_stage"))
+        dob = _safe(r.get("dob"))
 
+        # 7 lines, smaller fonts
         lines = [
-            ("Helvetica-Bold", 10.5, header,   text_w_full),   # line 1: header (nickname/label)
-            ("Helvetica",      10.0, nickname if nickname != header else "", text_w_full),  # line 2: nickname if distinct
-            ("Helvetica-Bold", 11.0, tankdisp, text_w_full),   # line 3: tank display
-            (mono_font_name,    9.2, fusions,  text_w_full),   # line 4: FUSIONS ONLY
-            ("Helvetica",       8.2, backgrnd, text_w_qr),     # line 5: background
-            ("Helvetica",       8.2, stage,    text_w_qr),     # line 6: stage
-            ("Helvetica",       8.2, dob,      text_w_qr),     # line 7: dob
+            ("Helvetica-Bold", 9.5, header,    text_w_full),  # tank code
+            ("Helvetica",      8.5, nickname,  text_w_full),  # nickname
+            ("Helvetica",      8.0, tg_style,  text_w_full),  # tg-style
+            ("Helvetica",      7.5, tag_style, text_w_full),  # tag-style
+            ("Helvetica",      7.5, org_style, text_w_full),  # org-style
+            ("Helvetica",      7.0, stage,     text_w_qr),    # stage/Tank #
+            ("Helvetica",      7.0, dob,       text_w_qr),    # DOB:...
         ]
 
         lane_h = h / len(lines)
@@ -398,9 +396,9 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
         for idx, (fn, fs, txt, max_w) in enumerate(lines):
             if not txt:
                 continue
-            fs_lane = max(MIN_FS, min(fs, lane_h - 1.0))
+            fs_lane = max(MIN_FS, min(fs, lane_h - 0.5))
             fs_use = fs_lane
-            if fn.endswith("Bold") and txt:
+            if txt and _sw(txt, fn, fs_use) > max_w:
                 while fs_use > MIN_FS and _sw(txt, fn, fs_use) > max_w:
                     fs_use -= 0.3
             y = y_top - (idx * lane_h) - (fs_use * TOP_PAD_FRAC)

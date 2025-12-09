@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
+from .fish_v11_kinds import classify_instance_construct_kind
 
 from .fish_v11_core import (
     _norm,
@@ -159,7 +160,10 @@ def _insert_instances_for_group(
     group_rows: pd.DataFrame,
 ) -> Tuple[int, int, List[str]]:
     """
-    Insert instances for one logical group and return (n_instances, n_tanks, fish_instance_ids).
+    Insert instances for one logical group and return (n_instances, n_tanks_created, fish_instance_ids).
+
+    Tank creation is now handled by explicit workflows (e.g. add clutch to nursery),
+    so this loader only creates fish_instances_v10 rows. n_tanks_created is always 0.
     """
     n_instances = 0
     n_tanks = 0
@@ -233,8 +237,7 @@ def _insert_instances_for_group(
         fish_ids.append(fid)
         n_instances += 1
 
-        ensure_tank_for_instance(cx, fid, code)
-        n_tanks += 1
+        # No automatic tank creation here. Tanks are created only via explicit workflows.
 
     return n_instances, n_tanks, fish_ids
 
@@ -440,11 +443,10 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
                     default_zygosity=zygosity,
                 )
 
-                origin_kind = "treated_transgenic"
-                if created_new_line:
-                    n_lines_created += 1
-                else:
-                    n_lines_reused += 1
+                origin_kind = classify_instance_construct_kind(
+                    has_genotype_constructs=True,
+                    has_treatment_constructs=True,
+                )
 
             else:
                 nn = line_nickname or (bg_code or "treated_background")
@@ -515,11 +517,10 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
 
                 genotype_v11_id = None
                 genotype_basecodes = None
-                origin_kind = "treatment_only"
-                if created_new_line:
-                    n_lines_created += 1
-                else:
-                    n_lines_reused += 1
+                origin_kind = classify_instance_construct_kind(
+                    has_genotype_constructs=False,
+                    has_treatment_constructs=True,
+                )
 
             n_i, n_t, fish_ids = _insert_instances_for_group(
                 cx,

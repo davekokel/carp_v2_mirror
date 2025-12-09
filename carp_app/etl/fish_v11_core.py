@@ -744,9 +744,10 @@ def _create_instances_with_genotype_and_bg(
 ) -> Tuple[int, int]:
     """
     Create instances under the given line_id, set genotype_v11_id (or NULL),
-    per-instance genetic_background + origin_kind, and create tanks.
+    per-instance genetic_background + origin_kind.
 
-    Returns (n_instances, n_tanks).
+    Returns (n_instances, n_tanks_created). Tank creation is now handled by explicit
+    workflows (e.g. add clutch to nursery), so n_tanks_created is always 0.
     """
     n_instances = 0
     n_tanks = 0
@@ -819,7 +820,6 @@ def _create_instances_with_genotype_and_bg(
         fish_instance_id = row._mapping["fish_instance_id"]
         n_instances += 1
 
-        ensure_tank_for_instance(cx, fish_instance_id, code)
-        n_tanks += 1
+        # No automatic tank creation here. Tanks are created only via explicit workflows.
 
     return n_instances, n_tanks

@@ -4,6 +4,7 @@ import re
 import uuid
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
+from .fish_v11_kinds import classify_instance_construct_kind
 
 import pandas as pd
 from sqlalchemy import text
@@ -128,24 +129,32 @@ def _classify_origin_kind(
     created_new_line: bool,
 ) -> str:
     """
-    Coarse origin classification for a grouped CSV chunk.
+    Construct-based origin classification for a grouped CSV chunk.
 
-    For the genetics loader:
+    Genetics-only loader:
 
-      - background_only        (no base, no allele)
-      - transgenic_new_line
-      - transgenic_existing_line
+      - background       (no base, no allele)
+      - transgenic       (base + allele)
+
+    Any other combination (e.g. base only, allele only) is invalid here and should
+    be handled by the treatments loader instead.
     """
     has_base = bool(_norm(base_norm))
     has_allele = bool(_norm(allele_nick))
 
     # Background-only: no explicit transgene, no allele
     if not has_base and not has_allele:
-        return "background_only"
+        return classify_instance_construct_kind(
+            has_genotype_constructs=False,
+            has_treatment_constructs=False,
+        )
 
     # Genotyped transgenic: both base and allele set
     if has_base and has_allele:
-        return "transgenic_new_line" if created_new_line else "transgenic_existing_line"
+        return classify_instance_construct_kind(
+            has_genotype_constructs=True,
+            has_treatment_constructs=False,
+        )
 
     # Any other combo (e.g. base only, allele only) should be rejected by caller
     raise ValueError(

@@ -1,9 +1,9 @@
 # carp_app/ui/pages/260_🖨️_print_tank_labels.py
-# 🖨️ Print tank labels (v11) — tank_code, allele_label, organelle-fluor, stage + DOB
+# 🖨️ Print tank labels (v11) — tank_code, nickname, treatment/genotype styles, organelle-fluor, Tank N + DOB
 
 from __future__ import annotations
 
-import os, sys, pathlib
+import sys, pathlib
 from typing import List, Dict, Tuple, Any
 
 import pandas as pd
@@ -65,7 +65,6 @@ def _safe(v: Any) -> str:
     if isinstance(v, (pd.Timestamp,)):
         return v.strftime("%Y-%m-%d")
     return str(v)
-
 
 
 # ── data loaders (v11) ───────────────────────────────────────────────────────
@@ -134,11 +133,16 @@ def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
             columns=[
                 "tank_code",
                 "fish_code",
+                "nickname",
                 "allele_labels",
                 "allele_canonical",
                 "line_building_stage",
                 "dob",
                 "organelle_fluor",
+                "tg_style",
+                "fluortag_style",
+                "fluororganelle_style",
+                "tank_index",
             ]
         )
 
@@ -148,6 +152,7 @@ def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
             SELECT
               t.tank_code,
               fis.fish_code,
+              COALESCE(fis.line_nickname, '')              AS nickname,
               -- canonical-only rollup
               COALESCE(fa.allele_canonical_rollup, '')      AS allele_canonical,
               -- canonical + pretty label for display on labels
@@ -163,7 +168,35 @@ def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
               END                                           AS allele_labels,
               COALESCE(fis.instance_stage, '')              AS line_building_stage,
               fis.birthday                                  AS dob,
-              COALESCE(mr.organelle_fluor_rollup, '')       AS organelle_fluor
+              COALESCE(mr.organelle_fluor_rollup, '')       AS organelle_fluor,
+              -- treatment > genotype / genotype only / background only (tg style)
+              CASE
+                WHEN flbls.treatment_codes IS NOT NULL AND flbls.genotype_tg_style IS NOT NULL
+                  THEN flbls.treatment_label_tg_style || ' > ' || flbls.genotype_tg_style
+                WHEN flbls.treatment_codes IS NOT NULL
+                  THEN flbls.treatment_label_tg_style
+                WHEN flbls.genotype_tg_style IS NOT NULL
+                  THEN flbls.genotype_tg_style
+                ELSE 'background only'
+              END AS treatment_or_genotype_tg_style,
+              CASE
+                WHEN flbls.treatment_codes IS NOT NULL AND flbls.genotype_fluortag_style IS NOT NULL
+                  THEN flbls.treatment_label_fluortag_style || ' > ' || flbls.genotype_fluortag_style
+                WHEN flbls.treatment_codes IS NOT NULL
+                  THEN flbls.treatment_label_fluortag_style
+                WHEN flbls.genotype_fluortag_style IS NOT NULL
+                  THEN flbls.genotype_fluortag_style
+                ELSE 'background only'
+              END AS treatment_or_genotype_fluortag_style,
+              CASE
+                WHEN flbls.treatment_codes IS NOT NULL AND flbls.genotype_fluororganelle_style IS NOT NULL
+                  THEN flbls.treatment_label_fluororganelle_style || ' > ' || flbls.genotype_fluororganelle_style
+                WHEN flbls.treatment_codes IS NOT NULL
+                  THEN flbls.treatment_label_fluororganelle_style
+                WHEN flbls.genotype_fluororganelle_style IS NOT NULL
+                  THEN flbls.genotype_fluororganelle_style
+                ELSE 'background only'
+              END AS treatment_or_genotype_fluororganelle_style
             FROM public.tanks t
             JOIN public.fish_instances_v10 fi
               ON fi.id = t.fish_instance_id
@@ -173,6 +206,8 @@ def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
               ON fa.fish_instance_id = fi.id
             LEFT JOIN public.v11_fish_marker_rollups mr
               ON mr.fish_instance_id = fi.id
+            LEFT JOIN public.v11_fish_instance_star_labels flbls
+              ON flbls.fish_instance_id = fi.id
             WHERE fis.fish_code = ANY(:codes)
             ORDER BY fis.birthday DESC NULLS LAST, t.tank_code
             """
@@ -184,6 +219,14 @@ def _load_tanks_for_fish(fish_codes: List[str]) -> pd.DataFrame:
 
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
+
+    # assign Tank 1 / Tank 2 / ... per (nickname, dob) group
+    if not df.empty:
+        df["dob_key"] = df["dob"].astype("string")
+        df["group_key"] = df["nickname"].astype("string") + "|" + df["dob_key"]
+        df["tank_index"] = df.groupby("group_key").cumcount() + 1
+    else:
+        df["tank_index"] = []
 
     return df
 
@@ -275,19 +318,25 @@ tank_picker = st.data_editor(
         [
             t_sel_col,
             "tank_code",
+            "nickname",
             "allele_labels",
             "organelle_fluor",
             "line_building_stage",
             "dob",
+            "treatment_or_genotype_tg_style",
+            "treatment_or_genotype_fluortag_style",
+            "treatment_or_genotype_fluororganelle_style",
+            "tank_index",
         ]
     ],
     hide_index=True,
     use_container_width=True,
     column_config={
         t_sel_col: st.column_config.CheckboxColumn("✓", default=False),
-        "tank_code": st.column_config.TextColumn("Tank", disabled=True),
+        "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
+        "nickname": st.column_config.TextColumn("Nickname", disabled=True),
         "allele_labels": st.column_config.TextColumn(
-            "Tg(base)labels", disabled=True, width="large"
+            "Tg(base)alleles", disabled=True, width="large"
         ),
         "organelle_fluor": st.column_config.TextColumn(
             "Organelle-fluor", disabled=True, width="large"
@@ -296,6 +345,18 @@ tank_picker = st.data_editor(
             "Stage", disabled=True
         ),
         "dob": st.column_config.DateColumn("DOB", disabled=True),
+        "treatment_or_genotype_tg_style": st.column_config.TextColumn(
+            "T/G (tg-style)", disabled=True, width="large"
+        ),
+        "treatment_or_genotype_fluortag_style": st.column_config.TextColumn(
+            "T/G (tag-style)", disabled=True, width="large"
+        ),
+        "treatment_or_genotype_fluororganelle_style": st.column_config.TextColumn(
+            "T/G (org-style)", disabled=True, width="large"
+        ),
+        "tank_index": st.column_config.NumberColumn(
+            "Tank # (per nickname+DOB)", disabled=True
+        ),
     },
     key="tank_picker_editor_v11",
 )
@@ -310,10 +371,9 @@ st.caption(f"Selected tanks: {len(chosen_tanks)}")
 if chosen_tanks.empty:
     st.stop()
 
-# ── Step 3 — label preview (vertical tables) ─────────────────────────────────
+# ── Step 3 — Label preview (vertical tables) ─────────────────────────────────
 st.subheader("3) Label preview (vertical tables)")
 
-# pagination control — one tank preview per page
 n = len(chosen_tanks)
 page = 1
 if n > 1:
@@ -321,40 +381,68 @@ if n > 1:
 idx = int(page) - 1
 row = chosen_tanks.iloc[idx].to_dict()
 
-stage_dob = " ".join(
-    x for x in [row.get("line_building_stage") or "", _safe(row.get("dob"))] if x
-)
+raw_stage = row.get("line_building_stage") or ""
+dob_str = _safe(row.get("dob"))
+dob_label = f"DOB:{dob_str}" if dob_str else ""
+tank_idx = row.get("tank_index")
+tank_idx_label = f"Tank {int(tank_idx)}" if tank_idx else ""
+stage_line = " ".join(x for x in [tank_idx_label, raw_stage] if x)
+
+def _strip_arrow(x: str) -> str:
+    return (x or "").lstrip("> ").strip()
+
+tg_style = _strip_arrow(row.get("treatment_or_genotype_tg_style") or "")
+tag_style = _strip_arrow(row.get("treatment_or_genotype_fluortag_style") or "")
+org_style = _strip_arrow(row.get("treatment_or_genotype_fluororganelle_style") or "")
 
 _vert_table(
     f"TANK {row.get('tank_code','')}",
     [
         ("Tank code", row.get("tank_code", "")),
-        ("Transgene alleles", row.get("allele_labels", "")),
-        ("Organelle-fluor", row.get("organelle_fluor", "")),
-        ("Stage + DOB", stage_dob),
+        ("Nickname", row.get("nickname", "")),
+        ("T/G (tg-style)", tg_style),
+        ("T/G (tag-style)", tag_style),
+        ("T/G (org-style)", org_style),
+        ("Stage", stage_line),
+        ("DOB", dob_label),
     ],
 )
 
-# ── Step 4 — Download / Print labels ─────────────────────────────────────────
+# ── Step 4 — Download / print tank labels ────────────────────────────────────
 st.subheader("4) Download / print tank labels")
 
 label_rows: List[Dict] = []
 for r in chosen_tanks.to_dict(orient="records"):
-    stage_dob = " ".join(
-        x for x in [r.get("line_building_stage") or "", _safe(r.get("dob"))] if x
-    )
+    raw_stage = r.get("line_building_stage") or ""
+    dob_str = _safe(r.get("dob"))
+    dob_label = f"DOB:{dob_str}" if dob_str else ""
+    tank_idx = r.get("tank_index")
+    tank_idx_label = f"Tank {int(tank_idx)}" if tank_idx else ""
+    stage_line = " ".join(x for x in [tank_idx_label, raw_stage] if x)
+
+    nickname = r.get("nickname") or ""
+
+    tg_style = _strip_arrow(r.get("treatment_or_genotype_tg_style") or "")
+    tag_style = _strip_arrow(r.get("treatment_or_genotype_fluortag_style") or "")
+    org_style = _strip_arrow(r.get("treatment_or_genotype_fluororganelle_style") or "")
 
     label_rows.append(
         {
             "label": r.get("tank_code"),
             "tank_code": r.get("tank_code"),
-            "nickname": "",
-            "tank_display": r.get("allele_labels") or "",
-            "fusions": r.get("organelle_fluor") or "",
+            "nickname": nickname,
+            # three explicit styles for the PDF builder
+            "tg_style": tg_style,
+            "tag_style": tag_style,
+            "org_style": org_style,
+            # stage / DOB for the bottom two lines
+            "line_building_stage": stage_line,
+            "stage": stage_line,
+            "dob": dob_label,
+            # these can stay blank for now
             "genetic_background": "",
-            "line_building_stage": stage_dob,
-            "stage": stage_dob,
-            "dob": None,
+            "tank_display": "",
+            "fusions": "",
         }
     )
 
