@@ -385,7 +385,7 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
             ("Helvetica",      8.5, nickname,  text_w_full),  # nickname
             ("Helvetica",      8.0, tg_style,  text_w_full),  # tg-style
             ("Helvetica",      7.5, tag_style, text_w_full),  # tag-style
-            ("Helvetica",      7.5, org_style, text_w_full),  # org-style
+            ("Helvetica",      7.5, org_style, text_w_qr),  # org-style
             ("Helvetica",      7.0, stage,     text_w_qr),    # stage/Tank #
             ("Helvetica",      7.0, dob,       text_w_qr),    # DOB:...
         ]
