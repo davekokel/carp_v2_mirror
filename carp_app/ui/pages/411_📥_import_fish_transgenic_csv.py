@@ -45,7 +45,7 @@ def eng() -> Engine:
 
 from sqlalchemy import text
 
-with _ENGINE.connect() as conn:
+with eng().connect() as conn:
     row = conn.execute(
         text("select current_user, current_database(), inet_server_addr();")
     ).first()
