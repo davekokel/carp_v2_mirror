@@ -43,6 +43,15 @@ def eng() -> Engine:
     return _engine()
 
 
+from sqlalchemy import text
+
+with _ENGINE.connect() as conn:
+    row = conn.execute(
+        text("select current_user, current_database(), inet_server_addr();")
+    ).first()
+
+st.caption(f"DB debug → user={row[0]}, db={row[1]}, host={row[2]}")
+
 # ───────── explainer ─────────
 
 st.markdown(
