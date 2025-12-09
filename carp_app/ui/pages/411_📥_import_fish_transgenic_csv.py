@@ -5,9 +5,12 @@ from __future__ import annotations
 import sys
 import pathlib
 from datetime import date
+import inspect
+import hashlib
 
 import pandas as pd
 import streamlit as st
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -38,12 +41,14 @@ st.set_page_config(
 )
 st.title("📥 Import fish (v11) from CSV")
 
+src = inspect.getsource(_load_fish_from_csv).encode("utf-8")
+loader_hash = hashlib.sha256(src).hexdigest()[:12]
+st.caption(f"loader_hash={loader_hash}")
+
 
 def eng() -> Engine:
     return _engine()
 
-
-from sqlalchemy import text
 
 with eng().connect() as conn:
     row = conn.execute(
