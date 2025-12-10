@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import pathlib
 from typing import List, Dict, Any
 
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy import text, create_engine
 from sqlalchemy.engine import Engine
 
 # ---- repo bootstrap ---------------------------------------------------------
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-
-from carp_app.ui.lib.page_engine import engine as get_engine  # type: ignore
 
 DEFAULT_BATCH_ID = "legacy_clutch_inference_2025-11-18"
 
@@ -119,7 +118,7 @@ def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Load inferred legacy clutches into public.clutches (v8)."
+        description="Load inferred legacy clutches into public.clutches."
     )
     parser.add_argument(
         "--csv",
@@ -137,7 +136,12 @@ def main() -> None:
     df = _load_legacy_clutches_csv(path)
     rows = _prepare_payload(df, args.batch)
 
-    engine = get_engine()
+    db_url = os.environ.get("DB_URL")
+    if not db_url:
+        raise RuntimeError("DB_URL environment variable is not set.")
+    print(f"DB_URL(loader_legacy_clutches)={db_url}")
+
+    engine = create_engine(db_url)
     _upsert_clutches(engine, rows, args.batch)
 
 
