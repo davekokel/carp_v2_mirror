@@ -396,7 +396,7 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
             gokul_size = max(header_font_size / 2.0, 4.0)
             c.setFont(header_font_name, gokul_size)
             # Top-right inside the label margins
-            x_gokul = x0 + text_w_qr  # right edge of text column, just left of QR
+            x_gokul = W - PAD_R
             y_gokul = H - PAD_T   # near the top edge, above the text block
             c.drawRightString(x_gokul, y_gokul, "gokul")
         except Exception:
