@@ -109,6 +109,117 @@ def _ensure_known_construct_basecodes(cx: Connection, basecodes: set[str]) -> No
         )
         raise ValueError(msg)
 
+def _ensure_injection_mix_for_base(
+    cx: Connection,
+    *,
+    treatment_id: str,
+    base_code: str,
+) -> None:
+    """
+    For an INJ-<base_code> treatment, ensure we have:
+
+      - a row in treatment_mixes for this treatment_id
+      - a row in treatment_mix_constructs linking that mix to the construct
+        whose base_code/construct_code matches <base_code>.
+
+    Idempotent: running this multiple times is safe.
+    """
+    bc = (base_code or "").strip().lower()
+    if not bc:
+        raise ValueError(f"INJ treatment with empty base_code: {base_code!r}")
+
+    # 1) Look up the construct for this base_code
+    row = cx.execute(
+        text(
+            """
+            SELECT id::text AS construct_id
+            FROM public.constructs
+            WHERE lower(base_code) = :code
+               OR lower(construct_code) = :code
+            ORDER BY created_at ASC
+            LIMIT 1;
+            """
+        ),
+        {"code": bc},
+    ).fetchone()
+
+    if row is None:
+        raise ValueError(
+            f"INJ treatment base_code={base_code!r} has no matching construct in public.constructs. "
+            "Add the construct (base_code/construct_code) before importing treated fish."
+        )
+
+    construct_id = row._mapping["construct_id"]
+
+    # 2) Ensure there is a treatment_mixes row for this treatment_id
+    mix_row = cx.execute(
+        text(
+            """
+            SELECT id::text AS mix_id
+            FROM public.treatment_mixes
+            WHERE treatment_id = (:treatment_id)::uuid
+              AND mix_code = :mix_code
+            ORDER BY created_at ASC
+            LIMIT 1;
+            """
+        ),
+        {"treatment_id": treatment_id, "mix_code": bc},
+    ).fetchone()
+
+    if mix_row is None:
+        mix_row = cx.execute(
+            text(
+                """
+                INSERT INTO public.treatment_mixes (
+                  id,
+                  treatment_id,
+                  mix_code,
+                  notes,
+                  created_at
+                )
+                VALUES (
+                  gen_random_uuid(),
+                  (:treatment_id)::uuid,
+                  :mix_code,
+                  :notes,
+                  now()
+                )
+                RETURNING id::text AS mix_id;
+                """
+            ),
+            {
+                "treatment_id": treatment_id,
+                "mix_code": bc,
+                "notes": "auto mix from fish_v11_treatments_import",
+            },
+        ).fetchone()
+
+    mix_id = mix_row._mapping["mix_id"]
+
+    # 3) Ensure there is a treatment_mix_constructs row linking mix→construct
+    cx.execute(
+        text(
+            """
+            INSERT INTO public.treatment_mix_constructs (
+              mix_id,
+              construct_id,
+              concentration,
+              notes,
+              created_at
+            )
+            VALUES (
+              (:mix_id)::uuid,
+              (:construct_id)::uuid,
+              NULL,
+              'auto link from fish_v11_treatments_import',
+              now()
+            )
+            ON CONFLICT DO NOTHING;
+            """
+        ),
+        {"mix_id": mix_id, "construct_id": construct_id},
+    )
+
 def _normalize_base_code(raw: Any) -> Optional[str]:
     """
     Normalize a construct / treatment base_code into canonical base_code.
@@ -390,9 +501,17 @@ def load_treated_fish_from_csv(df_raw: pd.DataFrame, cx: Connection) -> Dict[str
 
             treatment_ids: List[str] = []
             for tb in treat_bases:
+                # tb is canonical base_code, e.g. 'mgco-59' or 'pdqm-5'
                 tid = ensure_injection_treatment_single_base(cx, base_code=tb)
                 treatment_ids.append(tid)
                 n_treatments_touched.add(tb)
+
+                # NEW: ensure the INJ treatment has a mix + construct ingredient
+                _ensure_injection_mix_for_base(
+                    cx,
+                    treatment_id=tid,
+                    base_code=tb,
+                )
 
             resolved_alleles: List[Dict[str, Any]] = []
             genotype_v11_id: Optional[str] = None

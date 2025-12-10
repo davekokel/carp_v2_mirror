@@ -310,7 +310,41 @@ def main() -> None:
             mix_id = m_row._mapping["mix_id"]
             inserted_mixes += 1
 
-            for _, ing in g.iterrows():
+            # Collect this group's ingredient rows
+            rows_for_mix = list(g.iterrows())
+
+            # Does this group already contain at least one construct ingredient?
+            has_construct = any(
+                norm(ing["ingredient_type"]).lower() == "construct"
+                and norm(ing["ingredient_code"])
+                for _, ing in rows_for_mix
+            )
+
+            # If this is an injection treatment (INJ-*) with no explicit construct ingredient,
+            # synthesize a construct ingredient from the base code (INJ-mgco-59 → mgco-59).
+            if not has_construct and t_code.upper().startswith("INJ-"):
+                base_code = t_code.split("-", 1)[1].strip()
+                if base_code:
+                    synthetic_ing = pd.Series(
+                        {
+                            "ingredient_type": "construct",
+                            "ingredient_code": base_code,
+                            "concentration": "",
+                        }
+                    )
+                    rows_for_mix.append((None, synthetic_ing))
+                    print(
+                        f"[v10_load_treatments] INFO: auto-added construct ingredient {base_code!r} "
+                        f"for injection treatment={t_code}, mix={mix_code or 'default'}"
+                    )
+                else:
+                    print(
+                        f"[v10_load_treatments] WARN: INJ treatment={t_code} "
+                        f"had no base_code part; cannot auto-add construct ingredient."
+                    )
+
+            # Now process all ingredient rows (original + synthetic, if any)
+            for _, ing in rows_for_mix:
                 itype = norm(ing["ingredient_type"]).lower()
                 code = norm(ing["ingredient_code"])
                 conc = norm(ing["concentration"]) or None
@@ -327,7 +361,7 @@ def main() -> None:
                     if not hit:
                         print(
                             f"[v10_load_treatments] WARN: unknown construct ingredient_code={code!r} "
-                            f"for treatment={t_code}, mix={mix_code}"
+                            f"for treatment={t_code}, mix={mix_code or 'default'}"
                         )
                         skipped_ingredients += 1
                         continue
@@ -350,7 +384,7 @@ def main() -> None:
                     if not dye_id:
                         print(
                             f"[v10_load_treatments] WARN: unknown dye ingredient_code={code!r} "
-                            f"for treatment={t_code}, mix={mix_code}"
+                            f"for treatment={t_code}, mix={mix_code or 'default'}"
                         )
                         skipped_ingredients += 1
                         continue

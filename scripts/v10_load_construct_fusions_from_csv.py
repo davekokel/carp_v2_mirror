@@ -303,11 +303,11 @@ def main() -> None:
             if tag_code_raw:
                 t_key = norm_key(tag_code_raw)
                 tag_id = tag_lookup.get(t_key)
-                if not tag_id and tag_code_raw not in unknown_tags:
-                    print(
-                        f"[v10_load_construct_fusions] WARN: unknown tag_code={tag_code_raw!r}; using NULL tag."
-                    )
+                if not tag_id:
+                    # Record the unknown tag and skip this fusion row;
+                    # we'll fail at the end if any unknown tags were seen.
                     unknown_tags.add(tag_code_raw)
+                    continue
 
             if tag_id is None:
                 tag_pos = None
@@ -345,7 +345,12 @@ def main() -> None:
             "[v10_load_construct_fusions] unresolved plasmid_code values:",
             ", ".join(sorted(unknown_constructs)),
         )
-
+    if unknown_tags:
+        raise SystemExit(
+            "[v10_load_construct_fusions] unknown tag_code(s) in constructs CSV: "
+            + ", ".join(sorted(unknown_tags))
+            + ". Add these tags to tags.csv (and reload tags) before loading construct fusions."
+        )
 
 if __name__ == "__main__":
     main()
