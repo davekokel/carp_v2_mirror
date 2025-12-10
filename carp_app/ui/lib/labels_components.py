@@ -393,7 +393,7 @@ def build_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
         # "gokul" stamp: half the header size, in the top-right corner
         header_font_name, header_font_size, _, _ = lines[0]
         try:
-            gokul_size = max(header_font_size / 2.0, 4.0)
+            gokul_size = max(header_font_size / 1.0, 4.0)
             c.setFont(header_font_name, gokul_size)
             # Top-right inside the label margins
             x_gokul = W - PAD_R
