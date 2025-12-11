@@ -274,6 +274,10 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
 
 # ------------------ UI -------------------------------------------------------
 
+# Session state for persistent parent selection across searches
+if "selected_parent_fish_codes" not in st.session_state:
+    st.session_state["selected_parent_fish_codes"] = []
+
 with st.form("filters"):
     c1, c2 = st.columns([3, 1])
     with c1:
@@ -307,7 +311,14 @@ view = df[
         "live_tank_codes",
     ]
 ].copy()
-view.insert(0, "✓ Parent", False)
+
+# --- NEW LOGIC: keep selections that are not visible in this search ---
+
+prev_selection: List[str] = st.session_state.get("selected_parent_fish_codes", [])
+visible_codes = view["fish_code"].astype(str).tolist()
+
+# Pre-populate checkboxes for codes that were previously selected *and* are visible
+view.insert(0, "✓ Parent", view["fish_code"].isin(prev_selection))
 
 pick = st.data_editor(
     view,
@@ -338,15 +349,37 @@ pick = st.data_editor(
     },
 )
 
-parents = (
-    pick.loc[pick["✓ Parent"], "fish_code"].dropna().astype(str).tolist()
-    if not pick.empty
-    else []
-)
-parents = list(dict.fromkeys(parents))[:2]
+# What is selected *in this view* right now?
+if not pick.empty:
+    visible_selected = (
+        pick.loc[pick["✓ Parent"], "fish_code"].dropna().astype(str).tolist()
+    )
+    visible_selected = list(dict.fromkeys(visible_selected))  # preserve order, dedupe
+else:
+    visible_selected = []
+
+# Split previous selection into "hidden" vs "visible in this view"
+hidden_prev = [c for c in prev_selection if c not in visible_codes]
+
+# Combine:
+#   - keep hidden previous selections
+#   - override selections for visible rows with the current checkbox state
+combined: List[str] = []
+for code in hidden_prev + visible_selected:
+    if code not in combined:
+        combined.append(code)
+
+# Enforce max of two parents
+combined = combined[:2]
+
+st.session_state["selected_parent_fish_codes"] = combined
+parents = combined
 
 if len(parents) < 2:
-    st.info("Select two parents above to continue.")
+    if parents:
+        st.info(f"Currently selected parent(s): {', '.join(parents)}. Select one more to continue.")
+    else:
+        st.info("Select two parents above to continue.")
     st.stop()
 
 st.success(f"Selected parents: {parents[0]} × {parents[1]}")
