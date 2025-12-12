@@ -162,54 +162,83 @@ def _labels_pdf_pages(
 
 def build_crossing_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     """
-    2.4" × 1.0"; header/body/leading = 9.2 / 7.0 / 7.2
-
-    Lines:
-      CROSS {cross_code}
-      M: {mother_tank}
-      D: {father_tank}
-      M geno: {mom_genotype}      [optional]
-      D geno: {dad_genotype}      [optional]
-      ↓ {clutch_label} · {clutch_fluors}   [optional arrow row]
+    CROSSING label (2.4" x 1.0")
+      - header: "CROSS {cross_code}"
+      - body:
+          M: {mother_tank_label or mother_tank_code}
+          D: {father_tank_label or father_tank_code}
+          M geno: {mom_genotype} [optional]
+          D geno: {dad_genotype} [optional]
+          {fusions}             [optional]
+      - footer (bottom-right): r["footer_right"] [optional]
     """
-    pages: List[List[str]] = []
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import inch
+    from io import BytesIO
+
+    # Keep your existing label sizing conventions
+    label_w = 2.4 * inch
+    label_h = 1.0 * inch
+    pad = 0.08 * inch
+
+    header_font = 8.2
+    body_font = 7.0
+    leading = 7.2
+    footer_font = 6.2
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=(label_w, label_h))
+
     for r in rows:
         cross_code = _safe(r.get("cross_code"))
+        header = f"CROSS {cross_code}".strip()
+
         mom_tank = _safe(r.get("mother_tank_label") or r.get("mother_tank_code"))
         dad_tank = _safe(r.get("father_tank_label") or r.get("father_tank_code"))
+
         mom_g = _safe(r.get("mom_genotype"))
         dad_g = _safe(r.get("dad_genotype"))
-        clutch_label = _safe(r.get("clutch_label"))
-        clutch_fluors = _safe(r.get("clutch_fluors"))
+        fusions = _safe(r.get("fusions"))
+        mom_ft = _safe(r.get("mom_fluortag"))
+        dad_ft = _safe(r.get("dad_fluortag"))
 
-        arrow_line = ""
-        if clutch_label or clutch_fluors:
-            arrow_line = f"↓ {clutch_label}"
-            if clutch_fluors:
-                arrow_line += f" · {clutch_fluors}"
-
-        lines = [
-            f"CROSS {cross_code}",
-            f"M: {mom_tank}",
-            f"D: {dad_tank}",
-        ]
+        lines: List[str] = []
+        lines.append(f"M: {mom_tank}".strip())
+        lines.append(f"D: {dad_tank}".strip())
         if mom_g:
             lines.append(f"M geno: {mom_g}")
         if dad_g:
             lines.append(f"D geno: {dad_g}")
-        if arrow_line:
-            lines.append(arrow_line)
+        if mom_ft:
+            lines.append(f"M ft: {mom_ft}")
+        if dad_ft:
+            lines.append(f"D ft: {dad_ft}")
+        elif fusions:
+            lines.append(str(fusions))
 
-        pages.append(lines)
+        # header
+        c.setFont("Helvetica-Bold", header_font)
+        c.drawString(pad, label_h - pad - header_font * 0.15, header)
 
-    return _labels_pdf_pages(
-        pages=pages,
-        width_in=2.4, height_in=1.0,
-        header_pt=9.0,   # slightly smaller header
-        body_pt=7.0,
-        leading_pt=7.8,  # more vertical spacing between lines
-        line_limit=8,
-    )
+        # body
+        c.setFont("Helvetica", body_font)
+        y = label_h - pad - header_font - (0.04 * inch)
+        for ln in lines:
+            if not ln:
+                continue
+            c.drawString(pad, y, ln)
+            y -= (leading * 0.9)
+
+        # footer bottom-right (optional)
+        footer = _safe(r.get("footer_right"))
+        if footer:
+            c.setFont("Helvetica", footer_font)
+            c.drawRightString(label_w - pad, pad * 0.75, footer)
+
+        c.showPage()
+
+    c.save()
+    return buf.getvalue()
 
 # --------------------------------------------------------------------
 #  B) Petri dish labels (2.4" x 0.75") — exact match
@@ -217,50 +246,72 @@ def build_crossing_tank_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
 
 def build_petri_labels_pdf(rows: Iterable[Dict[str, Any]]) -> bytes:
     """
-    2.4" × 0.75"; header/body/leading = 10.5 / 7.0 / 7.1
-
-    Lines (mirrors clutch preview fields):
-      {clutch_instance_code}
-      {DOB}
-      {clutch_genotype}            [optional]
-      Tx: {tx_codes}               [optional]
-      Flu: {tx_fluors}             [optional]
+    PETRI label (2.4" x 0.75")
+      - header: clutch_instance_code
+      - body:
+          clutch_genotype
+          date_birth
+          tx_codes [optional]
+          tx_fluors [optional]
+      - footer (bottom-right): r["footer_right"] [optional]
     """
-    pages: List[List[str]] = []
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import inch
+    from io import BytesIO
+
+    label_w = 2.4 * inch
+    label_h = 0.75 * inch
+    pad = 0.08 * inch
+
+    header_font = 9.2
+    body_font = 7.0
+    leading = 7.1
+    footer_font = 6.2
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=(label_w, label_h))
+
     for r in rows:
-        clutch_inst = _safe(r.get("clutch_instance_code"))
-        clutch_g = _safe(r.get("clutch_genotype"))
-
-        dob = r.get("date_birth")
-        dob_text = (
-            dob.strftime("%Y-%m-%d")
-            if isinstance(dob, (date, _dt))
-            else _safe(dob)
-        )
-
+        clutch_instance_code = _safe(r.get("clutch_instance_code"))
+        clutch_genotype = _safe(r.get("clutch_genotype"))
+        date_birth = _safe(r.get("date_birth"))
         tx_codes = _safe(r.get("tx_codes"))
-        tx_flu = _safe(r.get("tx_fluors"))
+        tx_fluors = _safe(r.get("tx_fluors"))
 
-        lines = [clutch_inst]
-        if dob_text:
-            lines.append(dob_text)
-        if clutch_g:
-            lines.append(clutch_g)
+        # header
+        c.setFont("Helvetica-Bold", header_font)
+        c.drawString(pad, label_h - pad - header_font * 0.15, clutch_instance_code)
+
+        # body
+        c.setFont("Helvetica", body_font)
+        y = label_h - pad - header_font - (0.03 * inch)
+
+        if clutch_genotype:
+            c.drawString(pad, y, clutch_genotype)
+            y -= (leading * 0.9)
+
+        if date_birth:
+            c.drawString(pad, y, str(date_birth))
+            y -= (leading * 0.9)
+
         if tx_codes:
-            lines.append(f"Tx: {tx_codes}")
-        if tx_flu:
-            lines.append(f"Flu: {tx_flu}")
+            c.drawString(pad, y, f"Tx: {tx_codes}")
+            y -= (leading * 0.9)
 
-        pages.append(lines)
+        if tx_fluors:
+            c.drawString(pad, y, str(tx_fluors))
+            y -= (leading * 0.9)
 
-    return _labels_pdf_pages(
-        pages=pages,
-        width_in=2.4, height_in=0.75,
-        header_pt=10.0,  # a bit smaller headline
-        body_pt=7.0,
-        leading_pt=7.6,  # more spacing between lines
-        line_limit=5,
-    )
+        # footer bottom-right (optional)
+        footer = _safe(r.get("footer_right"))
+        if footer:
+            c.setFont("Helvetica", footer_font)
+            c.drawRightString(label_w - pad, pad * 0.75, footer)
+
+        c.showPage()
+
+    c.save()
+    return buf.getvalue()
 
 # --------------------------------------------------------------------
 #  C) Tank labels with QR (2.4" x 1.5") — exact match

@@ -6,11 +6,12 @@ import os
 import sys
 import uuid
 import pathlib
-from typing import List, Optional, Dict, Tuple, Any
+from typing import List, Optional, Dict, Tuple
 
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 # ---- path/auth bootstrap ----------------------------------------------------
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -44,16 +45,25 @@ def eng():
     return _engine()
 
 
+def _mk_rollup_expr(treat_col: str, geno_col: str, bg_col: str, alias: str) -> str:
+    t = f"NULLIF(trim(COALESCE(fis.{treat_col},'')),'')"
+    g = f"NULLIF(trim(COALESCE(fis.{geno_col},'')),'')"
+    b = f"COALESCE(fis.{bg_col},'')"
+    return f"""
+    CASE
+      WHEN {t} IS NOT NULL AND {g} IS NOT NULL THEN (fis.{treat_col} || ' > ' || fis.{geno_col})
+      WHEN {t} IS NOT NULL THEN fis.{treat_col}
+      WHEN {g} IS NOT NULL THEN fis.{geno_col}
+      ELSE {b}
+    END AS {alias}
+    """.strip()
+
+
 # ------------------ core queries (v11) ---------------------------------------
 
 
 @st.cache_data(show_spinner=False)
 def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
-    """
-    Search fish instances (FSH codes) using v11_fish_instance_star_labels
-    + live tank counts from v_tanks_overview.
-    Uses the 3 genotype style fields.
-    """
     qnorm = (q or "").strip()
     params: Dict[str, object] = {
         "q": (qnorm if qnorm else None),
@@ -61,8 +71,27 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
         "lim": int(limit),
     }
 
+    roll_tg = _mk_rollup_expr(
+        treat_col="treatment_label_tg_style",
+        geno_col="genotype_tg_style",
+        bg_col="genetic_background",
+        alias="marker_rollup_tg_style",
+    )
+    roll_ft = _mk_rollup_expr(
+        treat_col="treatment_label_fluortag_style",
+        geno_col="genotype_fluortag_style",
+        bg_col="genetic_background",
+        alias="marker_rollup_fluortag_style",
+    )
+    roll_fo = _mk_rollup_expr(
+        treat_col="treatment_label_fluororganelle_style",
+        geno_col="genotype_fluororganelle_style",
+        bg_col="genetic_background",
+        alias="marker_rollup_fluororganelle_style",
+    )
+
     sql = text(
-        """
+        f"""
         WITH base AS (
           SELECT
             fis.fish_instance_id,
@@ -74,6 +103,13 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
             COALESCE(fis.genotype_tg_style,'')          AS genotype_tg_style,
             COALESCE(fis.genotype_fluortag_style,'')    AS genotype_fluortag_style,
             COALESCE(fis.genotype_fluororganelle_style,'') AS genotype_fluororganelle_style,
+            COALESCE(fis.treatment_codes,'')       AS treatment_codes,
+            COALESCE(fis.treatment_label_tg_style,'') AS treatment_label_tg_style,
+            COALESCE(fis.treatment_label_fluortag_style,'') AS treatment_label_fluortag_style,
+            COALESCE(fis.treatment_label_fluororganelle_style,'') AS treatment_label_fluororganelle_style,
+            {roll_tg},
+            {roll_ft},
+            {roll_fo},
             fis.birthday                           AS birthday,
             fis.birthday                           AS created_at
           FROM public.v11_fish_instance_star_labels fis
@@ -86,6 +122,10 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
                OR COALESCE(fis.genotype_tg_style,'')   ILIKE :ql
                OR COALESCE(fis.genotype_fluortag_style,'') ILIKE :ql
                OR COALESCE(fis.genotype_fluororganelle_style,'') ILIKE :ql
+               OR COALESCE(fis.treatment_codes,'')     ILIKE :ql
+               OR COALESCE(fis.treatment_label_tg_style,'') ILIKE :ql
+               OR COALESCE(fis.treatment_label_fluortag_style,'') ILIKE :ql
+               OR COALESCE(fis.treatment_label_fluororganelle_style,'') ILIKE :ql
              )
           ORDER BY fis.birthday DESC NULLS LAST, fis.fish_code
           LIMIT :lim
@@ -104,11 +144,12 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
           b.line_code,
           b.nickname                  AS name,
           b.genetic_background        AS background,
-          b.stage                     AS stage,
-          b.genotype_tg_style,
-          b.genotype_fluortag_style,
-          b.genotype_fluororganelle_style,
           b.birthday                  AS birthday,
+          b.stage                     AS stage,
+          b.treatment_codes           AS treatment_codes,
+          b.marker_rollup_tg_style,
+          b.marker_rollup_fluortag_style,
+          b.marker_rollup_fluororganelle_style,
           COALESCE(l.n_live, 0)       AS live_tanks,
           COALESCE(l.live_tank_codes,'') AS live_tank_codes
         FROM base b
@@ -126,22 +167,42 @@ def search_fish(q: Optional[str], limit: int) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def load_active_tanks_for_fish(codes: List[str]) -> pd.DataFrame:
-    """
-    Return active tanks for the given FSH fish_codes,
-    with line nickname + 3 genotype display styles.
-    """
     if not codes:
         return pd.DataFrame()
 
+    roll_tg = _mk_rollup_expr(
+        treat_col="treatment_label_tg_style",
+        geno_col="genotype_tg_style",
+        bg_col="genetic_background",
+        alias="marker_rollup_tg_style",
+    )
+    roll_ft = _mk_rollup_expr(
+        treat_col="treatment_label_fluortag_style",
+        geno_col="genotype_fluortag_style",
+        bg_col="genetic_background",
+        alias="marker_rollup_fluortag_style",
+    )
+    roll_fo = _mk_rollup_expr(
+        treat_col="treatment_label_fluororganelle_style",
+        geno_col="genotype_fluororganelle_style",
+        bg_col="genetic_background",
+        alias="marker_rollup_fluororganelle_style",
+    )
+
     sql = text(
-        """
+        f"""
         SELECT
           ts.fish_code,
           fis.line_code,
           fis.line_nickname                      AS fish_name,
-          COALESCE(fis.genotype_tg_style,'')          AS genotype_tg_style,
-          COALESCE(fis.genotype_fluortag_style,'')    AS genotype_fluortag_style,
-          COALESCE(fis.genotype_fluororganelle_style,'') AS genotype_fluororganelle_style,
+          COALESCE(fis.genetic_background,'')    AS background,
+          COALESCE(fis.treatment_codes,'')       AS treatment_codes,
+          COALESCE(fis.treatment_label_tg_style,'') AS treatment_label_tg_style,
+          COALESCE(fis.treatment_label_fluortag_style,'') AS treatment_label_fluortag_style,
+          COALESCE(fis.treatment_label_fluororganelle_style,'') AS treatment_label_fluororganelle_style,
+          {roll_tg},
+          {roll_ft},
+          {roll_fo},
           fis.birthday                           AS birthday,
           ts.tank_code,
           ts.tank_id::text                       AS tank_id,
@@ -190,23 +251,10 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
     mom_col, dad_col = _tank_pair_parent_cols()
 
     with eng().begin() as cx:
-        cols_df = pd.read_sql(
-            text(
-                """
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_schema='public' AND table_name='tank_pairs';
-                """
-            ),
-            cx,
-        )
-        cols = set(cols_df["column_name"].tolist())
-
-        # 1) Try to find an existing tank_pair for this mother/father
         row = pd.read_sql(
             text(
                 f"""
-                SELECT id::text, tank_pair_code
+                SELECT tank_pair_code
                 FROM public.tank_pairs
                 WHERE {mom_col} = :m AND {dad_col} = :d
                 LIMIT 1;
@@ -215,37 +263,11 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
             cx,
             params={"m": mother_tank_id, "d": father_tank_id},
         )
-
         if not row.empty:
-            sets = []
-            params = {"id": row.iloc[0]["id"], "note": note, "by": created_by}
-            if "updated_at" in cols:
-                sets.append("updated_at = now()")
-            if "notes" in cols:
-                sets.append("notes = COALESCE(NULLIF(:note,''), notes)")
-            if "updated_by" in cols:
-                sets.append("updated_by = COALESCE(NULLIF(:by,''), updated_by)")
-            if sets:
-                cx.execute(
-                    text(
-                        f"UPDATE public.tank_pairs SET {', '.join(sets)} WHERE id = :id::uuid"
-                    ),
-                    params,
-                )
-            return False, str(row.iloc[0]["tank_pair_code"])
+            return False, str(row.iloc[0]["tank_pair_code"]), "exists"
 
-        # 2) Insert a new tank_pair
         new_id = str(uuid.uuid4())
         new_code = f"TP-{new_id[:8]}"
-
-        params = {
-            "id": new_id,
-            "m": mother_tank_id,
-            "d": father_tank_id,
-            "by": created_by,
-            "note": note,
-            "tp_code": new_code,
-        }
 
         sql = text(
             f"""
@@ -268,23 +290,38 @@ def upsert_tank_pair(mother_tank_id: str, father_tank_id: str, created_by: str, 
             RETURNING tank_pair_code;
             """
         )
-        tp_code_db = cx.execute(sql, params).scalar()
-        return True, str(tp_code_db)
+
+        params = {"id": new_id, "m": mother_tank_id, "d": father_tank_id, "tp_code": new_code, "note": note}
+
+        try:
+            code = cx.execute(sql, params).scalar()
+            return True, str(code), "created"
+        except IntegrityError:
+            row2 = pd.read_sql(
+                text(
+                    f"""
+                    SELECT tank_pair_code
+                    FROM public.tank_pairs
+                    WHERE {mom_col} = :m AND {dad_col} = :d
+                    LIMIT 1;
+                    """
+                ),
+                cx,
+                params={"m": mother_tank_id, "d": father_tank_id},
+            )
+            code = str(row2.iloc[0]["tank_pair_code"]) if not row2.empty else "TP-unknown"
+            return False, code, "exists"
 
 
 # ------------------ UI -------------------------------------------------------
 
-# Session state for persistent parent selection across searches
 if "selected_parent_fish_codes" not in st.session_state:
     st.session_state["selected_parent_fish_codes"] = []
 
 with st.form("filters"):
     c1, c2 = st.columns([3, 1])
     with c1:
-        q = st.text_input(
-            "Filter by code / nickname / background / genotype",
-            "",
-        )
+        q = st.text_input("Filter by code / nickname / background / genotype", "")
     with c2:
         limit = int(st.number_input("Rows", 1, 2000, 500, 50))
     st.form_submit_button("Apply")
@@ -302,22 +339,18 @@ view = df[
         "line_code",
         "name",
         "background",
+        "birthday",  # 5th ✅
         "stage",
-        "genotype_tg_style",
-        "genotype_fluortag_style",
-        "genotype_fluororganelle_style",
-        "birthday",
+        "marker_rollup_tg_style",
+        "marker_rollup_fluortag_style",
+        "marker_rollup_fluororganelle_style",
         "live_tanks",
         "live_tank_codes",
     ]
 ].copy()
 
-# --- NEW LOGIC: keep selections that are not visible in this search ---
-
 prev_selection: List[str] = st.session_state.get("selected_parent_fish_codes", [])
 visible_codes = view["fish_code"].astype(str).tolist()
-
-# Pre-populate checkboxes for codes that were previously selected *and* are visible
 view.insert(0, "✓ Parent", view["fish_code"].isin(prev_selection))
 
 pick = st.data_editor(
@@ -331,49 +364,57 @@ pick = st.data_editor(
         "line_code": st.column_config.TextColumn("LINE code", disabled=True),
         "name": st.column_config.TextColumn("Name", disabled=True, width="large"),
         "background": st.column_config.TextColumn("Background", disabled=True),
-        "stage": st.column_config.TextColumn("Stage", disabled=True),
-        "genotype_tg_style": st.column_config.TextColumn(
-            "Genotype (tg)", disabled=True, width="large"
-        ),
-        "genotype_fluortag_style": st.column_config.TextColumn(
-            "Genotype (fluor-tag)", disabled=True, width="large"
-        ),
-        "genotype_fluororganelle_style": st.column_config.TextColumn(
-            "Genotype (fluor-organelle)", disabled=True, width="large"
-        ),
         "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+        "stage": st.column_config.TextColumn("Stage", disabled=True),
+        "marker_rollup_tg_style": st.column_config.TextColumn("Marker rollup (tg)", disabled=True, width="large"),
+        "marker_rollup_fluortag_style": st.column_config.TextColumn("Marker rollup (fluor-tag)", disabled=True, width="large"),
+        "marker_rollup_fluororganelle_style": st.column_config.TextColumn("Marker rollup (fluor-organelle)", disabled=True, width="large"),
         "live_tanks": st.column_config.NumberColumn("Live tanks", disabled=True),
-        "live_tank_codes": st.column_config.TextColumn(
-            "Live tank codes", disabled=True, width="large"
-        ),
+        "live_tank_codes": st.column_config.TextColumn("Live tank codes", disabled=True, width="large"),
     },
 )
 
-# What is selected *in this view* right now?
 if not pick.empty:
-    visible_selected = (
-        pick.loc[pick["✓ Parent"], "fish_code"].dropna().astype(str).tolist()
-    )
-    visible_selected = list(dict.fromkeys(visible_selected))  # preserve order, dedupe
+    visible_selected = pick.loc[pick["✓ Parent"], "fish_code"].dropna().astype(str).tolist()
+    visible_selected = list(dict.fromkeys(visible_selected))
 else:
     visible_selected = []
 
-# Split previous selection into "hidden" vs "visible in this view"
 hidden_prev = [c for c in prev_selection if c not in visible_codes]
-
-# Combine:
-#   - keep hidden previous selections
-#   - override selections for visible rows with the current checkbox state
 combined: List[str] = []
 for code in hidden_prev + visible_selected:
     if code not in combined:
         combined.append(code)
-
-# Enforce max of two parents
 combined = combined[:2]
-
 st.session_state["selected_parent_fish_codes"] = combined
 parents = combined
+
+st.subheader("Step 1a — Preview selected parent rows")
+preview = df[df["fish_code"].astype(str).isin(parents)].copy()
+if preview.empty:
+    st.info("No selected parents in current view.")
+else:
+    preview["_ord"] = preview["fish_code"].astype(str).apply(lambda x: parents.index(x) if x in parents else 999)
+    preview = preview.sort_values("_ord").drop(columns=["_ord"])
+    st.dataframe(
+        preview[
+            [
+                "fish_code",
+                "line_code",
+                "name",
+                "background",
+                "birthday",
+                "stage",
+                "marker_rollup_tg_style",
+                "marker_rollup_fluortag_style",
+                "marker_rollup_fluororganelle_style",
+                "live_tanks",
+                "live_tank_codes",
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
 
 if len(parents) < 2:
     if parents:
@@ -400,10 +441,11 @@ m_sel = st.data_editor(
             "fish_code",
             "line_code",
             "fish_name",
-            "genotype_tg_style",
-            "genotype_fluortag_style",
-            "genotype_fluororganelle_style",
+            "background",
             "birthday",
+            "marker_rollup_tg_style",
+            "marker_rollup_fluortag_style",
+            "marker_rollup_fluororganelle_style",
             "tank_code",
             "tank_id",
             "status",
@@ -418,16 +460,11 @@ m_sel = st.data_editor(
         "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
         "line_code": st.column_config.TextColumn("LINE code", disabled=True),
         "fish_name": st.column_config.TextColumn("Name", disabled=True, width="large"),
-        "genotype_tg_style": st.column_config.TextColumn(
-            "Genotype (tg)", disabled=True, width="large"
-        ),
-        "genotype_fluortag_style": st.column_config.TextColumn(
-            "Genotype (fluor-tag)", disabled=True, width="large"
-        ),
-        "genotype_fluororganelle_style": st.column_config.TextColumn(
-            "Genotype (fluor-organelle)", disabled=True, width="large"
-        ),
+        "background": st.column_config.TextColumn("Background", disabled=True),
         "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+        "marker_rollup_tg_style": st.column_config.TextColumn("Marker rollup (tg)", disabled=True, width="large"),
+        "marker_rollup_fluortag_style": st.column_config.TextColumn("Marker rollup (fluor-tag)", disabled=True, width="large"),
+        "marker_rollup_fluororganelle_style": st.column_config.TextColumn("Marker rollup (fluor-organelle)", disabled=True, width="large"),
         "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
         "tank_id": st.column_config.TextColumn("Tank id", disabled=True),
         "status": st.column_config.TextColumn("Status", disabled=True),
@@ -458,10 +495,11 @@ f_sel = st.data_editor(
             "fish_code",
             "line_code",
             "fish_name",
-            "genotype_tg_style",
-            "genotype_fluortag_style",
-            "genotype_fluororganelle_style",
+            "background",
             "birthday",
+            "marker_rollup_tg_style",
+            "marker_rollup_fluortag_style",
+            "marker_rollup_fluororganelle_style",
             "tank_code",
             "tank_id",
             "status",
@@ -476,16 +514,11 @@ f_sel = st.data_editor(
         "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
         "line_code": st.column_config.TextColumn("LINE code", disabled=True),
         "fish_name": st.column_config.TextColumn("Name", disabled=True, width="large"),
-        "genotype_tg_style": st.column_config.TextColumn(
-            "Genotype (tg)", disabled=True, width="large"
-        ),
-        "genotype_fluortag_style": st.column_config.TextColumn(
-            "Genotype (fluor-tag)", disabled=True, width="large"
-        ),
-        "genotype_fluororganelle_style": st.column_config.TextColumn(
-            "Genotype (fluor-organelle)", disabled=True, width="large"
-        ),
+        "background": st.column_config.TextColumn("Background", disabled=True),
         "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+        "marker_rollup_tg_style": st.column_config.TextColumn("Marker rollup (tg)", disabled=True, width="large"),
+        "marker_rollup_fluortag_style": st.column_config.TextColumn("Marker rollup (fluor-tag)", disabled=True, width="large"),
+        "marker_rollup_fluororganelle_style": st.column_config.TextColumn("Marker rollup (fluor-organelle)", disabled=True, width="large"),
         "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
         "tank_id": st.column_config.TextColumn("Tank id", disabled=True),
         "status": st.column_config.TextColumn("Status", disabled=True),
@@ -507,6 +540,9 @@ creator = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
 note = st.text_input("Note (optional)", "")
 
 if st.button("💾 Save tank pairing", type="primary", use_container_width=True):
-    created, code = upsert_tank_pair(mother_tank_id, father_tank_id, creator, note)
-    st.success(f"{'Created' if created else 'Updated'} tank_pair {code}")
-    st.info("You can now go to ⚙️ Schedule new crosses and pick this tank pair.")
+    created, code, status = upsert_tank_pair(mother_tank_id, father_tank_id, creator, note)
+    if status == "exists":
+        st.info(f"{code} already exists.")
+    else:
+        st.success(f"Created tank_pair {code}")
+        st.info("You can now go to ⚙️ Schedule new crosses and pick this tank pair.")

@@ -194,7 +194,6 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
           GROUP BY fi.id
         )
         SELECT
-          -- keep fish_instance_id only for joins, we will drop it in the UI
           i.fish_instance_id,
           i.fish_code,
           i.line_id,
@@ -222,26 +221,13 @@ def load_instances_for_line(line_id: str) -> pd.DataFrame:
     with _eng().begin() as cx:
         df = pd.read_sql(sql, cx, params={"line_id": line_id})
 
-    # Ensure string-ish columns are clean
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
-
     return df.fillna("")
 
-lines_df = load_lines()
-groups_raw = load_groups_raw().copy()
-
-# aggregate group-level marker rollups from line-level rollups
-line_rollups = (
-    lines_df[["line_code", "all_fluor_tag_rollup", "all_organelle_fluor_rollup"]]
-    .set_index("line_code")
-)
 
 @st.cache_data(show_spinner=False)
 def load_tanks_for_line(line_id: str) -> pd.DataFrame:
-    """
-    Return all tanks for instances belonging to the given line_id.
-    """
     sql = text(
         """
         SELECT
@@ -265,8 +251,16 @@ def load_tanks_for_line(line_id: str) -> pd.DataFrame:
 
     for c in df.select_dtypes(include="object").columns:
         df[c] = df[c].astype("string").fillna("")
-
     return df.fillna("")
+
+
+lines_df = load_lines()
+groups_raw = load_groups_raw().copy()
+
+line_rollups = (
+    lines_df[["line_code", "all_fluor_tag_rollup", "all_organelle_fluor_rollup"]]
+    .set_index("line_code")
+)
 
 
 def _aggregate_group_rollups(row: pd.Series) -> pd.Series:
@@ -301,7 +295,11 @@ def _aggregate_group_rollups(row: pd.Series) -> pd.Series:
 
 groups_raw = groups_raw.apply(_aggregate_group_rollups, axis=1)
 
-st.subheader("Step 1 — Groups (fish groups)")
+# ──────────────────────────────────────────────────────────────
+# Step 1 — Groups
+# ──────────────────────────────────────────────────────────────
+
+st.subheader("Step 1 — Fish Groups (groups are defined by basecodes)")
 
 if groups_raw.empty:
     st.info("No fish groups found.")
@@ -344,8 +342,6 @@ if groups_filtered.empty:
     st.warning("No groups match the current filters.")
     st.stop()
 
-st.caption(f"{len(groups_filtered)} group(s)")
-
 groups_display = groups_filtered[
     [
         "group_transgene_rollup",
@@ -358,7 +354,6 @@ groups_display = groups_filtered[
         "group_line_codes",
     ]
 ].copy()
-
 groups_display.insert(0, "✓", False)
 
 edited_groups = st.data_editor(
@@ -368,49 +363,34 @@ edited_groups = st.data_editor(
     key="groups_editor_v11_overview",
     column_config={
         "✓": st.column_config.CheckboxColumn("Select", width=60),
-        "group_transgene_rollup": st.column_config.TextColumn(
-            "Allele/construct rollup", disabled=True, width="large"
-        ),
-        "group_line_nicknames": st.column_config.TextColumn(
-            "Line nicknames", disabled=True, width="large"
-        ),
-        "group_genetic_backgrounds": st.column_config.TextColumn(
-            "Backgrounds", disabled=True, width="large"
-        ),
+        "group_transgene_rollup": st.column_config.TextColumn("Allele/construct rollup", disabled=True, width="large"),
+        "group_line_nicknames": st.column_config.TextColumn("Line nicknames", disabled=True, width="large"),
+        "group_genetic_backgrounds": st.column_config.TextColumn("Backgrounds", disabled=True, width="large"),
         "n_lines": st.column_config.NumberColumn("n lines", disabled=True),
         "n_instances": st.column_config.NumberColumn("n instances", disabled=True),
-        "all_fluor_tag_rollup": st.column_config.TextColumn(
-            "fluor::tag(tag_pos)", disabled=True, width="large"
-        ),
-        "all_organelle_fluor_rollup": st.column_config.TextColumn(
-            "organelle-fluor rollup", disabled=True, width="large"
-        ),
-        "group_line_codes": st.column_config.TextColumn(
-            "Line codes", disabled=True, width="large"
-        ),
+        "all_fluor_tag_rollup": st.column_config.TextColumn("fluor::tag(tag_pos)", disabled=True, width="large"),
+        "all_organelle_fluor_rollup": st.column_config.TextColumn("organelle-fluor rollup", disabled=True, width="large"),
+        "group_line_codes": st.column_config.TextColumn("Line codes", disabled=True, width="large"),
     },
     hide_index=True,
 )
 
 selected_group_rows = edited_groups[edited_groups["✓"]]
-if not selected_group_rows.empty:
-    selected_group = selected_group_rows.iloc[0]
-else:
-    selected_group = groups_display.iloc[0]
+if selected_group_rows.empty:
+    st.info("Select one group above to continue to Step 2.")
+    st.stop()
 
-selected_line_codes = (
-    selected_group["group_line_codes"].split("||")
-    if selected_group["group_line_codes"]
-    else []
-)
+selected_group = selected_group_rows.iloc[0]
+selected_line_codes = selected_group["group_line_codes"].split("||") if selected_group["group_line_codes"] else []
 
-st.caption("Select one group above, then drill down to its lines and instances.")
+# ──────────────────────────────────────────────────────────────
+# Step 2 — Lines
+# ──────────────────────────────────────────────────────────────
 
 st.markdown("---")
-st.subheader("Step 2 — Lines in selected group")
+st.subheader("Step 2 — Lines in selected group (lines are defined by alleles)")
 
 lines_in_group = lines_df[lines_df["line_code"].isin(selected_line_codes)].copy()
-
 if lines_in_group.empty:
     st.info("No lines found for this group.")
     st.stop()
@@ -453,9 +433,6 @@ if filtered_lines.empty:
     st.warning("No lines match the current filters.")
     st.stop()
 
-st.caption(f"{len(filtered_lines)} line(s) in selected group")
-
-# Build a display-only view of lines (no IDs), but keep filtered_lines for selection.
 lines_display = filtered_lines[
     [
         "line_code",
@@ -465,13 +442,8 @@ lines_display = filtered_lines[
         "n_instances",
         "first_birthday",
         "last_birthday",
-        "n_constructs",
-        "n_fluors",
-        "all_fluor_tag_rollup",
-        "all_organelle_fluor_rollup",
     ]
 ].copy()
-
 lines_display.insert(0, "✓", False)
 
 edited_lines = st.data_editor(
@@ -482,266 +454,199 @@ edited_lines = st.data_editor(
     column_config={
         "✓": st.column_config.CheckboxColumn("Select", width=60),
         "line_code": st.column_config.TextColumn("Line code", disabled=True),
-        "line_nickname": st.column_config.TextColumn(
-            "Nickname", disabled=True, width="large"
-        ),
-        "genetic_background": st.column_config.TextColumn(
-            "Background", disabled=True
-        ),
-        "genotype_pretty": st.column_config.TextColumn(
-            "Genotype", disabled=True, width="large"
-        ),
-        "n_instances": st.column_config.NumberColumn(
-            "n instances", disabled=True
-        ),
-        "first_birthday": st.column_config.DateColumn(
-            "First birthday", disabled=True
-        ),
-        "last_birthday": st.column_config.DateColumn(
-            "Last birthday", disabled=True
-        ),
-        "n_constructs": st.column_config.NumberColumn(
-            "n constructs", disabled=True
-        ),
-        "n_fluors": st.column_config.NumberColumn(
-            "n fluors", disabled=True
-        ),
-        "all_fluor_tag_rollup": st.column_config.TextColumn(
-            "fluor::tag(tag_pos)", disabled=True, width="large"
-        ),
-        "all_organelle_fluor_rollup": st.column_config.TextColumn(
-            "organelle-fluor rollup", disabled=True, width="large"
-        ),
+        "line_nickname": st.column_config.TextColumn("Nickname", disabled=True, width="large"),
+        "genetic_background": st.column_config.TextColumn("Background", disabled=True),
+        "genotype_pretty": st.column_config.TextColumn("Genotype", disabled=True, width="large"),
+        "n_instances": st.column_config.NumberColumn("n instances", disabled=True),
+        "first_birthday": st.column_config.DateColumn("First birthday", disabled=True),
+        "last_birthday": st.column_config.DateColumn("Last birthday", disabled=True),
     },
     hide_index=True,
 )
 
-# Recover selected line_id using the index (line_id stays only in filtered_lines)
 selected_line_rows = edited_lines[edited_lines["✓"]]
-if not selected_line_rows.empty:
-    sel_idx = selected_line_rows.index[0]
-else:
-    sel_idx = edited_lines.index[0]  # default to first visible row
+if selected_line_rows.empty:
+    st.info("Select one line above to show Step 3 (instances).")
+    st.stop()
 
-selected_line_id = filtered_lines.loc[sel_idx, "line_id"]
+sel_idx = selected_line_rows.index[0]
+selected_line_id = str(filtered_lines.loc[sel_idx, "line_id"])
+selected_line_stage = str(filtered_lines.loc[sel_idx, "line_building_stage"]) if "line_building_stage" in filtered_lines.columns else ""
 
-
-st.caption("Select one line above to see its linked instances.")
+# ──────────────────────────────────────────────────────────────
+# Step 3 — Instances + editable notes
+# ──────────────────────────────────────────────────────────────
 
 st.markdown("---")
 st.subheader("Step 3 — Instances for selected line")
 
-if not selected_line_id:
-    st.caption("No line selected or no lines in this group.")
+inst_df = load_instances_for_line(selected_line_id)
+if inst_df.empty:
+    st.caption("No instances found for this line.")
+    st.stop()
+
+if "instance_notes" not in st.session_state:
+    st.session_state["instance_notes"] = {}
+
+if "notes" not in inst_df.columns:
+    inst_df["notes"] = ""
+
+# hydrate notes from session_state
+inst_df["notes"] = inst_df["fish_instance_id"].astype(str).map(st.session_state["instance_notes"]).fillna("").astype("string")
+
+# add line_stage column
+inst_df["line_stage"] = selected_line_stage
+
+view_inst = inst_df.copy()
+view_inst.insert(0, "✓ Select", False)
+
+desired_order = [
+    "fish_code",
+    "genetic_background",
+    "genotype_pretty",
+    "birthday",
+    "line_stage",
+    "notes",
+    "line_code",
+    "allele_canonical_rollup",
+    "allele_label_rollup",
+    "n_constructs",
+    "n_fluors",
+    "all_fluor_tag_rollup",
+    "all_organelle_fluor_rollup",
+]
+cols_present = [c for c in desired_order if c in view_inst.columns]
+column_order = ["✓ Select"] + cols_present
+
+cfg: Dict[str, Any] = {
+    "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
+    "notes": st.column_config.TextColumn("Notes", disabled=False, width="large"),
+    "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
+    "genetic_background": st.column_config.TextColumn("Background", disabled=True),
+    "genotype_pretty": st.column_config.TextColumn("Genotype", disabled=True, width="large"),
+    "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+    "line_stage": st.column_config.TextColumn("Line stage", disabled=True),
+    "line_code": st.column_config.TextColumn("LINE code", disabled=True),
+    "allele_canonical_rollup": st.column_config.TextColumn("Alleles (canonical)", disabled=True, width="large"),
+    "allele_label_rollup": st.column_config.TextColumn("Alleles (labels)", disabled=True, width="large"),
+    "n_constructs": st.column_config.NumberColumn("n constructs", disabled=True),
+    "n_fluors": st.column_config.NumberColumn("n fluors", disabled=True),
+    "all_fluor_tag_rollup": st.column_config.TextColumn("fluor::tag(tag_pos)", disabled=True, width="large"),
+    "all_organelle_fluor_rollup": st.column_config.TextColumn("organelle-fluor rollup", disabled=True, width="large"),
+}
+
+grid_inst = st.data_editor(
+    view_inst[column_order],
+    key=f"instances_overview_{selected_line_id}",
+    hide_index=True,
+    use_container_width=True,
+    num_rows="fixed",
+    column_config=cfg,
+)
+
+# persist notes to session_state (only needs fish_instance_id + notes)
+for _, r in grid_inst.iterrows():
+    fid = str(r.get("fish_instance_id") or "")
+    if fid:
+        st.session_state["instance_notes"][fid] = str(r.get("notes") or "")
+
+st.download_button(
+    "⬇︎ Download instances for selected line (CSV)",
+    data=grid_inst.drop(columns=["✓ Select"], errors="ignore").to_csv(index=False).encode("utf-8"),
+    file_name="fish_instances_for_line.csv",
+    type="secondary",
+    mime="text/csv",
+)
+
+st.divider()
+st.subheader("Instance details")
+
+sel_mask = pd.Series(False, index=grid_inst.index)
+if "✓ Select" in grid_inst.columns:
+    sel_mask = grid_inst["✓ Select"].fillna(False).astype(bool)
+
+sel_idxs = grid_inst.index[sel_mask].tolist()
+
+if not sel_idxs:
+    st.caption("Select one or more instances above to see details.")
+elif len(sel_idxs) == 1:
+    r = grid_inst.loc[sel_idxs[0]]
+    tab1, tab2, tab3 = st.tabs(["Overview", "Alleles", "Markers"])
+    with tab1:
+        d: Dict[str, Any] = {}
+        _maybe(d, r, "fish_code")
+        _maybe(d, r, "genetic_background", "background")
+        _maybe(d, r, "genotype_pretty")
+        _maybe(d, r, "birthday")
+        _maybe(d, r, "line_stage")
+        _maybe(d, r, "notes")
+        _maybe(d, r, "line_code", "line_code")
+        st.write(d)
+    with tab2:
+        d: Dict[str, Any] = {}
+        _maybe(d, r, "allele_canonical_rollup", "alleles (canonical)")
+        _maybe(d, r, "allele_label_rollup", "alleles (labels)")
+        st.write(d)
+    with tab3:
+        d: Dict[str, Any] = {}
+        _maybe(d, r, "n_constructs")
+        _maybe(d, r, "n_fluors")
+        _maybe(d, r, "all_fluor_tag_rollup", "fluor::tag(tag_pos)")
+        _maybe(d, r, "all_organelle_fluor_rollup", "organelle-fluor rollup")
+        st.write(d)
 else:
-    inst_df = load_instances_for_line(selected_line_id)
+    subset = grid_inst.loc[sel_idxs].reset_index(drop=True)
+    cols_summary = [c for c in ["fish_code", "genetic_background", "genotype_pretty", "notes"] if c in subset.columns]
+    st.write("Summary for selected instances:")
+    st.dataframe(subset[cols_summary], use_container_width=True, hide_index=True)
 
-    if inst_df.empty:
-        st.caption("No instances found for this line.")
-    else:
-        desired_order = [
+# ──────────────────────────────────────────────────────────────
+# Step 4 — Tanks
+# ──────────────────────────────────────────────────────────────
+
+st.markdown("---")
+st.subheader("Step 4 — Tanks for selected line")
+
+tanks_df = load_tanks_for_line(selected_line_id)
+
+if tanks_df.empty:
+    st.caption("No tanks found for instances in this line.")
+else:
+    view_tanks = tanks_df[
+        [
+            "tank_code",
+            "status",
             "fish_code",
+            "line_instance_code",
+            "instance_stage",
             "genetic_background",
-            "genotype_pretty",
             "birthday",
-            "line_code",
-            "allele_canonical_rollup",
-            "allele_label_rollup",
-            "n_constructs",
-            "n_fluors",
-            "all_fluor_tag_rollup",
-            "all_organelle_fluor_rollup",
-            "fish_group_code",
+            "created_at",
         ]
-        cols_present = [c for c in desired_order if c in inst_df.columns]
+    ].copy()
 
-        view_inst = inst_df.copy()
-        view_inst.insert(0, "✓ Select", False)
-        column_order = ["✓ Select"] + cols_present
+    st.data_editor(
+        view_tanks,
+        key=f"tanks_overview_{selected_line_id}",
+        hide_index=True,
+        use_container_width=True,
+        num_rows="fixed",
+        column_config={
+            "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
+            "status": st.column_config.TextColumn("Status", disabled=True),
+            "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
+            "line_instance_code": st.column_config.TextColumn("Instance code", disabled=True),
+            "instance_stage": st.column_config.TextColumn("Stage", disabled=True),
+            "genetic_background": st.column_config.TextColumn("Background", disabled=True),
+            "birthday": st.column_config.DateColumn("Birthday", disabled=True),
+            "created_at": st.column_config.DatetimeColumn("Created at", disabled=True),
+        },
+    )
 
-        cfg: Dict[str, Any] = {
-            "✓ Select": st.column_config.CheckboxColumn("✓", default=False),
-        }
-        if "fish_code" in inst_df.columns:
-            cfg["fish_code"] = st.column_config.TextColumn(
-                "FSH code", disabled=True
-            )
-        if "genetic_background" in inst_df.columns:
-            cfg["genetic_background"] = st.column_config.TextColumn(
-                "Background", disabled=True
-            )
-        if "genotype_pretty" in inst_df.columns:
-            cfg["genotype_pretty"] = st.column_config.TextColumn(
-                "Genotype", disabled=True, width="large"
-            )
-        if "birthday" in inst_df.columns:
-            cfg["birthday"] = st.column_config.DateColumn(
-                "Birthday", disabled=True
-            )
-        if "line_code" in inst_df.columns:
-            cfg["line_code"] = st.column_config.TextColumn(
-                "LINE code", disabled=True
-            )
-        if "allele_canonical_rollup" in inst_df.columns:
-            cfg["allele_canonical_rollup"] = st.column_config.TextColumn(
-                "Alleles (canonical)", disabled=True, width="large"
-            )
-        if "allele_label_rollup" in inst_df.columns:
-            cfg["allele_label_rollup"] = st.column_config.TextColumn(
-                "Alleles (labels)", disabled=True, width="large"
-            )
-        if "n_constructs" in inst_df.columns:
-            cfg["n_constructs"] = st.column_config.NumberColumn(
-                "n constructs", disabled=True
-            )
-        if "n_fluors" in inst_df.columns:
-            cfg["n_fluors"] = st.column_config.NumberColumn(
-                "n fluors", disabled=True
-            )
-        if "all_fluor_tag_rollup" in inst_df.columns:
-            cfg["all_fluor_tag_rollup"] = st.column_config.TextColumn(
-                "fluor::tag(tag_pos)", disabled=True, width="large"
-            )
-        if "all_organelle_fluor_rollup" in inst_df.columns:
-            cfg["all_organelle_fluor_rollup"] = st.column_config.TextColumn(
-                "organelle-fluor rollup", disabled=True, width="large"
-            )
-        if "fish_group_code" in inst_df.columns:
-            cfg["fish_group_code"] = st.column_config.TextColumn(
-                "Legacy fish_group (if any)", disabled=True
-            )
-
-        grid_inst = st.data_editor(
-            view_inst[column_order],
-            key=f"instances_overview_{selected_line_id}",
-            hide_index=True,
-            use_container_width=True,
-            num_rows="fixed",
-            column_config=cfg,
-        )
-
-        st.download_button(
-            "⬇︎ Download instances for selected line (CSV)",
-            data=inst_df.to_csv(index=False).encode("utf-8"),
-            file_name="fish_instances_for_line.csv",
-            type="secondary",
-            mime="text/csv",
-        )
-
-        st.divider()
-        st.subheader("Instance details")
-
-        sel_idxs: List[int] = []
-        if "✓ Select" in grid_inst.columns:
-            sel_idxs = (
-                grid_inst.index[grid_inst["✓ Select"] == True]
-                .to_series()
-                .tolist()
-            )
-
-        if not sel_idxs:
-            st.caption("Select one or more instances above to see details.")
-        elif len(sel_idxs) == 1:
-            r = grid_inst.loc[sel_idxs[0]]
-            tab1, tab2, tab3 = st.tabs(["Overview", "Alleles", "Markers"])
-
-            with tab1:
-                d: Dict[str, Any] = {}
-                _maybe(d, r, "fish_code")
-                _maybe(d, r, "genetic_background", "background")
-                _maybe(d, r, "genotype_pretty")
-                _maybe(d, r, "birthday")
-                _maybe(d, r, "line_code", "line_code")
-                st.write(d)
-
-            with tab2:
-                d: Dict[str, Any] = {}
-                _maybe(d, r, "allele_canonical_rollup", "alleles (canonical)")
-                _maybe(d, r, "allele_label_rollup", "alleles (labels)")
-                st.write(d)
-
-            with tab3:
-                d: Dict[str, Any] = {}
-                _maybe(d, r, "n_constructs")
-                _maybe(d, r, "n_fluors")
-                _maybe(d, r, "all_fluor_tag_rollup", "fluor::tag(tag_pos)")
-                _maybe(d, r, "all_organelle_fluor_rollup", "organelle-fluor rollup")
-                st.write(d)
-        else:
-            subset = grid_inst.loc[sel_idxs].reset_index(drop=True)
-            cols_summary = [
-                c
-                for c in [
-                    "genetic_background",
-                    "genotype_pretty",
-                    "allele_canonical_rollup",
-                ]
-                if c in subset.columns
-            ]
-            st.write("Summary for selected instances:")
-            st.dataframe(
-                subset[cols_summary],
-                use_container_width=True,
-            )
-
-    # ─────────────────────────────────────────────────────
-    # Step 4 — Tanks for selected line
-    # ─────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("Step 4 — Tanks for selected line")
-
-    tanks_df = load_tanks_for_line(selected_line_id)
-
-    if tanks_df.empty:
-        st.caption("No tanks found for instances in this line.")
-    else:
-        st.caption(f"{len(tanks_df)} tank(s) for instances in this line")
-
-        view_tanks = tanks_df[
-            [
-                "tank_code",
-                "status",
-                "fish_code",
-                "line_instance_code",
-                "instance_stage",
-                "genetic_background",
-                "birthday",
-                "created_at",
-            ]
-        ].copy()
-
-        grid_tanks = st.data_editor(
-            view_tanks,
-            key=f"tanks_overview_{selected_line_id}",
-            hide_index=True,
-            use_container_width=True,
-            num_rows="fixed",
-            column_config={
-                "tank_code": st.column_config.TextColumn("Tank code", disabled=True),
-                "status": st.column_config.TextColumn("Status", disabled=True),
-                "fish_code": st.column_config.TextColumn("FSH code", disabled=True),
-                "line_instance_code": st.column_config.TextColumn(
-                    "Instance code", disabled=True
-                ),
-                "instance_stage": st.column_config.TextColumn(
-                    "Stage", disabled=True
-                ),
-                "genetic_background": st.column_config.TextColumn(
-                    "Background", disabled=True
-                ),
-                "birthday": st.column_config.DateColumn(
-                    "Birthday", disabled=True
-                ),
-                "created_at": st.column_config.DatetimeColumn(
-                    "Created at", disabled=True
-                ),
-            },
-        )
-
-        st.download_button(
-            "⬇︎ Download tanks for selected line (CSV)",
-            data=tanks_df.to_csv(index=False).encode("utf-8"),
-            file_name="tanks_for_line.csv",
-            type="secondary",
-            mime="text/csv",
-        )
+    st.download_button(
+        "⬇︎ Download tanks for selected line (CSV)",
+        data=tanks_df.to_csv(index=False).encode("utf-8"),
+        file_name="tanks_for_line.csv",
+        type="secondary",
+        mime="text/csv",
+    )
