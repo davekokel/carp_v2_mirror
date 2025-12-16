@@ -148,6 +148,7 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
         "plate_id_filled",
         "slot_id_filled",
         "roi_index_within_slot",
+        "roi_dir",
         "bruker_roi_id",
     ]
     for col in required_cols:
@@ -165,9 +166,13 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
     else:
         df["roi_note_anatomy"] = None
 
-    # use bruker_roi_id as both roi_code and roi_path (identifier)
+    # use bruker_roi_id as stable identifier, but keep roi_path as the real filesystem path
     df["roi_code"] = df["bruker_roi_id"].astype(str)
-    df["roi_path"] = df["bruker_roi_id"].astype(str)
+    df["roi_path"] = df["roi_dir"].astype(str)
+
+    # normalize pandas stringy nulls
+    bad = df["roi_path"].isin(["nan", "None", ""])
+    df.loc[bad, "roi_path"] = df.loc[bad, "roi_code"]
 
     sql = text(
         """
