@@ -1,0 +1,10 @@
+signature_codes,treatment_code,treatment_text
+mgco-23,TLEG-02779ff0,mgco-23=ef1a-lifeact-linker-mStayGold-SV40-attb-tol2
+mgco-4,TLEG-15dcb02e,mgco-4=ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2
+mgco-35|mgco-36|mgco-39|mgco-40,TLEG-464bbf3a,mgco-35=ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2; mgco-36=ef1a-extended-linker-mScarlet3S2-sec61b-SV40-attb-tol2; mgco-39=ef1a-extended-2Xcox8A-linker-Halo-SV40-attb-tol2; mgco-40=ef1a-extended-linker-Halo-sec61b-SV40-attb-tol2
+mgco-1|mgco-4,TLEG-4f06fc01,mgco-1=ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2; mgco-4=ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2
+mgco-1,TLEG-73086291,mgco-1=ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2
+mgco-54,TLEG-788795c2,mgco-54=LEMD2-mStayGold
+mgco-50,TLEG-7c71c2df,mgco-50=EB3-mStayGold
+mgco-24|mgco-39,TLEG-e6886f03,mgco-24=ef1a-lifeact-linker-Halo-linker-SV40-attb-tol2; mgco-39=ef1a-extended-2Xcox8A-linker-Halo-SV40-attb-tol2
+mgco-1|mgco-15,TLEG-fefe63d4,mgco-1=ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2; mgco-15=ef1a-LAMP1-linker-mStayGold-SV40-attb-tol2

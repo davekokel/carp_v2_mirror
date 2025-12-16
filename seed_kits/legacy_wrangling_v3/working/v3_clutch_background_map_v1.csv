@@ -1,0 +1,4 @@
+clutch_code,clutch_date,source_system,notes,bg_code,bg_resolution_method,bg_notes
+LCL-0053,2025-10-16,legacy_imaging,legacy_imaging; roi_count=3,casper/rnf,v3_default_from_sheet_context,
+LCL-0066,2025-07-21,legacy_imaging,"tier2_key=2025-07-21 | 20250721_72hpf_mrna_mSG_organelle_LLS-SIM | ||  || MGCO-04|MGCO-01 ||  || mStayGold(ER),mStayGold(mitochondria) || ER,mitochondria label=20250721_72hpf_mrna_mSG_organelle_LLS-SIM",casper,v3_default_from_sheet_context,
+LCL-0067,2025-08-05,legacy_imaging,"tier2_key=2025-08-05 | 20250805_lifeact_mem-halo | ||  || MGCO-24|MGCO-39 ||  || Halo(actin),Halo(mitochondria) || actin,mitochondria label=20250805_lifeact_mem-halo",casper,v3_default_from_sheet_context,

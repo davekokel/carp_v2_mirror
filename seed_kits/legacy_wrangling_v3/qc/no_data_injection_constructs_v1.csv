@@ -1,0 +1,16 @@
+experiment_folder,n_rows,injected_codes,injected_constructs
+20250715_mem_organelle,21,mgco-35|mgco-36|mgco-39|mgco-40,mgco-35=ef1a-extended-2Xcox8A-linker-mScarlet3S2-SV40-attb-tol2; mgco-36=ef1a-extended-linker-mScarlet3S2-sec61b-SV40-attb-tol2; mgco-39=ef1a-extended-2Xcox8A-linker-Halo-SV40-attb-tol2; mgco-40=ef1a-extended-linker-Halo-sec61b-SV40-attb-tol2
+20250808_mem_organelle,21,mgco-1|mgco-15,mgco-1=ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2; mgco-15=ef1a-LAMP1-linker-mStayGold-SV40-attb-tol2
+20250828_mem_actin,14,mgco-23,mgco-23=ef1a-lifeact-linker-mStayGold-SV40-attb-tol2
+20250722_mrna_mito-mSG_mem-mChilada,12,mgco-1,mgco-1=ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2
+20250722_mem-halo_er-mSG,9,mgco-4,mgco-4=ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2
+20250819_mem_ER,8,mgco-4,mgco-4=ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2
+20250826_mem_actin,8,mgco-23,mgco-23=ef1a-lifeact-linker-mStayGold-SV40-attb-tol2
+20250805_mito_mem-halo,7,mgco-1,mgco-1=ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2
+20251021_mem-mito_v2,7,mgco-1,mgco-1=ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2
+20250723_mem-halo_ER-mSG,6,mgco-4,mgco-4=ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2
+20250721_72hpf_mrna_mSG_organelle_LLS-SIM,5,mgco-1|mgco-4,mgco-1=ef1a-2Xcox8A-linker-mStayGold-SV40-attb-tol2; mgco-4=ef1a-linker-mStayGold-C4linker-sec61b-SV40-attb-tol2
+20250805_lifeact_mem-halo,5,mgco-24|mgco-39,mgco-24=ef1a-lifeact-linker-Halo-linker-SV40-attb-tol2; mgco-39=ef1a-extended-2Xcox8A-linker-Halo-SV40-attb-tol2
+20250827_mem_actin,5,mgco-23,mgco-23=ef1a-lifeact-linker-mStayGold-SV40-attb-tol2
+20251017_nuclear_envelope,2,mgco-54,mgco-54=LEMD2-mStayGold
+20251017_microtubules,1,mgco-50,mgco-50=EB3-mStayGold
