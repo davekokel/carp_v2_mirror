@@ -4,6 +4,7 @@ import os
 from typing import Dict, List, Set, Tuple
 
 import pandas as pd
+import argparse
 
 
 def _norm_code_single(raw: object) -> str | None:
@@ -171,10 +172,23 @@ def load_legacy_clutches(clutches_csv: str) -> Dict[str, str]:
 
 
 def main() -> None:
-    annotations_csv = "seed_kits/legacy_wrangling_v2/working/legacy_imaging_annotations_for_db_v9.csv"
+    parser = argparse.ArgumentParser(description="Build clutch↔treatment mapping from v9 ROI annotations")
+    parser.add_argument(
+        "--roi-csv",
+        required=True,
+        help="Path to legacy_imaging_annotations_for_db_v9_compat.csv (must include legacy_clutch_key + treatment basecode columns)",
+    )
+    parser.add_argument(
+        "--out-csv",
+        required=True,
+        help="Where to write clutch_treatment_mapping_v11.csv",
+    )
+    args = parser.parse_args()
+
+    annotations_csv = args.roi_csv
     clutches_csv = "seed_kits/legacy_wrangling_v2/working/legacy_clutches_v9.csv"
     treatments_csv = "seed_kits/2025-11-15-121231-autoload/treatments_v10.csv"
-    out_csv = "seed_kits/legacy_wrangling_v2/working/clutch_treatment_mapping_v11.csv"
+    out_csv = args.out_csv
 
     print(f"[INFO] Reading v9 annotations from: {annotations_csv}")
     v9_sig = build_v9_signatures(annotations_csv)

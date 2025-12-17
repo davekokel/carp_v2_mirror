@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import argparse
 from typing import Dict, List, Tuple
 
 import pandas as pd
@@ -45,7 +46,16 @@ def main() -> None:
     if not DB_URL:
         raise RuntimeError("DB_URL is not set in the environment")
 
-    mapping_csv = "seed_kits/legacy_wrangling_v2/working/clutch_treatment_mapping_v11.csv"
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--mapping-csv",
+        required=True,
+        help="Path to clutch_treatment_mapping_v11.csv (REQUIRED; do not rely on v2 defaults)",
+    )
+    args = parser.parse_args()
+
+
+    mapping_csv = args.mapping_csv
     print(f"[INFO] Loading mapping from: {mapping_csv}")
 
     pairs = load_mapping(mapping_csv)

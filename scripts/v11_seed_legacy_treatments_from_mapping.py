@@ -12,9 +12,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mapping-csv",
-        default="seed_kits/legacy_wrangling_v2/working/clutch_treatment_mapping_v11.csv",
-        help="Path to clutch_treatment_mapping_v11.csv",
+        required=True,
+        help="Path to clutch_treatment_mapping_v11.csv (REQUIRED; do not rely on v2 defaults)",
     )
+
     parser.add_argument(
         "--db-url",
         default=os.getenv("DB_URL"),
