@@ -92,3 +92,6 @@ schema_real/
 # local tooling
 /tools/
 
+
+# legacy wrangling v3 outputs
+seed_kits/legacy_wrangling_v3/working/
