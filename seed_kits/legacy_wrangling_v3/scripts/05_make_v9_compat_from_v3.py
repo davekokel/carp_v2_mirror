@@ -13,11 +13,17 @@ OUT_ROI_V9_COMPAT = V3_WORK / "legacy_imaging_annotations_for_db_v9_compat.csv"
 OUT_CLUTCHES_V9 = V3_WORK / "legacy_clutches_v9.csv"
 OUT_MEMBERSHIPS_V9 = V3_WORK / "legacy_clutch_memberships_v9.csv"
 
+DATEFOLDER_RE = re.compile(r"^\d{8}_.+")
+SPLIT_RE = re.compile(r"[\\/]+")
+
 def _nonempty(x) -> bool:
     if x is None:
         return False
     s = str(x).strip()
     return s != "" and s.lower() not in ("nan","none","na","n/a","<na>")
+
+def _is_blank_series(s: pd.Series) -> pd.Series:
+    return s.isna() | s.astype(str).str.strip().eq("") | s.astype(str).str.strip().str.lower().isin(["nan","none","na","n/a","<na>"])
 
 def _split_pipe_first(x):
     if not _nonempty(x):
@@ -59,6 +65,18 @@ def _plate_date_iso(yyyymmdd: str | None) -> str | None:
 def _plate_code(plate_date: str, plate_id: int) -> str:
     return f"{plate_date.replace('-','')}-plate{plate_id}"
 
+def _extract_datefolder_tokens(roi_dir: str) -> list[str]:
+    if roi_dir is None or (isinstance(roi_dir, float) and pd.isna(roi_dir)):
+        return []
+    s = str(roi_dir)
+    toks = [t for t in SPLIT_RE.split(s) if t]
+    hits = [t for t in toks if DATEFOLDER_RE.match(t)]
+    return hits
+
+def _yyyymmdd_to_iso(yyyymmdd: str) -> str:
+    dt = pd.to_datetime(yyyymmdd, format="%Y%m%d", errors="raise").date()
+    return dt.isoformat()
+
 def main() -> None:
     if not IN_DB.exists():
         raise SystemExit(f"missing: {IN_DB}")
@@ -69,10 +87,78 @@ def main() -> None:
 
     df = df.copy()
 
+    # ─────────────────────────────────────────────────────────────
+    # STEP 1A (CANONICAL): fill date_mount deterministically from roi_dir
+    # when BOTH date_mount and Data location are blank.
+    # Fail loudly if rule cannot apply deterministically.
+    # ─────────────────────────────────────────────────────────────
+    if "date_mount" not in df.columns:
+        raise SystemExit("IN_DB missing date_mount")
+    if "Data location" not in df.columns:
+        raise SystemExit("IN_DB missing 'Data location'")
+
+    blank_loc = _is_blank_series(df["Data location"])
+    blank_dat = _is_blank_series(df["date_mount"])
+    both_blank = blank_loc & blank_dat
+
+    n_both_blank_before = int(both_blank.sum())
+    print(f"STEP1A n_both_blank_before(Data location & date_mount)={n_both_blank_before}")
+
+    if n_both_blank_before:
+        # tokens per row; require exactly one datefolder token
+        rows = df.loc[both_blank, ["roi_dir", "link_source"]].copy() if "link_source" in df.columns else df.loc[both_blank, ["roi_dir"]].copy()
+        toks = rows["roi_dir"].map(_extract_datefolder_tokens)
+        bad = rows.loc[toks.map(len).ne(1)].copy()
+        if len(bad):
+            bad["datefolder_tokens"] = toks.loc[bad.index].map(lambda xs: ";".join(xs))
+            print("STEP1A ERROR: rows with both blanks but not exactly one {YYYYMMDD}_* token in roi_dir")
+            print(bad.head(200).to_string(index=True))
+            raise SystemExit(f"STEP1A ERROR: {len(bad)} rows violate deterministic rule")
+
+        # Fill date_mount from the single token’s YYYYMMDD prefix
+        datefolder = toks.map(lambda xs: xs[0])
+        yyyymmdd = datefolder.map(lambda s: s[:8])
+        iso = yyyymmdd.map(_yyyymmdd_to_iso)
+
+        df.loc[both_blank, "date_mount"] = iso
+
+        # Audit columns: only set if present; do not invent schema silently beyond CSV.
+        if "folder_hit" in df.columns:
+            df.loc[both_blank, "folder_hit"] = datefolder
+        if "key_source" in df.columns:
+            ks = df.loc[both_blank, "key_source"].copy()
+            df.loc[both_blank, "key_source"] = ks.map(lambda v: (str(v).strip() + "|roi_dir_datefolder") if _nonempty(v) and "roi_dir_datefolder" not in str(v) else ("roi_dir_datefolder" if not _nonempty(v) else str(v).strip()))
+        if "inferred_row" in df.columns:
+            df.loc[both_blank, "inferred_row"] = True
+
+        print(f"STEP1A n_date_mount_filled_from_roi_dir={n_both_blank_before}")
+
+    # Verify no both-blank remain
+    blank_loc_after = _is_blank_series(df["Data location"])
+    blank_dat_after = _is_blank_series(df["date_mount"])
+    both_blank_after = blank_loc_after & blank_dat_after
+    n_both_blank_after = int(both_blank_after.sum())
+    print(f"STEP1A n_both_blank_after(Data location & date_mount)={n_both_blank_after}")
+
+    if n_both_blank_after:
+        show = [c for c in ["roi_dir", "date_mount", "Data location", "link_source", "folder_hit", "key_source"] if c in df.columns]
+        print("STEP1A ERROR: still have both-blank rows after inference")
+        print(df.loc[both_blank_after, show].head(200).to_string(index=False))
+        raise SystemExit("STEP1A ERROR: refusing to continue with inconsistent legacy fields")
+
+    # ─────────────────────────────────────────────────────────────
+    # Existing logic continues unchanged below
+    # ─────────────────────────────────────────────────────────────
+
+    # Prefer date_key if present, but FALL BACK to parsing ROI path (needed for Denoising/*)
     if "date_key" in df.columns:
         yyyymmdd = df["date_key"].apply(_date_yyyymmdd_from_any)
     else:
         yyyymmdd = df["roi_dir"].astype(str).str.extract(r"/(20\d{6})[_-]")[0]
+
+    yyyymmdd_fallback = df["roi_dir"].astype(str).str.extract(r"/(20\d{6})[_-]")[0]
+    yyyymmdd = yyyymmdd.fillna(yyyymmdd_fallback)
+
     df["plate_date_yyyymmdd"] = yyyymmdd
 
     df["plate_date"] = df["plate_date_yyyymmdd"].astype(str)
@@ -96,13 +182,29 @@ def main() -> None:
         dataset = pd.Series([pd.NA] * len(df))
     df["dataset"] = dataset
 
+    # Derive fish_label robustly:
+    #   - prefer /fish.../ segment anywhere in path
+    #   - else prefer basename if it starts with fish...
+    #   - else fall back to the prior heuristic
+    def _fish_label_from_roi_dir(roi_dir: str):
+        rd = str(roi_dir or "")
+        m = re.search(r"/(fish[^/]+)(?:/|$)", rd, flags=re.I)
+        if m:
+            return m.group(1)
+        base = rd.rstrip("/").split("/")[-1] if rd else ""
+        if base.lower().startswith("fish"):
+            return base
+        # previous heuristic: folder before last
+        m2 = re.search(r"/([^/]+)/[^/]+$", rd)
+        return (m2.group(1) if m2 else pd.NA)
+
     if "fish" in df.columns:
         fish_label = df["fish"].astype(str).str.strip()
         fish_label = fish_label.replace({"nan": pd.NA, "none": pd.NA, "": pd.NA})
     else:
-        fish_label = df["roi_dir"].astype(str).apply(lambda s: re.search(r"/([^/]+)/[^/]+$", s).group(1) if re.search(r"/([^/]+)/[^/]+$", s) else pd.NA)
-    df["fish_label"] = fish_label
+        fish_label = df["roi_dir"].astype(str).apply(_fish_label_from_roi_dir)
 
+    df["fish_label"] = fish_label
     df["plate_group_key"] = df["dataset_slug_norm"].astype(str)
 
     df["plate_id_filled"] = (
@@ -150,6 +252,20 @@ def main() -> None:
         df.groupby(["plate_date_yyyymmdd","plate_id_filled","slot_id_filled"])["roi_index_within_slot"]
           .transform(lambda s: s.fillna(pd.Series(range(1, len(s)+1), index=s.index)))
     ).astype(int)
+    # Ensure roi_index_within_slot is UNIQUE within each slot.
+    # If duplicates exist (common in Denoising/*), renumber deterministically by roi_dir.
+    def _renumber_group(g):
+        # stable order
+        g2 = g.sort_values(["roi_dir"], kind="mergesort").copy()
+        g2["roi_index_within_slot"] = range(1, len(g2) + 1)
+        return g2
+
+    dup_mask = df.duplicated(subset=["plate_date_yyyymmdd","plate_id_filled","slot_id_filled","roi_index_within_slot"], keep=False)
+    if dup_mask.any():
+        df = (
+            df.groupby(["plate_date_yyyymmdd","plate_id_filled","slot_id_filled"], dropna=False, group_keys=False)
+              .apply(_renumber_group)
+        )
 
     df["bruker_roi_id"] = (
         df["plate_date_yyyymmdd"].astype(str)
@@ -159,8 +275,8 @@ def main() -> None:
     )
 
     df["plate_code"] = [
-        _plate_code(pd, int(pid)) if _nonempty(pd) else pd.NA
-        for pd, pid in zip(df["plate_date"], df["plate_id_filled"])
+        _plate_code(pd_, int(pid)) if _nonempty(pd_) else pd.NA
+        for pd_, pid in zip(df["plate_date"], df["plate_id_filled"])
     ]
     df["slot_index"] = df["slot_id_filled"].astype(int)
 

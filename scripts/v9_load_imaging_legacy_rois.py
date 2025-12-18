@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from typing import Optional
 
 import pandas as pd
@@ -40,19 +41,58 @@ def experiment_date_from_plate_date(plate_date: float) -> Optional[str]:
     day = d_int % 100
     return f"{year:04d}-{month:02d}-{day:02d}"
 
+EXPERIMENT_FOLDER_RE = re.compile(r"/(20\d{6}_[^/]+)/")
+
+
+def experiment_name_from_roi_path(roi_path: object) -> Optional[str]:
+    """
+    Extract experiment folder token like '20251106_mem-mito' from a ROI path.
+    Returns None if not found.
+    """
+    if roi_path is None:
+        return None
+    s = str(roi_path)
+    if not s or s.lower() in ("nan", "none"):
+        return None
+    m = EXPERIMENT_FOLDER_RE.search(s)
+    if not m:
+        return None
+    v = m.group(1).strip()
+    return v or None
+
 
 def upsert_imaging_plates(df: pd.DataFrame, engine: Engine) -> None:
     df = df.copy()
     df["plate_code"] = df.apply(plate_code_from_row, axis=1)
     df["experiment_date"] = df["plate_date"].apply(experiment_date_from_plate_date)
 
+    # Prefer explicit dataset_slug if present, otherwise derive from roi_dir/roi_path.
+    # v9 compat CSVs usually don't have dataset_slug, so roi_dir is the source of truth.
     experiment_name_col = "dataset_slug" if "dataset_slug" in df.columns else None
+
+    df["experiment_name_inferred"] = df["roi_dir"].apply(experiment_name_from_roi_path) if "roi_dir" in df.columns else None
 
     cols = ["plate_code", "experiment_date"]
     if experiment_name_col:
         cols.append(experiment_name_col)
+    cols.append("experiment_name_inferred")
 
-    plates = df[cols].drop_duplicates(subset=["plate_code"])
+    plates = df[cols].drop_duplicates(subset=["plate_code"]).copy()
+
+    def pick_name(row: pd.Series) -> Optional[str]:
+        v = row.get(experiment_name_col) if experiment_name_col else None
+        if v is not None:
+            s = str(v).strip()
+            if s and s.lower() not in ("nan", "none"):
+                return s
+        v2 = row.get("experiment_name_inferred")
+        if v2 is not None:
+            s2 = str(v2).strip()
+            if s2 and s2.lower() not in ("nan", "none"):
+                return s2
+        return None
+
+    plates["experiment_name"] = plates.apply(pick_name, axis=1)
 
     sql = text(
         """
@@ -80,12 +120,14 @@ def upsert_imaging_plates(df: pd.DataFrame, engine: Engine) -> None:
 
     with engine.begin() as conn:
         for _, row in plates.iterrows():
-            params = {
-                "plate_code": row["plate_code"],
-                "experiment_date": row["experiment_date"],
-                "experiment_name": row.get(experiment_name_col) if experiment_name_col else None,
-            }
-            conn.execute(sql, params)
+            conn.execute(
+                sql,
+                {
+                    "plate_code": row["plate_code"],
+                    "experiment_date": row["experiment_date"],
+                    "experiment_name": row.get("experiment_name"),
+                },
+            )
 
 
 def upsert_imaging_slots(df: pd.DataFrame, engine: Engine) -> None:

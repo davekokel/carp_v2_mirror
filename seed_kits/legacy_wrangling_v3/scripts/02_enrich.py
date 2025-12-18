@@ -24,6 +24,10 @@ ALIAS = AUTO / "alias.csv"
 OUT_FULL = V3_WORK / "legacy_imaging_annotations_v9.csv"
 OUT_DB = V3_WORK / "legacy_imaging_annotations_for_db_v9.csv"
 
+DATEFOLDER_RE = re.compile(r"^\d{8}_.+")
+SPLIT_RE = re.compile(r"[\\/]+")
+BASECODE_PAT = re.compile(r"(?i)(?:^|[^A-Z0-9])(MGCO|HC|PDQM)\s*[-_ ]?\s*(\d{1,4})(?=[^0-9]|$)")
+
 
 def _nonempty(x) -> bool:
     if x is None:
@@ -32,6 +36,14 @@ def _nonempty(x) -> bool:
         return False
     s = str(x).strip()
     return s != "" and s.lower() not in ("nan", "none", "na", "n/a", "<na>")
+
+
+def _is_blank_series(s: pd.Series) -> pd.Series:
+    return (
+        s.isna()
+        | s.astype(str).str.strip().eq("")
+        | s.astype(str).str.strip().str.lower().isin(["nan", "none", "na", "n/a", "<na>"])
+    )
 
 
 def _norm_slug(s):
@@ -50,6 +62,17 @@ def _norm_label(s):
     s = re.sub(r"[^a-z0-9]+", "", s)
     s = s.strip()
     return s or None
+
+
+def _norm_injection_token(x):
+    k = _norm_label(x)
+    if not _nonempty(k):
+        return None
+    k = str(k)
+    for suf in ["mrna", "rna", "plasmid", "dna", "crispr"]:
+        if k.endswith(suf):
+            k = k[: -len(suf)]
+    return k or None
 
 
 def _split_codes(v):
@@ -90,6 +113,34 @@ def _coalesce(a, b):
     return b if _nonempty(b) else a
 
 
+def _canon_basecode(prefix: str, num: str) -> str:
+    p = str(prefix).upper()
+    n = int(str(num))
+    if p == "MGCO":
+        return f"MGCO-{n:02d}" if n < 100 else f"MGCO-{n}"
+    if p == "HC":
+        return f"HC-{n}"
+    if p == "PDQM":
+        return f"pDQM{n:03d}"
+    return f"{p}-{n}"
+
+
+def _extract_basecodes_from_raw(v) -> list[str]:
+    if not _nonempty(v):
+        return []
+    hits = []
+    s = str(v)
+    for m in BASECODE_PAT.finditer(s):
+        hits.append(_canon_basecode(m.group(1), m.group(2)))
+    out = []
+    seen = set()
+    for h in hits:
+        if h not in seen:
+            seen.add(h)
+            out.append(h)
+    return out
+
+
 def _build_constructs_ft() -> pd.DataFrame:
     constructs = pd.read_csv(CONSTRUCTS, low_memory=False)
     tags = pd.read_excel(TAGS)
@@ -120,93 +171,32 @@ def _build_constructs_ft() -> pd.DataFrame:
             if k and a and k not in fluor_alias_map:
                 fluor_alias_map[k] = a
 
-    constructs_ft["fluor_alias"] = constructs_ft["fluor_code"].astype(str).map(lambda x: fluor_alias_map.get(str(x), pd.NA))
-    return constructs_ft[["plasmid_code", "fluor_code", "fluor_alias", "tag_code", "tag_pos", "localization"]].drop_duplicates()
-
-
-def _parent_lookup() -> dict:
-    pm = pd.read_csv(PARENT_MAP_CSV, low_memory=False).copy()
-    pm = pm.rename(columns={k: "parent_fish_name" for k in ["parent_name"] if k in pm.columns})
-    need = ["parent_fish_name", "plasmid_base_code", "allele"]
-    missing = [c for c in need if c not in pm.columns]
-    if missing:
-        raise SystemExit(f"02_enrich.py: parent map missing cols: {missing}")
-    pm["parent_norm"] = pm["parent_fish_name"].apply(_norm_label)
-    agg = (
-        pm.groupby("parent_norm", dropna=True)
-        .agg({"plasmid_base_code": _union_pipe, "allele": _union_pipe})
-        .reset_index()
+    constructs_ft["fluor_alias"] = constructs_ft["fluor_code"].astype(str).map(
+        lambda x: fluor_alias_map.get(str(x), pd.NA)
     )
-    return {r.parent_norm: (r.plasmid_base_code, r.allele) for r in agg.itertuples(index=False)}
-
-
-def _treatment_maps() -> tuple[dict, dict]:
-    inj_rna = pd.read_excel(INJECTED_RNA_XLSX)
-    inj_pl = pd.read_excel(INJECTED_PLASMID_XLSX)
-
-    if not {"injected_rna", "plasmid_base_code"} <= set(inj_rna.columns):
-        raise SystemExit("02_enrich.py: injected_rna sheet missing required cols")
-    if not {"injected_plasmid", "plasmid_base_code"} <= set(inj_pl.columns):
-        raise SystemExit("02_enrich.py: injected_plasmid sheet missing required cols")
-
-    rna_map = {}
-    for r in inj_rna.dropna(subset=["injected_rna", "plasmid_base_code"]).itertuples(index=False):
-        k = _norm_label(r.injected_rna)
-        v = str(r.plasmid_base_code).strip()
-        if k and v and k not in rna_map:
-            rna_map[k] = v
-
-    pl_map = {}
-    for r in inj_pl.dropna(subset=["injected_plasmid", "plasmid_base_code"]).itertuples(index=False):
-        k = _norm_label(r.injected_plasmid)
-        v = str(r.plasmid_base_code).strip()
-        if k and v and k not in pl_map:
-            pl_map[k] = v
-
-    return rna_map, pl_map
-
-
-def _agg_exp_patch() -> pd.DataFrame:
-    ep = pd.read_csv(EXP_PATCH, low_memory=False)
-    required = {
-        "dataset_slug",
-        "genotype_base_codes",
-        "genotype_allele_codes",
-        "treatment_rna_base_codes",
-        "treatment_plasmid_base_codes",
-    }
-    missing = required - set(ep.columns)
-    if missing:
-        raise SystemExit(f"02_enrich.py: experiment_hole_patch_v7.csv missing cols: {sorted(missing)}")
-
-    ep["dataset_slug_norm"] = ep["dataset_slug"].apply(_norm_slug)
-
-    return (
-        ep.groupby("dataset_slug_norm", dropna=True)
-        .agg({
-            "genotype_base_codes": _union_pipe,
-            "genotype_allele_codes": _union_pipe,
-            "treatment_rna_base_codes": _union_pipe,
-            "treatment_plasmid_base_codes": _union_pipe,
-        })
-        .reset_index()
-        .rename(columns={
-            "genotype_base_codes": "geno_base_codes_v9_exp",
-            "genotype_allele_codes": "geno_alleles_v9_exp",
-            "treatment_rna_base_codes": "treatment_rna_base_codes_v9_exp",
-            "treatment_plasmid_base_codes": "treatment_plasmid_base_codes_v9_exp",
-        })
-    )
+    return constructs_ft[
+        ["plasmid_code", "fluor_code", "fluor_alias", "tag_code", "tag_pos", "localization"]
+    ].drop_duplicates()
 
 
 def _compute_marker_rollups(basecodes: str | None, constructs_ft: pd.DataFrame) -> dict:
     codes = _split_codes(basecodes)
     if not codes:
-        return {"marker_fluor_codes": None, "marker_tag_codes": None, "marker_localizations": None, "marker_fusion_labels": None}
+        return {
+            "marker_fluor_codes": None,
+            "marker_tag_codes": None,
+            "marker_localizations": None,
+            "marker_fusion_labels": None,
+        }
 
     sub = constructs_ft[constructs_ft["plasmid_code"].isin(codes)].copy()
     if sub.empty:
-        return {"marker_fluor_codes": None, "marker_tag_codes": None, "marker_localizations": None, "marker_fusion_labels": None}
+        return {
+            "marker_fluor_codes": None,
+            "marker_tag_codes": None,
+            "marker_localizations": None,
+            "marker_fusion_labels": None,
+        }
 
     fluor, tags, locs, fusions = [], [], [], []
     for r in sub.itertuples(index=False):
@@ -237,15 +227,317 @@ def _compute_marker_rollups(basecodes: str | None, constructs_ft: pd.DataFrame) 
     }
 
 
+def _parent_lookup() -> dict:
+    pm = pd.read_csv(PARENT_MAP_CSV, low_memory=False).copy()
+    pm = pm.rename(columns={k: "parent_fish_name" for k in ["parent_name"] if k in pm.columns})
+    need = ["parent_fish_name", "plasmid_base_code", "allele"]
+    missing = [c for c in need if c not in pm.columns]
+    if missing:
+        raise SystemExit(f"02_enrich.py: parent map missing cols: {missing}")
+    pm["parent_norm"] = pm["parent_fish_name"].apply(_norm_label)
+    agg = (
+        pm.groupby("parent_norm", dropna=True)
+        .agg({"plasmid_base_code": _union_pipe, "allele": _union_pipe})
+        .reset_index()
+    )
+    return {r.parent_norm: (r.plasmid_base_code, r.allele) for r in agg.itertuples(index=False)}
+
+
+def _treatment_maps() -> tuple[dict, dict]:
+    inj_rna = pd.read_excel(INJECTED_RNA_XLSX)
+    inj_pl = pd.read_excel(INJECTED_PLASMID_XLSX)
+
+    if "injected_rna" not in inj_rna.columns:
+        raise SystemExit("02_enrich.py: injected_rna sheet missing injected_rna col")
+    if "injected_plasmid" not in inj_pl.columns:
+        raise SystemExit("02_enrich.py: injected_plasmid sheet missing injected_plasmid col")
+
+    rna_map = {}
+    if "plasmid_base_code" in inj_rna.columns:
+        for r in inj_rna.dropna(subset=["injected_rna"]).itertuples(index=False):
+            k = _norm_injection_token(getattr(r, "injected_rna"))
+            v = str(getattr(r, "plasmid_base_code", "")).strip()
+            if k and _nonempty(v) and k not in rna_map:
+                rna_map[k] = v
+
+    pl_map = {}
+    if "plasmid_base_code" in inj_pl.columns:
+        for r in inj_pl.dropna(subset=["injected_plasmid", "plasmid_base_code"]).itertuples(index=False):
+            k = _norm_injection_token(getattr(r, "injected_plasmid"))
+            v = str(getattr(r, "plasmid_base_code")).strip()
+            if k and _nonempty(v) and k not in pl_map:
+                pl_map[k] = v
+
+    return rna_map, pl_map
+
+
+def _parse_injections_from_sheet_columns(df: pd.DataFrame, rna_map: dict, pl_map: dict) -> pd.DataFrame:
+    df = df.copy()
+
+    if "additional mRNAs injected" not in df.columns:
+        df["additional mRNAs injected"] = pd.NA
+    if "additional plasmids injected" not in df.columns:
+        df["additional plasmids injected"] = pd.NA
+
+    def map_any(v, maps):
+        if not _nonempty(v):
+            return None
+
+        direct = _extract_basecodes_from_raw(v)
+        if direct:
+            return _uniq_join(direct)
+
+        hits = []
+        for part in re.split(r"[|,;]+", str(v)):
+            part = part.strip()
+            if not part:
+                continue
+            k = _norm_injection_token(part)
+            if not k:
+                continue
+            for m in maps:
+                bc = m.get(k)
+                if bc:
+                    hits.append(bc)
+                    break
+        return _uniq_join(hits) if hits else None
+
+    df["tr_rna_from_imaging"] = df["additional mRNAs injected"].apply(lambda x: map_any(x, [rna_map, pl_map]))
+    df["tr_plasmid_from_imaging"] = df["additional plasmids injected"].apply(lambda x: map_any(x, [pl_map, rna_map]))
+
+    def _pipe_to_set(v):
+        if not _nonempty(v):
+            return set()
+        return {x.strip() for x in re.split(r"[|,;]+", str(v)) if x.strip()}
+
+    rna_sets = df["tr_rna_from_imaging"].apply(_pipe_to_set)
+    pl_sets = df["tr_plasmid_from_imaging"].apply(_pipe_to_set)
+
+    conflict_sets = [sorted(list(a & b)) for a, b in zip(rna_sets, pl_sets)]
+    df["delivery_conflict_basecodes"] = ["|".join(xs) if xs else pd.NA for xs in conflict_sets]
+
+    n_conflict_rows = int(df["delivery_conflict_basecodes"].map(_nonempty).sum())
+    print(f"[DELIVERY_QC] n_rows_with_basecode_in_both_rna_and_plasmid_columns={n_conflict_rows}")
+
+    return df
+
+
+def _infer_marker_family_basecode_from_slug(slug_norm: str) -> str | None:
+    s = str(slug_norm or "").strip().lower()
+    if "mem-mito" in s:
+        return "MGCO-01"
+    if "peroxi" in s:
+        return "MGCO-49"
+    return None
+
+
+def _apply_slug_marker_inference(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    for c in [
+        "dataset_slug_norm",
+        "genotype_base_codes",
+        "genotype_allele_codes",
+        "treatment_rna_base_codes",
+        "treatment_plasmid_base_codes",
+    ]:
+        if c not in df.columns:
+            df[c] = pd.NA
+
+    def _blank(v) -> bool:
+        return not _nonempty(v)
+
+    need = (
+        df["dataset_slug_norm"].astype(str).str.strip().ne("")
+        & df["genotype_base_codes"].map(_blank)
+        & df["genotype_allele_codes"].map(_blank)
+        & df["treatment_rna_base_codes"].map(_blank)
+        & df["treatment_plasmid_base_codes"].map(_blank)
+    )
+
+    inferred = df["dataset_slug_norm"].map(_infer_marker_family_basecode_from_slug)
+    fill_mask = need & inferred.map(_nonempty)
+
+    n_fill = int(fill_mask.sum())
+    if n_fill:
+        df.loc[fill_mask, "genotype_base_codes"] = df.loc[fill_mask, "dataset_slug_norm"].map(
+            _infer_marker_family_basecode_from_slug
+        )
+
+    bad = (
+        df["dataset_slug_norm"].astype(str).str.lower().str.contains(r"(?:mem-mito|peroxi)", regex=True, na=False)
+        & df["genotype_base_codes"].map(_blank)
+        & df["treatment_rna_base_codes"].map(_blank)
+        & df["treatment_plasmid_base_codes"].map(_blank)
+    )
+    n_bad = int(bad.sum())
+
+    print(f"[SLUG_INFER] filled_genotype_base_codes_from_slug={n_fill}")
+    print(f"[SLUG_INFER] remaining_slug_marker_rows_with_no_basecodes={n_bad}")
+
+    if n_bad:
+        cols = [c for c in [
+            "roi_dir",
+            "dataset_slug_norm",
+            "genotype_base_codes",
+            "treatment_rna_base_codes",
+            "treatment_plasmid_base_codes",
+            "tr_rna_from_imaging",
+            "tr_plasmid_from_imaging",
+        ] if c in df.columns]
+        print(df.loc[bad, cols].head(60).to_string(index=False))
+        raise SystemExit(f"STOP: {n_bad} rows have slug markers but no genotype/treatment basecodes")
+
+    return df
+
+
+def _agg_exp_patch() -> pd.DataFrame:
+    ep = pd.read_csv(EXP_PATCH, low_memory=False)
+    required = {
+        "dataset_slug",
+        "genotype_base_codes",
+        "genotype_allele_codes",
+        "treatment_rna_base_codes",
+        "treatment_plasmid_base_codes",
+    }
+    missing = required - set(ep.columns)
+    if missing:
+        raise SystemExit(f"02_enrich.py: experiment_hole_patch_v7.csv missing cols: {sorted(missing)}")
+
+    ep["dataset_slug_norm"] = ep["dataset_slug"].apply(_norm_slug)
+
+    return (
+        ep.groupby("dataset_slug_norm", dropna=True)
+        .agg(
+            {
+                "genotype_base_codes": _union_pipe,
+                "genotype_allele_codes": _union_pipe,
+                "treatment_rna_base_codes": _union_pipe,
+                "treatment_plasmid_base_codes": _union_pipe,
+            }
+        )
+        .reset_index()
+        .rename(
+            columns={
+                "genotype_base_codes": "geno_base_codes_v9_exp",
+                "genotype_allele_codes": "geno_alleles_v9_exp",
+                "treatment_rna_base_codes": "treatment_rna_base_codes_v9_exp",
+                "treatment_plasmid_base_codes": "treatment_plasmid_base_codes_v9_exp",
+            }
+        )
+    )
+
+
+def _extract_datefolder_tokens(roi_dir: str) -> list[str]:
+    if roi_dir is None or (isinstance(roi_dir, float) and pd.isna(roi_dir)):
+        return []
+    s = str(roi_dir)
+    toks = [t for t in SPLIT_RE.split(s) if t]
+    hits = [t for t in toks if DATEFOLDER_RE.match(t)]
+    return hits
+
+
+def _yyyymmdd_to_iso(yyyymmdd: str) -> str:
+    dt = pd.to_datetime(yyyymmdd, format="%Y%m%d", errors="raise").date()
+    return dt.isoformat()
+
+
+def _step1a_fill_date_mount_from_roi_dir(df: pd.DataFrame) -> None:
+    if "date_mount" not in df.columns:
+        df["date_mount"] = pd.NA
+    if "Data location" not in df.columns:
+        df["Data location"] = pd.NA
+
+    blank_loc = _is_blank_series(df["Data location"])
+    blank_dat = _is_blank_series(df["date_mount"])
+    both_blank = blank_loc & blank_dat
+
+    n_both_blank_before = int(both_blank.sum())
+    print(f"STEP1A n_both_blank_before(Data location & date_mount)={n_both_blank_before}")
+
+    if n_both_blank_before:
+        toks = df.loc[both_blank, "roi_dir"].map(_extract_datefolder_tokens)
+
+        bad_idx = toks.index[toks.map(len).ne(1)].tolist()
+        if bad_idx:
+            if "dataset_slug_norm" in df.columns:
+                is_analysis_test = (
+                    df.loc[bad_idx, "dataset_slug_norm"]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                    .eq("analysis_test")
+                )
+            else:
+                is_analysis_test = df.loc[bad_idx, "roi_dir"].astype(str).str.contains(
+                    r"/analysis_test/", case=False, na=False
+                )
+
+            allowed_idx = [i for i in bad_idx if bool(is_analysis_test.loc[i])]
+            hard_idx = [i for i in bad_idx if i not in allowed_idx]
+
+            cols = ["roi_dir"]
+            if "link_source" in df.columns:
+                cols.append("link_source")
+            if "dataset_slug_norm" in df.columns:
+                cols.append("dataset_slug_norm")
+
+            show = df.loc[bad_idx, cols].copy()
+            show["datefolder_tokens"] = toks.loc[bad_idx].map(lambda xs: ";".join(xs))
+            print("STEP1A both-blank rows with non-deterministic roi_dir datefolder parsing:")
+            print(show.head(200).to_string(index=True))
+            print(f"STEP1A allowed_exceptions_analysis_test={len(allowed_idx)}")
+            print(f"STEP1A hard_fail_rows={len(hard_idx)}")
+
+            if hard_idx:
+                raise SystemExit(
+                    f"STEP1A ERROR: {len(hard_idx)} rows violate deterministic datefolder rule (expected exactly 1 token)"
+                )
+
+        fill_idx = toks.index[toks.map(len).eq(1)].tolist()
+        if fill_idx:
+            datefolder = toks.loc[fill_idx].map(lambda xs: xs[0])
+            yyyymmdd = datefolder.map(lambda x: str(x)[:8])
+            iso = yyyymmdd.map(_yyyymmdd_to_iso)
+            df.loc[fill_idx, "date_mount"] = iso
+            print(f"STEP1A n_date_mount_filled_from_roi_dir={len(fill_idx)}")
+
+    blank_loc_after = _is_blank_series(df["Data location"])
+    blank_dat_after = _is_blank_series(df["date_mount"])
+    both_blank_after = blank_loc_after & blank_dat_after
+    n_both_blank_after = int(both_blank_after.sum())
+    print(f"STEP1A n_both_blank_after(Data location & date_mount)={n_both_blank_after}")
+
+    non_test_after = both_blank_after
+    if "dataset_slug_norm" in df.columns:
+        non_test_after = both_blank_after & ~df["dataset_slug_norm"].astype(str).str.strip().str.lower().eq(
+            "analysis_test"
+        )
+
+    if int(non_test_after.sum()) != 0:
+        show_cols = [c for c in ["roi_dir", "date_mount", "Data location", "link_source", "dataset_slug_norm"] if c in df.columns]
+        print(df.loc[non_test_after, show_cols].head(200).to_string(index=False))
+        raise SystemExit(
+            "STEP1A ERROR: refusing to continue with both Data location and date_mount blank (non-analysis_test rows)"
+        )
+
+
 def main() -> None:
     if not IN_STRUCT.exists():
         raise SystemExit(f"missing structural CSV (run 01_link.py first): {IN_STRUCT}")
-    for p in [PARENT_MAP_CSV, INJECTED_RNA_XLSX, INJECTED_PLASMID_XLSX, EXP_PATCH, CONSTRUCTS, TAGS, ALIAS]:
+    for p in [
+        PARENT_MAP_CSV,
+        INJECTED_RNA_XLSX,
+        INJECTED_PLASMID_XLSX,
+        EXP_PATCH,
+        CONSTRUCTS,
+        TAGS,
+        ALIAS,
+    ]:
         if not p.exists():
             raise SystemExit(f"missing required input: {p}")
 
     df = pd.read_csv(IN_STRUCT, low_memory=False)
-
     if "roi_dir" not in df.columns:
         raise SystemExit("02_enrich.py: missing roi_dir in IN_STRUCT")
     if "roi_experiment_folder" not in df.columns:
@@ -257,6 +549,7 @@ def main() -> None:
 
     parent_map = _parent_lookup()
     rna_map, pl_map = _treatment_maps()
+    df = _parse_injections_from_sheet_columns(df, rna_map=rna_map, pl_map=pl_map)
     exp_slug_agg = _agg_exp_patch()
 
     def parent_codes_from_text(x):
@@ -272,35 +565,11 @@ def main() -> None:
 
     f_base, f_alle = zip(*df["ZF female genotype"].apply(parent_codes_from_text))
     m_base, m_alle = zip(*df["ZF male genotype"].apply(parent_codes_from_text))
-
     df["geno_base_from_imaging"] = [_uniq_join([a, b]) for a, b in zip(f_base, m_base)]
     df["geno_alle_from_imaging"] = [_uniq_join([a, b]) for a, b in zip(f_alle, m_alle)]
 
-    def map_treat_names_to_basecodes(v, m):
-        if not _nonempty(v):
-            return None
-        hits = []
-        for part in re.split(r"[|,;]+", str(v)):
-            k = _norm_label(part)
-            if not k:
-                continue
-            bc = m.get(k)
-            if bc:
-                hits.append(bc)
-        return _uniq_join(hits)
-
-    if "additional mRNAs injected" not in df.columns:
-        df["additional mRNAs injected"] = pd.NA
-    if "additional plasmids injected" not in df.columns:
-        df["additional plasmids injected"] = pd.NA
-
-    df["tr_rna_from_imaging"] = df["additional mRNAs injected"].apply(lambda x: map_treat_names_to_basecodes(x, rna_map))
-    df["tr_plasmid_from_imaging"] = df["additional plasmids injected"].apply(lambda x: map_treat_names_to_basecodes(x, pl_map))
-
     df = df.merge(exp_slug_agg, on="dataset_slug_norm", how="left")
-        # ------------------------------------------------------------------
-    # Ensure final “output” columns exist BEFORE any override code
-    # ------------------------------------------------------------------
+
     for c in [
         "genotype_base_codes",
         "genotype_allele_codes",
@@ -309,336 +578,21 @@ def main() -> None:
     ]:
         if c not in df.columns:
             df[c] = pd.NA
-        # ---- v3 inference overrides (treatments, NOT genotype) ----
-    # These are dataset-level inferences when BOTH genotype + treatments are missing.
-    # We write to treatment_*_base_codes only; genotype_* stays as-is unless derived elsewhere.
 
-    def _ensure_pipe(existing: str | None, add: str | None) -> str | None:
-        if not _nonempty(add):
-            return existing
-        if not _nonempty(existing):
-            return add
-        parts = []
-        seen = set()
-        for v in re.split(r"[|,;]+", str(existing)) + re.split(r"[|,;]+", str(add)):
-            v = str(v).strip()
-            if v and v.lower() not in ("nan","none","na","n/a","<na>") and v not in seen:
-                seen.add(v)
-                parts.append(v)
-        return "|".join(parts) if parts else None
+    df["genotype_base_codes"] = [
+        _coalesce(a, b) for a, b in zip(df["geno_base_from_imaging"], df.get("geno_base_codes_v9_exp"))
+    ]
+    df["genotype_allele_codes"] = [
+        _coalesce(a, b) for a, b in zip(df["geno_alle_from_imaging"], df.get("geno_alleles_v9_exp"))
+    ]
+    df["treatment_rna_base_codes"] = [
+        _coalesce(a, b) for a, b in zip(df["tr_rna_from_imaging"], df.get("treatment_rna_base_codes_v9_exp"))
+    ]
+    df["treatment_plasmid_base_codes"] = [
+        _coalesce(a, b) for a, b in zip(df["tr_plasmid_from_imaging"], df.get("treatment_plasmid_base_codes_v9_exp"))
+    ]
 
-    def _code_kind(code: str) -> str | None:
-        if not _nonempty(code):
-            return None
-        code = str(code).strip()
-
-        # read constructs once (fast enough for our tiny override set)
-        c = pd.read_csv(CONSTRUCTS, low_memory=False)
-        if "plasmid_code" not in c.columns:
-            return None
-
-        sub = c[c["plasmid_code"].astype(str).str.strip().eq(code)]
-        if sub.empty:
-            return None
-
-        rna = str(sub.get("used_for_injection_rna", pd.Series([""])).iloc[0]).strip()
-        plasmid = str(sub.get("used_for_injection_plasmid", pd.Series([""])).iloc[0]).strip()
-
-        is_rna = rna in ("1","True","true","TRUE")
-        is_pl  = plasmid in ("1","True","true","TRUE")
-
-        if is_rna:
-            return "rna"
-        if is_pl:
-            return "plasmid"
-        return None
-
-    def _apply_inferred_treatments_for_slug(slug: str, codes: list[str], reason: str):
-        nonlocal df
-        mask = df["dataset_slug_norm"].astype(str).str.strip().eq(slug)
-        if not mask.any():
-            return
-
-        # Only apply when all four are missing across the slug (same condition as your QC “need both”)
-        sub = df.loc[mask]
-        def _col_nonempty(col):
-            return sub[col].map(_nonempty).mean() if col in sub.columns else 0.0
-        if not (
-            (_col_nonempty("genotype_base_codes") == 0.0) and
-            (_col_nonempty("genotype_allele_codes") == 0.0) and
-            (_col_nonempty("treatment_rna_base_codes") == 0.0) and
-            (_col_nonempty("treatment_plasmid_base_codes") == 0.0)
-        ):
-            return
-
-        # annotate
-        df.loc[mask, "override_applied"] = True
-        df.loc[mask, "override_reason"] = reason
-
-        # place inferred codes into the right treatment column
-        for code in codes:
-            kind = _code_kind(code)
-            if kind == "rna":
-                df.loc[mask, "treatment_rna_base_codes"] = df.loc[mask, "treatment_rna_base_codes"].apply(lambda x: _ensure_pipe(x, code))
-            elif kind == "plasmid":
-                df.loc[mask, "treatment_plasmid_base_codes"] = df.loc[mask, "treatment_plasmid_base_codes"].apply(lambda x: _ensure_pipe(x, code))
-
-    # Ensure these columns exist for downstream QC
-    if "override_applied" not in df.columns:
-        df["override_applied"] = False
-    if "override_reason" not in df.columns:
-        df["override_reason"] = pd.NA
-
-    # Apply overrides
-    _apply_inferred_treatments_for_slug("20251107_mem-mito", ["MGCO-01"], "inferred:mito_mStayGold_2xCox8A")
-    _apply_inferred_treatments_for_slug("20251112_mem-mito", ["MGCO-01"], "inferred:mito_mStayGold_2xCox8A")
-    _apply_inferred_treatments_for_slug("20251029_peroxi",   ["MGCO-49"], "inferred:peroxisome_mStayGold_SKL")
-
-        # ─────────────────────────────────────────────────────────────────────
-    # OVERRIDE: mem-mito slug family backfill (when genotype+treatment missing)
-    #
-    # Goal:
-    #   If a mem-mito slug has NO genotype_base/allele AND NO treatment rna/plasmid,
-    #   copy those fields from a well-annotated mem-mito donor slug.
-    #
-    # Provenance columns:
-    #   mem_mito_override_applied, mem_mito_donor_slug, mem_mito_donor_reason
-    # ─────────────────────────────────────────────────────────────────────
-
-    def _nonempty_str(x) -> bool:
-        if x is None:
-            return False
-        if isinstance(x, float) and pd.isna(x):
-            return False
-        s = str(x).strip().lower()
-        return s not in ("", "nan", "none", "na", "n/a", "<na>")
-
-    def _needs_all_four(row) -> bool:
-        return (
-            (not _nonempty_str(row.get("geno_base_from_imaging"))) and
-            (not _nonempty_str(row.get("geno_alle_from_imaging"))) and
-            (not _nonempty_str(row.get("tr_rna_from_imaging"))) and
-            (not _nonempty_str(row.get("tr_plasmid_from_imaging"))) and
-            (not _nonempty_str(row.get("geno_base_codes_v9_exp"))) and
-            (not _nonempty_str(row.get("geno_alleles_v9_exp"))) and
-            (not _nonempty_str(row.get("treatment_rna_base_codes_v9_exp"))) and
-            (not _nonempty_str(row.get("treatment_plasmid_base_codes_v9_exp")))
-        )
-
-    def _parse_yyyymmdd_prefix(slug: str) -> int | None:
-        if not _nonempty_str(slug):
-            return None
-        m = re.match(r"^(20\d{6})[_-]", str(slug))
-        if not m:
-            return None
-        try:
-            return int(m.group(1))
-        except Exception:
-            return None
-
-    def _coverage_score(sub: pd.DataFrame) -> tuple[int, int]:
-        # returns (score, n_rows_used)
-        # score weights: genotype base 4, allele 2, tr_rna 2, tr_pl 2
-        if sub.empty:
-            return (0, 0)
-        def frac(col):
-            if col not in sub.columns:
-                return 0.0
-            return float(sub[col].map(_nonempty_str).mean())
-        s = 0
-        s += (frac("geno_base_from_imaging") > 0) * 4
-        s += (frac("geno_alle_from_imaging") > 0) * 2
-        s += (frac("tr_rna_from_imaging") > 0) * 2
-        s += (frac("tr_plasmid_from_imaging") > 0) * 2
-        # fallbacks (exp_patch)
-        s += (frac("geno_base_codes_v9_exp") > 0) * 4
-        s += (frac("geno_alleles_v9_exp") > 0) * 2
-        s += (frac("treatment_rna_base_codes_v9_exp") > 0) * 2
-        s += (frac("treatment_plasmid_base_codes_v9_exp") > 0) * 2
-        return (int(s), int(len(sub)))
-
-    # Ensure provenance cols exist
-    if "mem_mito_override_applied" not in df.columns:
-        df["mem_mito_override_applied"] = False
-    if "mem_mito_donor_slug" not in df.columns:
-        df["mem_mito_donor_slug"] = pd.NA
-    if "mem_mito_donor_reason" not in df.columns:
-        df["mem_mito_donor_reason"] = pd.NA
-
-    # Work at slug level
-    if "dataset_slug_norm" in df.columns:
-        slug_series = df["dataset_slug_norm"].astype("string")
-        is_mem_mito = slug_series.str.contains("mem-mito", case=False, na=False)
-
-        # Identify which mem-mito slugs need backfill (all rows empty)
-        mem = df[is_mem_mito].copy()
-        if not mem.empty:
-            # map slug -> needs_backfill
-            needs_by_slug = (
-                mem.groupby("dataset_slug_norm", dropna=False)
-                   .apply(lambda g: bool(g.apply(_needs_all_four, axis=1).all()))
-                   .to_dict()
-            )
-
-            need_slugs = [k for k, v in needs_by_slug.items() if v and _nonempty_str(k)]
-            if need_slugs:
-                # Build donor candidates among mem-mito slugs that have ANY enrichment
-                donors = []
-                for slug, g in mem.groupby("dataset_slug_norm", dropna=False):
-                    slug_s = str(slug)
-                    if not _nonempty_str(slug_s):
-                        continue
-                    if slug_s in need_slugs:
-                        continue
-                    score, nrows = _coverage_score(g)
-                    if score <= 0:
-                        continue
-                    donors.append((slug_s, score, nrows, _parse_yyyymmdd_prefix(slug_s)))
-
-                # Helper to choose donor for a target slug
-                def choose_donor_for(target_slug: str) -> tuple[str | None, str | None]:
-                    # Preferred donor slug if available and has coverage
-                    preferred = "20251106_mem-mito"
-                    for s, sc, n, d in donors:
-                        if s == preferred:
-                            return (s, "preferred:20251106_mem-mito")
-                    # Otherwise choose best by (score desc, date distance asc, nrows desc, slug asc)
-                    tdate = _parse_yyyymmdd_prefix(target_slug)
-                    ranked = []
-                    for s, sc, n, d in donors:
-                        if tdate is None or d is None:
-                            daydist = 10**9
-                        else:
-                            daydist = abs(d - tdate)
-                        ranked.append((sc, -n, -daydist, s))  # note: -daydist makes closer = larger; invert later
-                    if not ranked:
-                        return (None, "no_donor_found")
-                    # Sort: score desc, nrows desc, daydist asc, slug asc
-                    ranked2 = sorted(
-                        [(sc, nneg, daydistneg, s) for (sc, nneg, daydistneg, s) in ranked],
-                        key=lambda x: (-x[0], x[1], -x[2], x[3])
-                    )
-                    best_slug = ranked2[0][3]
-                    return (best_slug, "auto_best_by(score,rows,closest_date)")
-
-                # Compute donor “final” values (what we actually copy) from df columns AFTER merge(exp_slug_agg)
-                def donor_values(donor_slug: str) -> dict:
-                    g = df[df["dataset_slug_norm"].astype(str) == donor_slug].copy()
-                    if g.empty:
-                        return {}
-                    def first_nonempty(col):
-                        if col not in g.columns:
-                            return None
-                        vals = (
-                            g[col]
-                            .dropna()
-                            .astype(str)
-                            .map(lambda x: x.strip())
-                            .loc[lambda s: ~s.str.lower().isin(["", "nan", "none", "na", "n/a", "<na>"])]
-                        )
-                        return vals.iloc[0] if len(vals) else None
-                    return {
-                        "geno_base_from_imaging": first_nonempty("geno_base_from_imaging"),
-                        "geno_alle_from_imaging": first_nonempty("geno_alle_from_imaging"),
-                        "tr_rna_from_imaging": first_nonempty("tr_rna_from_imaging"),
-                        "tr_plasmid_from_imaging": first_nonempty("tr_plasmid_from_imaging"),
-                        "geno_base_codes_v9_exp": first_nonempty("geno_base_codes_v9_exp"),
-                        "geno_alleles_v9_exp": first_nonempty("geno_alleles_v9_exp"),
-                        "treatment_rna_base_codes_v9_exp": first_nonempty("treatment_rna_base_codes_v9_exp"),
-                        "treatment_plasmid_base_codes_v9_exp": first_nonempty("treatment_plasmid_base_codes_v9_exp"),
-                    }
-
-                # Apply per target slug
-                for tslug in need_slugs:
-                    donor_slug, reason = choose_donor_for(tslug)
-                    if not donor_slug:
-                        continue
-                    dv = donor_values(donor_slug)
-                    if not dv:
-                        continue
-
-                    m = df["dataset_slug_norm"].astype(str).eq(tslug)
-                    if not m.any():
-                        continue
-
-                    # Only fill into the raw per-row fields (imaging-derived and exp_patch-derived).
-                    # Final coalesce happens later.
-                    for col in [
-                        "geno_base_from_imaging",
-                        "geno_alle_from_imaging",
-                        "tr_rna_from_imaging",
-                        "tr_plasmid_from_imaging",
-                        "geno_base_codes_v9_exp",
-                        "geno_alleles_v9_exp",
-                        "treatment_rna_base_codes_v9_exp",
-                        "treatment_plasmid_base_codes_v9_exp",
-                    ]:
-                        if col in df.columns and _nonempty_str(dv.get(col)):
-                            df.loc[m, col] = dv[col]
-
-                    df.loc[m, "mem_mito_override_applied"] = True
-                    df.loc[m, "mem_mito_donor_slug"] = donor_slug
-                    df.loc[m, "mem_mito_donor_reason"] = reason
-
-    df["genotype_base_codes"] = [_coalesce(a, b) for a, b in zip(df["geno_base_from_imaging"], df.get("geno_base_codes_v9_exp"))]
-    df["genotype_allele_codes"] = [_coalesce(a, b) for a, b in zip(df["geno_alle_from_imaging"], df.get("geno_alleles_v9_exp"))]
-    df["treatment_rna_base_codes"] = [_coalesce(a, b) for a, b in zip(df["tr_rna_from_imaging"], df.get("treatment_rna_base_codes_v9_exp"))]
-    df["treatment_plasmid_base_codes"] = [_coalesce(a, b) for a, b in zip(df["tr_plasmid_from_imaging"], df.get("treatment_plasmid_base_codes_v9_exp"))]
-
-        # ------------------------------------------------------------------
-    # v3 inference overrides for remaining matchable slugs
-    # ------------------------------------------------------------------
-
-    def _needs_all_four(row):
-        return (
-            not _nonempty(row.get("genotype_base_codes")) and
-            not _nonempty(row.get("genotype_allele_codes")) and
-            not _nonempty(row.get("treatment_rna_base_codes")) and
-            not _nonempty(row.get("treatment_plasmid_base_codes"))
-        )
-
-    df["override_applied"] = False
-    df["override_reason"] = pd.NA
-
-    # ---- mito mStayGold (2xCox8A) -------------------------------------
-    mask_mito = (
-        df["dataset_slug_norm"].astype(str).str.contains("mitomsg|mem-mito", case=False, na=False)
-        & df.apply(_needs_all_four, axis=1)
-    )
-    if mask_mito.any():
-        df.loc[mask_mito, "genotype_base_codes"] = "MGCO-01"
-        df.loc[mask_mito, "genotype_allele_codes"] = pd.NA
-        df.loc[mask_mito, "override_applied"] = True
-        df.loc[mask_mito, "override_reason"] = "inferred:mito_mStayGold_2xCox8A"
-
-    # ---- ER mStayGold + membrane mChilada -----------------------------
-    mask_er_mem = (
-        df["dataset_slug_norm"].astype(str).str.contains("er-msg|mem-chilada", case=False, na=False)
-        & df.apply(_needs_all_four, axis=1)
-    )
-    if mask_er_mem.any():
-        df.loc[mask_er_mem, "genotype_base_codes"] = "pDQM092"
-        df.loc[mask_er_mem, "genotype_allele_codes"] = pd.NA
-        df.loc[mask_er_mem, "override_applied"] = True
-        df.loc[mask_er_mem, "override_reason"] = "inferred:ER_mStayGold_mem_mChilada"
-
-    # ---- peroxisome mStayGold (SKL) -----------------------------------
-    mask_peroxi = (
-        df["dataset_slug_norm"].astype(str).str.contains("peroxi", case=False, na=False)
-        & df.apply(_needs_all_four, axis=1)
-    )
-    if mask_peroxi.any():
-        df.loc[mask_peroxi, "genotype_base_codes"] = "MGCO-49"
-        df.loc[mask_peroxi, "genotype_allele_codes"] = pd.NA
-        df.loc[mask_peroxi, "override_applied"] = True
-        df.loc[mask_peroxi, "override_reason"] = "inferred:peroxisome_mStayGold_SKL"
-
-    slug = df["dataset_slug_norm"].astype(str).str.lower()
-    is_skittle = slug.str.contains("skittl", na=False)
-    is_no_mem = slug.str.contains("no[-_ ]?membrane", na=False)
-    sk_mask = is_skittle & (~is_no_mem)
-    df.loc[sk_mask, "genotype_base_codes"] = "pDQM034"
-    df.loc[sk_mask, "genotype_allele_codes"] = "309"
+    df = _apply_slug_marker_inference(df)
 
     constructs_ft = _build_constructs_ft()
 
@@ -663,6 +617,8 @@ def main() -> None:
     df["include_in_db"] = True
     if "dataset_slug_norm" in df.columns:
         df.loc[df["dataset_slug_norm"].astype(str).str.strip().str.lower().eq("analysis_test"), "include_in_db"] = False
+
+    _step1a_fill_date_mount_from_roi_dir(df)
 
     df.to_csv(OUT_FULL, index=False)
     df[df["include_in_db"]].to_csv(OUT_DB, index=False)
