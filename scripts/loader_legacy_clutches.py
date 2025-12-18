@@ -4,35 +4,127 @@ import argparse
 import os
 import sys
 import pathlib
-from typing import List, Dict, Any
+import re
+from typing import List, Dict, Any, Optional, Tuple
 
 import pandas as pd
 from sqlalchemy import text, create_engine
 from sqlalchemy.engine import Engine
 
-# ---- repo bootstrap ---------------------------------------------------------
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-DEFAULT_BATCH_ID = "legacy_clutch_inference_2025-11-18"
+DEFAULT_BATCH_ID = "legacy_clutch_inference_2025-12-18"
 
+PARENT_MAP_CSV_DEFAULT = (
+    ROOT
+    / "seed_kits"
+    / "legacy_wrangling_v2"
+    / "raw"
+    / "Unique_parent_names__mom_dad_combined__preview_dqm_v5.csv"
+)
 
-def _load_legacy_clutches_csv(path: pathlib.Path) -> pd.DataFrame:
+MEMBERSHIPS_CSV_DEFAULT = (
+    ROOT
+    / "seed_kits"
+    / "legacy_wrangling_v3"
+    / "working"
+    / "legacy_clutch_memberships_v9.csv"
+)
+
+def _nonempty(x) -> bool:
+    if x is None:
+        return False
+    if isinstance(x, float) and pd.isna(x):
+        return False
+    s = str(x).strip()
+    return s != "" and s.lower() not in ("nan", "none", "na", "n/a", "<na>")
+
+def _norm_label(s):
+    if not _nonempty(s):
+        return None
+    s = str(s).strip().lower()
+    s = re.sub(r"^\d{8}[_-]", "", s)
+    s = re.sub(r"\(.*?\)", "", s)
+    s = s.replace("\\", "/")
+    s = re.sub(r"[^a-z0-9]+", "", s)
+    s = s.strip()
+    return s or None
+
+def _split_codes(v):
+    if not _nonempty(v):
+        return []
+    s = str(v).strip()
+    parts = re.split(r"[|,;]+", s)
+    out = []
+    for p in parts:
+        p = p.strip()
+        if p and p.lower() not in ("nan", "none", "na", "n/a", "<na>"):
+            out.append(p)
+    return out
+
+def _uniq_join(parts):
+    vals = []
+    seen = set()
+    for v in parts:
+        if not _nonempty(v):
+            continue
+        for x in _split_codes(v):
+            if x not in seen:
+                seen.add(x)
+                vals.append(x)
+    return "|".join(vals) if vals else None
+
+def _union_pipe(values: List[Optional[str]]) -> Optional[str]:
+    return _uniq_join(values)
+
+def _infer_marker_family_basecode_from_dataset(dataset: str) -> Optional[str]:
+    if not _nonempty(dataset):
+        return None
+    s = str(dataset).strip().lower()
+    if "mem-mito" in s:
+        return "MGCO-01"
+    if "peroxi" in s or "mem-peroxi" in s:
+        return "MGCO-49"
+    return None
+
+def _load_csv(path: pathlib.Path) -> pd.DataFrame:
     if not path.exists():
-        raise FileNotFoundError(f"legacy clutches CSV not found: {path}")
-    df = pd.read_csv(path)
+        raise FileNotFoundError(f"CSV not found: {path}")
+    df = pd.read_csv(path, low_memory=False)
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
+def _parent_lookup(parent_map_csv: pathlib.Path) -> dict:
+    pm = pd.read_csv(parent_map_csv, low_memory=False).copy()
+    pm.columns = [str(c).strip() for c in pm.columns]
+    if "parent_name" in pm.columns and "parent_fish_name" not in pm.columns:
+        pm = pm.rename(columns={"parent_name": "parent_fish_name"})
+    need = {"parent_fish_name", "plasmid_base_code", "allele"}
+    missing = sorted(list(need - set(pm.columns)))
+    if missing:
+        raise SystemExit(f"loader_legacy_clutches: parent map missing cols: {missing}")
+
+    pm["parent_norm"] = pm["parent_fish_name"].apply(_norm_label)
+
+    agg = (
+        pm.groupby("parent_norm", dropna=True)
+        .agg(
+            {
+                "plasmid_base_code": lambda s: _union_pipe([str(x) for x in s.tolist()]),
+                "allele": lambda s: _union_pipe([str(x) for x in s.tolist()]),
+            }
+        )
+        .reset_index()
+    )
+    return {r.parent_norm: (r.plasmid_base_code, r.allele) for r in agg.itertuples(index=False)}
 
 def _prepare_payload(df: pd.DataFrame, batch: str) -> List[Dict[str, Any]]:
     required = {"clutch_code", "date_born", "roi_count"}
-    missing = required - set(df.columns)
+    missing = sorted(list(required - set(df.columns)))
     if missing:
-        raise ValueError(
-            f"legacy_clutches.csv is missing required columns: {sorted(missing)}"
-        )
+        raise ValueError(f"legacy_clutches.csv is missing required columns: {missing}")
 
     rows: List[Dict[str, Any]] = []
     for _, row in df.iterrows():
@@ -41,9 +133,7 @@ def _prepare_payload(df: pd.DataFrame, batch: str) -> List[Dict[str, Any]]:
             continue
 
         date_born = row.get("date_born")
-        clutch_date = None
-        if pd.notna(date_born) and str(date_born).strip():
-            clutch_date = str(date_born)
+        clutch_date = str(date_born).strip() if _nonempty(date_born) else None
 
         roi_count = row.get("roi_count")
         try:
@@ -66,15 +156,10 @@ def _prepare_payload(df: pd.DataFrame, batch: str) -> List[Dict[str, Any]]:
 
     return rows
 
-
 def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> None:
     if not rows:
         print("[WARN] loader_legacy_clutches: no rows to insert.")
         return
-
-    delete_memberships_sql = text(
-        "DELETE FROM public.imaging_clutch_memberships"
-    )
 
     delete_clutches_sql = text(
         """
@@ -106,44 +191,215 @@ def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> 
     )
 
     with engine.begin() as cx:
-        cx.execute(delete_memberships_sql)
         cx.execute(delete_clutches_sql, {"batch": batch})
         cx.execute(insert_sql, rows)
 
-    print(
-        f"[OK] Inserted {len(rows)} legacy clutch row(s) "
-        f"for batch='{batch}'."
+    print(f"[OK] Upserted {len(rows)} legacy clutch row(s) for batch='{batch}'.")
+
+def _ensure_genotype(engine: Engine, genotype_basecodes: str) -> str:
+    bc = str(genotype_basecodes).strip()
+    if not bc:
+        raise ValueError("empty genotype_basecodes")
+    genotype_code = "G-" + bc.upper()
+
+    sql_ins = text(
+        """
+        INSERT INTO public.genotypes_v11 (
+          genotype_code,
+          genotype_basecodes,
+          genotype_pretty,
+          source_system,
+          legacy_label,
+          display_name
+        )
+        VALUES (
+          :genotype_code,
+          :genotype_basecodes,
+          NULL,
+          'legacy_imaging',
+          'legacy_infer',
+          :genotype_code
+        )
+        ON CONFLICT (genotype_code) DO UPDATE
+        SET genotype_basecodes = EXCLUDED.genotype_basecodes
+        RETURNING id::text;
+        """
+    )
+    sql_sel = text(
+        """
+        SELECT id::text
+        FROM public.genotypes_v11
+        WHERE genotype_code = :genotype_code
+        LIMIT 1;
+        """
     )
 
+    with engine.begin() as cx:
+        gid = cx.execute(sql_ins, {"genotype_code": genotype_code, "genotype_basecodes": bc}).scalar()
+        if gid:
+            return str(gid)
+        gid2 = cx.execute(sql_sel, {"genotype_code": genotype_code}).scalar()
+        if not gid2:
+            raise RuntimeError(f"could not ensure genotype_v11 for {genotype_code}")
+        return str(gid2)
+
+def _assign_clutch_genotypes_strict(
+    engine: Engine,
+    df_clutches: pd.DataFrame,
+    batch: str,
+    parent_map: dict,
+) -> int:
+    df = df_clutches.copy()
+
+    for c in ["clutch_code", "datasets", "parent_female_genotype_text", "parent_male_genotype_text"]:
+        if c not in df.columns:
+            df[c] = pd.NA
+
+    def lookup_parent(txt) -> Tuple[Optional[str], Optional[str]]:
+        k = _norm_label(txt)
+        if not k:
+            return (None, None)
+        return parent_map.get(k, (None, None))
+
+    f_base, f_alle = zip(*df["parent_female_genotype_text"].apply(lookup_parent))
+    m_base, m_alle = zip(*df["parent_male_genotype_text"].apply(lookup_parent))
+    df["mom_base"] = f_base
+    df["dad_base"] = m_base
+    df["mom_alle"] = f_alle
+    df["dad_alle"] = m_alle
+
+    df["geno_base_from_parents"] = df.apply(lambda r: _union_pipe([r["mom_base"], r["dad_base"]]), axis=1)
+
+    df["geno_base_inferred"] = df["geno_base_from_parents"]
+    need = df["geno_base_inferred"].apply(lambda x: not _nonempty(x))
+    if need.any():
+        inferred = df.loc[need, "datasets"].map(_infer_marker_family_basecode_from_dataset)
+        df.loc[need & inferred.map(_nonempty), "geno_base_inferred"] = inferred
+
+    df["geno_base_inferred"] = df["geno_base_inferred"].apply(lambda x: str(x).strip() if _nonempty(x) else None)
+
+    to_set = df[df["geno_base_inferred"].apply(_nonempty)].copy()
+    if to_set.empty:
+        print("[OK] loader_legacy_clutches: no genotypes to assign (all missing).")
+        return 0
+
+    mapping = {}
+    for bc in sorted(set(to_set["geno_base_inferred"].tolist())):
+        gid = _ensure_genotype(engine, bc)
+        mapping[bc] = gid
+
+    sql_upd = text(
+        """
+        UPDATE public.clutches c
+        SET genotype_v11_id = CAST(:gid AS uuid)
+        WHERE c.clutch_code = :clutch_code
+          AND c.source_system = 'legacy_imaging'
+          AND c.import_batch_id = :batch
+          AND c.genotype_v11_id IS NULL;
+        """
+    )
+
+    updated = 0
+    with engine.begin() as cx:
+        for r in to_set.itertuples(index=False):
+            bc = r.geno_base_inferred
+            gid = mapping.get(bc)
+            if not gid:
+                continue
+            res = cx.execute(
+                sql_upd,
+                {"gid": gid, "clutch_code": str(r.clutch_code).strip(), "batch": batch},
+            )
+            updated += int(res.rowcount or 0)
+
+    print(f"[OK] loader_legacy_clutches: set genotype_v11_id for {updated} clutch(es) in batch='{batch}'.")
+    return updated
+
+def _qc_strict(engine: Engine, batch: str) -> None:
+    sql = text(
+        """
+        WITH c AS (
+          SELECT id, clutch_code, genotype_v11_id
+          FROM public.clutches
+          WHERE source_system='legacy_imaging'
+            AND import_batch_id=:batch
+        ),
+        m AS (
+          SELECT DISTINCT clutch_id
+          FROM public.imaging_clutch_memberships
+        )
+        SELECT
+          (SELECT count(*) FROM c) AS n_clutches,
+          (SELECT count(*) FROM c WHERE genotype_v11_id IS NULL) AS n_missing_genotype,
+          (SELECT count(*) FROM c JOIN m ON m.clutch_id = c.id WHERE c.genotype_v11_id IS NULL) AS n_missing_genotype_but_has_membership;
+        """
+    )
+    sql_list = text(
+        """
+        WITH c AS (
+          SELECT id, clutch_code, genotype_v11_id
+          FROM public.clutches
+          WHERE source_system='legacy_imaging'
+            AND import_batch_id=:batch
+        ),
+        m AS (
+          SELECT DISTINCT clutch_id
+          FROM public.imaging_clutch_memberships
+        )
+        SELECT c.clutch_code
+        FROM c
+        JOIN m ON m.clutch_id = c.id
+        WHERE c.genotype_v11_id IS NULL
+        ORDER BY c.clutch_code
+        LIMIT 80;
+        """
+    )
+
+    with engine.begin() as cx:
+        row = cx.execute(sql, {"batch": batch}).mappings().first()
+        print(f"[QC] legacy clutches in batch={row['n_clutches']} missing_genotype={row['n_missing_genotype']} missing_genotype_but_has_membership={row['n_missing_genotype_but_has_membership']}")
+        if int(row["n_missing_genotype_but_has_membership"] or 0) > 0:
+            bad = [r[0] for r in cx.execute(sql_list, {"batch": batch}).fetchall()]
+            raise SystemExit(f"[STOP] {row['n_missing_genotype_but_has_membership']} legacy clutches in batch '{batch}' have imaging memberships but NULL genotype_v11_id. Examples: {', '.join(bad)}")
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Load inferred legacy clutches into public.clutches."
-    )
-    parser.add_argument(
-        "--csv",
-        default="seed_kits/legacy_wrangling/working/legacy_clutches.csv",
-        help="Path to legacy_clutches.csv",
-    )
-    parser.add_argument(
-        "--batch",
-        default=DEFAULT_BATCH_ID,
-        help="import_batch_id label to use for this load",
-    )
+    parser = argparse.ArgumentParser(description="Load inferred legacy clutches into public.clutches (STRICT).")
+    parser.add_argument("--csv", required=True, help="Path to legacy_clutches_v9.csv")
+    parser.add_argument("--memberships-csv", default=str(MEMBERSHIPS_CSV_DEFAULT), help="Path to legacy_clutch_memberships_v9.csv")
+    parser.add_argument("--parent-map-csv", default=str(PARENT_MAP_CSV_DEFAULT), help="Path to parent map CSV")
+    parser.add_argument("--batch", default=DEFAULT_BATCH_ID, help="import_batch_id label")
     args = parser.parse_args()
-
-    path = pathlib.Path(args.csv)
-    df = _load_legacy_clutches_csv(path)
-    rows = _prepare_payload(df, args.batch)
 
     db_url = os.environ.get("DB_URL")
     if not db_url:
         raise RuntimeError("DB_URL environment variable is not set.")
     print(f"DB_URL(loader_legacy_clutches)={db_url}")
-
     engine = create_engine(db_url)
+
+    df_clutches = _load_csv(pathlib.Path(args.csv))
+    df_members = _load_csv(pathlib.Path(args.memberships_csv))
+
+    if "clutch_code" not in df_clutches.columns:
+        raise SystemExit("legacy_clutches CSV missing clutch_code")
+    if "clutch_code" not in df_members.columns:
+        raise SystemExit("legacy_clutch_memberships CSV missing clutch_code")
+
+    clutch_codes_in_members = set(df_members["clutch_code"].astype(str).str.strip().tolist())
+    df_clutches["clutch_code"] = df_clutches["clutch_code"].astype(str).str.strip()
+
+    df_clutches = df_clutches[df_clutches["clutch_code"].isin(clutch_codes_in_members)].copy()
+
+    if df_clutches.empty:
+        raise SystemExit("No clutches matched memberships CSV (strict).")
+
+    rows = _prepare_payload(df_clutches, args.batch)
     _upsert_clutches(engine, rows, args.batch)
 
+    parent_map = _parent_lookup(pathlib.Path(args.parent_map_csv))
+    _assign_clutch_genotypes_strict(engine, df_clutches, args.batch, parent_map)
+
+    print("[NOTE] Remaining missing genotypes (if any) are strict failures: no parents + no deterministic dataset inference.")
+    _qc_strict(engine, args.batch)
 
 if __name__ == "__main__":
     main()
