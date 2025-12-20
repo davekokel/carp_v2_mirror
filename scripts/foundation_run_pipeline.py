@@ -76,7 +76,9 @@ def main() -> None:
 
     run(["python", "scripts/v11_seed_fish_transgene_alleles_from_lines.py"])
 
-    print("\n[OK] foundation pipeline completed cleanly")
+    
+run(["python", "scripts/v11_seed_transgene_allele_aliases_from_fish_transgenics.py"])
+print("\n[OK] foundation pipeline completed cleanly")
 
 
 if __name__ == "__main__":
