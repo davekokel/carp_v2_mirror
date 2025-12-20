@@ -31,6 +31,17 @@ SPLIT_RE = re.compile(r"[\\/]+")
 BASECODE_PAT = re.compile(r"(?i)(?:^|[^A-Z0-9])(MGCO|HC|PDQM)\s*[-_ ]?\s*(\d{1,4})(?=[^0-9]|$)")
 
 
+def _extract_parent_allele_token(parent_text: object) -> str | None:
+    if parent_text is None:
+        return None
+    s = str(parent_text).strip()
+    if not s or s.lower() in ("nan", "none", "na", "n/a", "<na>"):
+        return None
+    m = re.search(r"(?i)\ballele\s+([A-Za-z0-9]+)\b", s)
+    if not m:
+        return None
+    return m.group(1).strip().lower() or None
+
 def _nonempty(x) -> bool:
     if x is None:
         return False
@@ -230,18 +241,48 @@ def _compute_marker_rollups(basecodes: str | None, constructs_ft: pd.DataFrame) 
 def _parent_lookup() -> dict:
     pm = pd.read_excel(PARENT_MAP_XLSX, dtype=str).copy()
     pm.to_csv(PARENT_MAP_CSV, index=False)
+
     pm = pm.rename(columns={k: "parent_fish_name" for k in ["parent_name"] if k in pm.columns})
+
     need = ["parent_fish_name", "plasmid_base_code", "allele"]
     missing = [c for c in need if c not in pm.columns]
     if missing:
-        raise SystemExit(f"02_enrich.py: parent map missing cols: {missing}")
+        raise SystemExit(f"[STOP] 02_enrich.py: parent map missing cols: {missing}")
+
+    pm.columns = [str(c).strip() for c in pm.columns]
     pm["parent_norm"] = pm["parent_fish_name"].apply(_norm_label)
-    agg = (
-        pm.groupby("parent_norm", dropna=True)
-        .agg({"plasmid_base_code": _union_pipe, "allele": _union_pipe})
-        .reset_index()
-    )
-    return {r.parent_norm: (r.plasmid_base_code, r.allele) for r in agg.itertuples(index=False)}
+
+    # Build: parent_norm -> allele_token(lower) -> (base_code_pipe, allele_token)
+    out: dict[str, dict[str, tuple[str | None, str | None]]] = {}
+
+    for r in pm.itertuples(index=False):
+        parent_norm = _norm_label(getattr(r, "parent_fish_name", None))
+        if not parent_norm:
+            continue
+
+        bc_raw = getattr(r, "plasmid_base_code", None)
+        bc = _uniq_join([bc_raw]) if _nonempty(bc_raw) else None
+
+        allele_raw = getattr(r, "allele", None)
+        if not _nonempty(allele_raw):
+            continue
+        a = str(allele_raw).strip()
+        if a.endswith(".0") and a[:-2].isdigit():
+            a = a[:-2]
+        allele_tok = a.strip().lower()
+        if not allele_tok:
+            continue
+
+        out.setdefault(parent_norm, {})
+        prev = out[parent_norm].get(allele_tok)
+        if prev is not None and prev != (bc, allele_tok):
+            raise SystemExit(
+                f"[STOP] parent map conflict for parent_norm={parent_norm!r} allele={allele_tok!r}: {prev} vs {(bc, allele_tok)}"
+            )
+
+        out[parent_norm][allele_tok] = (bc, allele_tok)
+
+    return out
 
 
 def _treatment_maps() -> tuple[dict, dict]:
@@ -572,7 +613,27 @@ def main() -> None:
         k = _norm_label(x)
         if not k:
             return (None, None)
-        return parent_map.get(k, (None, None))
+
+        bucket = parent_map.get(k)
+        if not bucket:
+            return (None, None)
+
+        # If there's only one allele option for this normalized parent, take it.
+        if len(bucket) == 1:
+            (_bc, _alle) = next(iter(bucket.values()))
+            return (_bc, _alle)
+
+        # Otherwise, require disambiguation via the allele token embedded in the parent text.
+        allele_tok = _extract_parent_allele_token(x)
+        if allele_tok and allele_tok in bucket:
+            return bucket[allele_tok]
+
+        choices = ", ".join(sorted(bucket.keys()))
+        raise SystemExit(
+            f"[STOP] ambiguous parent mapping for parent_text={str(x)!r} parent_norm={k!r}. "
+            f"Found {len(bucket)} allele variants in parent map: {choices}. "
+            f"Could not disambiguate (missing/unknown 'allele NNN' token in text)."
+        )
 
     if "ZF female genotype" not in df.columns:
         df["ZF female genotype"] = pd.NA

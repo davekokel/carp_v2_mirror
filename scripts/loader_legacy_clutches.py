@@ -264,38 +264,14 @@ def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> 
 
 
 
-def _ensure_genotype(engine: Engine, genotype_basecodes: str) -> str:
-    import hashlib
+def _ensure_genotype(engine: Engine, genotype_basecodes: str, genotype_pretty: Optional[str] = None) -> str:
+    bc = str(genotype_basecodes).strip()
+    if not bc:
+        raise ValueError("empty genotype_basecodes")
 
-    def canon_one(tok: str) -> str | None:
-        t = str(tok or "").strip()
-        if not t:
-            return None
-        t = re.sub(r"\s+", "", t)
-        m = re.match(r"(?i)^([a-z]+)[-_]?(0*)(\d+)$", t)
-        if not m:
-            return t.lower()
-        pref = m.group(1).lower()
-        num = int(m.group(3))
-        if pref == "swin":
-            pref = "pswin"
-        return f"{pref}-{num}"
+    pretty = str(genotype_pretty).strip() if _nonempty(genotype_pretty) else bc
 
-    def canon_pipe(v: str) -> str:
-        parts = [x.strip() for x in re.split(r"[|,;]+", str(v or "")) if x.strip()]
-        toks = []
-        for x in parts:
-            c = canon_one(x)
-            if c:
-                toks.append(c)
-        toks = sorted(dict.fromkeys(toks))
-        if not toks:
-            raise ValueError(f"empty genotype_basecodes after canonicalization: {v!r}")
-        return "|".join(toks)
-
-    canon = canon_pipe(genotype_basecodes)
-    h = hashlib.sha1(canon.encode("utf-8")).hexdigest()[:8]
-    genotype_code = f"LEGACY-{h}"
+    genotype_code = "G-" + bc.upper()
 
     sql_upsert = text(
         """
@@ -313,20 +289,22 @@ def _ensure_genotype(engine: Engine, genotype_basecodes: str) -> str:
           :genotype_pretty,
           'legacy_imaging',
           'legacy_infer',
-          :genotype_code
+          :display_name
         )
         ON CONFLICT (genotype_code) DO UPDATE
         SET genotype_basecodes = EXCLUDED.genotype_basecodes,
-            genotype_pretty   = EXCLUDED.genotype_pretty
+            genotype_pretty   = EXCLUDED.genotype_pretty,
+            display_name      = EXCLUDED.display_name
         RETURNING id::uuid;
         """
     )
 
-    sql_constructs = text(
+    sql_lookup_constructs = text(
         """
-        SELECT id::uuid AS construct_id
+        SELECT id::uuid
         FROM public.constructs
         WHERE lower(base_code) = ANY(CAST(:toks AS text[]))
+        ORDER BY lower(base_code);
         """
     )
 
@@ -338,33 +316,38 @@ def _ensure_genotype(engine: Engine, genotype_basecodes: str) -> str:
         """
     )
 
-    toks = canon.split("|")
+    toks = [t.strip() for t in re.split(r"[|,; ]+", bc) if t.strip()]
+    toks = [t.lower() for t in toks if t.lower() not in ("nan", "none", "na", "n/a", "<na>")]
+    toks = sorted(dict.fromkeys(toks))
 
     with engine.begin() as cx:
         gid = cx.execute(
             sql_upsert,
             {
                 "genotype_code": genotype_code,
-                "genotype_basecodes": canon,
-                "genotype_pretty": canon,
+                "genotype_basecodes": bc,
+                "genotype_pretty": pretty,
+                "display_name": genotype_code,
             },
         ).scalar()
 
         if gid is None:
-            raise SystemExit(f"[STOP] failed to upsert genotype {genotype_code} for basecodes={canon!r}")
+            raise SystemExit(f"[STOP] failed to upsert genotype_v11 for genotype_code={genotype_code}")
 
-        rows = cx.execute(sql_constructs, {"toks": toks}).fetchall()
-        found = [cid for (cid,) in rows if cid is not None]
-        if len(found) != len(toks):
-            raise SystemExit(
-                f"[STOP] construct lookup failed for genotype={genotype_code} basecodes={canon!r} "
-                f"(found {len(found)} of {len(toks)})"
-            )
+        if toks:
+            rows = cx.execute(sql_lookup_constructs, {"toks": toks}).fetchall()
+            found = [str(r[0]) for r in rows]
+            if len(found) != len(toks):
+                raise SystemExit(
+                    f"[STOP] construct lookup failed for genotype={genotype_code} basecodes={toks!r} "
+                    f"(found {len(found)} of {len(toks)})"
+                )
 
-        for (cid,) in rows:
-            cx.execute(sql_join, {"genotype_id": gid, "construct_id": cid})
+            for (cid,) in rows:
+                cx.execute(sql_join, {"genotype_id": gid, "construct_id": cid})
 
         return str(gid)
+    
 def _assign_clutch_genotypes_strict(
     engine: Engine,
     df_clutches: pd.DataFrame,
@@ -374,20 +357,22 @@ def _assign_clutch_genotypes_strict(
     df = df_clutches.copy()
 
     if "genotype_basecodes" not in df.columns:
-        raise SystemExit("[STOP] legacy_clutches_v9_for_loader.csv must include genotype_basecodes")
+        raise SystemExit("[STOP] loader_legacy_clutches: missing required column genotype_basecodes in input CSV")
+
+    if "genotype_alleles_display" not in df.columns:
+        df["genotype_alleles_display"] = pd.NA
 
     df["clutch_code"] = df["clutch_code"].astype(str).str.strip()
     df["genotype_basecodes"] = df["genotype_basecodes"].astype(str).str.strip()
+    df["genotype_alleles_display"] = df["genotype_alleles_display"].astype(str).str.strip()
 
-    bad = df[df["clutch_code"].eq("") | df["genotype_basecodes"].eq("")].copy()
+    bad = df[df["genotype_basecodes"].apply(lambda x: not _nonempty(x))].copy()
     if len(bad):
-        ex = bad[["clutch_code", "legacy_clutch_key", "genotype_basecodes"]].head(40)
-        raise SystemExit(f"[STOP] clutch rows missing clutch_code or genotype_basecodes:\n{ex.to_string(index=False)}")
-
-    mapping: Dict[str, str] = {}
-    for bc in sorted(set(df["genotype_basecodes"].tolist())):
-        gid = _ensure_genotype(engine, bc)
-        mapping[bc] = gid
+        sample = bad[["clutch_code", "legacy_clutch_key"]].head(30).to_string(index=False)
+        raise SystemExit(
+            f"[STOP] loader_legacy_clutches: {len(bad)} clutch row(s) missing genotype_basecodes in input CSV.\n"
+            f"Sample:\n{sample}"
+        )
 
     sql_upd = text(
         """
@@ -402,12 +387,21 @@ def _assign_clutch_genotypes_strict(
     updated = 0
     with engine.begin() as cx:
         for r in df.itertuples(index=False):
-            clutch_code = str(getattr(r, "clutch_code")).strip()
-            bc = str(getattr(r, "genotype_basecodes")).strip()
-            gid = mapping.get(bc)
-            if not gid:
-                raise SystemExit(f"[STOP] missing genotype mapping for clutch_code={clutch_code} bc={bc!r}")
-            res = cx.execute(sql_upd, {"gid": gid, "clutch_code": clutch_code, "batch": batch})
+            clutch_code = str(r.clutch_code).strip()
+            bc = str(r.genotype_basecodes).strip()
+
+            pretty = None
+            if hasattr(r, "genotype_alleles_display"):
+                v = getattr(r, "genotype_alleles_display")
+                if _nonempty(v):
+                    pretty = str(v).strip()
+
+            gid = _ensure_genotype(engine, bc, pretty)
+
+            res = cx.execute(
+                sql_upd,
+                {"gid": gid, "clutch_code": clutch_code, "batch": batch},
+            )
             updated += int(res.rowcount or 0)
 
     print(f"[OK] loader_legacy_clutches: set genotype_v11_id for {updated} clutch(es) in batch='{batch}'.")
@@ -456,11 +450,20 @@ def _qc_report(engine: Engine, batch: str, out_dir: pathlib.Path) -> None:
         print(f"[WARN] examples: {examples}")
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Load inferred legacy clutches into public.clutches (STRICT, non-fatal QC).")
-    parser.add_argument("--csv", required=True, help="Path to legacy_clutches_v9.csv")
-    parser.add_argument("--memberships-csv", default=str(MEMBERSHIPS_CSV_DEFAULT), help="Path to legacy_clutch_memberships_v9.csv")
-    parser.add_argument("--parent-map-csv", default=str(PARENT_MAP_CSV_DEFAULT), help="Path to parent map CSV (derived from RAW xlsx)")
-    parser.add_argument("--qc-out-dir", default=str(QC_OUT_DIR_DEFAULT), help="Where to write QC reports")
+    parser = argparse.ArgumentParser(
+        description="Load inferred legacy clutches into public.clutches (STRICT)."
+    )
+    parser.add_argument("--csv", required=True, help="Path to legacy_clutches_v9_for_loader.csv")
+    parser.add_argument(
+        "--memberships-csv",
+        default=str(MEMBERSHIPS_CSV_DEFAULT),
+        help="Path to legacy_clutch_memberships_v9.csv",
+    )
+    parser.add_argument(
+        "--qc-out-dir",
+        default=str(QC_OUT_DIR_DEFAULT),
+        help="Where to write QC reports",
+    )
     parser.add_argument("--batch", default=DEFAULT_BATCH_ID, help="import_batch_id label")
     args = parser.parse_args()
 
@@ -474,22 +477,21 @@ def main() -> None:
     df_members = _load_csv(pathlib.Path(args.memberships_csv))
 
     if "clutch_code" not in df_clutches.columns:
-        raise SystemExit("legacy_clutches CSV missing clutch_code")
+        raise SystemExit("[STOP] legacy clutches CSV missing clutch_code")
     if "clutch_code" not in df_members.columns:
-        raise SystemExit("legacy_clutch_memberships CSV missing clutch_code")
+        raise SystemExit("[STOP] legacy_clutch_memberships CSV missing clutch_code")
 
     clutch_codes_in_members = set(df_members["clutch_code"].astype(str).str.strip().tolist())
     df_clutches["clutch_code"] = df_clutches["clutch_code"].astype(str).str.strip()
     df_clutches = df_clutches[df_clutches["clutch_code"].isin(clutch_codes_in_members)].copy()
 
     if df_clutches.empty:
-        raise SystemExit("No clutches matched memberships CSV (strict).")
+        raise SystemExit("[STOP] No clutches matched memberships CSV (strict).")
 
     rows = _prepare_payload(df_clutches, args.batch)
     _upsert_clutches(engine, rows, args.batch)
 
-    parent_map = _parent_lookup(pathlib.Path(args.parent_map_csv))
-    _assign_clutch_genotypes_strict(engine, df_clutches, args.batch, parent_map)
+    _assign_clutch_genotypes_strict(engine, df_clutches, args.batch, parent_map={})
 
     _qc_report(engine, args.batch, pathlib.Path(args.qc_out_dir))
 
