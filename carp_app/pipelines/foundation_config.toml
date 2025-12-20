@@ -1,0 +1,65 @@
+[pipeline]
+name = "foundation_local"
+fail_fast = true
+
+[paths]
+autoload_dir = "seed_kits/2025-11-15-121231-autoload"
+legacy_working_dir = "seed_kits/legacy_wrangling_v3/working"
+legacy_raw_dir = "seed_kits/legacy_wrangling_v2/raw"
+
+[steps]
+# All commands are run from repo root with DB_URL already set by your env switchers.
+
+steps = [
+  # Fluors / tags / fusions
+  ["python", "scripts/v8_load_fluors_tags_fusions.py", "--fluors-csv", "seed_kits/2025-11-15-121231-autoload/fluors.csv", "--tags-file", "seed_kits/2025-11-15-121231-autoload/tags.xlsx"],
+
+  # Fluor aliases
+  ["python", "scripts/v8_load_fluor_aliases_from_csv.py", "--alias-csv", "seed_kits/2025-11-15-121231-autoload/alias.csv"],
+
+  # Dyes
+  ["python", "-m", "carp_app.etl.loader_dyes", "--csv", "seed_kits/2025-11-15-121231-autoload/dyes.csv"],
+
+  # Constructs + construct fusions
+  ["python", "scripts/v10_load_constructs_from_csv.py", "--constructs-csv", "seed_kits/2025-11-15-121231-autoload/constructs_plasmid.csv"],
+  ["python", "scripts/v10_load_construct_fusions_from_csv.py", "--constructs-csv", "seed_kits/2025-11-15-121231-autoload/constructs_plasmid.csv"],
+
+  # Genetic backgrounds
+  ["python", "scripts/v9_build_genetic_backgrounds_seed.py"],
+  ["python", "scripts/v9_load_genetic_backgrounds_seed.py"],
+
+  # Seed fish (note: keep this path exactly as you want it; change here, not in code)
+  ["python", "scripts/v11_seed_fish_from_csv.py", "seed_kits/2025-11-15-121231-autoload/working/fish.csv"],
+
+  # Legacy wrangling v3 working outputs (infer/link/enrich)
+  ["python", "seed_kits/legacy_wrangling_v3/scripts/02_infer_missing_imaging_rows.py"],
+  ["python", "seed_kits/legacy_wrangling_v3/scripts/01_link.py"],
+  ["python", "-u", "seed_kits/legacy_wrangling_v3/scripts/02_enrich.py"],
+
+  # Legacy imaging ROIs + orientation backfill + clutches + memberships
+  ["python", "scripts/v9_load_imaging_legacy_rois.py", "--csv", "seed_kits/legacy_wrangling_v3/working/legacy_imaging_annotations_for_db_v9.csv"],
+  ["python", "scripts/v9_backfill_legacy_slot_orientation.py", "--sheet-xlsx", "seed_kits/legacy_wrangling_v2/raw/2025-11-21-220012-imaging_sheet.xlsx", "--roi-csv", "seed_kits/legacy_wrangling_v3/working/legacy_imaging_annotations_for_db_v9.csv"],
+  ["python", "scripts/v9_build_legacy_clutches_from_v9.py", "--csv", "seed_kits/legacy_wrangling_v3/working/legacy_imaging_annotations_for_db_v9.csv"],
+  ["python", "scripts/v9_prepare_legacy_clutches_for_loader.py", "--in-csv", "seed_kits/legacy_wrangling_v3/working/legacy_clutches_v9.csv", "--out-csv", "seed_kits/legacy_wrangling_v3/working/legacy_clutches_v9_for_loader.csv"],
+  ["python", "scripts/loader_legacy_clutches.py", "--csv", "seed_kits/legacy_wrangling_v3/working/legacy_clutches_v9_for_loader.csv", "--batch", "legacy_clutch_inference_v9"],
+  ["python", "scripts/v9_load_imaging_clutch_memberships_from_v9.py", "--csv", "seed_kits/legacy_wrangling_v3/working/legacy_imaging_annotations_for_db_v9.csv"],
+
+  # Fish aliases
+  ["python", "scripts/v11_generate_fish_aliases_from_data.py", "--out-csv", "seed_kits/legacy_wrangling_v3/working/fish_aliases_v11.csv"],
+  ["python", "scripts/v11_load_fish_line_aliases_from_csv.py", "--csv", "seed_kits/legacy_wrangling_v3/working/fish_aliases_v11.csv"],
+
+  # Treatments
+  ["python", "scripts/v10_build_legacy_treatments_from_v9.py", "--roi-csv", "seed_kits/legacy_wrangling_v3/working/legacy_imaging_annotations_for_db_v9.csv", "--out-csv", "seed_kits/2025-11-15-121231-autoload/treatments_v10.csv"],
+  ["python", "scripts/v10_load_treatments_from_csv.py", "--csv", "seed_kits/2025-11-15-121231-autoload/treatments_v10.csv"],
+  ["python", "scripts/v11_build_clutch_treatment_mapping_from_v9.py", "--roi-csv", "seed_kits/legacy_wrangling_v3/working/legacy_imaging_annotations_for_db_v9.csv", "--out-csv", "seed_kits/legacy_wrangling_v3/working/clutch_treatment_mapping_v11.csv"],
+  ["python", "scripts/v11_seed_legacy_treatments_from_mapping.py", "--mapping-csv", "seed_kits/legacy_wrangling_v3/working/clutch_treatment_mapping_v11.csv"],
+  ["python", "scripts/v11_apply_clutch_treatment_mapping.py"],
+  ["python", "scripts/v11_frontfill_imaging_clutch_memberships_treated.py"]
+]
+
+[checks]
+# Minimal “foundation is loaded” checks (runner enforces these)
+require_constructs_min = 1
+require_rois_min = 1
+require_clutches_min = 1
+require_memberships_min = 1

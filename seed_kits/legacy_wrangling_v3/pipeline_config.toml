@@ -1,0 +1,6 @@
+# Canonical inputs for legacy imaging import (v3)
+# NO scripts may hardcode paths; they must read from here (or explicit CLI args).
+
+[legacy_parent_definitions_v9]
+# Source of truth for parent definitions (derived directly from RAW xlsx export you generated)
+csv = "seed_kits/legacy_wrangling_v2/working/Unique_parent_names__mom_dad_combined__preview_dqm_from_raw.csv"

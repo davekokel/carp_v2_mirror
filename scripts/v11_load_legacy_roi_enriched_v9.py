@@ -3,12 +3,19 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+import tomllib
 
 
 def get_engine(db_url: str | None) -> Engine:
@@ -19,131 +26,160 @@ def get_engine(db_url: str | None) -> Engine:
     return create_engine(url)
 
 
+def load_config(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        raise SystemExit(f"Config not found: {path}")
+    with path.open("rb") as f:
+        return tomllib.load(f)
+
+
+def _split_schema_table(qualified: str) -> Tuple[str, str]:
+    s = qualified.strip()
+    if "." not in s:
+        raise SystemExit(f"Expected schema.table, got: {qualified!r}")
+    schema, table = s.split(".", 1)
+    schema = schema.strip()
+    table = table.strip()
+    if not schema or not table:
+        raise SystemExit(f"Bad schema.table: {qualified!r}")
+    return schema, table
+
+
+def _resolve_csv(repo_root: Path, working_dir: str, rel: str) -> Path:
+    p = Path(rel)
+    if p.is_absolute():
+        return p
+    if "/" in rel or "\\" in rel:
+        return (repo_root / p).resolve()
+    return (repo_root / working_dir / rel).resolve()
+
+
+def _nonempty(x: Any) -> bool:
+    if x is None:
+        return False
+    s = str(x).strip()
+    return s != "" and s.lower() not in ("nan", "none", "na", "n/a", "<na>")
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Load enriched legacy ROI annotations into raw.legacy_roi_enriched_v9"
+    ap = argparse.ArgumentParser(
+        description="Load enriched legacy ROI annotations into raw.legacy_roi_enriched_v9 (STRICT: join enriched+compat on roi_dir)."
     )
-    parser.add_argument(
-        "--csv",
-        required=True,
-        help="Path to legacy_imaging_annotations_for_db_v9.csv (enriched version)",
-    )
-    parser.add_argument(
-        "--db-url",
-        help="Override DB_URL",
-    )
-    args = parser.parse_args()
+    ap.add_argument("--config", default="carp_app/pipelines/legacy_imaging_config.toml")
+    ap.add_argument("--db-url", help="Override DB_URL")
+    args = ap.parse_args()
 
-    csv_path = Path(args.csv)
-    if not csv_path.exists():
-        raise SystemExit(f"CSV not found: {csv_path}")
+    cfg_path = (REPO_ROOT / args.config).resolve()
+    cfg = load_config(cfg_path)
 
-    df = pd.read_csv(csv_path)
+    working_dir = cfg["paths"]["working_dir"]
+    table_qualified = cfg["roi_annotations"]["table"]
+    schema, table = _split_schema_table(table_qualified)
 
-    # Map CSV columns -> DB columns.
-    # These names are based on the snippet you pasted earlier.
-    col_map = {
-        # identity / keys
-        "legacy_clutch_key": "legacy_clutch_key",
-        "dataset": "dataset",
-        "experiment_name": "experiment_name",
-        "fish": "fish_label",
-        "fish_number": "fish_number",
-        "fish_age_hpf": "fish_age_hpf",
-        "date_experiment": "date_experiment",
-        "date_mount_yyyymmdd": "date_mount_yyyymmdd",
-        "date_mount": "date_mount",
-        "Date imaged": "date_imaged",
-        "Date born_from_enrich": "date_born_from_enrich",
+    enriched_csv = _resolve_csv(REPO_ROOT, working_dir, cfg["roi_annotations"]["csv"])
+    compat_csv = _resolve_csv(REPO_ROOT, working_dir, cfg["roi_annotations"]["compat_csv"])
 
-        # plate / slot / ROI placement
-        "roi_name": "roi_name",
-        "roi_index_within_slot": "roi_index_within_slot",
-        "roi_tiffs": "roi_tiffs",
-        "roi_dir": "roi_dir",
-        "roi_folder": "roi_folder",
-        "plate_date": "plate_date",
-        "plate_key": "plate_key",
-        "plate_id_filled": "plate_id_filled",
-        "slot_id_filled": "slot_id_filled",
-        "mount_id": "mount_id",
-        "mount_id_inferred": "mount_id_inferred",
-        "mount_id_source": "mount_id_source",
-        "bruker_roi_id": "bruker_roi_id",
+    if not enriched_csv.exists():
+        raise SystemExit(f"CSV not found: {enriched_csv}")
+    if not compat_csv.exists():
+        raise SystemExit(f"CSV not found: {compat_csv}")
 
-        # anatomy / locations
-        "roi_anatomy_tokens": "roi_anatomy_tokens",
-        "roi_anatomy": "roi_anatomy",
-        "Imaged Locations": "imaged_locations",
-        "all_unique_organelles": "all_unique_organelles",
-        "all_fluor_organelles": "all_fluor_organelles",
+    df_en = pd.read_csv(enriched_csv, low_memory=False)
+    df_co = pd.read_csv(compat_csv, low_memory=False)
 
-        # parent genotypes (enriched)
-        "ZF female genotype_from_enrich": "zf_female_genotype_from_enrich",
-        "ZF male genotype_from_enrich": "zf_male_genotype_from_enrich",
+    if "roi_dir" not in df_en.columns:
+        raise SystemExit(f"{enriched_csv} missing required column roi_dir")
+    if "roi_dir" not in df_co.columns:
+        raise SystemExit(f"{compat_csv} missing required column roi_dir")
+    if "legacy_clutch_key" not in df_co.columns:
+        raise SystemExit(f"{compat_csv} missing required column legacy_clutch_key")
 
-        # child genotype basecodes / alleles (raw + slug)
-        "genotype_base_codes_slug": "genotype_base_codes_slug",
-        "genotype_allele_codes_slug": "genotype_allele_codes_slug",
-        "genotype_base_codes": "genotype_base_codes",
-        "genotype_allele_codes": "genotype_allele_codes",
+    df_en["roi_dir"] = df_en["roi_dir"].astype(str).str.strip()
+    df_co["roi_dir"] = df_co["roi_dir"].astype(str).str.strip()
 
-        # child genotype marker rollups
-        "genotype_marker_fluor_codes": "genotype_marker_fluor_codes",
-        "genotype_marker_tag_codes": "genotype_marker_tag_codes",
-        "genotype_marker_localizations": "genotype_marker_localizations",
-        "genotype_marker_fusion_labels": "genotype_marker_fusion_labels",
+    # STRICT 1:1 keys
+    dupe_en = df_en["roi_dir"].value_counts()
+    dupe_en = dupe_en[dupe_en > 1]
+    if len(dupe_en):
+        raise SystemExit(f"[STOP] enriched CSV has duplicate roi_dir (expected unique): {len(dupe_en)}")
 
-        # treatment names / codes (sheet-level)
-        "treatment_rna_names_sheet": "treatment_rna_names_sheet",
-        "treatment_plasmid_names_sheet": "treatment_plasmid_names_sheet",
-        "treatment_rna_codes_row": "treatment_rna_codes_row",
-        "treatment_plasmid_codes_row": "treatment_plasmid_codes_row",
+    dupe_co = df_co["roi_dir"].value_counts()
+    dupe_co = dupe_co[dupe_co > 1]
+    if len(dupe_co):
+        raise SystemExit(f"[STOP] compat CSV has duplicate roi_dir (expected unique): {len(dupe_co)}")
 
-        # treatment basecodes (raw + enriched)
-        "treatment_rna_base_codes_slug": "treatment_rna_base_codes_slug",
-        "treatment_rna_rna_base_code": "treatment_rna_rna_base_code",
-        "treatment_rna_rna_base_code_from_enrich": "treatment_rna_rna_base_code_from_enrich",
-        "treatment_plasmid_plasmid_base_code": "treatment_plasmid_plasmid_base_code",
-        "treatment_plasmid_plasmid_base_code_from_enrich": "treatment_plasmid_plasmid_base_code_from_enrich",
+    keep_co = [
+        c for c in [
+            "roi_dir",
+            "legacy_clutch_key",
+            "plate_date",
+            "plate_id_filled",
+            "slot_id_filled",
+            "roi_index_within_slot",
+            "bruker_roi_id",
+            "treatment_rna_rna_base_code",
+            "treatment_plasmid_plasmid_base_code",
+        ]
+        if c in df_co.columns
+    ]
+    df_co = df_co[keep_co].copy()
 
-        # treatment marker rollups
-        "treatment_marker_fluor_codes": "treatment_marker_fluor_codes",
-        "treatment_marker_tag_codes": "treatment_marker_tag_codes",
-        "treatment_marker_localizations": "treatment_marker_localizations",
-        "treatment_marker_fluor_loc_labels": "treatment_marker_fluor_loc_labels",
-    }
+    df = df_en.merge(df_co, on="roi_dir", how="left", validate="one_to_one")
 
-    missing: List[str] = [csv_col for csv_col in col_map.keys() if csv_col not in df.columns]
-    if missing:
-        print("[WARN] CSV missing expected columns (based on mapping):")
-        for m in missing:
-            print("  -", m)
-
-    # Only keep columns that actually exist in the CSV
-    usable_map = {csv_col: db_col for csv_col, db_col in col_map.items() if csv_col in df.columns}
-
-    df_out = pd.DataFrame()
-    for csv_col, db_col in usable_map.items():
-        df_out[db_col] = df[csv_col]
-
-    print(f"[INFO] legacy_roi_enriched_v9: importing {len(df_out)} row(s)")
-    print("[INFO] Columns imported into raw.legacy_roi_enriched_v9:")
-    for col in df_out.columns:
-        print("  -", col)
+    missing_key = df["legacy_clutch_key"].isna() | (df["legacy_clutch_key"].astype(str).str.strip() == "")
+    if int(missing_key.sum()) > 0:
+        ex = df.loc[missing_key, ["roi_dir"]].head(20)
+        raise SystemExit(f"[STOP] {int(missing_key.sum())} ROI rows missing legacy_clutch_key after join. Examples:\n{ex.to_string(index=False)}")
 
     eng = get_engine(args.db_url)
+
     with eng.begin() as cx:
-        cx.execute(text("TRUNCATE raw.legacy_roi_enriched_v9"))
+        rows = cx.execute(
+            text("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = :schema
+                  AND table_name   = :table
+                ORDER BY ordinal_position
+            """),
+            {"schema": schema, "table": table},
+        ).fetchall()
+    db_cols = [r[0] for r in rows]
+    db_set = set(db_cols)
+
+    out_cols = [c for c in df.columns if c in db_set]
+    if not out_cols:
+        raise SystemExit("[STOP] no overlapping columns between merged CSV and DB table")
+
+    df_out = df[out_cols].copy()
+
+    print(f"[INFO] importing {len(df_out)} rows into {schema}.{table}")
+    print(f"[INFO] sources: enriched={enriched_csv.name} compat={compat_csv.name}")
+    print(f"[INFO] columns ({len(out_cols)}):")
+    for c in out_cols:
+        print("  -", c)
+
+    with eng.begin() as cx:
+        cx.execute(text(f"TRUNCATE {schema}.{table}"))
         df_out.to_sql(
-            "legacy_roi_enriched_v9",
+            table,
             cx,
-            schema="raw",
+            schema=schema,
             if_exists="append",
             index=False,
         )
 
-    print(f"[OK] loaded {len(df_out)} row(s) into raw.legacy_roi_enriched_v9")
+    qc = {}
+    qc["n_rows"] = int(len(df_out))
+    qc["n_distinct_roi_dir"] = int(df_out["roi_dir"].nunique()) if "roi_dir" in df_out.columns else None
+    qc["n_distinct_legacy_clutch_key"] = int(df_out["legacy_clutch_key"].nunique()) if "legacy_clutch_key" in df_out.columns else None
+    if "genotype_base_codes" in df_out.columns:
+        qc["n_rows_with_genotype_base_codes"] = int(df_out["genotype_base_codes"].astype(str).map(_nonempty).sum())
+    elif "genotype_base_codes_v9_exp" in df_out.columns:
+        qc["n_rows_with_genotype_base_codes_v9_exp"] = int(df_out["genotype_base_codes_v9_exp"].astype(str).map(_nonempty).sum())
+
+    print("[QC]", qc)
+    print(f"[OK] loaded {len(df_out)} row(s) into {schema}.{table}")
 
 
 if __name__ == "__main__":

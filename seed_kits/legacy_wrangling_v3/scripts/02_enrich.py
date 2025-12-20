@@ -7,15 +7,17 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 V3_WORK = REPO_ROOT / "seed_kits" / "legacy_wrangling_v3" / "working"
+V2_RAW = REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "raw"
 V2_WORKING = REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "working"
 AUTO = REPO_ROOT / "seed_kits" / "2025-11-15-121231-autoload"
 
 IN_STRUCT = V3_WORK / "output_from_linking_v5.csv"
 
-PARENT_MAP_CSV = V2_WORKING / "Unique_parent_names__mom_dad_combined__preview_dqm_v5.csv"
-INJECTED_RNA_XLSX = V2_WORKING / "Unique_injected_rna__preview_dqm.xlsx"
-INJECTED_PLASMID_XLSX = V2_WORKING / "Unique_injected_plasmid__preview_dqm.xlsx"
-EXP_PATCH = V2_WORKING / "experiment_hole_patch_v7.csv"
+PARENT_MAP_XLSX = (REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "raw" / "Unique_parent_names__mom_dad_combined__preview_dqm.xlsx")
+PARENT_MAP_CSV  = (REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "working" / "Unique_parent_names__mom_dad_combined__preview_dqm_from_raw.csv")
+INJECTED_RNA_XLSX = V2_RAW / "Unique_injected_rna__preview_dqm.xlsx"
+INJECTED_PLASMID_XLSX = V2_RAW / "Unique_injected_plasmid__preview_dqm.xlsx"
+EXP_PATCH = V2_RAW / "experiment_hole_patch_v7.csv"
 
 CONSTRUCTS = AUTO / "constructs_plasmid.csv"
 TAGS = AUTO / "tags.xlsx"
@@ -228,7 +230,8 @@ def _compute_marker_rollups(basecodes: str | None, constructs_ft: pd.DataFrame) 
 
 
 def _parent_lookup() -> dict:
-    pm = pd.read_csv(PARENT_MAP_CSV, low_memory=False).copy()
+    pm = pd.read_excel(PARENT_MAP_XLSX, dtype=str).copy()
+    pm.to_csv(PARENT_MAP_CSV, index=False)
     pm = pm.rename(columns={k: "parent_fish_name" for k in ["parent_name"] if k in pm.columns})
     need = ["parent_fish_name", "plasmid_base_code", "allele"]
     missing = [c for c in need if c not in pm.columns]

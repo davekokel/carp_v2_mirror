@@ -140,44 +140,48 @@ def _load_filter_choices() -> Dict[str, Any]:
     }
 
 
-@st.cache_data(ttl=30, show_spinner=True)
 def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
     cols = _cols(VIEW_NAME)
     have = set(cols)
 
     select_cols = [
-        "experiment_name",
         "experiment_date",
-        "roi_path",
-        "marker_rollup_tg",
-        "marker_rollup_fluortag",
-        "marker_rollup_fluororganelle",
+        "experiment_name",
+
         "plate_code",
-        "slot_label",
         "slot_index",
-        "orientation",
+        "slot_label",
+        "roi_index_within_slot",
         "roi_code",
-        "roi_note_anatomy",
-        "created_at",
+        "roi_path",
+
         "clutch_code",
         "treated_clutch_code",
         "treatment_code",
         "treatment_text",
+
         "genotype_code",
         "genotype_basecodes",
         "genotype_pretty",
+
         "genotype_tg_style",
         "genotype_fluortag_style",
         "genotype_fluororganelle_style",
+
+        "marker_rollup_tg",
+        "marker_rollup_fluortag",
+        "marker_rollup_fluororganelle",
+
         "label_tg_style",
         "label_fluortag_style",
         "label_fluororganelle_style",
+
+        "roi_note_anatomy",
         "plate_note",
         "slot_note",
+        "created_at",
     ]
     select_cols = [c for c in select_cols if c in have]
-    if "roi_path" not in select_cols:
-        select_cols = ["roi_path"] + select_cols
 
     where = []
     p: Dict[str, Any] = {}
@@ -188,16 +192,21 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
             "roi_code",
             "roi_path",
             "experiment_name",
+            "plate_code",
+            "slot_label",
             "clutch_code",
             "treated_clutch_code",
             "treatment_code",
             "treatment_text",
+            "genotype_code",
+            "genotype_basecodes",
+            "genotype_pretty",
+            "genotype_tg_style",
+            "genotype_fluortag_style",
+            "genotype_fluororganelle_style",
             "marker_rollup_tg",
             "marker_rollup_fluortag",
             "marker_rollup_fluororganelle",
-            "label_tg_style",
-            "label_fluortag_style",
-            "label_fluororganelle_style",
         ]
         like_cols = [c for c in like_cols if c in have]
         if like_cols:
@@ -219,11 +228,11 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
         where.append("experiment_date <= :date_max")
         p["date_max"] = date_max
 
-    if params.get("require_plate"):
-        if "plate_code" in have:
-            where.append("plate_code IS NOT NULL")
-        if "slot_label" in have:
-            where.append("slot_label IS NOT NULL")
+    if params.get("only_treated"):
+        where.append("coalesce(treated_clutch_code,'') <> ''")
+
+    if params.get("only_with_genotype"):
+        where.append("coalesce(genotype_code,'') <> ''")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
@@ -235,7 +244,7 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
       {", ".join(select_cols)}
     FROM public.{VIEW_NAME}
     {where_sql}
-    ORDER BY created_at DESC
+    ORDER BY experiment_date DESC NULLS LAST, plate_code DESC NULLS LAST, slot_index, roi_index_within_slot
     LIMIT :limit;
     """
 
@@ -260,82 +269,18 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
         else:
             df["legacy_data_location_filled"] = pd.NA
 
-    if "modern_date_mount" not in df.columns:
-        df["modern_date_mount"] = df["legacy_date_mount"] if "legacy_date_mount" in df.columns else pd.NA
-    if "modern_birthday" not in df.columns:
-        df["modern_birthday"] = df["legacy_birthday"] if "legacy_birthday" in df.columns else pd.NA
-
-    for c in ["modern_date_mount", "modern_birthday"]:
-        if c in df.columns:
-            df[c] = _as_yyyy_mm_dd(df[c])
-
-    group_key = None
-    if "treated_clutch_code" in df.columns and df["treated_clutch_code"].map(_nonempty).sum() > 0:
-        group_key = "treated_clutch_code"
-    elif "clutch_code" in df.columns:
-        group_key = "clutch_code"
-
-    if group_key:
-        if "n_slots" not in df.columns:
-            if "slot_label" in df.columns:
-                df["n_slots"] = df.groupby(group_key)["slot_label"].transform("nunique")
-            else:
-                df["n_slots"] = pd.NA
-
-        if "n_rois" not in df.columns:
-            if "roi_code" in df.columns:
-                df["n_rois"] = df.groupby(group_key)["roi_code"].transform("nunique")
-            else:
-                df["n_rois"] = pd.NA
-    else:
-        df["n_slots"] = pd.NA
-        df["n_rois"] = pd.NA
-
-    front_order = [
-        "experiment_name",
-        "experiment_date",
-        "roi_path",
-        "marker_rollup_tg",
-        "marker_rollup_fluortag",
-        "marker_rollup_fluororganelle",
-        "modern_date_mount",
-        "modern_birthday",
-        "n_slots",
-        "n_rois",
-    ]
-
-    legacy_order = [
-        "legacy_data_location_filled",
-        "legacy_data_location",
-        "legacy_date_mount",
-        "legacy_zf_female_genotype",
-        "legacy_zf_male_genotype",
-        "legacy_additional_plasmids_injected",
-        "legacy_additional_mrnas_injected",
-        "legacy_additional_proteins",
-        "legacy_additional_dye_and_chemicals",
-        "legacy_birthday",
-        "legacy_orientation",
-        "legacy_date_imaged",
-        "legacy_imaged_locations",
-        "legacy_roi_dir",
-    ]
-
-    front = [c for c in (front_order + legacy_order) if c in df.columns]
-    rest = [c for c in df.columns if c not in front]
-    df = df[front + rest]
-
     return df
 
 
 choices = _load_filter_choices()
 
 with st.expander("Filters", expanded=True):
-    c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
-    q = c1.text_input("Search", value="", placeholder="roi, clutch, treatment, rollup, parents, paths…")
+    c1, c2, c3, c4, c5 = st.columns([2, 2, 1, 1, 1])
+    q = c1.text_input("Search", value="", placeholder="roi, clutch, treatment, rollups, genotype, paths…")
     experiment_names = c2.multiselect("Experiment name", options=choices["experiment_names"])
     limit = c3.selectbox("Limit", options=[200, 500, 1000, 2000, 5000], index=2)
-    require_plate = c4.checkbox("Only rows with plate/slot labels", value=False)
+    only_treated = c4.checkbox("Only treated", value=False)
+    only_with_genotype = c5.checkbox("Only with genotype", value=False)
 
     d1, d2 = st.columns([1, 1])
     min_d = choices["min_date"]
@@ -350,7 +295,8 @@ df = _load_rois(
         "date_min": date_min,
         "date_max": date_max,
         "limit": limit,
-        "require_plate": require_plate,
+        "only_treated": only_treated,
+        "only_with_genotype": only_with_genotype,
     }
 )
 
@@ -361,18 +307,33 @@ st.dataframe(
     width="stretch",
     hide_index=True,
     column_config={
+        "experiment_date": st.column_config.DateColumn("experiment_date", width="small"),
         "experiment_name": st.column_config.TextColumn("experiment_name", width="large"),
+        "plate_code": st.column_config.TextColumn("plate_code", width="small"),
+        "slot_index": st.column_config.NumberColumn("slot_index", width="small"),
+        "slot_label": st.column_config.TextColumn("slot_label", width="small"),
+        "roi_index_within_slot": st.column_config.NumberColumn("roi_index_within_slot", width="small"),
+        "roi_code": st.column_config.TextColumn("roi_code", width="medium"),
         "roi_path": st.column_config.TextColumn("roi_path", width="large"),
-        "legacy_roi_dir": st.column_config.TextColumn("legacy_roi_dir", width="large"),
-        "legacy_data_location_filled": st.column_config.TextColumn("legacy_data_location_filled", width="large"),
-        "legacy_data_location": st.column_config.TextColumn("legacy_data_location", width="large"),
+
+        "clutch_code": st.column_config.TextColumn("clutch_code", width="small"),
+        "treated_clutch_code": st.column_config.TextColumn("treated_clutch_code", width="small"),
+        "treatment_code": st.column_config.TextColumn("treatment_code", width="small"),
         "treatment_text": st.column_config.TextColumn("treatment_text", width="large"),
+
+        "genotype_code": st.column_config.TextColumn("genotype_code", width="small"),
+        "genotype_basecodes": st.column_config.TextColumn("genotype_basecodes", width="large"),
+        "genotype_tg_style": st.column_config.TextColumn("genotype_tg_style", width="large"),
+        "genotype_fluortag_style": st.column_config.TextColumn("genotype_fluortag_style", width="large"),
+        "genotype_fluororganelle_style": st.column_config.TextColumn("genotype_fluororganelle_style", width="large"),
+
         "marker_rollup_tg": st.column_config.TextColumn("marker_rollup_tg", width="large"),
         "marker_rollup_fluortag": st.column_config.TextColumn("marker_rollup_fluortag", width="large"),
         "marker_rollup_fluororganelle": st.column_config.TextColumn("marker_rollup_fluororganelle", width="large"),
-        "label_tg_style": st.column_config.TextColumn("label_tg_style", width="medium"),
-        "label_fluortag_style": st.column_config.TextColumn("label_fluortag_style", width="medium"),
-        "label_fluororganelle_style": st.column_config.TextColumn("label_fluororganelle_style", width="medium"),
+
+        "legacy_roi_dir": st.column_config.TextColumn("legacy_roi_dir", width="large"),
+        "legacy_data_location_filled": st.column_config.TextColumn("legacy_data_location_filled", width="large"),
+        "legacy_data_location": st.column_config.TextColumn("legacy_data_location", width="large"),
     },
 )
 

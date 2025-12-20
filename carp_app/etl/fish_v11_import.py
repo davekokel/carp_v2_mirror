@@ -120,6 +120,7 @@ def _normalize_base_code(raw: Any) -> Optional[str]:
 
     prefix = m.group(1).lower()
     num = int(m.group(2))
+    prefix = ('pswin' if prefix == 'swin' else prefix)
     return f"{prefix}-{num}"
 
 

@@ -1,358 +1,861 @@
 clutch_code,legacy_clutch_key,plate_code,slot_index,roi_count
-LCL-0064, | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250520-plate6,1,1
-LCL-0064, | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250520-plate6,2,2
-LCL-0064, | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250520-plate6,3,1
-LCL-0001,2025-04-26 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250428-plate1,1,2
-LCL-0002,2025-04-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250429-plate2,1,2
-LCL-0002,2025-04-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250429-plate2,2,1
-LCL-0002,2025-04-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250429-plate2,3,2
-LCL-0002,2025-04-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250429-plate2,4,3
-LCL-0003,2025-05-12 |  | ,20250513-plate3,1,3
-LCL-0003,2025-05-12 |  | ,20250513-plate3,2,1
-LCL-0003,2025-05-12 |  | ,20250513-plate3,3,2
-LCL-0003,2025-05-12 |  | ,20250513-plate3,4,3
-LCL-0003,2025-05-12 |  | ,20250513-plate3,5,4
-LCL-0003,2025-05-12 |  | ,20250513-plate3,6,2
-LCL-0003,2025-05-12 |  | ,20250513-plate4,1,4
-LCL-0003,2025-05-12 |  | ,20250513-plate4,2,1
-LCL-0003,2025-05-12 |  | ,20250513-plate4,3,2
-LCL-0003,2025-05-12 |  | ,20250513-plate4,4,4
-LCL-0003,2025-05-12 |  | ,20250513-plate4,5,3
-LCL-0003,2025-05-12 |  | ,20250513-plate4,6,7
-LCL-0003,2025-05-12 |  | ,20250513-plate5,1,4
-LCL-0003,2025-05-12 |  | ,20250513-plate5,2,2
-LCL-0003,2025-05-12 |  | ,20250513-plate5,3,1
-LCL-0003,2025-05-12 |  | ,20250513-plate5,4,1
-LCL-0004,2025-05-20 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250521-plate7,1,2
-LCL-0004,2025-05-20 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250521-plate7,2,1
-LCL-0004,2025-05-20 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250521-plate7,3,2
-LCL-0005,2025-05-21 |  | ,20250522-plate8,1,2
-LCL-0005,2025-05-21 |  | ,20250522-plate8,2,2
-LCL-0005,2025-05-21 |  | ,20250522-plate8,3,3
-LCL-0005,2025-05-21 |  | ,20250522-plate8,4,2
-LCL-0005,2025-05-21 |  | ,20250522-plate8,5,1
-LCL-0005,2025-05-21 |  | ,20250522-plate8,6,2
-LCL-0005,2025-05-21 |  | ,20250522-plate9,1,3
-LCL-0005,2025-05-21 |  | ,20250522-plate9,2,3
-LCL-0005,2025-05-21 |  | ,20250522-plate9,3,1
-LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,1,1
-LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,2,1
-LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,3,1
-LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,4,1
-LCL-0006,2025-05-22 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250523-plate10,5,1
-LCL-0007,2025-05-27 |  | ,20250528-plate12,1,2
-LCL-0008,2025-05-27 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250528-plate11,1,1
-LCL-0008,2025-05-27 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250528-plate11,2,1
-LCL-0008,2025-05-27 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250528-plate11,3,1
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,1,3
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,2,1
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,3,2
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,4,1
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,5,1
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate13,6,3
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,1,1
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,2,2
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,3,1
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,4,2
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,5,1
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate14,6,1
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate15,1,1
-LCL-0009,2025-05-28 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250529-plate15,2,2
-LCL-0010,2025-05-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250530-plate16,1,2
-LCL-0010,2025-05-28 | ef1a:2xLynk:tdmSG(J) (F2 of allele 302) | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250530-plate16,2,1
-LCL-0011,2025-05-30 | casper/rnf | ef1a:2xLynk:tdmSG(J) (F2 of allele 302),20250602-plate17,1,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,1,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,2,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,3,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,4,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,5,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate18,6,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,1,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,2,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,3,2
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,4,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,5,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate19,6,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate20,1,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate20,2,1
-LCL-0012,2025-06-02 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250603-plate20,3,3
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,1,1
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,2,2
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,3,2
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,4,1
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,5,2
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate21,6,1
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,1,2
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,2,2
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,3,1
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,4,2
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,5,1
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate22,6,1
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate23,1,1
-LCL-0013,2025-06-04 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250605-plate23,2,2
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,1,1
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,2,1
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,3,2
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,4,2
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,5,2
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate24,6,3
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,1,3
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,2,1
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,3,1
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,4,1
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,5,1
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate25,6,2
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate26,1,1
-LCL-0014,2025-06-05 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250606-plate26,2,2
-LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,1,1
-LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,2,2
-LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,3,1
-LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,4,1
-LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,5,2
-LCL-0015,2025-06-06 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250609-plate27,6,2
-LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,1,1
-LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,2,1
-LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,3,1
-LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,4,1
-LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,5,3
-LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate28,6,1
-LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate29,1,1
-LCL-0016,2025-06-11 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250612-plate29,2,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,1,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,2,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,3,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,4,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,5,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate30,6,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,1,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,2,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,3,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,4,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,5,1
-LCL-0017,2025-06-12 | Jim (F2 of allele 316) | Dennis (F2 of allele 318),20250613-plate31,6,1
-LCL-0018,2025-06-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250616-plate32,1,3
-LCL-0018,2025-06-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250616-plate32,2,1
-LCL-0018,2025-06-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250616-plate32,3,1
-LCL-0018,2025-06-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250616-plate32,4,1
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,1,2
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,2,4
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,3,1
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,4,1
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,5,1
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate33,6,1
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,1,1
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,2,2
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,3,4
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,4,4
-LCL-0019,2025-06-17 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250618-plate34,5,2
-LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,1,2
-LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,2,1
-LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,3,2
-LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,4,1
-LCL-0020,2025-06-18 | Dennis (F2 of allele 318) | Abe (F2 of allele 309),20250619-plate35,5,2
-LCL-0021,2025-06-23 | Ken (F2 of allele 320) | Isaac (F2 of allele 314),20250624-plate38,1,1
-LCL-0021,2025-06-23 | Ken (F2 of allele 320) | Isaac (F2 of allele 314),20250624-plate38,2,2
-LCL-0021,2025-06-23 | Ken (F2 of allele 320) | Isaac (F2 of allele 314),20250624-plate38,3,1
-LCL-0021,2025-06-23 | Ken (F2 of allele 320) | Isaac (F2 of allele 314),20250624-plate38,4,1
-LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,1,1
-LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,2,3
-LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,3,4
-LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,4,2
-LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,5,3
-LCL-0022,2025-06-23 | Liam (F2 of allele 321) | Chris (F1 of allele 317),20250624-plate37,6,4
-LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,1,2
-LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,2,1
-LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,3,1
-LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,4,2
-LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,5,1
-LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate39,6,2
-LCL-0023,2025-06-24 | Ben (F2 of allele 310) | Abe (F2 of allele 309),20250625-plate40,1,1
-LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,1,3
-LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,2,1
-LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,3,1
-LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,4,1
-LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,5,2
-LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate41,6,1
-LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate42,1,1
-LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate42,2,1
-LCL-0024,2025-06-26 | Jim (F2 of allele 316) | Ben (F2 of allele 310),20250627-plate42,3,1
-LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,1,2
-LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,2,1
-LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,3,2
-LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,4,3
-LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,5,4
-LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate43,6,5
-LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate44,1,1
-LCL-0025,2025-07-14 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250715-plate44,2,3
-LCL-0026,2025-07-21 | membrane Halo | membrane Halo,20250722-plate66,1,5
-LCL-0026,2025-07-21 | membrane Halo | membrane Halo,20250722-plate66,2,4
-LCL-0026,2025-07-21 | membrane Halo | membrane Halo,20250723-plate45,1,6
-LCL-0026,2025-07-21 | membrane Halo | membrane Halo,20250723-plate68,1,1
-LCL-0027,2025-07-21 | membrane mChilada | membrane mChilada,20250722-plate67,1,3
-LCL-0027,2025-07-21 | membrane mChilada | membrane mChilada,20250722-plate67,2,5
-LCL-0027,2025-07-21 | membrane mChilada | membrane mChilada,20250722-plate67,3,4
-LCL-0028,2025-07-23 | membrane mChilada | membrane mChilada,20250724-plate46,1,4
-LCL-0029,2025-07-26 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250728-plate47,1,2
-LCL-0030,2025-07-31 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250801-plate48,1,1
-LCL-0030,2025-07-31 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250801-plate48,2,1
-LCL-0030,2025-07-31 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250801-plate48,3,1
-LCL-0030,2025-07-31 | ef1a:2xLynk:tdmSG(J) (F2 of allele 301) | ef1a:2xLynk:tdmSG(J) (F2 of allele 301),20250801-plate49,1,1
-LCL-0031,2025-08-04 | membrane Halo | membrane Halo,20250805-plate70,1,2
-LCL-0031,2025-08-04 | membrane Halo | membrane Halo,20250805-plate70,2,3
-LCL-0031,2025-08-04 | membrane Halo | membrane Halo,20250805-plate70,3,2
-LCL-0032,2025-08-07 | membrane mChilada | membrane mChilada,20250808-plate71,1,5
-LCL-0032,2025-08-07 | membrane mChilada | membrane mChilada,20250808-plate71,2,3
-LCL-0032,2025-08-07 | membrane mChilada | membrane mChilada,20250808-plate71,3,4
-LCL-0032,2025-08-07 | membrane mChilada | membrane mChilada,20250808-plate71,4,9
-LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate72,1,5
-LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate72,2,3
-LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,1,8
-LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,2,2
-LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,3,1
-LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,4,7
-LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,5,2
-LCL-0033,2025-08-18 | casper/rnf | mem:tdmChilada,20250819-plate73,6,5
-LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,1,2
-LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,2,2
-LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,3,2
-LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,4,2
-LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,5,2
-LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate74,6,2
-LCL-0034,2025-08-20 | casper/rnf | mem:tdmChilada,20250821-plate75,1,3
-LCL-0035,2025-08-25 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250827-plate77,1,2
-LCL-0035,2025-08-25 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250827-plate77,2,3
-LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,1,2
-LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,2,1
-LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,3,2
-LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,4,2
-LCL-0036,2025-08-25 | casper/rnf | mem:tdmChilada,20250826-plate76,5,1
-LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,1,4
-LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,2,3
-LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,3,2
-LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,4,3
-LCL-0037,2025-08-27 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250828-plate78,5,2
-LCL-0038,2025-09-02 | casper/rnf | mem:tdmChilada,20250903-plate79,1,4
-LCL-0038,2025-09-02 | casper/rnf | mem:tdmChilada,20250903-plate79,2,2
-LCL-0038,2025-09-02 | casper/rnf | mem:tdmChilada,20250905-plate81,1,4
-LCL-0039,2025-09-03 | casper/rnf | ef1a-extended:2xLynk:tdmScarlet3-S2-tol2 (F1 of allele 325),20250904-plate80,1,5
-LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,1,4
-LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,2,8
-LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,3,3
-LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,4,4
-LCL-0040,2025-09-05 | ef1a:2xLynk:tdm:mChilada | ef1a:2xLynk:tdm:mChilada,20250908-plate82,5,3
-LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250911-plate83,1,5
-LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250911-plate83,2,3
-LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250912-plate84,1,4
-LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250912-plate84,2,4
-LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250912-plate84,3,12
-LCL-0041,2025-09-09 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250912-plate84,4,6
-LCL-0042,2025-09-12 |  | ef1a:2xLynk:tdm:Halo,20250915-plate85,1,5
-LCL-0042,2025-09-12 |  | ef1a:2xLynk:tdm:Halo,20250915-plate85,2,3
-LCL-0042,2025-09-12 |  | ef1a:2xLynk:tdm:Halo,20250915-plate85,3,7
-LCL-0042,2025-09-12 |  | ef1a:2xLynk:tdm:Halo,20250915-plate85,4,3
-LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,1,6
-LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,2,4
-LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,3,11
-LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,4,4
-LCL-0043,2025-09-15 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250918-plate87,5,1
-LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,1,3
-LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,2,3
-LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,3,3
-LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,4,4
-LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,5,5
-LCL-0044,2025-09-17 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250919-plate88,6,5
-LCL-0045,2025-09-19 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20250922-plate89,1,8
-LCL-0045,2025-09-19 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20250922-plate89,2,4
-LCL-0045,2025-09-19 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20250922-plate89,3,1
-LCL-0045,2025-09-19 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20250922-plate89,4,4
-LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250924-plate90,1,6
-LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250924-plate90,2,2
-LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250924-plate90,3,7
-LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250924-plate90,4,3
-LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250925-plate91,1,3
-LCL-0046,2025-09-23 | casper/rnf | from Swinburne lab - tank ID 344 (F1 of allele 45385),20250925-plate91,2,4
-LCL-0047,2025-09-24 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250926-plate92,1,5
-LCL-0047,2025-09-24 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250926-plate92,2,5
-LCL-0047,2025-09-24 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250926-plate92,3,5
-LCL-0047,2025-09-24 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20250926-plate92,4,1
-LCL-0048,2025-09-30 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251001-plate93,1,2
-LCL-0048,2025-09-30 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251001-plate93,2,3
-LCL-0048,2025-09-30 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251001-plate93,3,2
-LCL-0048,2025-09-30 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251001-plate93,4,4
-LCL-0049,2025-10-05 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | ef1a:2xLynk:tdmSG(J) (F1 of allele 304),20251007-plate50,1,3
-LCL-0049,2025-10-05 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | ef1a:2xLynk:tdmSG(J) (F1 of allele 304),20251007-plate50,2,4
-LCL-0049,2025-10-05 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | ef1a:2xLynk:tdmSG(J) (F1 of allele 304),20251007-plate98,1,6
-LCL-0049,2025-10-05 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | ef1a:2xLynk:tdmSG(J) (F1 of allele 304),20251007-plate98,2,1
-LCL-0050,2025-10-08 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251009-plate51,1,1
-LCL-0050,2025-10-08 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251009-plate99,1,4
-LCL-0050,2025-10-08 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251016-plate102,1,2
-LCL-0051,2025-10-09 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251010-plate52,1,1
-LCL-0051,2025-10-09 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251013-plate53,1,6
-LCL-0051,2025-10-09 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251013-plate53,2,2
-LCL-0051,2025-10-09 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251013-plate53,3,7
-LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,1,4
-LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,2,2
-LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,3,4
-LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,4,4
-LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,5,1
-LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251015-plate54,6,1
-LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251016-plate55,1,1
-LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251016-plate55,2,3
-LCL-0052,2025-10-13 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251016-plate55,3,2
-LCL-0053,2025-10-16 | casper/rnf | casper/rnf,20251017-plate103,1,2
-LCL-0053,2025-10-16 | casper/rnf | casper/rnf,20251017-plate56,1,1
-LCL-0054,2025-10-17 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251020-plate57,1,12
-LCL-0054,2025-10-17 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251020-plate57,2,5
-LCL-0054,2025-10-17 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251020-plate57,3,3
-LCL-0055,2025-10-20 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20251021-plate105,1,1
-LCL-0055,2025-10-20 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20251021-plate105,2,2
-LCL-0055,2025-10-20 | casper/rnf | tdmScarlet3S2 (F1 of allele 325),20251021-plate105,3,4
-LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,1,2
-LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,2,2
-LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,3,2
-LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,4,1
-LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,5,1
-LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251021-plate104,6,2
-LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251022-plate106,1,1
-LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251022-plate106,2,2
-LCL-0056,2025-10-20 | ef1a:2xLynk:tdmChilada (F1 of allele 315) | casper/rnf,20251022-plate106,3,1
-LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251022-plate58,1,2
-LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251022-plate58,2,3
-LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251022-plate58,3,2
-LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251022-plate58,4,3
-LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251024-plate59,1,3
-LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251024-plate59,2,5
-LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251027-plate60,1,2
-LCL-0057,2025-10-21 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251027-plate60,2,11
-LCL-0058,2025-10-22 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251023-plate107,1,2
-LCL-0058,2025-10-22 | casper/rnf | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251023-plate107,2,1
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate108,1,1
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate109,1,1
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate109,2,2
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate109,3,2
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,1,1
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,2,1
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,3,1
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,4,1
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251028-plate110,5,1
-LCL-0059,2025-10-27 | casper/rnf | memrane tdmScarlet3S2 (F1 of allele 325),20251029-plate111,1,1
-LCL-0060,2025-10-28 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251029-plate61,1,1
-LCL-0060,2025-10-28 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251029-plate61,2,1
-LCL-0060,2025-10-28 | ef1a:2xLynk:tdmSG(J) (F1 of allele 302) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251029-plate61,3,2
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,1,1
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,2,2
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,3,2
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,4,2
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251105-plate112,5,2
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,1,7
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,2,9
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,3,3
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,4,4
-LCL-0061,2025-11-04 | casper | ef1a:2xLynk:tdmChilada (F1 of allele 315),20251106-plate62,5,3
-LCL-0062,2025-11-08 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251110-plate63,1,2
-LCL-0062,2025-11-08 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251110-plate63,2,2
-LCL-0062,2025-11-08 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251110-plate63,3,1
-LCL-0062,2025-11-08 | ef1a:2xLynk:tdmSG(J) (F1 of allele 301) | tdmScarlet3S2:H2B-tol2 (F1 of allele 324),20251110-plate63,4,1
-LCL-0063,2025-11-10 | casper | memrane tdmScarlet3S2 (F1 of allele 325),20251112-plate64,1,3
-LCL-0063,2025-11-10 | casper | memrane tdmScarlet3S2 (F1 of allele 325),20251112-plate64,2,4
-LCL-0063,2025-11-10 | casper | memrane tdmScarlet3S2 (F1 of allele 325),20251112-plate64,3,2
+LCL-0001,20250428-plate1-slot1,20250428-plate1,1,2
+LCL-0002,20250429-plate1-slot1,20250429-plate1,1,2
+LCL-0003,20250429-plate1-slot2,20250429-plate1,2,1
+LCL-0004,20250429-plate1-slot3,20250429-plate1,3,2
+LCL-0005,20250429-plate1-slot4,20250429-plate1,4,3
+LCL-0006,20250513-plate1-slot1,20250513-plate1,1,3
+LCL-0007,20250513-plate1-slot10,20250513-plate1,10,4
+LCL-0008,20250513-plate1-slot11,20250513-plate1,11,3
+LCL-0009,20250513-plate1-slot12,20250513-plate1,12,7
+LCL-0010,20250513-plate1-slot13,20250513-plate1,13,4
+LCL-0011,20250513-plate1-slot14,20250513-plate1,14,2
+LCL-0012,20250513-plate1-slot15,20250513-plate1,15,1
+LCL-0013,20250513-plate1-slot16,20250513-plate1,16,1
+LCL-0014,20250513-plate1-slot2,20250513-plate1,2,1
+LCL-0015,20250513-plate1-slot3,20250513-plate1,3,2
+LCL-0016,20250513-plate1-slot4,20250513-plate1,4,3
+LCL-0017,20250513-plate1-slot5,20250513-plate1,5,4
+LCL-0018,20250513-plate1-slot6,20250513-plate1,6,2
+LCL-0019,20250513-plate1-slot7,20250513-plate1,7,4
+LCL-0020,20250513-plate1-slot8,20250513-plate1,8,1
+LCL-0021,20250513-plate1-slot9,20250513-plate1,9,2
+LCL-0827,20250520-plate1-slot1,20250520-plate1,1,1
+LCL-0828,20250520-plate1-slot2,20250520-plate1,2,2
+LCL-0829,20250520-plate1-slot3,20250520-plate1,3,1
+LCL-0022,20250521-plate1-slot1,20250521-plate1,1,2
+LCL-0023,20250521-plate1-slot2,20250521-plate1,2,1
+LCL-0024,20250521-plate1-slot3,20250521-plate1,3,2
+LCL-0025,20250522-plate1-slot1,20250522-plate1,1,2
+LCL-0026,20250522-plate1-slot2,20250522-plate1,2,2
+LCL-0027,20250522-plate1-slot3,20250522-plate1,3,3
+LCL-0028,20250522-plate1-slot4,20250522-plate1,4,2
+LCL-0029,20250522-plate1-slot5,20250522-plate1,5,1
+LCL-0030,20250522-plate1-slot6,20250522-plate1,6,2
+LCL-0031,20250522-plate1-slot7,20250522-plate1,7,3
+LCL-0032,20250522-plate1-slot8,20250522-plate1,8,3
+LCL-0033,20250522-plate1-slot9,20250522-plate1,9,1
+LCL-0830,20250523-plate1-slot1,20250523-plate1,1,1
+LCL-0831,20250523-plate1-slot2,20250523-plate1,2,1
+LCL-0832,20250523-plate1-slot3,20250523-plate1,3,1
+LCL-0833,20250523-plate1-slot4,20250523-plate1,4,1
+LCL-0834,20250523-plate1-slot5,20250523-plate1,5,1
+LCL-0034,20250528-plate1-slot1,20250528-plate1,1,1
+LCL-0035,20250528-plate1-slot2,20250528-plate1,2,1
+LCL-0036,20250528-plate1-slot3,20250528-plate1,3,1
+LCL-0037,20250528-plate2-slot1,20250528-plate2,1,2
+LCL-0038,20250529-plate1-slot1,20250529-plate1,1,1
+LCL-0039,20250529-plate1-slot10,20250529-plate1,10,1
+LCL-0040,20250529-plate1-slot11,20250529-plate1,11,1
+LCL-0041,20250529-plate1-slot12,20250529-plate1,12,1
+LCL-0042,20250529-plate1-slot13,20250529-plate1,13,1
+LCL-0043,20250529-plate1-slot14,20250529-plate1,14,1
+LCL-0044,20250529-plate1-slot15,20250529-plate1,15,1
+LCL-0045,20250529-plate1-slot16,20250529-plate1,16,1
+LCL-0046,20250529-plate1-slot17,20250529-plate1,17,1
+LCL-0047,20250529-plate1-slot18,20250529-plate1,18,1
+LCL-0048,20250529-plate1-slot19,20250529-plate1,19,1
+LCL-0049,20250529-plate1-slot2,20250529-plate1,2,1
+LCL-0050,20250529-plate1-slot20,20250529-plate1,20,1
+LCL-0051,20250529-plate1-slot21,20250529-plate1,21,1
+LCL-0052,20250529-plate1-slot22,20250529-plate1,22,1
+LCL-0053,20250529-plate1-slot3,20250529-plate1,3,1
+LCL-0054,20250529-plate1-slot4,20250529-plate1,4,1
+LCL-0055,20250529-plate1-slot5,20250529-plate1,5,1
+LCL-0056,20250529-plate1-slot6,20250529-plate1,6,1
+LCL-0057,20250529-plate1-slot7,20250529-plate1,7,1
+LCL-0058,20250529-plate1-slot8,20250529-plate1,8,1
+LCL-0059,20250529-plate1-slot9,20250529-plate1,9,1
+LCL-0060,20250530-plate1-slot1,20250530-plate1,1,1
+LCL-0061,20250530-plate1-slot2,20250530-plate1,2,1
+LCL-0062,20250530-plate1-slot3,20250530-plate1,3,1
+LCL-0063,20250602-plate1-slot1,20250602-plate1,1,1
+LCL-0064,20250603-plate1-slot1,20250603-plate1,1,1
+LCL-0065,20250603-plate1-slot10,20250603-plate1,10,1
+LCL-0066,20250603-plate1-slot11,20250603-plate1,11,1
+LCL-0067,20250603-plate1-slot12,20250603-plate1,12,1
+LCL-0068,20250603-plate1-slot13,20250603-plate1,13,1
+LCL-0069,20250603-plate1-slot14,20250603-plate1,14,1
+LCL-0070,20250603-plate1-slot15,20250603-plate1,15,1
+LCL-0071,20250603-plate1-slot16,20250603-plate1,16,1
+LCL-0072,20250603-plate1-slot17,20250603-plate1,17,1
+LCL-0073,20250603-plate1-slot18,20250603-plate1,18,1
+LCL-0074,20250603-plate1-slot2,20250603-plate1,2,1
+LCL-0075,20250603-plate1-slot3,20250603-plate1,3,1
+LCL-0076,20250603-plate1-slot4,20250603-plate1,4,1
+LCL-0077,20250603-plate1-slot5,20250603-plate1,5,1
+LCL-0078,20250603-plate1-slot6,20250603-plate1,6,1
+LCL-0079,20250603-plate1-slot7,20250603-plate1,7,1
+LCL-0080,20250603-plate1-slot8,20250603-plate1,8,1
+LCL-0081,20250603-plate1-slot9,20250603-plate1,9,1
+LCL-0082,20250605-plate1-slot1,20250605-plate1,1,1
+LCL-0083,20250605-plate1-slot10,20250605-plate1,10,1
+LCL-0084,20250605-plate1-slot11,20250605-plate1,11,1
+LCL-0085,20250605-plate1-slot12,20250605-plate1,12,1
+LCL-0086,20250605-plate1-slot13,20250605-plate1,13,1
+LCL-0087,20250605-plate1-slot14,20250605-plate1,14,1
+LCL-0088,20250605-plate1-slot15,20250605-plate1,15,1
+LCL-0089,20250605-plate1-slot16,20250605-plate1,16,1
+LCL-0090,20250605-plate1-slot17,20250605-plate1,17,1
+LCL-0091,20250605-plate1-slot18,20250605-plate1,18,1
+LCL-0092,20250605-plate1-slot19,20250605-plate1,19,1
+LCL-0093,20250605-plate1-slot2,20250605-plate1,2,1
+LCL-0094,20250605-plate1-slot20,20250605-plate1,20,1
+LCL-0095,20250605-plate1-slot21,20250605-plate1,21,1
+LCL-0096,20250605-plate1-slot3,20250605-plate1,3,1
+LCL-0097,20250605-plate1-slot4,20250605-plate1,4,1
+LCL-0098,20250605-plate1-slot5,20250605-plate1,5,1
+LCL-0099,20250605-plate1-slot6,20250605-plate1,6,1
+LCL-0100,20250605-plate1-slot7,20250605-plate1,7,1
+LCL-0101,20250605-plate1-slot8,20250605-plate1,8,1
+LCL-0102,20250605-plate1-slot9,20250605-plate1,9,1
+LCL-0103,20250606-plate1-slot1,20250606-plate1,1,1
+LCL-0104,20250606-plate1-slot10,20250606-plate1,10,1
+LCL-0105,20250606-plate1-slot11,20250606-plate1,11,1
+LCL-0106,20250606-plate1-slot12,20250606-plate1,12,1
+LCL-0107,20250606-plate1-slot13,20250606-plate1,13,1
+LCL-0108,20250606-plate1-slot14,20250606-plate1,14,1
+LCL-0109,20250606-plate1-slot15,20250606-plate1,15,1
+LCL-0110,20250606-plate1-slot16,20250606-plate1,16,1
+LCL-0111,20250606-plate1-slot17,20250606-plate1,17,1
+LCL-0112,20250606-plate1-slot18,20250606-plate1,18,1
+LCL-0113,20250606-plate1-slot19,20250606-plate1,19,1
+LCL-0114,20250606-plate1-slot2,20250606-plate1,2,1
+LCL-0115,20250606-plate1-slot20,20250606-plate1,20,1
+LCL-0116,20250606-plate1-slot21,20250606-plate1,21,1
+LCL-0117,20250606-plate1-slot22,20250606-plate1,22,1
+LCL-0118,20250606-plate1-slot23,20250606-plate1,23,1
+LCL-0119,20250606-plate1-slot3,20250606-plate1,3,1
+LCL-0120,20250606-plate1-slot4,20250606-plate1,4,1
+LCL-0121,20250606-plate1-slot5,20250606-plate1,5,1
+LCL-0122,20250606-plate1-slot6,20250606-plate1,6,1
+LCL-0123,20250606-plate1-slot7,20250606-plate1,7,1
+LCL-0124,20250606-plate1-slot8,20250606-plate1,8,1
+LCL-0125,20250606-plate1-slot9,20250606-plate1,9,1
+LCL-0126,20250609-plate1-slot1,20250609-plate1,1,1
+LCL-0127,20250609-plate1-slot2,20250609-plate1,2,1
+LCL-0128,20250609-plate1-slot3,20250609-plate1,3,1
+LCL-0129,20250609-plate1-slot4,20250609-plate1,4,1
+LCL-0130,20250609-plate1-slot5,20250609-plate1,5,1
+LCL-0131,20250609-plate1-slot6,20250609-plate1,6,1
+LCL-0132,20250609-plate1-slot7,20250609-plate1,7,1
+LCL-0133,20250609-plate1-slot8,20250609-plate1,8,1
+LCL-0134,20250609-plate1-slot9,20250609-plate1,9,1
+LCL-0135,20250612-plate1-slot1,20250612-plate1,1,1
+LCL-0136,20250612-plate1-slot10,20250612-plate1,10,1
+LCL-0137,20250612-plate1-slot2,20250612-plate1,2,1
+LCL-0138,20250612-plate1-slot3,20250612-plate1,3,1
+LCL-0139,20250612-plate1-slot4,20250612-plate1,4,1
+LCL-0140,20250612-plate1-slot5,20250612-plate1,5,1
+LCL-0141,20250612-plate1-slot6,20250612-plate1,6,1
+LCL-0142,20250612-plate1-slot7,20250612-plate1,7,1
+LCL-0143,20250612-plate1-slot8,20250612-plate1,8,1
+LCL-0144,20250612-plate1-slot9,20250612-plate1,9,1
+LCL-0145,20250613-plate1-slot1,20250613-plate1,1,1
+LCL-0146,20250613-plate1-slot10,20250613-plate1,10,1
+LCL-0147,20250613-plate1-slot11,20250613-plate1,11,1
+LCL-0148,20250613-plate1-slot12,20250613-plate1,12,1
+LCL-0149,20250613-plate1-slot2,20250613-plate1,2,1
+LCL-0150,20250613-plate1-slot3,20250613-plate1,3,1
+LCL-0151,20250613-plate1-slot4,20250613-plate1,4,1
+LCL-0152,20250613-plate1-slot5,20250613-plate1,5,1
+LCL-0153,20250613-plate1-slot6,20250613-plate1,6,1
+LCL-0154,20250613-plate1-slot7,20250613-plate1,7,1
+LCL-0155,20250613-plate1-slot8,20250613-plate1,8,1
+LCL-0156,20250613-plate1-slot9,20250613-plate1,9,1
+LCL-0157,20250616-plate1-slot1,20250616-plate1,1,1
+LCL-0158,20250616-plate1-slot2,20250616-plate1,2,1
+LCL-0159,20250616-plate1-slot3,20250616-plate1,3,1
+LCL-0160,20250616-plate1-slot4,20250616-plate1,4,1
+LCL-0161,20250616-plate1-slot5,20250616-plate1,5,1
+LCL-0162,20250616-plate1-slot6,20250616-plate1,6,1
+LCL-0163,20250618-plate1-slot1,20250618-plate1,1,1
+LCL-0164,20250618-plate1-slot10,20250618-plate1,10,1
+LCL-0165,20250618-plate1-slot11,20250618-plate1,11,1
+LCL-0166,20250618-plate1-slot12,20250618-plate1,12,1
+LCL-0167,20250618-plate1-slot13,20250618-plate1,13,1
+LCL-0168,20250618-plate1-slot14,20250618-plate1,14,1
+LCL-0169,20250618-plate1-slot15,20250618-plate1,15,1
+LCL-0170,20250618-plate1-slot16,20250618-plate1,16,1
+LCL-0171,20250618-plate1-slot17,20250618-plate1,17,1
+LCL-0172,20250618-plate1-slot18,20250618-plate1,18,1
+LCL-0173,20250618-plate1-slot19,20250618-plate1,19,1
+LCL-0174,20250618-plate1-slot2,20250618-plate1,2,1
+LCL-0175,20250618-plate1-slot20,20250618-plate1,20,1
+LCL-0176,20250618-plate1-slot21,20250618-plate1,21,1
+LCL-0177,20250618-plate1-slot22,20250618-plate1,22,1
+LCL-0178,20250618-plate1-slot23,20250618-plate1,23,1
+LCL-0179,20250618-plate1-slot3,20250618-plate1,3,1
+LCL-0180,20250618-plate1-slot4,20250618-plate1,4,1
+LCL-0181,20250618-plate1-slot5,20250618-plate1,5,1
+LCL-0182,20250618-plate1-slot6,20250618-plate1,6,1
+LCL-0183,20250618-plate1-slot7,20250618-plate1,7,1
+LCL-0184,20250618-plate1-slot8,20250618-plate1,8,1
+LCL-0185,20250618-plate1-slot9,20250618-plate1,9,1
+LCL-0186,20250619-plate1-slot1,20250619-plate1,1,1
+LCL-0187,20250619-plate1-slot2,20250619-plate1,2,1
+LCL-0188,20250619-plate1-slot3,20250619-plate1,3,1
+LCL-0189,20250619-plate1-slot4,20250619-plate1,4,1
+LCL-0190,20250619-plate1-slot5,20250619-plate1,5,1
+LCL-0191,20250619-plate1-slot6,20250619-plate1,6,1
+LCL-0192,20250619-plate1-slot7,20250619-plate1,7,1
+LCL-0193,20250619-plate1-slot8,20250619-plate1,8,1
+LCL-0835,20250620-plate1-slot1,20250620-plate1,1,1
+LCL-0194,20250624-plate1-slot1,20250624-plate1,1,1
+LCL-0195,20250624-plate1-slot10,20250624-plate1,10,1
+LCL-0196,20250624-plate1-slot11,20250624-plate1,11,1
+LCL-0197,20250624-plate1-slot12,20250624-plate1,12,1
+LCL-0198,20250624-plate1-slot13,20250624-plate1,13,1
+LCL-0199,20250624-plate1-slot14,20250624-plate1,14,1
+LCL-0200,20250624-plate1-slot15,20250624-plate1,15,1
+LCL-0201,20250624-plate1-slot16,20250624-plate1,16,1
+LCL-0202,20250624-plate1-slot17,20250624-plate1,17,1
+LCL-0203,20250624-plate1-slot2,20250624-plate1,2,1
+LCL-0204,20250624-plate1-slot3,20250624-plate1,3,1
+LCL-0205,20250624-plate1-slot4,20250624-plate1,4,1
+LCL-0206,20250624-plate1-slot5,20250624-plate1,5,1
+LCL-0207,20250624-plate1-slot6,20250624-plate1,6,1
+LCL-0208,20250624-plate1-slot7,20250624-plate1,7,1
+LCL-0209,20250624-plate1-slot8,20250624-plate1,8,1
+LCL-0210,20250624-plate1-slot9,20250624-plate1,9,1
+LCL-0211,20250624-plate2-slot1,20250624-plate2,1,1
+LCL-0212,20250624-plate2-slot2,20250624-plate2,2,1
+LCL-0213,20250624-plate2-slot3,20250624-plate2,3,1
+LCL-0214,20250624-plate2-slot4,20250624-plate2,4,1
+LCL-0215,20250624-plate2-slot5,20250624-plate2,5,1
+LCL-0216,20250625-plate1-slot1,20250625-plate1,1,1
+LCL-0217,20250625-plate1-slot10,20250625-plate1,10,1
+LCL-0218,20250625-plate1-slot2,20250625-plate1,2,1
+LCL-0219,20250625-plate1-slot3,20250625-plate1,3,1
+LCL-0220,20250625-plate1-slot4,20250625-plate1,4,1
+LCL-0221,20250625-plate1-slot5,20250625-plate1,5,1
+LCL-0222,20250625-plate1-slot6,20250625-plate1,6,1
+LCL-0223,20250625-plate1-slot7,20250625-plate1,7,1
+LCL-0224,20250625-plate1-slot8,20250625-plate1,8,1
+LCL-0225,20250625-plate1-slot9,20250625-plate1,9,1
+LCL-0226,20250627-plate1-slot1,20250627-plate1,1,1
+LCL-0227,20250627-plate1-slot10,20250627-plate1,10,1
+LCL-0228,20250627-plate1-slot11,20250627-plate1,11,1
+LCL-0229,20250627-plate1-slot12,20250627-plate1,12,1
+LCL-0230,20250627-plate1-slot2,20250627-plate1,2,1
+LCL-0231,20250627-plate1-slot3,20250627-plate1,3,1
+LCL-0232,20250627-plate1-slot4,20250627-plate1,4,1
+LCL-0233,20250627-plate1-slot5,20250627-plate1,5,1
+LCL-0234,20250627-plate1-slot6,20250627-plate1,6,1
+LCL-0235,20250627-plate1-slot7,20250627-plate1,7,1
+LCL-0236,20250627-plate1-slot8,20250627-plate1,8,1
+LCL-0237,20250627-plate1-slot9,20250627-plate1,9,1
+LCL-0238,20250715-plate1-slot1,20250715-plate1,1,2
+LCL-0239,20250715-plate1-slot2,20250715-plate1,2,1
+LCL-0240,20250715-plate1-slot3,20250715-plate1,3,2
+LCL-0241,20250715-plate1-slot4,20250715-plate1,4,3
+LCL-0242,20250715-plate1-slot5,20250715-plate1,5,4
+LCL-0243,20250715-plate1-slot6,20250715-plate1,6,5
+LCL-0244,20250715-plate1-slot7,20250715-plate1,7,1
+LCL-0245,20250715-plate1-slot8,20250715-plate1,8,3
+LCL-0836,20250721-plate1-slot1,20250721-plate1,1,1
+LCL-0837,20250721-plate1-slot2,20250721-plate1,2,1
+LCL-0838,20250721-plate1-slot3,20250721-plate1,3,1
+LCL-0839,20250721-plate1-slot4,20250721-plate1,4,1
+LCL-0840,20250721-plate1-slot5,20250721-plate1,5,1
+LCL-0246,20250722-plate1-slot1,20250722-plate1,1,1
+LCL-0247,20250722-plate1-slot2,20250722-plate1,2,1
+LCL-0248,20250722-plate1-slot3,20250722-plate1,3,1
+LCL-0249,20250722-plate1-slot4,20250722-plate1,4,1
+LCL-0250,20250722-plate1-slot5,20250722-plate1,5,1
+LCL-0251,20250722-plate1-slot6,20250722-plate1,6,1
+LCL-0252,20250722-plate1-slot7,20250722-plate1,7,1
+LCL-0253,20250722-plate1-slot8,20250722-plate1,8,1
+LCL-0254,20250722-plate1-slot9,20250722-plate1,9,1
+LCL-0255,20250722-plate2-slot1,20250722-plate2,1,1
+LCL-0256,20250722-plate2-slot10,20250722-plate2,10,1
+LCL-0257,20250722-plate2-slot11,20250722-plate2,11,1
+LCL-0258,20250722-plate2-slot12,20250722-plate2,12,1
+LCL-0259,20250722-plate2-slot2,20250722-plate2,2,1
+LCL-0260,20250722-plate2-slot3,20250722-plate2,3,1
+LCL-0261,20250722-plate2-slot4,20250722-plate2,4,1
+LCL-0262,20250722-plate2-slot5,20250722-plate2,5,1
+LCL-0263,20250722-plate2-slot6,20250722-plate2,6,1
+LCL-0264,20250722-plate2-slot7,20250722-plate2,7,1
+LCL-0265,20250722-plate2-slot8,20250722-plate2,8,1
+LCL-0266,20250722-plate2-slot9,20250722-plate2,9,1
+LCL-0267,20250723-plate1-slot1,20250723-plate1,1,6
+LCL-0841,20250723-plate2-slot1,20250723-plate2,1,1
+LCL-0268,20250724-plate1-slot1,20250724-plate1,1,4
+LCL-0269,20250728-plate1-slot1,20250728-plate1,1,1
+LCL-0270,20250728-plate1-slot2,20250728-plate1,2,1
+LCL-0271,20250801-plate1-slot1,20250801-plate1,1,1
+LCL-0272,20250801-plate1-slot2,20250801-plate1,2,1
+LCL-0273,20250801-plate1-slot3,20250801-plate1,3,1
+LCL-0274,20250801-plate2-slot1,20250801-plate2,1,1
+LCL-0275,20250805-plate1-slot1,20250805-plate1,1,1
+LCL-0276,20250805-plate1-slot2,20250805-plate1,2,1
+LCL-0277,20250805-plate1-slot3,20250805-plate1,3,1
+LCL-0278,20250805-plate1-slot4,20250805-plate1,4,1
+LCL-0279,20250805-plate1-slot5,20250805-plate1,5,1
+LCL-0280,20250805-plate2-slot1,20250805-plate2,1,1
+LCL-0281,20250805-plate2-slot2,20250805-plate2,2,1
+LCL-0282,20250805-plate2-slot3,20250805-plate2,3,1
+LCL-0283,20250805-plate2-slot4,20250805-plate2,4,1
+LCL-0284,20250805-plate2-slot5,20250805-plate2,5,1
+LCL-0285,20250805-plate2-slot6,20250805-plate2,6,1
+LCL-0286,20250805-plate2-slot7,20250805-plate2,7,1
+LCL-0287,20250808-plate1-slot1,20250808-plate1,1,5
+LCL-0288,20250808-plate1-slot2,20250808-plate1,2,3
+LCL-0289,20250808-plate1-slot3,20250808-plate1,3,4
+LCL-0290,20250808-plate1-slot4,20250808-plate1,4,9
+LCL-0291,20250819-plate1-slot1,20250819-plate1,1,1
+LCL-0292,20250819-plate1-slot2,20250819-plate1,2,1
+LCL-0293,20250819-plate1-slot3,20250819-plate1,3,1
+LCL-0294,20250819-plate1-slot4,20250819-plate1,4,1
+LCL-0295,20250819-plate1-slot5,20250819-plate1,5,1
+LCL-0296,20250819-plate1-slot6,20250819-plate1,6,1
+LCL-0297,20250819-plate1-slot7,20250819-plate1,7,1
+LCL-0298,20250819-plate1-slot8,20250819-plate1,8,1
+LCL-0299,20250819-plate2-slot1,20250819-plate2,1,1
+LCL-0300,20250819-plate2-slot10,20250819-plate2,10,1
+LCL-0301,20250819-plate2-slot11,20250819-plate2,11,1
+LCL-0302,20250819-plate2-slot12,20250819-plate2,12,1
+LCL-0303,20250819-plate2-slot13,20250819-plate2,13,1
+LCL-0304,20250819-plate2-slot14,20250819-plate2,14,1
+LCL-0305,20250819-plate2-slot15,20250819-plate2,15,1
+LCL-0306,20250819-plate2-slot16,20250819-plate2,16,1
+LCL-0307,20250819-plate2-slot17,20250819-plate2,17,1
+LCL-0308,20250819-plate2-slot18,20250819-plate2,18,1
+LCL-0309,20250819-plate2-slot19,20250819-plate2,19,1
+LCL-0310,20250819-plate2-slot2,20250819-plate2,2,1
+LCL-0311,20250819-plate2-slot20,20250819-plate2,20,1
+LCL-0312,20250819-plate2-slot21,20250819-plate2,21,1
+LCL-0313,20250819-plate2-slot22,20250819-plate2,22,1
+LCL-0314,20250819-plate2-slot23,20250819-plate2,23,1
+LCL-0315,20250819-plate2-slot24,20250819-plate2,24,1
+LCL-0316,20250819-plate2-slot25,20250819-plate2,25,1
+LCL-0317,20250819-plate2-slot3,20250819-plate2,3,1
+LCL-0318,20250819-plate2-slot4,20250819-plate2,4,1
+LCL-0319,20250819-plate2-slot5,20250819-plate2,5,1
+LCL-0320,20250819-plate2-slot6,20250819-plate2,6,1
+LCL-0321,20250819-plate2-slot7,20250819-plate2,7,1
+LCL-0322,20250819-plate2-slot8,20250819-plate2,8,1
+LCL-0323,20250819-plate2-slot9,20250819-plate2,9,1
+LCL-0324,20250821-plate1-slot1,20250821-plate1,1,1
+LCL-0325,20250821-plate1-slot10,20250821-plate1,10,1
+LCL-0326,20250821-plate1-slot11,20250821-plate1,11,1
+LCL-0327,20250821-plate1-slot12,20250821-plate1,12,1
+LCL-0328,20250821-plate1-slot13,20250821-plate1,13,1
+LCL-0329,20250821-plate1-slot14,20250821-plate1,14,1
+LCL-0330,20250821-plate1-slot15,20250821-plate1,15,1
+LCL-0331,20250821-plate1-slot2,20250821-plate1,2,1
+LCL-0332,20250821-plate1-slot3,20250821-plate1,3,1
+LCL-0333,20250821-plate1-slot4,20250821-plate1,4,1
+LCL-0334,20250821-plate1-slot5,20250821-plate1,5,1
+LCL-0335,20250821-plate1-slot6,20250821-plate1,6,1
+LCL-0336,20250821-plate1-slot7,20250821-plate1,7,1
+LCL-0337,20250821-plate1-slot8,20250821-plate1,8,1
+LCL-0338,20250821-plate1-slot9,20250821-plate1,9,1
+LCL-0339,20250826-plate1-slot1,20250826-plate1,1,1
+LCL-0340,20250826-plate1-slot2,20250826-plate1,2,1
+LCL-0341,20250826-plate1-slot3,20250826-plate1,3,1
+LCL-0342,20250826-plate1-slot4,20250826-plate1,4,1
+LCL-0343,20250826-plate1-slot5,20250826-plate1,5,1
+LCL-0344,20250826-plate1-slot6,20250826-plate1,6,1
+LCL-0345,20250826-plate1-slot7,20250826-plate1,7,1
+LCL-0346,20250826-plate1-slot8,20250826-plate1,8,1
+LCL-0347,20250827-plate1-slot1,20250827-plate1,1,1
+LCL-0348,20250827-plate1-slot2,20250827-plate1,2,1
+LCL-0349,20250827-plate1-slot3,20250827-plate1,3,1
+LCL-0350,20250827-plate1-slot4,20250827-plate1,4,1
+LCL-0351,20250827-plate1-slot5,20250827-plate1,5,1
+LCL-0352,20250828-plate1-slot1,20250828-plate1,1,1
+LCL-0353,20250828-plate1-slot10,20250828-plate1,10,1
+LCL-0354,20250828-plate1-slot11,20250828-plate1,11,1
+LCL-0355,20250828-plate1-slot12,20250828-plate1,12,1
+LCL-0356,20250828-plate1-slot13,20250828-plate1,13,1
+LCL-0357,20250828-plate1-slot14,20250828-plate1,14,1
+LCL-0358,20250828-plate1-slot2,20250828-plate1,2,1
+LCL-0359,20250828-plate1-slot3,20250828-plate1,3,1
+LCL-0360,20250828-plate1-slot4,20250828-plate1,4,1
+LCL-0361,20250828-plate1-slot5,20250828-plate1,5,1
+LCL-0362,20250828-plate1-slot6,20250828-plate1,6,1
+LCL-0363,20250828-plate1-slot7,20250828-plate1,7,1
+LCL-0364,20250828-plate1-slot8,20250828-plate1,8,1
+LCL-0365,20250828-plate1-slot9,20250828-plate1,9,1
+LCL-0366,20250903-plate1-slot1,20250903-plate1,1,1
+LCL-0367,20250903-plate1-slot2,20250903-plate1,2,1
+LCL-0368,20250903-plate1-slot3,20250903-plate1,3,1
+LCL-0369,20250903-plate1-slot4,20250903-plate1,4,1
+LCL-0370,20250903-plate1-slot5,20250903-plate1,5,1
+LCL-0371,20250903-plate1-slot6,20250903-plate1,6,1
+LCL-0376,20250904-plate1-slot1,20250904-plate1,1,1
+LCL-0377,20250904-plate1-slot2,20250904-plate1,2,1
+LCL-0378,20250904-plate1-slot3,20250904-plate1,3,1
+LCL-0379,20250904-plate1-slot4,20250904-plate1,4,1
+LCL-0380,20250904-plate1-slot5,20250904-plate1,5,1
+LCL-0372,20250905-plate1-slot1,20250905-plate1,1,1
+LCL-0373,20250905-plate1-slot2,20250905-plate1,2,1
+LCL-0374,20250905-plate1-slot3,20250905-plate1,3,1
+LCL-0375,20250905-plate1-slot4,20250905-plate1,4,1
+LCL-0381,20250908-plate1-slot1,20250908-plate1,1,1
+LCL-0382,20250908-plate1-slot10,20250908-plate1,10,1
+LCL-0383,20250908-plate1-slot11,20250908-plate1,11,1
+LCL-0384,20250908-plate1-slot12,20250908-plate1,12,1
+LCL-0385,20250908-plate1-slot13,20250908-plate1,13,1
+LCL-0386,20250908-plate1-slot14,20250908-plate1,14,1
+LCL-0387,20250908-plate1-slot15,20250908-plate1,15,1
+LCL-0388,20250908-plate1-slot16,20250908-plate1,16,1
+LCL-0389,20250908-plate1-slot17,20250908-plate1,17,1
+LCL-0390,20250908-plate1-slot18,20250908-plate1,18,1
+LCL-0391,20250908-plate1-slot19,20250908-plate1,19,1
+LCL-0392,20250908-plate1-slot2,20250908-plate1,2,1
+LCL-0393,20250908-plate1-slot20,20250908-plate1,20,1
+LCL-0394,20250908-plate1-slot21,20250908-plate1,21,1
+LCL-0395,20250908-plate1-slot22,20250908-plate1,22,1
+LCL-0396,20250908-plate1-slot3,20250908-plate1,3,1
+LCL-0397,20250908-plate1-slot4,20250908-plate1,4,1
+LCL-0398,20250908-plate1-slot5,20250908-plate1,5,1
+LCL-0399,20250908-plate1-slot6,20250908-plate1,6,1
+LCL-0400,20250908-plate1-slot7,20250908-plate1,7,1
+LCL-0401,20250908-plate1-slot8,20250908-plate1,8,1
+LCL-0402,20250908-plate1-slot9,20250908-plate1,9,1
+LCL-0403,20250911-plate1-slot1,20250911-plate1,1,1
+LCL-0404,20250911-plate1-slot2,20250911-plate1,2,1
+LCL-0405,20250911-plate1-slot3,20250911-plate1,3,1
+LCL-0406,20250911-plate1-slot4,20250911-plate1,4,1
+LCL-0407,20250911-plate1-slot5,20250911-plate1,5,1
+LCL-0408,20250911-plate1-slot6,20250911-plate1,6,1
+LCL-0409,20250911-plate1-slot7,20250911-plate1,7,1
+LCL-0410,20250911-plate1-slot8,20250911-plate1,8,1
+LCL-0411,20250912-plate1-slot1,20250912-plate1,1,1
+LCL-0412,20250912-plate1-slot10,20250912-plate1,10,1
+LCL-0413,20250912-plate1-slot11,20250912-plate1,11,1
+LCL-0414,20250912-plate1-slot12,20250912-plate1,12,1
+LCL-0415,20250912-plate1-slot13,20250912-plate1,13,1
+LCL-0416,20250912-plate1-slot14,20250912-plate1,14,1
+LCL-0417,20250912-plate1-slot15,20250912-plate1,15,1
+LCL-0418,20250912-plate1-slot16,20250912-plate1,16,1
+LCL-0419,20250912-plate1-slot17,20250912-plate1,17,1
+LCL-0420,20250912-plate1-slot18,20250912-plate1,18,1
+LCL-0421,20250912-plate1-slot19,20250912-plate1,19,1
+LCL-0422,20250912-plate1-slot2,20250912-plate1,2,1
+LCL-0423,20250912-plate1-slot20,20250912-plate1,20,1
+LCL-0424,20250912-plate1-slot21,20250912-plate1,21,1
+LCL-0425,20250912-plate1-slot22,20250912-plate1,22,1
+LCL-0426,20250912-plate1-slot23,20250912-plate1,23,1
+LCL-0427,20250912-plate1-slot24,20250912-plate1,24,1
+LCL-0428,20250912-plate1-slot25,20250912-plate1,25,1
+LCL-0429,20250912-plate1-slot26,20250912-plate1,26,1
+LCL-0430,20250912-plate1-slot3,20250912-plate1,3,1
+LCL-0431,20250912-plate1-slot4,20250912-plate1,4,1
+LCL-0432,20250912-plate1-slot5,20250912-plate1,5,1
+LCL-0433,20250912-plate1-slot6,20250912-plate1,6,1
+LCL-0434,20250912-plate1-slot7,20250912-plate1,7,1
+LCL-0435,20250912-plate1-slot8,20250912-plate1,8,1
+LCL-0436,20250912-plate1-slot9,20250912-plate1,9,1
+LCL-0437,20250915-plate1-slot1,20250915-plate1,1,1
+LCL-0438,20250915-plate1-slot10,20250915-plate1,10,1
+LCL-0439,20250915-plate1-slot11,20250915-plate1,11,1
+LCL-0440,20250915-plate1-slot12,20250915-plate1,12,1
+LCL-0441,20250915-plate1-slot13,20250915-plate1,13,1
+LCL-0442,20250915-plate1-slot14,20250915-plate1,14,1
+LCL-0443,20250915-plate1-slot15,20250915-plate1,15,1
+LCL-0444,20250915-plate1-slot16,20250915-plate1,16,1
+LCL-0445,20250915-plate1-slot17,20250915-plate1,17,1
+LCL-0446,20250915-plate1-slot18,20250915-plate1,18,1
+LCL-0447,20250915-plate1-slot2,20250915-plate1,2,1
+LCL-0448,20250915-plate1-slot3,20250915-plate1,3,1
+LCL-0449,20250915-plate1-slot4,20250915-plate1,4,1
+LCL-0450,20250915-plate1-slot5,20250915-plate1,5,1
+LCL-0451,20250915-plate1-slot6,20250915-plate1,6,1
+LCL-0452,20250915-plate1-slot7,20250915-plate1,7,1
+LCL-0453,20250915-plate1-slot8,20250915-plate1,8,1
+LCL-0454,20250915-plate1-slot9,20250915-plate1,9,1
+LCL-0455,20250917-plate1-slot1,20250917-plate1,1,1
+LCL-0456,20250917-plate1-slot10,20250917-plate1,10,1
+LCL-0457,20250917-plate1-slot11,20250917-plate1,11,1
+LCL-0458,20250917-plate1-slot12,20250917-plate1,12,1
+LCL-0459,20250917-plate1-slot13,20250917-plate1,13,1
+LCL-0460,20250917-plate1-slot14,20250917-plate1,14,1
+LCL-0461,20250917-plate1-slot15,20250917-plate1,15,1
+LCL-0462,20250917-plate1-slot16,20250917-plate1,16,1
+LCL-0463,20250917-plate1-slot17,20250917-plate1,17,1
+LCL-0464,20250917-plate1-slot18,20250917-plate1,18,1
+LCL-0465,20250917-plate1-slot19,20250917-plate1,19,1
+LCL-0466,20250917-plate1-slot2,20250917-plate1,2,1
+LCL-0467,20250917-plate1-slot20,20250917-plate1,20,1
+LCL-0468,20250917-plate1-slot21,20250917-plate1,21,1
+LCL-0469,20250917-plate1-slot3,20250917-plate1,3,1
+LCL-0470,20250917-plate1-slot4,20250917-plate1,4,1
+LCL-0471,20250917-plate1-slot5,20250917-plate1,5,1
+LCL-0472,20250917-plate1-slot6,20250917-plate1,6,1
+LCL-0473,20250917-plate1-slot7,20250917-plate1,7,1
+LCL-0474,20250917-plate1-slot8,20250917-plate1,8,1
+LCL-0475,20250917-plate1-slot9,20250917-plate1,9,1
+LCL-0476,20250918-plate1-slot1,20250918-plate1,1,1
+LCL-0477,20250918-plate1-slot10,20250918-plate1,10,1
+LCL-0478,20250918-plate1-slot11,20250918-plate1,11,1
+LCL-0479,20250918-plate1-slot12,20250918-plate1,12,1
+LCL-0480,20250918-plate1-slot13,20250918-plate1,13,1
+LCL-0481,20250918-plate1-slot14,20250918-plate1,14,1
+LCL-0482,20250918-plate1-slot15,20250918-plate1,15,1
+LCL-0483,20250918-plate1-slot16,20250918-plate1,16,1
+LCL-0484,20250918-plate1-slot17,20250918-plate1,17,1
+LCL-0485,20250918-plate1-slot18,20250918-plate1,18,1
+LCL-0486,20250918-plate1-slot19,20250918-plate1,19,1
+LCL-0487,20250918-plate1-slot2,20250918-plate1,2,1
+LCL-0488,20250918-plate1-slot20,20250918-plate1,20,1
+LCL-0489,20250918-plate1-slot21,20250918-plate1,21,1
+LCL-0490,20250918-plate1-slot22,20250918-plate1,22,1
+LCL-0491,20250918-plate1-slot23,20250918-plate1,23,1
+LCL-0492,20250918-plate1-slot24,20250918-plate1,24,1
+LCL-0493,20250918-plate1-slot25,20250918-plate1,25,1
+LCL-0494,20250918-plate1-slot26,20250918-plate1,26,1
+LCL-0495,20250918-plate1-slot3,20250918-plate1,3,1
+LCL-0496,20250918-plate1-slot4,20250918-plate1,4,1
+LCL-0497,20250918-plate1-slot5,20250918-plate1,5,1
+LCL-0498,20250918-plate1-slot6,20250918-plate1,6,1
+LCL-0499,20250918-plate1-slot7,20250918-plate1,7,1
+LCL-0500,20250918-plate1-slot8,20250918-plate1,8,1
+LCL-0501,20250918-plate1-slot9,20250918-plate1,9,1
+LCL-0502,20250919-plate1-slot1,20250919-plate1,1,1
+LCL-0503,20250919-plate1-slot10,20250919-plate1,10,1
+LCL-0504,20250919-plate1-slot11,20250919-plate1,11,1
+LCL-0505,20250919-plate1-slot12,20250919-plate1,12,1
+LCL-0506,20250919-plate1-slot13,20250919-plate1,13,1
+LCL-0507,20250919-plate1-slot14,20250919-plate1,14,1
+LCL-0508,20250919-plate1-slot15,20250919-plate1,15,1
+LCL-0509,20250919-plate1-slot16,20250919-plate1,16,1
+LCL-0510,20250919-plate1-slot17,20250919-plate1,17,1
+LCL-0511,20250919-plate1-slot18,20250919-plate1,18,1
+LCL-0512,20250919-plate1-slot19,20250919-plate1,19,1
+LCL-0513,20250919-plate1-slot2,20250919-plate1,2,1
+LCL-0514,20250919-plate1-slot20,20250919-plate1,20,1
+LCL-0515,20250919-plate1-slot21,20250919-plate1,21,1
+LCL-0516,20250919-plate1-slot22,20250919-plate1,22,1
+LCL-0517,20250919-plate1-slot23,20250919-plate1,23,1
+LCL-0518,20250919-plate1-slot3,20250919-plate1,3,1
+LCL-0519,20250919-plate1-slot4,20250919-plate1,4,1
+LCL-0520,20250919-plate1-slot5,20250919-plate1,5,1
+LCL-0521,20250919-plate1-slot6,20250919-plate1,6,1
+LCL-0522,20250919-plate1-slot7,20250919-plate1,7,1
+LCL-0523,20250919-plate1-slot8,20250919-plate1,8,1
+LCL-0524,20250919-plate1-slot9,20250919-plate1,9,1
+LCL-0525,20250922-plate1-slot1,20250922-plate1,1,1
+LCL-0526,20250922-plate1-slot10,20250922-plate1,10,1
+LCL-0527,20250922-plate1-slot11,20250922-plate1,11,1
+LCL-0528,20250922-plate1-slot12,20250922-plate1,12,1
+LCL-0529,20250922-plate1-slot13,20250922-plate1,13,1
+LCL-0530,20250922-plate1-slot14,20250922-plate1,14,1
+LCL-0531,20250922-plate1-slot15,20250922-plate1,15,1
+LCL-0532,20250922-plate1-slot16,20250922-plate1,16,1
+LCL-0533,20250922-plate1-slot17,20250922-plate1,17,1
+LCL-0534,20250922-plate1-slot2,20250922-plate1,2,1
+LCL-0535,20250922-plate1-slot3,20250922-plate1,3,1
+LCL-0536,20250922-plate1-slot4,20250922-plate1,4,1
+LCL-0537,20250922-plate1-slot5,20250922-plate1,5,1
+LCL-0538,20250922-plate1-slot6,20250922-plate1,6,1
+LCL-0539,20250922-plate1-slot7,20250922-plate1,7,1
+LCL-0540,20250922-plate1-slot8,20250922-plate1,8,1
+LCL-0541,20250922-plate1-slot9,20250922-plate1,9,1
+LCL-0542,20250924-plate1-slot1,20250924-plate1,1,1
+LCL-0543,20250924-plate1-slot10,20250924-plate1,10,1
+LCL-0544,20250924-plate1-slot11,20250924-plate1,11,1
+LCL-0545,20250924-plate1-slot12,20250924-plate1,12,1
+LCL-0546,20250924-plate1-slot13,20250924-plate1,13,1
+LCL-0547,20250924-plate1-slot14,20250924-plate1,14,1
+LCL-0548,20250924-plate1-slot15,20250924-plate1,15,1
+LCL-0549,20250924-plate1-slot16,20250924-plate1,16,1
+LCL-0550,20250924-plate1-slot17,20250924-plate1,17,1
+LCL-0551,20250924-plate1-slot18,20250924-plate1,18,1
+LCL-0552,20250924-plate1-slot2,20250924-plate1,2,1
+LCL-0553,20250924-plate1-slot3,20250924-plate1,3,1
+LCL-0554,20250924-plate1-slot4,20250924-plate1,4,1
+LCL-0555,20250924-plate1-slot5,20250924-plate1,5,1
+LCL-0556,20250924-plate1-slot6,20250924-plate1,6,1
+LCL-0557,20250924-plate1-slot7,20250924-plate1,7,1
+LCL-0558,20250924-plate1-slot8,20250924-plate1,8,1
+LCL-0559,20250924-plate1-slot9,20250924-plate1,9,1
+LCL-0560,20250925-plate1-slot1,20250925-plate1,1,1
+LCL-0561,20250925-plate1-slot2,20250925-plate1,2,1
+LCL-0562,20250925-plate1-slot3,20250925-plate1,3,1
+LCL-0563,20250925-plate1-slot4,20250925-plate1,4,1
+LCL-0564,20250925-plate1-slot5,20250925-plate1,5,1
+LCL-0565,20250925-plate1-slot6,20250925-plate1,6,1
+LCL-0566,20250925-plate1-slot7,20250925-plate1,7,1
+LCL-0567,20250926-plate1-slot1,20250926-plate1,1,1
+LCL-0568,20250926-plate1-slot10,20250926-plate1,10,1
+LCL-0569,20250926-plate1-slot11,20250926-plate1,11,1
+LCL-0570,20250926-plate1-slot12,20250926-plate1,12,1
+LCL-0571,20250926-plate1-slot13,20250926-plate1,13,1
+LCL-0572,20250926-plate1-slot14,20250926-plate1,14,1
+LCL-0573,20250926-plate1-slot15,20250926-plate1,15,1
+LCL-0574,20250926-plate1-slot16,20250926-plate1,16,1
+LCL-0575,20250926-plate1-slot2,20250926-plate1,2,1
+LCL-0576,20250926-plate1-slot3,20250926-plate1,3,1
+LCL-0577,20250926-plate1-slot4,20250926-plate1,4,1
+LCL-0578,20250926-plate1-slot5,20250926-plate1,5,1
+LCL-0579,20250926-plate1-slot6,20250926-plate1,6,1
+LCL-0580,20250926-plate1-slot7,20250926-plate1,7,1
+LCL-0581,20250926-plate1-slot8,20250926-plate1,8,1
+LCL-0582,20250926-plate1-slot9,20250926-plate1,9,1
+LCL-0583,20251001-plate1-slot1,20251001-plate1,1,1
+LCL-0584,20251001-plate1-slot10,20251001-plate1,10,1
+LCL-0585,20251001-plate1-slot11,20251001-plate1,11,1
+LCL-0586,20251001-plate1-slot2,20251001-plate1,2,1
+LCL-0587,20251001-plate1-slot3,20251001-plate1,3,1
+LCL-0588,20251001-plate1-slot4,20251001-plate1,4,1
+LCL-0589,20251001-plate1-slot5,20251001-plate1,5,1
+LCL-0590,20251001-plate1-slot6,20251001-plate1,6,1
+LCL-0591,20251001-plate1-slot7,20251001-plate1,7,1
+LCL-0592,20251001-plate1-slot8,20251001-plate1,8,1
+LCL-0593,20251001-plate1-slot9,20251001-plate1,9,1
+LCL-0601,20251002-plate1-slot1,20251002-plate1,1,1
+LCL-0602,20251002-plate1-slot10,20251002-plate1,10,1
+LCL-0603,20251002-plate1-slot11,20251002-plate1,11,1
+LCL-0604,20251002-plate1-slot12,20251002-plate1,12,1
+LCL-0605,20251002-plate1-slot13,20251002-plate1,13,1
+LCL-0606,20251002-plate1-slot14,20251002-plate1,14,1
+LCL-0607,20251002-plate1-slot15,20251002-plate1,15,1
+LCL-0608,20251002-plate1-slot16,20251002-plate1,16,1
+LCL-0609,20251002-plate1-slot17,20251002-plate1,17,1
+LCL-0610,20251002-plate1-slot18,20251002-plate1,18,1
+LCL-0611,20251002-plate1-slot19,20251002-plate1,19,1
+LCL-0612,20251002-plate1-slot2,20251002-plate1,2,1
+LCL-0613,20251002-plate1-slot20,20251002-plate1,20,1
+LCL-0614,20251002-plate1-slot21,20251002-plate1,21,1
+LCL-0615,20251002-plate1-slot22,20251002-plate1,22,1
+LCL-0616,20251002-plate1-slot23,20251002-plate1,23,1
+LCL-0617,20251002-plate1-slot24,20251002-plate1,24,1
+LCL-0618,20251002-plate1-slot3,20251002-plate1,3,1
+LCL-0619,20251002-plate1-slot4,20251002-plate1,4,1
+LCL-0620,20251002-plate1-slot5,20251002-plate1,5,1
+LCL-0621,20251002-plate1-slot6,20251002-plate1,6,1
+LCL-0622,20251002-plate1-slot7,20251002-plate1,7,1
+LCL-0623,20251002-plate1-slot8,20251002-plate1,8,1
+LCL-0624,20251002-plate1-slot9,20251002-plate1,9,1
+LCL-0594,20251003-plate1-slot1,20251003-plate1,1,1
+LCL-0595,20251003-plate1-slot2,20251003-plate1,2,1
+LCL-0596,20251003-plate1-slot3,20251003-plate1,3,1
+LCL-0597,20251003-plate1-slot4,20251003-plate1,4,1
+LCL-0598,20251003-plate1-slot5,20251003-plate1,5,1
+LCL-0599,20251003-plate1-slot6,20251003-plate1,6,1
+LCL-0600,20251003-plate1-slot7,20251003-plate1,7,1
+LCL-0625,20251006-plate1-slot1,20251006-plate1,1,1
+LCL-0626,20251006-plate1-slot10,20251006-plate1,10,1
+LCL-0627,20251006-plate1-slot11,20251006-plate1,11,1
+LCL-0628,20251006-plate1-slot2,20251006-plate1,2,1
+LCL-0629,20251006-plate1-slot3,20251006-plate1,3,1
+LCL-0630,20251006-plate1-slot4,20251006-plate1,4,1
+LCL-0631,20251006-plate1-slot5,20251006-plate1,5,1
+LCL-0632,20251006-plate1-slot6,20251006-plate1,6,1
+LCL-0633,20251006-plate1-slot7,20251006-plate1,7,1
+LCL-0634,20251006-plate1-slot8,20251006-plate1,8,1
+LCL-0635,20251006-plate1-slot9,20251006-plate1,9,1
+LCL-0636,20251007-plate1-slot1,20251007-plate1,1,1
+LCL-0637,20251007-plate1-slot2,20251007-plate1,2,1
+LCL-0638,20251007-plate1-slot3,20251007-plate1,3,1
+LCL-0639,20251007-plate1-slot4,20251007-plate1,4,1
+LCL-0640,20251007-plate1-slot5,20251007-plate1,5,1
+LCL-0641,20251007-plate1-slot6,20251007-plate1,6,1
+LCL-0642,20251007-plate1-slot7,20251007-plate1,7,1
+LCL-0643,20251007-plate2-slot1,20251007-plate2,1,1
+LCL-0644,20251007-plate2-slot2,20251007-plate2,2,1
+LCL-0645,20251007-plate2-slot3,20251007-plate2,3,1
+LCL-0646,20251007-plate2-slot4,20251007-plate2,4,1
+LCL-0647,20251007-plate2-slot5,20251007-plate2,5,1
+LCL-0648,20251007-plate2-slot6,20251007-plate2,6,1
+LCL-0649,20251007-plate2-slot7,20251007-plate2,7,1
+LCL-0842,20251009-plate1-slot1,20251009-plate1,1,1
+LCL-0650,20251009-plate2-slot1,20251009-plate2,1,1
+LCL-0651,20251009-plate2-slot2,20251009-plate2,2,1
+LCL-0652,20251009-plate2-slot3,20251009-plate2,3,1
+LCL-0653,20251009-plate2-slot4,20251009-plate2,4,1
+LCL-0669,20251010-plate1-slot1,20251010-plate1,1,1
+LCL-0654,20251010-plate2-slot1,20251010-plate2,1,1
+LCL-0655,20251010-plate2-slot10,20251010-plate2,10,1
+LCL-0656,20251010-plate2-slot11,20251010-plate2,11,1
+LCL-0657,20251010-plate2-slot12,20251010-plate2,12,1
+LCL-0658,20251010-plate2-slot2,20251010-plate2,2,1
+LCL-0659,20251010-plate2-slot3,20251010-plate2,3,1
+LCL-0660,20251010-plate2-slot4,20251010-plate2,4,1
+LCL-0661,20251010-plate2-slot5,20251010-plate2,5,1
+LCL-0662,20251010-plate2-slot6,20251010-plate2,6,1
+LCL-0663,20251010-plate2-slot7,20251010-plate2,7,1
+LCL-0664,20251010-plate2-slot8,20251010-plate2,8,1
+LCL-0665,20251010-plate2-slot9,20251010-plate2,9,1
+LCL-0670,20251013-plate1-slot1,20251013-plate1,1,1
+LCL-0671,20251013-plate1-slot10,20251013-plate1,10,1
+LCL-0672,20251013-plate1-slot2,20251013-plate1,2,2
+LCL-0673,20251013-plate1-slot3,20251013-plate1,3,1
+LCL-0674,20251013-plate1-slot4,20251013-plate1,4,2
+LCL-0675,20251013-plate1-slot5,20251013-plate1,5,1
+LCL-0676,20251013-plate1-slot6,20251013-plate1,6,1
+LCL-0677,20251013-plate1-slot7,20251013-plate1,7,2
+LCL-0678,20251013-plate1-slot8,20251013-plate1,8,2
+LCL-0679,20251013-plate1-slot9,20251013-plate1,9,2
+LCL-0680,20251015-plate1-slot1,20251015-plate1,1,2
+LCL-0681,20251015-plate1-slot10,20251015-plate1,10,1
+LCL-0682,20251015-plate1-slot11,20251015-plate1,11,1
+LCL-0683,20251015-plate1-slot2,20251015-plate1,2,2
+LCL-0684,20251015-plate1-slot3,20251015-plate1,3,2
+LCL-0685,20251015-plate1-slot4,20251015-plate1,4,2
+LCL-0686,20251015-plate1-slot5,20251015-plate1,5,2
+LCL-0687,20251015-plate1-slot6,20251015-plate1,6,1
+LCL-0688,20251015-plate1-slot7,20251015-plate1,7,1
+LCL-0689,20251015-plate1-slot8,20251015-plate1,8,1
+LCL-0690,20251015-plate1-slot9,20251015-plate1,9,1
+LCL-0691,20251016-plate1-slot1,20251016-plate1,1,1
+LCL-0692,20251016-plate1-slot2,20251016-plate1,2,1
+LCL-0693,20251016-plate1-slot3,20251016-plate1,3,1
+LCL-0694,20251016-plate1-slot4,20251016-plate1,4,1
+LCL-0695,20251016-plate1-slot5,20251016-plate1,5,1
+LCL-0696,20251016-plate1-slot6,20251016-plate1,6,1
+LCL-0666,20251016-plate2-slot1,20251016-plate2,1,1
+LCL-0667,20251016-plate3-slot1,20251016-plate3,1,1
+LCL-0668,20251016-plate3-slot2,20251016-plate3,2,1
+LCL-0697,20251017-plate1-slot1,20251017-plate1,1,1
+LCL-0698,20251017-plate2-slot1,20251017-plate2,1,1
+LCL-0699,20251017-plate2-slot2,20251017-plate2,2,1
+LCL-0700,20251020-plate1-slot1,20251020-plate1,1,2
+LCL-0701,20251020-plate1-slot10,20251020-plate1,10,1
+LCL-0702,20251020-plate1-slot11,20251020-plate1,11,1
+LCL-0703,20251020-plate1-slot12,20251020-plate1,12,1
+LCL-0704,20251020-plate1-slot13,20251020-plate1,13,1
+LCL-0705,20251020-plate1-slot2,20251020-plate1,2,2
+LCL-0706,20251020-plate1-slot3,20251020-plate1,3,2
+LCL-0707,20251020-plate1-slot4,20251020-plate1,4,2
+LCL-0708,20251020-plate1-slot5,20251020-plate1,5,2
+LCL-0709,20251020-plate1-slot6,20251020-plate1,6,2
+LCL-0710,20251020-plate1-slot7,20251020-plate1,7,2
+LCL-0711,20251020-plate1-slot8,20251020-plate1,8,1
+LCL-0712,20251020-plate1-slot9,20251020-plate1,9,1
+LCL-0713,20251021-plate1-slot1,20251021-plate1,1,1
+LCL-0714,20251021-plate1-slot10,20251021-plate1,10,1
+LCL-0715,20251021-plate1-slot2,20251021-plate1,2,1
+LCL-0716,20251021-plate1-slot3,20251021-plate1,3,1
+LCL-0717,20251021-plate1-slot4,20251021-plate1,4,1
+LCL-0718,20251021-plate1-slot5,20251021-plate1,5,1
+LCL-0719,20251021-plate1-slot6,20251021-plate1,6,1
+LCL-0720,20251021-plate1-slot7,20251021-plate1,7,1
+LCL-0721,20251021-plate1-slot8,20251021-plate1,8,1
+LCL-0722,20251021-plate1-slot9,20251021-plate1,9,1
+LCL-0723,20251021-plate2-slot1,20251021-plate2,1,1
+LCL-0724,20251021-plate2-slot2,20251021-plate2,2,1
+LCL-0725,20251021-plate2-slot3,20251021-plate2,3,1
+LCL-0726,20251021-plate2-slot4,20251021-plate2,4,1
+LCL-0727,20251021-plate2-slot5,20251021-plate2,5,1
+LCL-0728,20251021-plate2-slot6,20251021-plate2,6,1
+LCL-0729,20251021-plate2-slot7,20251021-plate2,7,1
+LCL-0734,20251022-plate1-slot1,20251022-plate1,1,1
+LCL-0735,20251022-plate1-slot10,20251022-plate1,10,1
+LCL-0736,20251022-plate1-slot2,20251022-plate1,2,1
+LCL-0737,20251022-plate1-slot3,20251022-plate1,3,1
+LCL-0738,20251022-plate1-slot4,20251022-plate1,4,1
+LCL-0739,20251022-plate1-slot5,20251022-plate1,5,1
+LCL-0740,20251022-plate1-slot6,20251022-plate1,6,1
+LCL-0741,20251022-plate1-slot7,20251022-plate1,7,1
+LCL-0742,20251022-plate1-slot8,20251022-plate1,8,1
+LCL-0743,20251022-plate1-slot9,20251022-plate1,9,1
+LCL-0730,20251022-plate2-slot1,20251022-plate2,1,1
+LCL-0731,20251022-plate2-slot2,20251022-plate2,2,1
+LCL-0732,20251022-plate2-slot3,20251022-plate2,3,1
+LCL-0733,20251022-plate2-slot4,20251022-plate2,4,1
+LCL-0765,20251023-plate1-slot1,20251023-plate1,1,1
+LCL-0766,20251023-plate1-slot2,20251023-plate1,2,1
+LCL-0767,20251023-plate1-slot3,20251023-plate1,3,1
+LCL-0744,20251024-plate1-slot1,20251024-plate1,1,1
+LCL-0745,20251024-plate1-slot2,20251024-plate1,2,1
+LCL-0746,20251024-plate1-slot3,20251024-plate1,3,1
+LCL-0747,20251024-plate1-slot4,20251024-plate1,4,1
+LCL-0748,20251024-plate1-slot5,20251024-plate1,5,1
+LCL-0749,20251024-plate1-slot6,20251024-plate1,6,1
+LCL-0750,20251024-plate1-slot7,20251024-plate1,7,1
+LCL-0751,20251024-plate1-slot8,20251024-plate1,8,1
+LCL-0752,20251027-plate1-slot1,20251027-plate1,1,1
+LCL-0753,20251027-plate1-slot10,20251027-plate1,10,1
+LCL-0754,20251027-plate1-slot11,20251027-plate1,11,1
+LCL-0755,20251027-plate1-slot12,20251027-plate1,12,1
+LCL-0756,20251027-plate1-slot13,20251027-plate1,13,1
+LCL-0757,20251027-plate1-slot2,20251027-plate1,2,1
+LCL-0758,20251027-plate1-slot3,20251027-plate1,3,1
+LCL-0759,20251027-plate1-slot4,20251027-plate1,4,1
+LCL-0760,20251027-plate1-slot5,20251027-plate1,5,1
+LCL-0761,20251027-plate1-slot6,20251027-plate1,6,1
+LCL-0762,20251027-plate1-slot7,20251027-plate1,7,1
+LCL-0763,20251027-plate1-slot8,20251027-plate1,8,1
+LCL-0764,20251027-plate1-slot9,20251027-plate1,9,1
+LCL-0768,20251028-plate1-slot1,20251028-plate1,1,1
+LCL-0769,20251028-plate2-slot1,20251028-plate2,1,1
+LCL-0770,20251028-plate2-slot2,20251028-plate2,2,1
+LCL-0771,20251028-plate2-slot3,20251028-plate2,3,1
+LCL-0772,20251028-plate2-slot4,20251028-plate2,4,1
+LCL-0773,20251028-plate2-slot5,20251028-plate2,5,1
+LCL-0774,20251028-plate3-slot1,20251028-plate3,1,1
+LCL-0775,20251028-plate3-slot2,20251028-plate3,2,1
+LCL-0776,20251028-plate3-slot3,20251028-plate3,3,1
+LCL-0777,20251028-plate3-slot4,20251028-plate3,4,1
+LCL-0778,20251028-plate3-slot5,20251028-plate3,5,1
+LCL-0779,20251028-plate4-slot1,20251028-plate4,1,2
+LCL-0783,20251029-plate1-slot1,20251029-plate1,1,1
+LCL-0784,20251029-plate1-slot2,20251029-plate1,2,1
+LCL-0785,20251029-plate1-slot3,20251029-plate1,3,1
+LCL-0786,20251029-plate1-slot4,20251029-plate1,4,1
+LCL-0780,20251029-plate2-slot1,20251029-plate2,1,1
+LCL-0781,20251029-plate3-slot1,20251029-plate3,1,6
+LCL-0782,20251029-plate3-slot2,20251029-plate3,2,2
+LCL-0787,20251105-plate1-slot1,20251105-plate1,1,1
+LCL-0788,20251105-plate1-slot2,20251105-plate1,2,1
+LCL-0789,20251105-plate1-slot3,20251105-plate1,3,1
+LCL-0790,20251105-plate1-slot4,20251105-plate1,4,1
+LCL-0791,20251105-plate1-slot5,20251105-plate1,5,1
+LCL-0792,20251105-plate1-slot6,20251105-plate1,6,1
+LCL-0793,20251105-plate1-slot7,20251105-plate1,7,1
+LCL-0794,20251105-plate1-slot8,20251105-plate1,8,1
+LCL-0795,20251105-plate1-slot9,20251105-plate1,9,1
+LCL-0796,20251106-plate1-slot1,20251106-plate1,1,2
+LCL-0843,20251106-plate1-slot10,20251106-plate1,10,1
+LCL-0797,20251106-plate1-slot11,20251106-plate1,11,1
+LCL-0798,20251106-plate1-slot12,20251106-plate1,12,1
+LCL-0799,20251106-plate1-slot13,20251106-plate1,13,1
+LCL-0800,20251106-plate1-slot14,20251106-plate1,14,1
+LCL-0801,20251106-plate1-slot15,20251106-plate1,15,1
+LCL-0802,20251106-plate1-slot16,20251106-plate1,16,1
+LCL-0803,20251106-plate1-slot17,20251106-plate1,17,1
+LCL-0804,20251106-plate1-slot18,20251106-plate1,18,1
+LCL-0805,20251106-plate1-slot19,20251106-plate1,19,1
+LCL-0806,20251106-plate1-slot2,20251106-plate1,2,2
+LCL-0807,20251106-plate1-slot20,20251106-plate1,20,1
+LCL-0844,20251106-plate1-slot3,20251106-plate1,3,1
+LCL-0845,20251106-plate1-slot4,20251106-plate1,4,1
+LCL-0846,20251106-plate1-slot5,20251106-plate1,5,1
+LCL-0808,20251106-plate1-slot6,20251106-plate1,6,2
+LCL-0809,20251106-plate1-slot7,20251106-plate1,7,2
+LCL-0810,20251106-plate1-slot8,20251106-plate1,8,2
+LCL-0811,20251106-plate1-slot9,20251106-plate1,9,2
+LCL-0847,20251107-plate1-slot1,20251107-plate1,1,1
+LCL-0848,20251107-plate2-slot1,20251107-plate2,1,1
+LCL-0849,20251107-plate2-slot10,20251107-plate2,10,1
+LCL-0850,20251107-plate2-slot11,20251107-plate2,11,1
+LCL-0851,20251107-plate2-slot12,20251107-plate2,12,1
+LCL-0852,20251107-plate2-slot13,20251107-plate2,13,1
+LCL-0853,20251107-plate2-slot2,20251107-plate2,2,1
+LCL-0854,20251107-plate2-slot3,20251107-plate2,3,1
+LCL-0855,20251107-plate2-slot4,20251107-plate2,4,1
+LCL-0856,20251107-plate2-slot5,20251107-plate2,5,1
+LCL-0857,20251107-plate2-slot6,20251107-plate2,6,1
+LCL-0858,20251107-plate2-slot7,20251107-plate2,7,1
+LCL-0859,20251107-plate2-slot8,20251107-plate2,8,1
+LCL-0860,20251107-plate2-slot9,20251107-plate2,9,1
+LCL-0812,20251110-plate1-slot1,20251110-plate1,1,1
+LCL-0813,20251110-plate1-slot2,20251110-plate1,2,1
+LCL-0814,20251110-plate1-slot3,20251110-plate1,3,1
+LCL-0815,20251110-plate1-slot4,20251110-plate1,4,1
+LCL-0816,20251110-plate1-slot5,20251110-plate1,5,1
+LCL-0817,20251110-plate1-slot6,20251110-plate1,6,1
+LCL-0818,20251112-plate1-slot1,20251112-plate1,1,1
+LCL-0819,20251112-plate1-slot2,20251112-plate1,2,1
+LCL-0820,20251112-plate1-slot3,20251112-plate1,3,1
+LCL-0821,20251112-plate1-slot4,20251112-plate1,4,1
+LCL-0822,20251112-plate1-slot5,20251112-plate1,5,1
+LCL-0823,20251112-plate1-slot6,20251112-plate1,6,1
+LCL-0824,20251112-plate1-slot7,20251112-plate1,7,1
+LCL-0825,20251112-plate1-slot8,20251112-plate1,8,1
+LCL-0826,20251112-plate1-slot9,20251112-plate1,9,1

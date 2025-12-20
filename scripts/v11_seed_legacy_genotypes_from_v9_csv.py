@@ -1,299 +1,162 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import os
 import argparse
+import os
+import sys
 import hashlib
+from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from carp_app.pipelines.construct_tokens import canonicalize_tokens, resolve_construct_ids, TokenError
+
 
 def get_engine(db_url: str | None) -> Engine:
     url = db_url or os.environ.get("DB_URL")
     if not url:
-        raise SystemExit("DB_URL must be provided via --db-url or env DB_URL")
+        raise SystemExit("DB_URL must be set (env DB_URL or --db-url)")
     print(f"DB_URL={url}")
     return create_engine(url)
 
 
-def canonical_basecodes(raw: str | None) -> List[str]:
-    if raw is None:
-        return []
-    s = str(raw).strip()
-    if not s or s.lower() == "nan":
-        return []
-    s = s.replace("[", "").replace("]", "")
-    parts: List[str] = []
-    for token in s.split("|"):
-        t = token.strip().strip("'").strip('"')
-        if t:
-            parts.append(t)
-    return sorted(set(parts))
+def _canon_basecodes(raw: object) -> str | None:
+    s = "" if raw is None else str(raw).strip()
+    if not s or s.lower() in ("nan", "none", "na", "n/a", "<na>"):
+        return None
+    toks = canonicalize_tokens(s)
+    toks = sorted(set(toks))
+    return "|".join(toks) if toks else None
 
 
-def load_clutch_basecodes_from_roi_csv(roi_csv_path: str) -> Dict[str, str]:
-    """
-    From legacy_imaging_annotations_for_db_v9.csv:
-    legacy_clutch_key -> canonical genotype basecodes string
-    """
-    df = pd.read_csv(roi_csv_path)
-    if "legacy_clutch_key" not in df.columns:
-        raise SystemExit("ROI CSV must contain legacy_clutch_key")
-
-    base_col = None
-    if "genotype_base_codes" in df.columns:
-        base_col = "genotype_base_codes"
-    elif "genotype_base_codes_slug" in df.columns:
-        base_col = "genotype_base_codes_slug"
-    else:
-        raise SystemExit(
-            "ROI CSV must contain genotype_base_codes or genotype_base_codes_slug"
-        )
-
-    clutch_to_codes: Dict[str, List[str]] = {}
-
-    for _, row in df.iterrows():
-        key = str(row["legacy_clutch_key"]).strip()
-        if not key or key.lower() == "nan":
-            continue
-        raw_codes = row.get(base_col, "")
-        codes = canonical_basecodes(raw_codes)
-        if not codes:
-            continue
-        clutch_to_codes.setdefault(key, []).extend(codes)
-
-    result: Dict[str, str] = {}
-    for key, codes in clutch_to_codes.items():
-        uniq = sorted(set(codes))
-        if not uniq:
-            continue
-        result[key] = "|".join(uniq)
-
-    print(
-        f"[v11_seed_legacy_genotypes_from_v9_csv] clutches with genotype basecodes from ROI CSV: {len(result)}"
-    )
-    return result
-
-
-def load_legacy_clutch_to_code_from_clutch_csv(clutch_csv_path: str) -> Dict[str, str]:
-    """
-    From legacy_clutches_v9.csv:
-    legacy_clutch_key -> clutch_code for all 64 clutches.
-    """
-    df = pd.read_csv(clutch_csv_path)
-    missing = [c for c in ("legacy_clutch_key", "clutch_code") if c not in df.columns]
-    if missing:
-        raise SystemExit(
-            f"clutch CSV must contain columns: legacy_clutch_key, clutch_code (missing: {missing})"
-        )
-
-    mapping: Dict[str, str] = {}
-    for _, row in df.iterrows():
-        key = str(row["legacy_clutch_key"]).strip()
-        code = str(row["clutch_code"]).strip()
-        if not key or key.lower() == "nan":
-            continue
-        if not code or code.lower() == "nan":
-            continue
-        mapping[key] = code
-
-    print(
-        f"[v11_seed_legacy_genotypes_from_v9_csv] legacy_clutch_key → clutch_code entries from clutch CSV: {len(mapping)}"
-    )
-    return mapping
-
-
-def load_existing_genotypes(engine: Engine) -> Dict[str, str]:
-    sql = text(
-        """
-        SELECT id::text AS genotype_id,
-               genotype_basecodes
-        FROM public.genotypes_v11
-        """
-    )
-    with engine.begin() as cx:
-        rows = list(cx.execute(sql))
-
-    mapping: Dict[str, str] = {}
-    for genotype_id, basecodes in rows:
-        base = (basecodes or "").strip()
-        if base:
-            mapping[base] = genotype_id
-    print(
-        f"[v11_seed_legacy_genotypes_from_v9_csv] existing genotypes: {len(mapping)}"
-    )
-    return mapping
-
-
-def ensure_genotype(engine: Engine, basecodes: str, existing: Dict[str, str]) -> str:
-    base = basecodes.strip()
-    if not base:
-        raise ValueError("empty basecodes in ensure_genotype")
-
-    if base in existing:
-        return existing[base]
-
-    h = hashlib.sha1(base.encode("utf-8")).hexdigest()[:8]
-    genotype_code = f"LEGACY-{h}"
-    genotype_pretty = base
-
-    with engine.begin() as cx:
-        gid = cx.execute(
-            text(
-                """
-                INSERT INTO public.genotypes_v11 (
-                  id,
-                  genotype_code,
-                  genotype_basecodes,
-                  genotype_pretty,
-                  created_at
-                )
-                VALUES (
-                  gen_random_uuid(),
-                  :genotype_code,
-                  :genotype_basecodes,
-                  :genotype_pretty,
-                  now()
-                )
-                RETURNING id::text;
-                """
-            ),
-            {
-                "genotype_code": genotype_code,
-                "genotype_basecodes": base,
-                "genotype_pretty": genotype_pretty,
-            },
-        ).scalar()
-
-    existing[base] = gid
-    print(
-        f"[v11_seed_legacy_genotypes_from_v9_csv] created genotype {gid} for basecodes='{base}'"
-    )
-    return gid
-
-
-def build_clutch_code_to_basecodes(
-    clutch_basecodes_by_legacy_key: Dict[str, str],
-    legacy_to_clutch_code: Dict[str, str],
-) -> Dict[str, str]:
-    """
-    Combine:
-      legacy_clutch_key -> basecodes
-      legacy_clutch_key -> clutch_code
-    into:
-      clutch_code -> basecodes
-    """
-    result: Dict[str, str] = {}
-    for legacy_key, base in clutch_basecodes_by_legacy_key.items():
-        clutch_code = legacy_to_clutch_code.get(legacy_key)
-        if not clutch_code:
-            continue
-        clutch_code_clean = clutch_code.strip()
-        if not clutch_code_clean:
-            continue
-        result[clutch_code_clean] = base
-    print(
-        f"[v11_seed_legacy_genotypes_from_v9_csv] clutch_code → basecodes entries: {len(result)}"
-    )
-    return result
-
-
-def apply_genotypes_to_clutches(
-    engine: Engine,
-    clutch_code_basecodes: Dict[str, str],
-    existing_genotypes: Dict[str, str],
-) -> None:
-    if not clutch_code_basecodes:
-        print("[v11_seed_legacy_genotypes_from_v9_csv] no clutches to update")
-        return
-
-    updated = 0
-    with engine.begin() as cx:
-        for clutch_code, base in clutch_code_basecodes.items():
-            gid = existing_genotypes.get(base)
-            if not gid:
-                continue
-            res = cx.execute(
-                text(
-                    """
-                    UPDATE public.clutches c
-                    SET genotype_v11_id = :gid
-                    WHERE c.clutch_code = :clutch_code
-                      AND c.genotype_v11_id IS NULL;
-                    """
-                ),
-                {"gid": gid, "clutch_code": clutch_code},
-            )
-            updated += res.rowcount
-
-    print(
-        f"[v11_seed_legacy_genotypes_from_v9_csv] set genotype_v11_id for {updated} clutch(es)"
-    )
+def _legacy_genotype_code(basecodes: str) -> str:
+    h = hashlib.sha1(basecodes.encode("utf-8")).hexdigest()[:8]
+    return f"LEGACY-{h}"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Seed v11 legacy genotypes from legacy_imaging_annotations_for_db_v9.csv + legacy_clutches_v9.csv"
+    p = argparse.ArgumentParser(description="v11: seed legacy clutch genotypes from ROI-derived clutch_code→basecodes CSV (strict).")
+    p.add_argument("--roi-csv", required=True, help="CSV with at least: clutch_code, genotype_basecodes (or geno_base_codes_v9_exp)")
+    p.add_argument("--db-url", help="Override DB_URL")
+    args = p.parse_args()
+
+    roi_csv = Path(args.roi_csv)
+    if not roi_csv.exists():
+        raise SystemExit(f"ROI CSV not found: {roi_csv}")
+
+    df = pd.read_csv(roi_csv, low_memory=False)
+
+    if "clutch_code" not in df.columns:
+        raise SystemExit("ROI CSV must contain clutch_code")
+
+    base_col = None
+    for c in ("genotype_basecodes", "genotype_base_codes", "geno_base_codes_v9_exp", "genotype_base_codes_v9_exp"):
+        if c in df.columns:
+            base_col = c
+            break
+    if base_col is None:
+        raise SystemExit("ROI CSV must contain one of: genotype_basecodes / geno_base_codes_v9_exp")
+
+    df = df[["clutch_code", base_col]].copy()
+    df["clutch_code"] = df["clutch_code"].astype(str).str.strip()
+    df["basecodes_raw"] = df[base_col]
+    df["basecodes"] = df["basecodes_raw"].apply(_canon_basecodes)
+    df = df[(df["clutch_code"] != "") & df["basecodes"].notna()].copy()
+
+    by_clutch: Dict[str, str] = {}
+    for clutch_code, g in df.groupby("clutch_code"):
+        vals = sorted(set([x for x in g["basecodes"].tolist() if isinstance(x, str) and x.strip()]))
+        if not vals:
+            continue
+        if len(vals) != 1:
+            raise SystemExit(f"[STOP] clutch_code={clutch_code} has multiple basecodes after canonicalization: {vals}")
+        by_clutch[clutch_code] = vals[0]
+
+    eng = get_engine(args.db_url)
+
+    all_tokens: List[str] = []
+    for bc in sorted(set(by_clutch.values())):
+        all_tokens.extend(bc.split("|"))
+
+    try:
+        construct_ids = resolve_construct_ids(eng, all_tokens)
+    except TokenError as e:
+        raise SystemExit(f"[STOP] unresolved construct tokens in ROI basecodes: {e}") from e
+
+    upsert_geno_sql = text(
+        """
+        INSERT INTO public.genotypes_v11 (id, genotype_code, genotype_basecodes, source_system, created_at)
+        VALUES (gen_random_uuid(), :genotype_code, :genotype_basecodes, 'legacy_imaging', now())
+        ON CONFLICT (genotype_code) DO UPDATE
+        SET genotype_basecodes = EXCLUDED.genotype_basecodes
+        RETURNING id::uuid AS id;
+        """
     )
-    parser.add_argument(
-        "--roi-csv",
-        default="seed_kits/legacy_wrangling_v2/working/legacy_imaging_annotations_for_db_v9.csv",
-        help="Path to legacy_imaging_annotations_for_db_v9.csv",
+
+    update_clutch_sql = text(
+        """
+        UPDATE public.clutches
+        SET genotype_v11_id = CAST(:gid AS uuid)
+        WHERE clutch_code = :clutch_code
+          AND source_system = 'legacy_imaging';
+        """
     )
-    parser.add_argument(
-        "--clutch-csv",
-        default="seed_kits/legacy_wrangling_v2/working/legacy_clutches_v9.csv",
-        help="Path to legacy_clutches_v9.csv (legacy_clutch_key → clutch_code)",
+
+    insert_join_sql = text(
+        """
+        INSERT INTO public.join_genotype_constructs_v11 (genotype_id, construct_id, created_at)
+        VALUES (CAST(:genotype_id AS uuid), CAST(:construct_id AS uuid), now())
+        ON CONFLICT DO NOTHING;
+        """
     )
-    parser.add_argument(
-        "--db-url",
-        help="Override DB_URL",
-    )
-    args = parser.parse_args()
 
-    engine = get_engine(args.db_url)
+    created_or_updated = 0
+    clutch_updates = 0
+    join_inserts = 0
 
-    clutch_basecodes_by_legacy = load_clutch_basecodes_from_roi_csv(args.roi_csv)
-    if not clutch_basecodes_by_legacy:
-        print(
-            "[v11_seed_legacy_genotypes_from_v9_csv] no clutch basecodes found in ROI CSV; nothing to do"
-        )
-        return
+    with eng.begin() as cx:
+        for clutch_code, basecodes in sorted(by_clutch.items()):
+            gcode = _legacy_genotype_code(basecodes)
+            gid = cx.execute(upsert_geno_sql, {"genotype_code": gcode, "genotype_basecodes": basecodes}).scalar()
+            if gid is None:
+                raise SystemExit(f"[STOP] failed to upsert genotype for clutch_code={clutch_code}")
+            created_or_updated += 1
 
-    legacy_to_clutch_code = load_legacy_clutch_to_code_from_clutch_csv(args.clutch_csv)
-    clutch_code_to_basecodes = build_clutch_code_to_basecodes(
-        clutch_basecodes_by_legacy, legacy_to_clutch_code
-    )
-    if not clutch_code_to_basecodes:
-        print(
-            "[v11_seed_legacy_genotypes_from_v9_csv] no clutch_code → basecodes mapping; nothing to do"
-        )
-        return
+            res = cx.execute(update_clutch_sql, {"gid": str(gid), "clutch_code": clutch_code})
+            clutch_updates += int(res.rowcount or 0)
 
-    existing = load_existing_genotypes(engine)
+            for tok in basecodes.split("|"):
+                cid = construct_ids.get(tok.lower())
+                if not cid:
+                    raise SystemExit(f"[STOP] construct id missing after resolve for token={tok!r}")
+                r2 = cx.execute(insert_join_sql, {"genotype_id": str(gid), "construct_id": cid})
+                join_inserts += int(r2.rowcount or 0)
 
-    distinct_bases = sorted(set(clutch_code_to_basecodes.values()))
-    for base in distinct_bases:
-        ensure_genotype(engine, base, existing)
-
-    apply_genotypes_to_clutches(engine, clutch_code_to_basecodes, existing)
-
-    with engine.begin() as cx:
-        n_clutches, n_with = cx.execute(
+        qc = cx.execute(
             text(
                 """
-                SELECT count(*) AS n_clutches,
-                       count(genotype_v11_id) AS n_with
-                FROM public.clutches;
+                SELECT
+                  (SELECT count(*) FROM public.clutches WHERE source_system='legacy_imaging') AS n_legacy_clutches,
+                  (SELECT count(*) FROM public.clutches WHERE source_system='legacy_imaging' AND genotype_v11_id IS NOT NULL) AS n_legacy_with_genotype,
+                  (SELECT count(*) FROM public.genotypes_v11 WHERE source_system='legacy_imaging') AS n_legacy_genotypes,
+                  (SELECT count(*) FROM public.join_genotype_constructs_v11 j
+                     JOIN public.genotypes_v11 g ON g.id=j.genotype_id
+                     WHERE g.source_system='legacy_imaging') AS n_join_rows_for_legacy_genotypes;
                 """
             )
-        ).one()
-    print(
-        f"[v11_seed_legacy_genotypes_from_v9_csv] SUMMARY: clutches={n_clutches}, with genotype_v11_id={n_with}"
-    )
+        ).first()
+
+    print(f"[OK] base_col_used={base_col}")
+    print(f"[OK] genotypes_touched={created_or_updated} clutch_updates={clutch_updates} join_inserts={join_inserts}")
+    if qc is not None:
+        print("[QC]", dict(qc._mapping))
 
 
 if __name__ == "__main__":

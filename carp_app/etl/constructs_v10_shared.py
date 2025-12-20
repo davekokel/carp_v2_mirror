@@ -108,12 +108,55 @@ def load_constructs_from_df(df: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
     upserted = 0
     rejected: list[Dict[str, Any]] = []
 
+    upsert_sql = text(
+        """
+        INSERT INTO public.constructs (
+          construct_code,
+          base_code,
+          construct_kind,
+          construct_name,
+          resistance,
+          plasmid_notes,
+          description,
+          injection_use_plasmid,
+          injection_use_rna,
+          injection_use_crispr,
+          created_at
+        )
+        VALUES (
+          :construct_code,
+          :base_code,
+          :construct_kind,
+          :construct_name,
+          :resistance,
+          :plasmid_notes,
+          :description,
+          :use_plasmid,
+          :use_rna,
+          :use_crispr,
+          now()
+        )
+        ON CONFLICT (construct_code) DO UPDATE SET
+          base_code              = EXCLUDED.base_code,
+          construct_kind         = EXCLUDED.construct_kind,
+          construct_name         = EXCLUDED.construct_name,
+          resistance             = EXCLUDED.resistance,
+          plasmid_notes          = EXCLUDED.plasmid_notes,
+          description            = EXCLUDED.description,
+          injection_use_plasmid  = public.constructs.injection_use_plasmid
+                                 OR EXCLUDED.injection_use_plasmid,
+          injection_use_rna      = public.constructs.injection_use_rna
+                                 OR EXCLUDED.injection_use_rna,
+          injection_use_crispr   = public.constructs.injection_use_crispr
+                                 OR EXCLUDED.injection_use_crispr
+        ;
+        """
+    )
+
     for _, row in base.iterrows():
         raw_code = _norm(row["plasmid_code"])
         if not raw_code:
             continue
-
-        construct_kind = "plasmid"
 
         canonical = normalize_construct_code(raw_code)
         if not canonical:
@@ -125,6 +168,19 @@ def load_constructs_from_df(df: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
             )
             continue
 
+        use_plasmid = _as_bool_flag(row.get("used_for_injection_plasmid"))
+        use_rna = _as_bool_flag(row.get("used_for_injection_rna"))
+        use_crispr = _as_bool_flag(row.get("used_for_injection_crispr"))
+
+        # STRICT kind derivation from the CSV flags (no guessing)
+        # precedence: crispr > rna-only > plasmid (default)
+        if use_crispr:
+            construct_kind = "crispr"
+        elif use_rna and not use_plasmid:
+            construct_kind = "rna"
+        else:
+            construct_kind = "plasmid"
+
         base_code = canonical
 
         nickname = _norm_optional(row.get("plasmid_nickname"))
@@ -134,12 +190,8 @@ def load_constructs_from_df(df: pd.DataFrame, cx: Connection) -> Dict[str, Any]:
         plasmid_notes = _norm_optional(row.get("plasmid_notes"))
         description = plasmid_notes
 
-        use_plasmid = _as_bool_flag(row.get("used_for_injection_plasmid"))
-        use_rna = _as_bool_flag(row.get("used_for_injection_rna"))
-        use_crispr = _as_bool_flag(row.get("used_for_injection_crispr"))
-
         cx.execute(
-            _SQL_UPSERT,
+            upsert_sql,
             {
                 "construct_code": canonical,
                 "base_code": base_code,

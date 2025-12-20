@@ -271,24 +271,33 @@ def main() -> None:
     args = parser.parse_args()
 
     engine = get_engine(args.db_url)
-    df = pd.read_csv(args.csv)
+    df = pd.read_csv(args.csv, low_memory=False)
 
-    # Keep only rows with real plate / slot / ROI IDs
-    for col in ["bruker_roi_id", "plate_date", "plate_id_filled", "slot_id_filled"]:
-        if col not in df.columns:
-            raise SystemExit(f"Required column '{col}' not found in CSV")
+    # Minimal contract for the lean imaging loader
+    needed = [
+        "plate_date",
+        "plate_id_filled",
+        "slot_id_filled",
+        "roi_index_within_slot",
+        "roi_dir",
+        "bruker_roi_id",
+    ]
+    missing = [c for c in needed if c not in df.columns]
+    if missing:
+        raise SystemExit(f"ROI CSV missing required columns: {missing}")
 
-    mask = (
-        ~df["bruker_roi_id"].isna()
-        & ~df["plate_date"].isna()
-        & ~df["plate_id_filled"].isna()
-        & ~df["slot_id_filled"].isna()
-    )
-    df_clean = df[mask].copy()
+    # Core upserts (plates -> slots -> rois)
+    upsert_imaging_plates(df, engine)
+    upsert_imaging_slots(df, engine)
+    insert_imaging_rois(df, engine)
 
-    upsert_imaging_plates(df_clean, engine)
-    upsert_imaging_slots(df_clean, engine)
-    insert_imaging_rois(df_clean, engine)
+    # QC counts
+    with engine.begin() as cx:
+        n_plates = cx.execute(text("SELECT count(*) FROM public.imaging_plates")).scalar()
+        n_slots  = cx.execute(text("SELECT count(*) FROM public.imaging_slots")).scalar()
+        n_rois   = cx.execute(text("SELECT count(*) FROM public.imaging_roi_annotations")).scalar()
+
+    print(f"[OK] v9_load_imaging_legacy_rois: plates={int(n_plates)}, slots={int(n_slots)}, rois={int(n_rois)}")
 
 
 if __name__ == "__main__":

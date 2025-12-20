@@ -308,3 +308,6 @@ def main() -> None:
     print(f"[INFO] Missing clutch_code:   {missing_clutch}")
     print(f"[INFO] Missing treat_code:    {missing_treat}")
     print(f"[INFO] Missing treatment signatures: {missing_sig}")
+    
+if __name__ == "__main__":
+    main()

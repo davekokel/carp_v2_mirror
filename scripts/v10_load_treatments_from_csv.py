@@ -20,44 +20,47 @@ def get_engine(db_url: Optional[str]) -> Engine:
     return create_engine(url)
 
 
-def norm(s: str | None) -> str:
+def norm(s: object) -> str:
     if s is None:
         return ""
     return str(s).strip()
 
 
-def _construct_key_variants(raw: str | None) -> set[str]:
+def _construct_key_variants(raw: str) -> set[str]:
     s = norm(raw)
     if not s:
         return set()
 
-    keys: set[str] = set()
-    keys.add(s)
-    keys.add(s.lower())
+    keys: set[str] = {s, s.lower()}
 
-    m = re.match(r"^([A-Za-z]+)[-_]?(0*)(\d+)$", s)
+    m = re.match(r"^([A-Za-z]+)[-_ ]?(0*)(\d+)$", s)
     if not m:
         return keys
 
     prefix = m.group(1).upper()
     digits = m.group(3)
-
     try:
         num = int(digits)
     except ValueError:
         return keys
 
-    short = f"{prefix}-{num}"
-    padded3 = f"{prefix}-{num:03d}"
-
-    for v in (short, padded3):
+    for v in (f"{prefix}-{num}", f"{prefix}-{num:03d}"):
         keys.add(v)
         keys.add(v.lower())
+
+    # also accept no-dash forms like MGCO01
+    keys.add(f"{prefix}{num}")
+    keys.add(f"{prefix}{num}".lower())
 
     return keys
 
 
-def build_construct_lookup(engine: Engine) -> Dict[str, Tuple[str, str]]:
+def build_construct_lookup(engine: Engine) -> Dict[str, str]:
+    """
+    Return mapping from many possible tokens -> construct_id (text uuid).
+    Key idea: resolve the construct, but DO NOT use construct_kind/injection flags
+    to determine delivery_form. delivery_form comes from CSV ingredient_type.
+    """
     sql = text(
         """
         SELECT
@@ -73,25 +76,17 @@ def build_construct_lookup(engine: Engine) -> Dict[str, Tuple[str, str]]:
     with engine.begin() as cx:
         df = pd.read_sql(sql, cx)
 
-    lookup: Dict[str, Tuple[str, str]] = {}
+    lookup: Dict[str, str] = {}
     for _, row in df.iterrows():
         construct_id = norm(row["construct_id"])
-        construct_code = norm(row["construct_code"])
-        base_code = norm(row["base_code"])
+        construct_code = norm(row.get("construct_code"))
+        base_code = norm(row.get("base_code"))
         alias = norm(row.get("alias"))
 
-        canon = construct_code or base_code
-        if not canon:
-            continue
-
-        keys: set[str] = set()
-        for raw in (construct_code, base_code, alias, canon):
-            keys.update(_construct_key_variants(raw))
-
-        for k in keys:
-            if not k:
-                continue
-            lookup[k] = (construct_id, canon)
+        for raw in (construct_code, base_code, alias):
+            for k in _construct_key_variants(raw):
+                if k:
+                    lookup[k] = construct_id
 
     print(f"[v10_load_treatments] construct lookup keys: {len(lookup)}")
     return lookup
@@ -99,52 +94,47 @@ def build_construct_lookup(engine: Engine) -> Dict[str, Tuple[str, str]]:
 
 def build_dye_lookup(engine: Engine) -> Dict[str, str]:
     """
-    v11: build dye lookup from dyes.nickname (base code).
-    Returns mapping from base_code (and lowercase) -> dye_id (as text).
+    Map dye nickname/code/display_name -> dye_id (text uuid).
     """
     sql = text(
         """
         SELECT id::text AS dye_id,
-               nickname
+               nickname,
+               code,
+               display_name
         FROM public.dyes
         """
     )
     with engine.begin() as cx:
         df = pd.read_sql(sql, cx)
 
-    lookup: Dict[str, str] = {}
-    for _, row in df.iterrows():
-        dye_id = norm(row["dye_id"])
-        code = norm(row["nickname"])
-        if not code:
-            continue
-        lookup[code] = dye_id
-        lookup[code.lower()] = dye_id
+    lut: Dict[str, str] = {}
+    for _, r in df.iterrows():
+        dye_id = norm(r["dye_id"])
+        for raw in (r.get("nickname"), r.get("code"), r.get("display_name")):
+            k = norm(raw)
+            if not k:
+                continue
+            lut[k] = dye_id
+            lut[k.lower()] = dye_id
 
-    print(f"[v10_load_treatments] dye lookup keys: {len(lookup)}")
-    return lookup
+    print(f"[v10_load_treatments] dye lookup keys: {len(lut)}")
+    return lut
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="v10: load treatments + mixes + ingredients from treatments CSV"
+        description="v10: load treatments + mixes + ingredients from treatments CSV (STRICT: delivery_form comes from ingredient_type)"
     )
-    parser.add_argument(
-        "--csv",
-        required=True,
-        help="Path to treatments_v10.csv",
-    )
-    parser.add_argument(
-        "--db-url",
-        help="Override DB_URL",
-    )
+    parser.add_argument("--csv", required=True, help="Path to treatments_v10.csv")
+    parser.add_argument("--db-url", help="Override DB_URL")
     args = parser.parse_args()
 
     csv_path = Path(args.csv)
     if not csv_path.exists():
         raise SystemExit(f"treatments CSV not found: {csv_path}")
 
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, low_memory=False)
     print(f"[v10_load_treatments] read {len(df)} row(s) from {csv_path}")
 
     required_cols = {
@@ -157,14 +147,13 @@ def main() -> None:
     }
     missing = required_cols - set(df.columns)
     if missing:
-        raise SystemExit(
-            f"treatments CSV missing required columns: {sorted(missing)}; "
-            f"found {sorted(df.columns)}"
-        )
+        raise SystemExit(f"treatments CSV missing required columns: {sorted(missing)}")
 
+    # normalize strings
     df = df.copy()
-    for c in df.select_dtypes(include=["object", "string"]).columns:
-        df[c] = df[c].astype("string").fillna("").str.strip()
+    for c in df.columns:
+        if df[c].dtype == object:
+            df[c] = df[c].astype("string").fillna("").str.strip()
 
     engine = get_engine(args.db_url)
     construct_lookup = build_construct_lookup(engine)
@@ -225,13 +214,15 @@ def main() -> None:
         INSERT INTO public.treatment_mix_constructs (
           mix_id,
           construct_id,
+          delivery_form,
           concentration,
           notes,
           created_at
         )
         VALUES (
           :mix_id,
-          :ingredient_id,
+          :construct_id,
+          :delivery_form,
           :concentration,
           NULL,
           now()
@@ -251,7 +242,7 @@ def main() -> None:
         )
         VALUES (
           :mix_id,
-          :ingredient_id,
+          :dye_id,
           :concentration,
           NULL,
           now()
@@ -260,156 +251,108 @@ def main() -> None:
         """
     )
 
-    inserted_treatments = 0
-    inserted_mixes = 0
-    inserted_constructs = 0
-    inserted_dyes = 0
-    skipped_ingredients = 0
+    allowed_construct_forms = {"plasmid", "rna", "crispr"}
 
-    grouped = df.groupby(["treatment_code", "mix_code"], dropna=False)
+    n_treatments = 0
+    n_mixes = 0
+    n_construct_ingredients = 0
+    n_dye_ingredients = 0
+    n_skipped = 0
 
     with engine.begin() as cx:
-        for (t_code, mix_code), g in grouped:
-            t_code = norm(t_code)
-            mix_code = norm(mix_code)
+        for (treat_code, treat_name), df_treat in df.groupby(["treatment_code", "treatment_name"], dropna=False):
+            treat_code = norm(treat_code)
+            treat_name = norm(treat_name)
+            if not treat_code:
+                raise SystemExit("[STOP] blank treatment_code in CSV")
 
-            if not t_code:
-                print("[v10_load_treatments] WARN: row with empty treatment_code; skipping group.")
-                skipped_ingredients += len(g)
-                continue
+            treat_text = f"Injection of {treat_name or treat_code}"
+            kind_code = "legacy_v10"
+            notes = None
+            source_system = "legacy_v10"
+            import_batch_id = csv_path.name
 
-            t_name = norm(g["treatment_name"].iloc[0])
-            kind_code = norm(g["kind_code"].iloc[0]) if "kind_code" in g.columns else ""
-            t_notes = norm(g["treatment_notes"].iloc[0]) if "treatment_notes" in g.columns else ""
-            mix_notes = norm(g["mix_notes"].iloc[0]) if "mix_notes" in g.columns else ""
-
-            src = "legacy_v9" if "legacy" in t_code.lower() else "standard_seedkit"
-
-            t_row = cx.execute(
+            tr = cx.execute(
                 insert_treatment,
                 {
-                    "treat_code": t_code,
-                    "kind_code": kind_code or None,
-                    "treat_text": t_name or None,
-                    "notes": t_notes or None,
-                    "source_system": src,
-                    "import_batch_id": "treatments_v10_seed",
+                    "treat_code": treat_code,
+                    "kind_code": kind_code,
+                    "treat_text": treat_text,
+                    "notes": notes,
+                    "source_system": source_system,
+                    "import_batch_id": import_batch_id,
                 },
             ).fetchone()
-            treatment_id = t_row._mapping["treatment_id"]
-            inserted_treatments += 1
+            treatment_id = tr[0]
+            n_treatments += 1
 
-            m_row = cx.execute(
-                insert_mix,
-                {
-                    "treatment_id": treatment_id,
-                    "mix_code": mix_code or "default",
-                    "notes": mix_notes or None,
-                },
-            ).fetchone()
-            mix_id = m_row._mapping["mix_id"]
-            inserted_mixes += 1
+            for mix_code, df_mix in df_treat.groupby(["mix_code"], dropna=False):
+                mix_code = norm(mix_code)
+                if not mix_code:
+                    raise SystemExit(f"[STOP] blank mix_code for treatment_code={treat_code}")
 
-            # Collect this group's ingredient rows
-            rows_for_mix = list(g.iterrows())
+                mr = cx.execute(
+                    insert_mix,
+                    {"treatment_id": treatment_id, "mix_code": mix_code, "notes": None},
+                ).fetchone()
+                mix_id = mr[0]
+                n_mixes += 1
 
-            # Does this group already contain at least one construct ingredient?
-            has_construct = any(
-                norm(ing["ingredient_type"]).lower() == "construct"
-                and norm(ing["ingredient_code"])
-                for _, ing in rows_for_mix
-            )
+                for _, row in df_mix.iterrows():
+                    ingredient_type = norm(row["ingredient_type"]).lower()
+                    ingredient_code = norm(row["ingredient_code"])
+                    concentration = norm(row.get("concentration"))
 
-            # If this is an injection treatment (INJ-*) with no explicit construct ingredient,
-            # synthesize a construct ingredient from the base code (INJ-mgco-59 → mgco-59).
-            if not has_construct and t_code.upper().startswith("INJ-"):
-                base_code = t_code.split("-", 1)[1].strip()
-                if base_code:
-                    synthetic_ing = pd.Series(
-                        {
-                            "ingredient_type": "construct",
-                            "ingredient_code": base_code,
-                            "concentration": "",
-                        }
-                    )
-                    rows_for_mix.append((None, synthetic_ing))
-                    print(
-                        f"[v10_load_treatments] INFO: auto-added construct ingredient {base_code!r} "
-                        f"for injection treatment={t_code}, mix={mix_code or 'default'}"
-                    )
-                else:
-                    print(
-                        f"[v10_load_treatments] WARN: INJ treatment={t_code} "
-                        f"had no base_code part; cannot auto-add construct ingredient."
-                    )
-
-            # Now process all ingredient rows (original + synthetic, if any)
-            for _, ing in rows_for_mix:
-                itype = norm(ing["ingredient_type"]).lower()
-                code = norm(ing["ingredient_code"])
-                conc = norm(ing["concentration"]) or None
-
-                if not itype or not code:
-                    skipped_ingredients += 1
-                    continue
-
-                if itype == "construct":
-                    hit = (
-                        construct_lookup.get(code)
-                        or construct_lookup.get(code.lower())
-                    )
-                    if not hit:
-                        print(
-                            f"[v10_load_treatments] WARN: unknown construct ingredient_code={code!r} "
-                            f"for treatment={t_code}, mix={mix_code or 'default'}"
-                        )
-                        skipped_ingredients += 1
+                    if not ingredient_type or not ingredient_code:
+                        n_skipped += 1
                         continue
-                    construct_id, canon = hit
+
+                    if ingredient_type == "dye":
+                        dye_id = dye_lookup.get(ingredient_code) or dye_lookup.get(ingredient_code.lower())
+                        if not dye_id:
+                            raise SystemExit(
+                                f"[STOP] unknown dye ingredient_code={ingredient_code!r} "
+                                f"(treatment_code={treat_code}, mix_code={mix_code})"
+                            )
+                        cx.execute(
+                            insert_dye,
+                            {"mix_id": mix_id, "dye_id": dye_id, "concentration": concentration or None},
+                        )
+                        n_dye_ingredients += 1
+                        continue
+
+                    if ingredient_type not in allowed_construct_forms:
+                        raise SystemExit(
+                            f"[STOP] ingredient_type must be one of {sorted(allowed_construct_forms)} or 'dye'; "
+                            f"got {ingredient_type!r} (treatment_code={treat_code}, mix_code={mix_code})"
+                        )
+
+                    construct_id = (
+                        construct_lookup.get(ingredient_code)
+                        or construct_lookup.get(ingredient_code.lower())
+                    )
+                    if not construct_id:
+                        raise SystemExit(
+                            f"[STOP] unknown construct ingredient_code={ingredient_code!r} "
+                            f"(treatment_code={treat_code}, mix_code={mix_code})"
+                        )
+
                     cx.execute(
                         insert_construct,
                         {
                             "mix_id": mix_id,
-                            "ingredient_id": construct_id,
-                            "concentration": conc,
+                            "construct_id": construct_id,
+                            "delivery_form": ingredient_type,  # STRICT: comes from CSV
+                            "concentration": concentration or None,
                         },
                     )
-                    inserted_constructs += 1
+                    n_construct_ingredients += 1
 
-                elif itype == "dye":
-                    dye_id = (
-                        dye_lookup.get(code)
-                        or dye_lookup.get(code.lower())
-                    )
-                    if not dye_id:
-                        print(
-                            f"[v10_load_treatments] WARN: unknown dye ingredient_code={code!r} "
-                            f"for treatment={t_code}, mix={mix_code or 'default'}"
-                        )
-                        skipped_ingredients += 1
-                        continue
-                    cx.execute(
-                        insert_dye,
-                        {
-                            "mix_id": mix_id,
-                            "ingredient_id": dye_id,
-                            "concentration": conc,
-                        },
-                    )
-                    inserted_dyes += 1
-
-                else:
-                    print(
-                        f"[v10_load_treatments] WARN: unsupported ingredient_type={itype!r} "
-                        f"(code={code!r}); skipping."
-                    )
-                    skipped_ingredients += 1
-
-    print(f"[v10_load_treatments] upserted {inserted_treatments} treatment row(s)")
-    print(f"[v10_load_treatments] upserted {inserted_mixes} treatment_mix row(s)")
-    print(f"[v10_load_treatments] inserted {inserted_constructs} construct ingredients")
-    print(f"[v10_load_treatments] inserted {inserted_dyes} dye ingredients")
-    print(f"[v10_load_treatments] skipped {skipped_ingredients} ingredient row(s)")
+    print(f"[v10_load_treatments] upserted {n_treatments} treatment row(s)")
+    print(f"[v10_load_treatments] upserted {n_mixes} treatment_mix row(s)")
+    print(f"[v10_load_treatments] inserted {n_construct_ingredients} construct ingredients")
+    print(f"[v10_load_treatments] inserted {n_dye_ingredients} dye ingredients")
+    print(f"[v10_load_treatments] skipped {n_skipped} ingredient row(s)")
 
 
 if __name__ == "__main__":
