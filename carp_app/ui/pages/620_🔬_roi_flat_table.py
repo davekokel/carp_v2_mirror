@@ -31,7 +31,7 @@ require_app_unlock()
 st.set_page_config(page_title="CARP — 🔬 ROIs (flat)", page_icon="🔬", layout="wide")
 st.title("🔬 ROIs — flat table")
 
-VIEW_NAME = "v_roi_overview_rollups"
+VIEW_NAME = "v_roi_overview_display_v6"
 _ENGINE: Engine = get_engine()
 
 LEGACY_CSV = ROOT / "seed_kits" / "legacy_wrangling_v3" / "working" / "legacy_imaging_annotations_for_db_v9.csv"
@@ -96,10 +96,10 @@ def _cols(table_or_view: str) -> List[str]:
         rows = con.execute(
             text(
                 """
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_schema='public' AND table_name=:t
-                ORDER BY ordinal_position
+                select column_name
+                from information_schema.columns
+                where table_schema='public' and table_name=:t
+                order by ordinal_position
                 """
             ),
             {"t": table_or_view},
@@ -113,10 +113,10 @@ def _load_filter_choices() -> Dict[str, Any]:
         exp_names = pd.read_sql(
             text(
                 f"""
-                SELECT DISTINCT experiment_name
-                FROM public.{VIEW_NAME}
-                WHERE experiment_name IS NOT NULL AND btrim(experiment_name) <> ''
-                ORDER BY experiment_name;
+                select distinct experiment_name
+                from public.{VIEW_NAME}
+                where experiment_name is not null and btrim(experiment_name) <> ''
+                order by experiment_name;
                 """
             ),
             con,
@@ -124,8 +124,8 @@ def _load_filter_choices() -> Dict[str, Any]:
         dates = pd.read_sql(
             text(
                 f"""
-                SELECT min(experiment_date) AS min_date, max(experiment_date) AS max_date
-                FROM public.{VIEW_NAME};
+                select min(experiment_date) as min_date, max(experiment_date) as max_date
+                from public.{VIEW_NAME};
                 """
             ),
             con,
@@ -141,67 +141,48 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
     have = set(_cols(VIEW_NAME))
     show_debug = bool(params.get("show_debug"))
 
-    # Core columns (prioritized)
+    # Primary display fields (the point of this page)
     top_cols = [
         "experiment_date",
         "experiment_name",
-
         "roi_code",
         "roi_path",
-
         "clutch_code",
         "treated_clutch_code",
         "treatment_code",
+        "treatment_text",
 
-        "marker_rollup_display_tg",
-        "marker_rollup_display_fluortag",
-        "marker_rollup_display_fluororganelle",
+        "tx_gt_tg",
+        "tx_gt_fluortag",
+        "tx_gt_fluororganelle",
 
-        "genotype_basecodes",
         "genotype_pretty",
 
         "created_at",
     ]
 
-    # “Out of place / lower priority” — move to the end (as requested)
     tail_cols = [
         "plate_code",
         "slot_index",
         "slot_label",
         "roi_index_within_slot",
-
-        "treatment_text",
-
-        # keep genotype_display accessible but not prominent
-        "genotype_display",
-
-        "genotype_tg_style",
-        "genotype_fluortag_style",
-        "genotype_fluororganelle_style",
-
-        "label_tg_style",
-        "label_fluortag_style",
-        "label_fluororganelle_style",
-
         "roi_note_anatomy",
         "plate_note",
         "slot_note",
     ]
 
     debug_cols = [
-        "genotype_code",
-
-        # raw internals (still useful when debugging the rollups)
-        "marker_rollup_tg",
-        "marker_rollup_fluortag",
-        "marker_rollup_fluororganelle",
+        "treatment_pretty_tg",
+        "treatment_pretty_fluortag",
+        "treatment_pretty_fluororganelle",
+        "marker_rollup_display_tg",
+        "marker_rollup_display_fluortag",
+        "marker_rollup_display_fluororganelle",
+        "genotype_basecodes",
     ]
 
-    if not show_debug:
-        # Only show genotype_display and other tail fields if they exist; keep them “end of row”
-        select_cols = [c for c in (top_cols + tail_cols) if c in have and c != "genotype_display"]
-    else:
-        select_cols = [c for c in (top_cols + tail_cols + debug_cols) if c in have]
+    base = top_cols + tail_cols + (debug_cols if show_debug else [])
+    select_cols = [c for c in base if c in have]
 
     where: List[str] = []
     p: Dict[str, Any] = {}
@@ -218,28 +199,19 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
             "treated_clutch_code",
             "treatment_code",
             "treatment_text",
-            "genotype_basecodes",
+            "tx_gt_tg",
+            "tx_gt_fluortag",
+            "tx_gt_fluororganelle",
             "genotype_pretty",
-            "genotype_display",
-            "marker_rollup_display_tg",
-            "marker_rollup_display_fluortag",
-            "marker_rollup_display_fluororganelle",
         ]
-        if show_debug:
-            like_cols += [
-                "genotype_code",
-                "marker_rollup_tg",
-                "marker_rollup_fluortag",
-                "marker_rollup_fluororganelle",
-            ]
         like_cols = [c for c in like_cols if c in have]
         if like_cols:
-            where.append("(" + " OR ".join([f"{c} ILIKE :q" for c in like_cols]) + ")")
+            where.append("(" + " or ".join([f"{c} ilike :q" for c in like_cols]) + ")")
             p["q"] = f"%{q}%"
 
     exp_names = params.get("experiment_names") or []
     if exp_names:
-        where.append("experiment_name = ANY(:experiment_names)")
+        where.append("experiment_name = any(:experiment_names)")
         p["experiment_names"] = exp_names
 
     date_min = params.get("date_min")
@@ -253,27 +225,20 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
         p["date_max"] = date_max
 
     if params.get("only_treated"):
-        where.append("coalesce(btrim(treated_clutch_code),'') <> ''")
+        where.append("coalesce(btrim(treatment_code),'') <> ''")
 
-    if params.get("only_with_genotype"):
-        # strict: require genotype_pretty if present, otherwise fall back to basecodes
-        if "genotype_pretty" in have:
-            where.append("coalesce(btrim(genotype_pretty),'') <> ''")
-        else:
-            where.append("coalesce(btrim(genotype_basecodes),'') <> ''")
-
-    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    where_sql = ("where " + " and ".join(where)) if where else ""
 
     limit = int(params.get("limit") or 1000)
     p["limit"] = limit
 
     sql = f"""
-    SELECT
+    select
       {", ".join(select_cols)}
-    FROM public.{VIEW_NAME}
+    from public.{VIEW_NAME}
     {where_sql}
-    ORDER BY experiment_date DESC NULLS LAST, plate_code DESC NULLS LAST, slot_index, roi_index_within_slot
-    LIMIT :limit;
+    order by experiment_date desc nulls last, plate_code desc nulls last, slot_index, roi_index_within_slot
+    limit :limit;
     """
 
     with _ENGINE.begin() as con:
@@ -288,19 +253,21 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
             how="left",
         )
 
+    if getattr(df, "columns", None) is not None and df.columns.duplicated().any():
+        df = df.loc[:, ~df.columns.duplicated()].copy()
+
     return df
 
 
 choices = _load_filter_choices()
 
 with st.expander("Filters", expanded=True):
-    c1, c2, c3, c4, c5, c6 = st.columns([2, 2, 1, 1, 1, 1])
-    q = c1.text_input("Search", value="", placeholder="roi, clutch, treatment, rollups, genotype, paths…")
+    c1, c2, c3, c4, c5 = st.columns([2, 2, 1, 1, 1])
+    q = c1.text_input("Search", value="", placeholder="roi, clutch, treatment, tx_gt, genotype, paths…")
     experiment_names = c2.multiselect("Experiment name", options=choices["experiment_names"])
     limit = c3.selectbox("Limit", options=[200, 500, 1000, 2000, 5000], index=2)
     only_treated = c4.checkbox("Only treated", value=False)
-    only_with_genotype = c5.checkbox("Only with genotype_pretty", value=False)
-    show_debug = c6.checkbox("Show debug columns", value=False)
+    show_debug = c5.checkbox("Show debug columns", value=False)
 
     d1, d2 = st.columns([1, 1])
     min_d = choices["min_date"]
@@ -316,7 +283,6 @@ df = _load_rois(
         "date_max": date_max,
         "limit": limit,
         "only_treated": only_treated,
-        "only_with_genotype": only_with_genotype,
         "show_debug": show_debug,
     }
 )
@@ -330,47 +296,39 @@ st.dataframe(
     column_config={
         "experiment_date": st.column_config.DateColumn("experiment_date", width="small"),
         "experiment_name": st.column_config.TextColumn("experiment_name", width="large"),
-
         "roi_code": st.column_config.TextColumn("roi_code", width="medium"),
         "roi_path": st.column_config.TextColumn("roi_path", width="large"),
-
         "clutch_code": st.column_config.TextColumn("clutch_code", width="small"),
         "treated_clutch_code": st.column_config.TextColumn("treated_clutch_code", width="small"),
         "treatment_code": st.column_config.TextColumn("treatment_code", width="small"),
+        "treatment_text": st.column_config.TextColumn("treatment_text", width="medium"),
+
+        "tx_gt_tg": st.column_config.TextColumn("tx_gt_tg", width="large"),
+        "tx_gt_fluortag": st.column_config.TextColumn("tx_gt_fluortag", width="large"),
+        "tx_gt_fluororganelle": st.column_config.TextColumn("tx_gt_fluororganelle", width="large"),
+
+        "genotype_pretty": st.column_config.TextColumn("genotype_pretty", width="large"),
+        "created_at": st.column_config.DatetimeColumn("created_at", width="medium"),
+
+        "plate_code": st.column_config.TextColumn("plate_code", width="small"),
+        "slot_index": st.column_config.NumberColumn("slot_index", width="small"),
+        "slot_label": st.column_config.TextColumn("slot_label", width="small"),
+        "roi_index_within_slot": st.column_config.NumberColumn("roi_index_within_slot", width="small"),
+
+        "roi_note_anatomy": st.column_config.TextColumn("roi_note_anatomy", width="medium"),
+        "plate_note": st.column_config.TextColumn("plate_note", width="medium"),
+        "slot_note": st.column_config.TextColumn("slot_note", width="medium"),
+
+        "treatment_pretty_tg": st.column_config.TextColumn("treatment_pretty_tg", width="large"),
+        "treatment_pretty_fluortag": st.column_config.TextColumn("treatment_pretty_fluortag", width="large"),
+        "treatment_pretty_fluororganelle": st.column_config.TextColumn("treatment_pretty_fluororganelle", width="large"),
 
         "marker_rollup_display_tg": st.column_config.TextColumn("marker_rollup_display_tg", width="large"),
         "marker_rollup_display_fluortag": st.column_config.TextColumn("marker_rollup_display_fluortag", width="large"),
         "marker_rollup_display_fluororganelle": st.column_config.TextColumn("marker_rollup_display_fluororganelle", width="large"),
 
-        "genotype_basecodes": st.column_config.TextColumn("genotype_basecodes", width="medium"),
-        "genotype_pretty": st.column_config.TextColumn("genotype_pretty", width="large"),
+        "genotype_basecodes": st.column_config.TextColumn("genotype_basecodes", width="large"),
 
-        "created_at": st.column_config.DatetimeColumn("created_at", width="medium"),
-
-        # moved-to-end fields
-        "plate_code": st.column_config.TextColumn("plate_code", width="small"),
-        "slot_index": st.column_config.NumberColumn("slot_index", width="small"),
-        "slot_label": st.column_config.TextColumn("slot_label", width="small"),
-        "roi_index_within_slot": st.column_config.NumberColumn("roi_index_within_slot", width="small"),
-        "treatment_text": st.column_config.TextColumn("treatment_text", width="large"),
-        "genotype_display": st.column_config.TextColumn("genotype_display", width="large"),
-        "genotype_tg_style": st.column_config.TextColumn("genotype_tg_style", width="large"),
-        "genotype_fluortag_style": st.column_config.TextColumn("genotype_fluortag_style", width="large"),
-        "genotype_fluororganelle_style": st.column_config.TextColumn("genotype_fluororganelle_style", width="large"),
-        "label_tg_style": st.column_config.TextColumn("label_tg_style", width="large"),
-        "label_fluortag_style": st.column_config.TextColumn("label_fluortag_style", width="large"),
-        "label_fluororganelle_style": st.column_config.TextColumn("label_fluororganelle_style", width="large"),
-        "roi_note_anatomy": st.column_config.TextColumn("roi_note_anatomy", width="medium"),
-        "plate_note": st.column_config.TextColumn("plate_note", width="medium"),
-        "slot_note": st.column_config.TextColumn("slot_note", width="medium"),
-
-        # debug
-        "genotype_code": st.column_config.TextColumn("genotype_code", width="small"),
-        "marker_rollup_tg": st.column_config.TextColumn("marker_rollup_tg", width="large"),
-        "marker_rollup_fluortag": st.column_config.TextColumn("marker_rollup_fluortag", width="large"),
-        "marker_rollup_fluororganelle": st.column_config.TextColumn("marker_rollup_fluororganelle", width="large"),
-
-        # legacy join
         "legacy_roi_dir": st.column_config.TextColumn("legacy_roi_dir", width="large"),
         "legacy_plate_date": st.column_config.TextColumn("legacy_plate_date", width="small"),
         "legacy_mount_id": st.column_config.TextColumn("legacy_mount_id", width="small"),
