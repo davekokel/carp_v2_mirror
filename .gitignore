@@ -95,3 +95,6 @@ schema_real/
 
 # legacy wrangling v3 outputs
 seed_kits/legacy_wrangling_v3/working/
+
+# local working artifacts
+seed_kits/legacy_wrangling_v2/working/Unique_parent_names__mom_dad_combined__preview_dqm_from_raw.csv
