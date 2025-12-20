@@ -37,7 +37,7 @@ mem-tdmSG-8m-F1,11/24/24,casper,F1,pDQM005,301,unknown,dqm,"multiple alleles, se
 mem-tdmSG-11m-F1,11/25/24,casper,F1,pDQM005,302,unknown,dqm,"multiple alleles, selected brightest"
 membrane tandem mSG (ef1a:2xLynk:tdmStayGold),3/3/25,casper,F2,pDQM005,302,unknown,dqm,tol2
 membrane tandem mSG (ef1a:2xLynk:tdmStayGold),4/17/25,casper,F2,pDQM005,301,unknown,dqm,tol2
-membrane tandem Halo (ef1a:2xLynk:tdHalo),4/29/25,casper,F2,pswin01,swinborne,unknown,dqm,tol2
+membrane tandem Halo (ef1a:2xLynk:tdHalo),4/29/25,casper,F2,pswin01,is01,unknown,dqm,tol2
 membrane tandem mChilada (ef1a:2xLynk:tdmChilada),8/26/25,casper,F2,pDQM082,315,unknown,dqm,tol2
 ef1a:2xLynk:tdmSG(J) (F2 of allele 301),11/12/24,casper,F2,pDQM005,301,unknown,,from imaging worksheet
 ef1a:2xLynk:tdmSG(J) (F2 of allele 302),11/25/24,casper,F2,pDQM005,302,unknown,,from imaging worksheet
