@@ -209,14 +209,20 @@ def main():
     img0["mount_key"] = img0["date_mount"].apply(date_key_from_date)
     img0["imaged_key"] = img0.get("Date imaged", pd.Series([pd.NA] * len(img0))).apply(date_key_from_date)
 
+    def folder_key_from_data_location(x):
+        if not nonempty(x):
+            return None
+        s = str(x)
+        m = re.search(r"(20\d{6})[_-]", s)
+        return m.group(1) if m else None
+
     dl = img0.get("Data location", pd.Series([pd.NA] * len(img0)))
     img0["foundation"] = dl.apply(foundation_from_data_location)
     img0["foundation_known"] = img0["foundation"].notna()
-
     img0["img_experiment_folders"] = dl.apply(img_experiment_folders)
     img0["img_tokens"] = img0.apply(tokenize_imaging_row, axis=1)
 
-    
+    img0["folder_key"] = dl.apply(folder_key_from_data_location)
 
     img_mount = img0[img0["mount_key"].notna()].copy()
     img_mount["date_key"] = img_mount["mount_key"]
@@ -226,7 +232,11 @@ def main():
     img_imaged["date_key"] = img_imaged["imaged_key"]
     img_imaged["key_source"] = "date_imaged"
 
-    img = pd.concat([img_mount, img_imaged], ignore_index=True)
+    img_folder = img0[img0["folder_key"].notna()].copy()
+    img_folder["date_key"] = img_folder["folder_key"]
+    img_folder["key_source"] = "data_location_folder"
+
+    img = pd.concat([img_mount, img_imaged, img_folder], ignore_index=True)
 
     roi_dates = roi.groupby(["dataset", "date_key"], dropna=False).size().reset_index(name="n_roi_rows")
     img_dates = img.groupby(["foundation", "date_key"], dropna=False).size().reset_index(name="n_img_rows")
@@ -287,6 +297,13 @@ def main():
     has_folder = candidates.groupby("roi_dir")["folder_hit"].transform("max")
     candidates = candidates[(has_folder == 0) | (candidates["folder_hit"] == 1)].copy()
 
+    # HARD RULE: if ANY real imaging row exists for this ROI, DROP inferred rows for this ROI.
+    # This prevents inferred rows from overriding real sheet rows.
+    if "inferred_row" in candidates.columns:
+        inferred = candidates["inferred_row"].fillna(False).astype(bool)
+        has_real = (~inferred).groupby(candidates["roi_dir"]).transform("max")
+        candidates = candidates[(~has_real) | (~inferred)].copy()
+
     # Stable numeric tiebreak
     candidates["img_row_sort"] = (
         pd.to_numeric(candidates["img_row_id"], errors="coerce")
@@ -294,6 +311,12 @@ def main():
     )
 
     # ── final ranking ─────────────────────────────────────────────────
+    # Prefer real imaging rows over inferred rows.
+    ir = candidates.get("inferred_row", pd.Series([False] * len(candidates)))
+    candidates["is_inferred_row"] = (
+        ir.astype(str).str.strip().str.lower().isin(["true","1","yes","y","t"])
+    )
+
     ranked = candidates.sort_values(
         [
             "roi_dir",
@@ -301,9 +324,10 @@ def main():
             "score_hints",
             "score_foundation",
             "score_date_imaged",
+            "is_inferred_row",
             "img_row_sort",
         ],
-        ascending=[True, False, False, False, False, True],
+        ascending=[True, False, False, False, False, True, True],
     )
 
     ranked_one = ranked.drop_duplicates("roi_dir", keep="first").copy()

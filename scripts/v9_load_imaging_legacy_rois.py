@@ -202,19 +202,46 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
     df["slot_index"] = df["slot_id_filled"].astype(int)
     df["roi_index_int"] = df["roi_index_within_slot"].astype(int)
 
-    # anatomy note if present
     if "roi_anatomy" in df.columns:
         df["roi_note_anatomy"] = df["roi_anatomy"]
     else:
         df["roi_note_anatomy"] = None
 
-    # use bruker_roi_id as stable identifier, but keep roi_path as the real filesystem path
-    df["roi_code"] = df["bruker_roi_id"].astype(str)
-    df["roi_path"] = df["roi_dir"].astype(str)
+    df["roi_code"] = df["bruker_roi_id"].astype(str).str.strip()
 
-    # normalize pandas stringy nulls
-    bad = df["roi_path"].isin(["nan", "None", ""])
-    df.loc[bad, "roi_path"] = df.loc[bad, "roi_code"]
+    df["roi_path"] = df["roi_dir"].astype(str).str.strip()
+    bad_path = df["roi_path"].isna() | df["roi_path"].eq("") | df["roi_path"].str.lower().isin(["nan", "none", "<na>"])
+    if int(bad_path.sum()) != 0:
+        ex = df.loc[bad_path, ["plate_code", "slot_index", "roi_index_int", "bruker_roi_id", "roi_dir"]].head(50)
+        raise SystemExit(f"[STOP] {int(bad_path.sum())} ROI row(s) have blank roi_dir (refusing fallbacks). Examples:\n{ex.to_string(index=False)}")
+
+    plate_codes = sorted(set(df["plate_code"].astype(str).str.strip().tolist()))
+    if not plate_codes:
+        raise SystemExit("[STOP] no plate_code values computed from input CSV")
+
+    delete_in_feed_sql = text(
+        """
+        DELETE FROM public.imaging_roi_annotations ira
+        USING public.imaging_slots s, public.imaging_plates p
+        WHERE ira.slot_id = s.id
+          AND s.plate_id = p.id
+          AND p.plate_code = ANY(CAST(:plate_codes AS text[]));
+        """
+    )
+
+    delete_stale_legacy_sql = text(
+        """
+        DELETE FROM public.imaging_roi_annotations ira
+        USING public.imaging_slots s, public.imaging_plates p
+        WHERE ira.slot_id = s.id
+          AND s.plate_id = p.id
+          AND p.plate_code <> ALL(CAST(:plate_codes AS text[]))
+          AND (
+            ira.roi_path ILIKE '%/Aang_Foundation/%'
+            OR ira.roi_path ILIKE '%/Korra_Foundation/%'
+          );
+        """
+    )
 
     sql = text(
         """
@@ -244,12 +271,18 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
             :roi_note_anatomy
         FROM slot
         ON CONFLICT (slot_id, roi_index_within_slot) DO UPDATE
-        SET roi_path         = EXCLUDED.roi_path,
+        SET roi_code         = EXCLUDED.roi_code,
+            roi_path         = EXCLUDED.roi_path,
             roi_note_anatomy = EXCLUDED.roi_note_anatomy
         """
     )
 
     with engine.begin() as conn:
+        r1 = conn.execute(delete_in_feed_sql, {"plate_codes": plate_codes})
+        r2 = conn.execute(delete_stale_legacy_sql, {"plate_codes": plate_codes})
+        print(f"imaging_roi_annotations: deleted_in_feed={int(r1.rowcount or 0)} deleted_stale_legacy={int(r2.rowcount or 0)} plates_in_feed={len(plate_codes)}")
+
+        upserted = 0
         for _, row in df.iterrows():
             params = {
                 "plate_code": row["plate_code"],
@@ -260,6 +293,9 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
                 "roi_note_anatomy": row["roi_note_anatomy"],
             }
             conn.execute(sql, params)
+            upserted += 1
+
+        print(f"imaging_roi_annotations: inserted/updated={upserted}")
 
 
 def main() -> None:

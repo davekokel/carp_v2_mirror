@@ -119,14 +119,12 @@ def _canon_basecode(prefix: str, num: str) -> str:
     p = str(prefix).upper()
     n = int(str(num))
     if p == "MGCO":
-        return f"MGCO-{n:02d}" if n < 100 else f"MGCO-{n}"
+        return f"MGCO-{n}"
     if p == "HC":
         return f"HC-{n}"
     if p == "PDQM":
         return f"pDQM{n:03d}"
     return f"{p}-{n}"
-
-
 def _extract_basecodes_from_raw(v) -> list[str]:
     if not _nonempty(v):
         return []
@@ -255,25 +253,31 @@ def _treatment_maps() -> tuple[dict, dict]:
     if "injected_plasmid" not in inj_pl.columns:
         raise SystemExit("02_enrich.py: injected_plasmid sheet missing injected_plasmid col")
 
+    def canon_cell_to_codes(v) -> str | None:
+        if not _nonempty(v):
+            return None
+        codes = _extract_basecodes_from_raw(v)
+        return _uniq_join(codes) if codes else None
+
     rna_map = {}
     if "plasmid_base_code" in inj_rna.columns:
         for r in inj_rna.dropna(subset=["injected_rna"]).itertuples(index=False):
             k = _norm_injection_token(getattr(r, "injected_rna"))
-            v = str(getattr(r, "plasmid_base_code", "")).strip()
-            if k and _nonempty(v) and k not in rna_map:
+            v_raw = getattr(r, "plasmid_base_code", None)
+            v = canon_cell_to_codes(v_raw)
+            if k and v and k not in rna_map:
                 rna_map[k] = v
 
     pl_map = {}
     if "plasmid_base_code" in inj_pl.columns:
-        for r in inj_pl.dropna(subset=["injected_plasmid", "plasmid_base_code"]).itertuples(index=False):
+        for r in inj_pl.dropna(subset=["injected_plasmid"]).itertuples(index=False):
             k = _norm_injection_token(getattr(r, "injected_plasmid"))
-            v = str(getattr(r, "plasmid_base_code")).strip()
-            if k and _nonempty(v) and k not in pl_map:
+            v_raw = getattr(r, "plasmid_base_code", None)
+            v = canon_cell_to_codes(v_raw)
+            if k and v and k not in pl_map:
                 pl_map[k] = v
 
     return rna_map, pl_map
-
-
 def _parse_injections_from_sheet_columns(df: pd.DataFrame, rna_map: dict, pl_map: dict) -> pd.DataFrame:
     df = df.copy()
 
@@ -622,11 +626,36 @@ def main() -> None:
     df["treatment_plasmid_marker_tag_codes"] = tp_roll.apply(lambda d: d["marker_tag_codes"])
     df["treatment_plasmid_marker_localizations"] = tp_roll.apply(lambda d: d["marker_localizations"])
     df["treatment_plasmid_marker_fusion_labels"] = tp_roll.apply(lambda d: d["marker_fusion_labels"])
+    def _blank(v) -> bool:
+        return not _nonempty(v)
 
     df["include_in_db"] = True
     if "dataset_slug_norm" in df.columns:
         df.loc[df["dataset_slug_norm"].astype(str).str.strip().str.lower().eq("analysis_test"), "include_in_db"] = False
 
+    def _blank(v) -> bool:
+        return not _nonempty(v)
+
+    df.loc[df["genotype_base_codes"].map(_blank), "include_in_db"] = False
+
+    bad = df["include_in_db"].astype(bool) & df["genotype_base_codes"].map(_blank)
+    n_bad = int(bad.sum())
+    if n_bad:
+        cols = [c for c in [
+            "date_experiment",
+            "roi_dir",
+            "dataset_slug_norm",
+            "ZF female genotype",
+            "ZF male genotype",
+            "additional plasmids injected",
+            "additional mRNAs injected",
+            "treatment_plasmid_base_codes",
+            "treatment_rna_base_codes",
+            "genotype_base_codes",
+            "include_in_db",
+        ] if c in df.columns]
+        print(df.loc[bad, cols].head(80).to_string(index=False))
+        raise SystemExit(f"STOP: {n_bad} row(s) have include_in_db=True but blank genotype_base_codes")
     _step1a_fill_date_mount_from_roi_dir(df)
 
     df.to_csv(OUT_FULL, index=False)

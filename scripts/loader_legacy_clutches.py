@@ -209,30 +209,39 @@ def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> 
     insert_sql = text(
         """
         INSERT INTO public.clutches (
-          clutch_code,
-          legacy_clutch_key,
-          clutch_date,
-          estimated_egg_count,
-          notes,
-          source_system,
-          import_batch_id,
-  genetic_background)
+        clutch_code,
+        legacy_clutch_key,
+        clutch_date,
+        estimated_egg_count,
+        notes,
+        source_system,
+        import_batch_id,
+        genetic_background
+        )
         VALUES (
-          :clutch_code,
-          :legacy_clutch_key,
-          :clutch_date,
-          :estimated_egg_count,
-          :notes,
-          :source_system,
-          :import_batch_id,
-  :genetic_background)
-        ON CONFLICT (clutch_code) DO UPDATE SET
-          legacy_clutch_key    = EXCLUDED.legacy_clutch_key,
-          clutch_date          = EXCLUDED.clutch_date,
-          estimated_egg_count  = EXCLUDED.estimated_egg_count,
-          notes                = EXCLUDED.notes,
-          source_system        = EXCLUDED.source_system,
-          import_batch_id      = EXCLUDED.import_batch_id
+        :clutch_code,
+        :legacy_clutch_key,
+        :clutch_date,
+        :estimated_egg_count,
+        :notes,
+        :source_system,
+        :import_batch_id,
+        :genetic_background
+        )
+        ON CONFLICT (legacy_clutch_key) WHERE (
+        source_system = 'legacy_imaging'
+        AND legacy_clutch_key IS NOT NULL
+        AND btrim(legacy_clutch_key) <> ''
+        )
+        DO UPDATE SET
+        clutch_code         = EXCLUDED.clutch_code,
+        clutch_date         = EXCLUDED.clutch_date,
+        estimated_egg_count = EXCLUDED.estimated_egg_count,
+        notes               = EXCLUDED.notes,
+        source_system       = EXCLUDED.source_system,
+        import_batch_id     = EXCLUDED.import_batch_id,
+        genetic_background  = EXCLUDED.genetic_background
+        ;
         """
     )
 
@@ -254,13 +263,41 @@ def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> 
     print(f"[OK] Upserted {len(rows)} legacy clutch row(s) for batch='{batch}'.")
 
 
-def _ensure_genotype(engine: Engine, genotype_basecodes: str) -> str:
-    bc = str(genotype_basecodes).strip()
-    if not bc:
-        raise ValueError("empty genotype_basecodes")
-    genotype_code = "G-" + bc.upper()
 
-    sql_ins = text(
+def _ensure_genotype(engine: Engine, genotype_basecodes: str) -> str:
+    import hashlib
+
+    def canon_one(tok: str) -> str | None:
+        t = str(tok or "").strip()
+        if not t:
+            return None
+        t = re.sub(r"\s+", "", t)
+        m = re.match(r"(?i)^([a-z]+)[-_]?(0*)(\d+)$", t)
+        if not m:
+            return t.lower()
+        pref = m.group(1).lower()
+        num = int(m.group(3))
+        if pref == "swin":
+            pref = "pswin"
+        return f"{pref}-{num}"
+
+    def canon_pipe(v: str) -> str:
+        parts = [x.strip() for x in re.split(r"[|,;]+", str(v or "")) if x.strip()]
+        toks = []
+        for x in parts:
+            c = canon_one(x)
+            if c:
+                toks.append(c)
+        toks = sorted(dict.fromkeys(toks))
+        if not toks:
+            raise ValueError(f"empty genotype_basecodes after canonicalization: {v!r}")
+        return "|".join(toks)
+
+    canon = canon_pipe(genotype_basecodes)
+    h = hashlib.sha1(canon.encode("utf-8")).hexdigest()[:8]
+    genotype_code = f"LEGACY-{h}"
+
+    sql_upsert = text(
         """
         INSERT INTO public.genotypes_v11 (
           genotype_code,
@@ -273,34 +310,61 @@ def _ensure_genotype(engine: Engine, genotype_basecodes: str) -> str:
         VALUES (
           :genotype_code,
           :genotype_basecodes,
-          NULL,
+          :genotype_pretty,
           'legacy_imaging',
           'legacy_infer',
           :genotype_code
         )
         ON CONFLICT (genotype_code) DO UPDATE
-        SET genotype_basecodes = EXCLUDED.genotype_basecodes
-        RETURNING id::text;
+        SET genotype_basecodes = EXCLUDED.genotype_basecodes,
+            genotype_pretty   = EXCLUDED.genotype_pretty
+        RETURNING id::uuid;
         """
     )
-    sql_sel = text(
+
+    sql_constructs = text(
         """
-        SELECT id::text
-        FROM public.genotypes_v11
-        WHERE genotype_code = :genotype_code
-        LIMIT 1;
+        SELECT id::uuid AS construct_id
+        FROM public.constructs
+        WHERE lower(base_code) = ANY(CAST(:toks AS text[]))
         """
     )
+
+    sql_join = text(
+        """
+        INSERT INTO public.join_genotype_constructs_v11 (genotype_id, construct_id, created_at)
+        VALUES (:genotype_id, :construct_id, now())
+        ON CONFLICT DO NOTHING;
+        """
+    )
+
+    toks = canon.split("|")
 
     with engine.begin() as cx:
-        gid = cx.execute(sql_ins, {"genotype_code": genotype_code, "genotype_basecodes": bc}).scalar()
-        if gid:
-            return str(gid)
-        gid2 = cx.execute(sql_sel, {"genotype_code": genotype_code}).scalar()
-        if not gid2:
-            raise RuntimeError(f"could not ensure genotype_v11 for {genotype_code}")
-        return str(gid2)
+        gid = cx.execute(
+            sql_upsert,
+            {
+                "genotype_code": genotype_code,
+                "genotype_basecodes": canon,
+                "genotype_pretty": canon,
+            },
+        ).scalar()
 
+        if gid is None:
+            raise SystemExit(f"[STOP] failed to upsert genotype {genotype_code} for basecodes={canon!r}")
+
+        rows = cx.execute(sql_constructs, {"toks": toks}).fetchall()
+        found = [cid for (cid,) in rows if cid is not None]
+        if len(found) != len(toks):
+            raise SystemExit(
+                f"[STOP] construct lookup failed for genotype={genotype_code} basecodes={canon!r} "
+                f"(found {len(found)} of {len(toks)})"
+            )
+
+        for (cid,) in rows:
+            cx.execute(sql_join, {"genotype_id": gid, "construct_id": cid})
+
+        return str(gid)
 def _assign_clutch_genotypes_strict(
     engine: Engine,
     df_clutches: pd.DataFrame,
@@ -309,74 +373,19 @@ def _assign_clutch_genotypes_strict(
 ) -> int:
     df = df_clutches.copy()
 
-    for c in ["clutch_code", "datasets", "parent_female_genotype_text", "parent_male_genotype_text"]:
-        if c not in df.columns:
-            df[c] = pd.NA
+    if "genotype_basecodes" not in df.columns:
+        raise SystemExit("[STOP] legacy_clutches_v9_for_loader.csv must include genotype_basecodes")
 
-    def canon_construct_code(raw: str) -> str:
-        s = str(raw or "").strip()
-        if not s:
-            return ""
-        s = re.sub(r"[^A-Za-z0-9]+", "", s)
-        m = re.match(r"^([A-Za-z]+)0*([0-9]+)$", s)
-        if not m:
-            return s.lower()
-        return f"{m.group(1).lower()}-{int(m.group(2))}"
+    df["clutch_code"] = df["clutch_code"].astype(str).str.strip()
+    df["genotype_basecodes"] = df["genotype_basecodes"].astype(str).str.strip()
 
-    def lookup_parent(txt) -> Tuple[Optional[str], Optional[str]]:
-        k = _norm_label(txt)
-        if not k:
-            return (None, None)
-        return parent_map.get(k, (None, None))
+    bad = df[df["clutch_code"].eq("") | df["genotype_basecodes"].eq("")].copy()
+    if len(bad):
+        ex = bad[["clutch_code", "legacy_clutch_key", "genotype_basecodes"]].head(40)
+        raise SystemExit(f"[STOP] clutch rows missing clutch_code or genotype_basecodes:\n{ex.to_string(index=False)}")
 
-    def lookup_dataset(ds: object) -> Optional[str]:
-        if not _nonempty(ds):
-            return None
-        raw = str(ds).strip()
-        cands = [raw]
-        m = re.match(r"^\d{8}[_-](.+)$", raw.strip())
-        if m:
-            cands.append(m.group(1))
-        for c in cands:
-            k = _norm_label(c)
-            if not k:
-                continue
-            bc_raw, _alle = parent_map.get(k, (None, None))
-            if _nonempty(bc_raw):
-                toks = []
-                for tok in _split_codes(bc_raw):
-                    cc = canon_construct_code(tok)
-                    if cc:
-                        toks.append(cc)
-                out = "|".join(sorted(dict.fromkeys(toks)))
-                return out if out else None
-        return None
-
-    f_base, _ = zip(*df["parent_female_genotype_text"].apply(lookup_parent))
-    m_base, _ = zip(*df["parent_male_genotype_text"].apply(lookup_parent))
-    df["mom_base"] = f_base
-    df["dad_base"] = m_base
-
-    df["geno_base_from_parents"] = df.apply(lambda r: _union_pipe([r["mom_base"], r["dad_base"]]), axis=1)
-    df["geno_base_from_dataset"] = df["datasets"].apply(lookup_dataset)
-
-    def pick(row) -> Optional[str]:
-        if _nonempty(row.get("geno_base_from_parents")):
-            return str(row["geno_base_from_parents"]).strip()
-        if _nonempty(row.get("geno_base_from_dataset")):
-            return str(row["geno_base_from_dataset"]).strip()
-        return None
-
-    df["geno_base_inferred"] = df.apply(pick, axis=1)
-    df["geno_base_inferred"] = df["geno_base_inferred"].apply(lambda x: str(x).strip() if _nonempty(x) else None)
-
-    to_set = df[df["geno_base_inferred"].apply(_nonempty)].copy()
-    if to_set.empty:
-        print("[OK] loader_legacy_clutches: no genotypes to assign (parents blank; datasets unmapped).")
-        return 0
-
-    mapping = {}
-    for bc in sorted(set(to_set["geno_base_inferred"].tolist())):
+    mapping: Dict[str, str] = {}
+    for bc in sorted(set(df["genotype_basecodes"].tolist())):
         gid = _ensure_genotype(engine, bc)
         mapping[bc] = gid
 
@@ -386,22 +395,19 @@ def _assign_clutch_genotypes_strict(
         SET genotype_v11_id = CAST(:gid AS uuid)
         WHERE c.clutch_code = :clutch_code
           AND c.source_system = 'legacy_imaging'
-          AND c.import_batch_id = :batch
-          AND c.genotype_v11_id IS NULL;
+          AND c.import_batch_id = :batch;
         """
     )
 
     updated = 0
     with engine.begin() as cx:
-        for r in to_set.itertuples(index=False):
-            bc = r.geno_base_inferred
+        for r in df.itertuples(index=False):
+            clutch_code = str(getattr(r, "clutch_code")).strip()
+            bc = str(getattr(r, "genotype_basecodes")).strip()
             gid = mapping.get(bc)
             if not gid:
-                continue
-            res = cx.execute(
-                sql_upd,
-                {"gid": gid, "clutch_code": str(r.clutch_code).strip(), "batch": batch},
-            )
+                raise SystemExit(f"[STOP] missing genotype mapping for clutch_code={clutch_code} bc={bc!r}")
+            res = cx.execute(sql_upd, {"gid": gid, "clutch_code": clutch_code, "batch": batch})
             updated += int(res.rowcount or 0)
 
     print(f"[OK] loader_legacy_clutches: set genotype_v11_id for {updated} clutch(es) in batch='{batch}'.")
