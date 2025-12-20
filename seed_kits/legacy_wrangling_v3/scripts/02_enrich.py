@@ -356,7 +356,14 @@ def _apply_slug_marker_inference(df: pd.DataFrame) -> pd.DataFrame:
         & df["genotype_allele_codes"].map(_blank)
         & df["treatment_rna_base_codes"].map(_blank)
         & df["treatment_plasmid_base_codes"].map(_blank)
+        # do not slug-infer if parent genotypes exist
+        & df.get("ZF female genotype", pd.Series([pd.NA] * len(df))).map(_blank)
+        & df.get("ZF male genotype", pd.Series([pd.NA] * len(df))).map(_blank)
     )
+
+    # if inferred_row exists, only apply slug inference to inferred rows
+    if "inferred_row" in df.columns:
+        need = need & df["inferred_row"].fillna(False).astype(bool)
 
     inferred = df["dataset_slug_norm"].map(_infer_marker_family_basecode_from_slug)
     fill_mask = need & inferred.map(_nonempty)
@@ -373,6 +380,8 @@ def _apply_slug_marker_inference(df: pd.DataFrame) -> pd.DataFrame:
         & df["treatment_rna_base_codes"].map(_blank)
         & df["treatment_plasmid_base_codes"].map(_blank)
     )
+    if "inferred_row" in df.columns:
+        bad = bad & df["inferred_row"].fillna(False).astype(bool)
     n_bad = int(bad.sum())
 
     print(f"[SLUG_INFER] filled_genotype_base_codes_from_slug={n_fill}")
@@ -588,12 +597,9 @@ def main() -> None:
     df["genotype_allele_codes"] = [
         _coalesce(a, b) for a, b in zip(df["geno_alle_from_imaging"], df.get("geno_alleles_v9_exp"))
     ]
-    df["treatment_rna_base_codes"] = [
-        _coalesce(a, b) for a, b in zip(df["tr_rna_from_imaging"], df.get("treatment_rna_base_codes_v9_exp"))
-    ]
-    df["treatment_plasmid_base_codes"] = [
-        _coalesce(a, b) for a, b in zip(df["tr_plasmid_from_imaging"], df.get("treatment_plasmid_base_codes_v9_exp"))
-    ]
+    
+    df["treatment_rna_base_codes"] = df["tr_rna_from_imaging"]
+    df["treatment_plasmid_base_codes"] = df["tr_plasmid_from_imaging"]
 
     df = _apply_slug_marker_inference(df)
 

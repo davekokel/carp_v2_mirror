@@ -1,5 +1,46 @@
 from __future__ import annotations
 
+def _norm_bg(x) -> str:
+    if x is None:
+        return ""
+    s = str(x).strip()
+    if s.lower() in ("", "nan", "none", "na", "n/a", "<na>"):
+        return ""
+    return s
+
+def _split_bg_list(s: str) -> list[str]:
+    s = _norm_bg(s)
+    if not s:
+        return []
+    parts = re.split(r"[;,/|]+", s)
+    out = []
+    for p in parts:
+        v = _norm_bg(p)
+        if v:
+            out.append(v)
+    return out
+
+def _merge_parent_backgrounds(mom_bg: str, dad_bg: str) -> str:
+    # Union of tokens from mom+dad, stable ordering:
+    # - preserve first-seen order (mom then dad), dedupe case-insensitively
+    seen = set()
+    out = []
+    for tok in _split_bg_list(mom_bg) + _split_bg_list(dad_bg):
+        k = tok.casefold()
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(tok)
+    return ", ".join(out)
+
+def _row_get_first(row: dict, keys: list[str]) -> str:
+    for k in keys:
+        if k in row:
+            v = _norm_bg(row.get(k))
+            if v:
+                return v
+    return ""
+
 import argparse
 import os
 import sys
@@ -174,8 +215,8 @@ def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> 
           estimated_egg_count,
           notes,
           source_system,
-          import_batch_id
-        )
+          import_batch_id,
+  genetic_background)
         VALUES (
           :clutch_code,
           :legacy_clutch_key,
@@ -183,8 +224,8 @@ def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> 
           :estimated_egg_count,
           :notes,
           :source_system,
-          :import_batch_id
-        )
+          :import_batch_id,
+  :genetic_background)
         ON CONFLICT (clutch_code) DO UPDATE SET
           legacy_clutch_key    = EXCLUDED.legacy_clutch_key,
           clutch_date          = EXCLUDED.clutch_date,
@@ -196,6 +237,18 @@ def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> 
     )
 
     with engine.begin() as cx:
+        for r in rows:
+            mom_bg = _row_get_first(r, [
+                'mom_genetic_background','mom_background','mom_bg','mom_bg_name','mom_bg_code',
+                'mom_line_background','mom_fish_background','maternal_background'
+            ])
+            dad_bg = _row_get_first(r, [
+                'dad_genetic_background','dad_background','dad_bg','dad_bg_name','dad_bg_code',
+                'dad_line_background','dad_fish_background','paternal_background'
+            ])
+            gb = _merge_parent_backgrounds(mom_bg, dad_bg)
+            r['genetic_background'] = gb if gb else None
+
         cx.execute(insert_sql, rows)
 
     print(f"[OK] Upserted {len(rows)} legacy clutch row(s) for batch='{batch}'.")
