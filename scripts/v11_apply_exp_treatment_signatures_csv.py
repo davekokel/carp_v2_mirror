@@ -9,72 +9,43 @@ from typing import Dict, List, Tuple
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-_SIG_RE = re.compile(r"plasmids=([^|]*)\|rnas=([^|]*)\|dyes=([^|]*)", re.I)
-_WS_RE = re.compile(r"\s+")
-_MGCO_ZERO_RE = re.compile(r"\bmgco-0+([0-9]+)\b", re.I)
+CSV_AUTO = "seed_kits/legacy_wrangling_v3/working/exp_treatment_signatures.csv"
+CSV_OVERRIDE = "seed_kits/legacy_wrangling_v3/working/exp_treatment_manual_overrides.csv"
+TOKEN_MAP = "seed_kits/legacy_wrangling_v3/working/exp_treatment_token_map.csv"
+
+_SIG_RE = re.compile(r"^\s*plasmids=([^|]*)\|rnas=([^|]*)\|dyes=([^|]*)\s*$", re.I)
 
 
-def _stable_treatment_code(dataset_key: str, signature: str) -> str:
+def _stable_treat_code(dataset_key: str, signature: str) -> str:
     s = (dataset_key or "").strip() + "||" + (signature or "").strip()
     h = hashlib.sha1(s.encode("utf-8")).hexdigest()[:10]
     return f"T-EXP-{h}"
 
 
-def _strip_parens(s: str) -> str:
-    return re.sub(r"\(.*?\)", "", s or "")
-
-
-def _norm_blob(s: str) -> str:
-    s = (s or "").strip().lower()
-    if not s or s in ("nan", "none"):
+def _s(x) -> str:
+    if x is None:
         return ""
-    s = _strip_parens(s)
-    s = s.replace(";", ",").replace("|", ",")
-    s = _WS_RE.sub(" ", s).strip()
-    s = _MGCO_ZERO_RE.sub(r"mgco-\1", s)
+    s = str(x).strip()
+    if s.lower() in ("nan", "none"):
+        return ""
     return s
 
 
-def _split_codes_constructs(blob: str) -> List[str]:
-    """
-    For constructs only: allow whitespace as delimiter in addition to commas/pipes/semicolons.
-    This prevents glued tokens like 'hc-9 lifeact:mstaygold'.
-    """
-    blob = _norm_blob(blob)
-    if not blob:
+def _alnum_key(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", _s(s).lower())
+
+
+def _split_csv_list(x: str) -> List[str]:
+    s = _s(x).lower()
+    if not s:
         return []
-    # Convert spaces to commas ONLY for constructs
-    blob = blob.replace(" ", ",")
-    parts = [p.strip() for p in blob.split(",") if p.strip()]
+    parts = [p.strip() for p in s.split(",")]
     out: List[str] = []
     seen = set()
     for p in parts:
-        if p in seen:
+        p = p.strip()
+        if not p or p in ("nan", "none"):
             continue
-        seen.add(p)
-        out.append(p)
-    return out
-
-
-def _norm_dye_code(d: str) -> str:
-    d = _norm_blob(d)
-    if not d:
-        return ""
-    # Dyes can legitimately contain spaces (e.g., "jf 635") → normalize to hyphen
-    d = d.replace(" ", "-")
-    d = re.sub(r"-{2,}", "-", d)
-    return d
-
-
-def _split_codes_dyes(blob: str) -> List[str]:
-    blob = _norm_blob(blob)
-    if not blob:
-        return []
-    # For dyes, do NOT split on whitespace; only split on commas/pipes/semicolons already normalized above
-    parts = [p.strip() for p in blob.split(",") if p.strip()]
-    out: List[str] = []
-    seen = set()
-    for p in parts:
         if p in seen:
             continue
         seen.add(p)
@@ -83,292 +54,155 @@ def _split_codes_dyes(blob: str) -> List[str]:
 
 
 def _parse_signature(sig: str) -> Tuple[List[str], List[str], List[str]]:
-    m = _SIG_RE.search((sig or "").strip())
+    s = _s(sig)
+    m = _SIG_RE.match(s)
     if not m:
-        return ([], [], [])
-    plasmids_raw, rnas_raw, dyes_raw = m.group(1), m.group(2), m.group(3)
+        raise SystemExit(f"[STOP] signature does not match expected format: {sig!r}")
 
-    plasmids = _split_codes_constructs(plasmids_raw)
-    rnas = _split_codes_constructs(rnas_raw)
+    plas = _split_csv_list(m.group(1))
+    rnas = _split_csv_list(m.group(2))
+    dyes_raw = _split_csv_list(m.group(3))
 
     dyes: List[str] = []
-    dyes_raw_n = _norm_blob(dyes_raw)
-    if dyes_raw_n:
-        dyes = [_norm_dye_code(x) for x in _split_codes_dyes(dyes_raw_n)]
-        dyes = [x for x in dyes if x]
-
-    return (plasmids, rnas, dyes)
-
-
-def _fluor_token_from_fluor_name(fluor: str) -> str:
-    f = (fluor or "").strip().lower()
-    if f in ("mstaygold",):
-        return "msg"
-    if f in ("tdmstaygold",):
-        return "tdmsg"
-    if f in ("halo",):
-        return "halo"
-    if f in ("tdmscarlet3s2", "tdmscarlet3", "mscarlet3s2", "mscarlet3"):
-        return "msc3"
-    if f in ("tdmchilada", "mchilada", "chilada"):
-        return "mchilada"
-    return ""
-
-
-def _build_construct_alias_to_base(cx) -> Dict[str, str]:
-    """
-    Returns alias -> base_code mapping.
-    Sources:
-      1) explicit construct_aliases
-      2) base_code itself + constructs.code/nickname/display_name
-      3) synthetic aliases from v_constructs_overview.fusion_pretty, e.g.
-         mStayGold-sec61b(N) => msg:sec61b (and sec61b:msg)
-    """
-    rows = cx.execute(
-        text(
-            """
-            SELECT lower(c.base_code) AS base_code,
-                   lower(c.code)      AS code,
-                   lower(coalesce(c.nickname,''))     AS nickname,
-                   lower(coalesce(c.display_name,'')) AS display_name
-            FROM public.constructs c;
-            """
-        )
-    ).fetchall()
-
-    alias_rows = cx.execute(
-        text(
-            """
-            SELECT lower(a.alias) AS alias, lower(c.base_code) AS base_code
-            FROM public.construct_aliases a
-            JOIN public.constructs c ON c.id = a.construct_id;
-            """
-        )
-    ).fetchall()
-
-    vc = cx.execute(
-        text(
-            """
-            SELECT lower(construct_code) AS construct_code,
-                   lower(coalesce(fusion_pretty,'')) AS fusion_pretty
-            FROM public.v_constructs_overview;
-            """
-        )
-    ).fetchall()
-
-    base_by_code: Dict[str, str] = {}
-    for base_code, code, nickname, display_name in rows:
-        bc = (base_code or "").strip()
-        if not bc:
+    for d in dyes_raw:
+        d = d.strip().lower()
+        if not d:
             continue
-        for k in (bc, code, nickname, display_name):
-            k = (k or "").strip()
-            if k:
-                base_by_code[k] = bc
+        d = re.sub(r"\s+", "-", d)
+        d = re.sub(r"-{2,}", "-", d)
+        dyes.append(d)
 
-    alias_to_base: Dict[str, str] = {}
+    return (plas, rnas, dyes)
 
-    for alias, base_code in alias_rows:
-        a = (alias or "").strip()
-        b = (base_code or "").strip()
-        if a and b:
-            alias_to_base[a] = b
 
-    for k, bc in base_by_code.items():
-        alias_to_base[k] = bc
+def _canon_signature(plas: List[str], rnas: List[str], dyes: List[str]) -> str:
+    return f"plasmids={','.join(plas)}|rnas={','.join(rnas)}|dyes={','.join(dyes)}"
 
-    fp_re = re.compile(r"^(?P<fluor>[a-z0-9]+)-(?P<target>[^()]+)\(", re.I)
-    for construct_code, fusion_pretty in vc:
-        cc = (construct_code or "").strip()
-        fp = (fusion_pretty or "").strip()
-        if not cc or not fp:
+
+def _load_token_map() -> Dict[str, str]:
+    if not os.path.exists(TOKEN_MAP):
+        raise SystemExit(f"[STOP] missing token map: {TOKEN_MAP}")
+
+    df = pd.read_csv(TOKEN_MAP, dtype=str, keep_default_na=False, na_filter=False)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    need = ["token", "kind", "mapped_code"]
+    missing = [c for c in need if c not in df.columns]
+    if missing:
+        raise SystemExit(f"[STOP] {TOKEN_MAP} missing columns {missing}; have {df.columns.tolist()}")
+
+    out: Dict[str, str] = {}
+    for r in df.itertuples(index=False):
+        tok = _s(getattr(r, "token")).lower()
+        code = _s(getattr(r, "mapped_code")).lower()
+        if not tok:
             continue
-        bc = base_by_code.get(cc)
-        if not bc:
-            continue
-
-        m = fp_re.match(fp)
-        if not m:
-            continue
-
-        fluor = m.group("fluor")
-        target = m.group("target")
-        fluor_tok = _fluor_token_from_fluor_name(fluor)
-        if not fluor_tok:
-            continue
-
-        target_tok = _norm_blob(target).replace(" ", "").replace("-", "").replace("_", "")
-        if not target_tok:
-            continue
-
-        a1 = f"{fluor_tok}:{target_tok}"
-        alias_to_base[a1] = bc
-
-        a2 = f"{target_tok}:{fluor_tok}"
-        alias_to_base[a2] = bc
-
-    return alias_to_base
-
-
-def _rewrite_colon_fluor_tokens(token: str) -> str:
-    """
-    Normalize colon tokens so they match synthetic aliases:
-      lifeact:mstaygold -> lifeact:msg
-      mstaygold:sec61b  -> msg:sec61b
-    """
-    t = (token or "").strip().lower()
-    if ":" not in t:
-        return t
-    a, b = t.split(":", 1)
-    a = a.strip()
-    b = b.strip()
-
-    repl = {
-        "mstaygold": "msg",
-        "tdmstaygold": "tdmsg",
-        "tdmscarlet3s2": "msc3",
-        "tdmscarlet3": "msc3",
-        "mscarlet3s2": "msc3",
-        "mscarlet3": "msc3",
-        "tdmchilada": "mchilada",
-        "chilada": "mchilada",
-    }
-
-    a2 = repl.get(a, a)
-    b2 = repl.get(b, b)
-
-    # normalize mgco-01 -> mgco-1 if present inside tokens (rare, but safe)
-    a2 = _MGCO_ZERO_RE.sub(r"mgco-\1", a2)
-    b2 = _MGCO_ZERO_RE.sub(r"mgco-\1", b2)
-
-    return f"{a2}:{b2}"
-
-
-def _resolve_construct_base_code(code: str, alias_to_base: Dict[str, str]) -> str:
-    c_raw = _norm_blob(code)
-    if not c_raw:
-        return ""
-
-    # keep colon structure when present; otherwise strip punctuation aggressively
-    if ":" in c_raw:
-        c = _rewrite_colon_fluor_tokens(c_raw).replace(" ", "")
-        c = _MGCO_ZERO_RE.sub(r"mgco-\1", c)
-    else:
-        c = c_raw.replace(" ", "").replace("_", "")
-        c = _MGCO_ZERO_RE.sub(r"mgco-\1", c)
-
-    if c in alias_to_base:
-        return alias_to_base[c]
-
-    c2 = re.sub(r"[^a-z0-9:]+", "", c)
-    if c2 in alias_to_base:
-        return alias_to_base[c2]
-
-    raise SystemExit(f"[STOP] unknown construct token/base_code {code!r} (normalized={c!r})")
-
-
-def _ensure_treatment_mix_and_ingredients(cx, treatment_id: str, sig: str, alias_to_base: Dict[str, str]) -> None:
-    mix_id = cx.execute(
-        text(
-            """
-            INSERT INTO public.treatment_mixes (treatment_id, mix_code, notes, created_at)
-            VALUES (:treatment_id, 'M1', 'auto: v11_apply_exp_treatment_signatures_csv', now())
-            ON CONFLICT (treatment_id, mix_code)
-            DO UPDATE SET notes = EXCLUDED.notes
-            RETURNING id::text;
-            """
-        ),
-        {"treatment_id": treatment_id},
-    ).scalar()
-
-    if not mix_id:
-        mix_id = cx.execute(
-            text(
-                """
-                SELECT id::text
-                FROM public.treatment_mixes
-                WHERE treatment_id = :treatment_id AND mix_code = 'M1'
-                LIMIT 1;
-                """
-            ),
-            {"treatment_id": treatment_id},
-        ).scalar()
-
-    if not mix_id:
-        raise SystemExit(f"[STOP] failed to ensure treatment_mixes(M1) for treatment_id={treatment_id}")
-
-    plasmids_raw, rnas_raw, dyes_raw = _parse_signature(sig)
-
-    def insert_constructs(raw_codes: List[str], delivery_form: str) -> None:
-        for raw in raw_codes:
-            base_code = _resolve_construct_base_code(raw, alias_to_base)
-            cid = cx.execute(
-                text(
-                    """
-                    SELECT id::text
-                    FROM public.constructs
-                    WHERE lower(base_code) = :c
-                    LIMIT 1;
-                    """
-                ),
-                {"c": base_code},
-            ).scalar()
-            if not cid:
-                raise SystemExit(f"[STOP] resolved {raw!r} -> {base_code!r} but construct row missing")
-
-            cx.execute(
-                text(
-                    """
-                    INSERT INTO public.treatment_mix_constructs (mix_id, construct_id, delivery_form)
-                    VALUES (:mix_id, :construct_id, :delivery_form)
-                    ON CONFLICT DO NOTHING;
-                    """
-                ),
-                {"mix_id": mix_id, "construct_id": cid, "delivery_form": delivery_form},
-            )
-
-    insert_constructs(plasmids_raw, "plasmid")
-    insert_constructs(rnas_raw, "rna")
-
-    # DYES (strict but normalization-aware: match alnum-only keys across code/display_name/nickname)
-    for raw in dyes_raw:
-        code = _norm_dye_code(raw)
         if not code:
             continue
+        out[tok] = code
 
-        key = "".join(ch for ch in code.lower() if ch.isalnum())
-        if not key:
+    return out
+
+
+def _translate_signature_tokens_to_basecodes(sig_tokens: str, tok2code: Dict[str, str]) -> str:
+    plas, rnas, dyes = _parse_signature(sig_tokens)
+
+    def xlate_list(xs: List[str]) -> List[str]:
+        out: List[str] = []
+        for t in xs:
+            k = _s(t).lower()
+            if not k:
+                continue
+            if k in tok2code:
+                out.append(tok2code[k])
+            else:
+                raise SystemExit(f"[STOP] token not mapped in {TOKEN_MAP}: {t!r}")
+        seen: List[str] = []
+        for x in out:
+            if x not in seen:
+                seen.append(x)
+        return seen
+
+    plas2 = xlate_list(plas)
+    rnas2 = xlate_list(rnas)
+
+    dyes2: List[str] = []
+    for d in dyes:
+        k = _s(d).lower()
+        if not k:
+            continue
+        if k in tok2code:
+            dyes2.append(tok2code[k])
+        else:
+            raise SystemExit(f"[STOP] dye token not mapped in {TOKEN_MAP}: {d!r}")
+
+    return _canon_signature(plas2, rnas2, dyes2)
+
+
+def _read_mapping_csv(path: str, source_label: str, tok2code: Dict[str, str]) -> pd.DataFrame:
+    df = pd.read_csv(path, dtype=str, keep_default_na=False, na_filter=False)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    need_keys = ["bruker_roi_id", "dataset_key"]
+    missing = [c for c in need_keys if c not in df.columns]
+    if missing:
+        raise SystemExit(f"[STOP] {path} missing columns {missing}; have {df.columns.tolist()}")
+
+    # Normalize key columns first
+    df["bruker_roi_id"] = df["bruker_roi_id"].astype(str).map(_s)
+    df["dataset_key"] = df["dataset_key"].astype(str).map(_s)
+
+    df = df[df["bruker_roi_id"] != ""]
+    df = df[df["dataset_key"] != ""]
+
+    # Choose the signature source deterministically by NONBLANK COUNTS.
+    # Priority:
+    #  1) signature (already basecodes) if populated
+    #  2) signature_basecodes if populated
+    #  3) signature_tokens (translate via token_map) if populated
+    # No guessing, no silent fallback; we print counts via hard errors.
+    candidates = []
+    for c in ["signature", "signature_basecodes", "signature_tokens"]:
+        if c in df.columns:
+            s = df[c].astype(str).map(_s)
+            nonblank = int((s.str.strip() != "").sum())
+            candidates.append((c, nonblank))
+
+    if not candidates:
+        raise SystemExit(f"[STOP] {path} missing any signature column; have {df.columns.tolist()}")
+
+    # pick the first column in priority order that has any nonblank
+    sig_col = None
+    for c in ["signature", "signature_basecodes", "signature_tokens"]:
+        nb = next((n for (cc, n) in candidates if cc == c), 0)
+        if nb > 0:
+            sig_col = c
+            break
+
+    if not sig_col:
+        raise SystemExit(f"[STOP] {path} has signature columns but ALL are blank: {candidates}")
+
+    df[sig_col] = df[sig_col].astype(str).map(_s)
+
+    # Normalize to a final 'signature' column (basecodes only)
+    sigs: List[str] = []
+    for raw in df[sig_col].tolist():
+        raw = _s(raw)
+        if not raw:
+            sigs.append("")
             continue
 
-        rows = cx.execute(
-            text(
-                """
-                SELECT id::text
-                FROM public.dyes
-                WHERE regexp_replace(lower(btrim(code)), '[^a-z0-9]+', '', 'g') = :k
-                   OR regexp_replace(lower(btrim(display_name)), '[^a-z0-9]+', '', 'g') = :k
-                   OR regexp_replace(lower(btrim(nickname)), '[^a-z0-9]+', '', 'g') = :k
-                """
-            ),
-            {"k": key},
-        ).fetchall()
+        if sig_col == "signature_tokens":
+            sigs.append(_translate_signature_tokens_to_basecodes(raw, tok2code))
+        else:
+            plas, rnas, dyes = _parse_signature(raw)
+            sigs.append(_canon_signature(plas, rnas, dyes))
 
-        ids = sorted({r[0] for r in rows if r and r[0]})
-        if len(ids) == 0:
-            raise SystemExit(f"[STOP] unknown dye code {code!r} (raw={raw!r}, treatment_id={treatment_id})")
-        if len(ids) > 1:
-            raise SystemExit(f"[STOP] ambiguous dye code {code!r} matched multiple dye ids {ids} (raw={raw!r}, treatment_id={treatment_id})")
+    df["signature"] = sigs
+    df = df[df["signature"] != ""]
 
-        cx.execute(
-            text(
-                """
-                INSERT INTO public.treatment_mix_dyes (mix_id, dye_id)
-                VALUES (:mix_id, :dye_id)
-                ON CONFLICT DO NOTHING
-                """
-            ),
-            {"mix_id": mix_id, "dye_id": ids[0]},
-        )
+    df["source"] = source_label
+    return df[["bruker_roi_id", "dataset_key", "signature", "source"]].copy()
 
 
 def main() -> None:
@@ -376,33 +210,24 @@ def main() -> None:
     if not db_url:
         raise SystemExit("[STOP] DB_URL is not set")
 
-    csv_auto = "seed_kits/legacy_wrangling_v3/working/exp_treatment_signatures.csv"
-    csv_override = "seed_kits/legacy_wrangling_v3/working/exp_treatment_manual_overrides.csv"
+    if not os.path.exists(CSV_AUTO):
+        raise SystemExit(f"[STOP] missing {CSV_AUTO}")
 
-    df_auto = pd.read_csv(csv_auto, low_memory=False)
-    df_auto["source"] = "auto"
+    tok2code = _load_token_map()
 
-    try:
-        df_ovr = pd.read_csv(csv_override, low_memory=False)
-        df_ovr["source"] = "override"
-    except FileNotFoundError:
+    df_auto = _read_mapping_csv(CSV_AUTO, "auto", tok2code)
+
+    if os.path.exists(CSV_OVERRIDE):
+        df_ovr = _read_mapping_csv(CSV_OVERRIDE, "override", tok2code)
+    else:
         df_ovr = pd.DataFrame(columns=["bruker_roi_id", "dataset_key", "signature", "source"])
 
     df = pd.concat([df_auto, df_ovr], ignore_index=True)
 
-    for c in ("bruker_roi_id", "dataset_key", "signature"):
-        if c not in df.columns:
-            raise SystemExit(f"[STOP] combined mapping missing column {c!r}; found {list(df.columns)}")
-
-    df["bruker_roi_id"] = df["bruker_roi_id"].astype(str).str.strip()
-    df["dataset_key"] = df["dataset_key"].astype(str).str.strip()
-    df["signature"] = df["signature"].astype(str).str.strip()
-
-    df = df.dropna(subset=["bruker_roi_id", "dataset_key", "signature"])
     df = (
         df.sort_values(["dataset_key", "bruker_roi_id", "source"])
-        .drop_duplicates(subset=["dataset_key", "bruker_roi_id"], keep="last")
-        .reset_index(drop=True)
+          .drop_duplicates(subset=["dataset_key", "bruker_roi_id"], keep="last")
+          .reset_index(drop=True)
     )
 
     bad = df.groupby(["dataset_key", "bruker_roi_id"])["signature"].nunique()
@@ -413,31 +238,33 @@ def main() -> None:
     eng = create_engine(db_url)
 
     with eng.begin() as cx:
-        alias_to_base = _build_construct_alias_to_base(cx)
-
         df_map = pd.read_sql(
             text(
                 """
-                SELECT ra.roi_code, icm.clutch_id::text AS clutch_id
+                SELECT
+                  ra.roi_code,
+                  ra.slot_id::text AS slot_id,
+                  icm.clutch_id::text AS clutch_id
                 FROM public.imaging_roi_annotations ra
-                JOIN public.imaging_clutch_memberships icm ON icm.slot_id = ra.slot_id
+                JOIN public.imaging_clutch_memberships icm
+                  ON icm.slot_id = ra.slot_id
                 """
             ),
             cx,
         )
-        df_map["roi_code"] = df_map["roi_code"].astype(str).str.strip()
+        df_map["roi_code"] = df_map["roi_code"].astype(str).map(_s)
+        df_map["slot_id"] = df_map["slot_id"].astype(str).map(_s)
+        df_map["clutch_id"] = df_map["clutch_id"].astype(str).map(_s)
 
         df2 = df.merge(df_map, left_on="bruker_roi_id", right_on="roi_code", how="inner")
         if df2.empty:
-            raise SystemExit("[STOP] No rows matched DB roi_code (bruker_roi_id ↔ imaging_roi_annotations.roi_code)")
+            raise SystemExit("[STOP] no ROI ids matched DB roi_code")
 
         df_cl = pd.read_sql(text("SELECT id::text AS clutch_id, clutch_code FROM public.clutches"), cx)
-        clutch_id_to_code = dict(zip(df_cl["clutch_id"].astype(str), df_cl["clutch_code"].astype(str)))
+        clutch_id_to_code: Dict[str, str] = dict(zip(df_cl["clutch_id"].astype(str), df_cl["clutch_code"].astype(str)))
 
-        df2["treatment_code"] = df2.apply(
-            lambda r: _stable_treatment_code(str(r["dataset_key"]), str(r["signature"])),
-            axis=1,
-        )
+        df2["treat_code"] = df2.apply(lambda r: _stable_treat_code(str(r["dataset_key"]), str(r["signature"])), axis=1)
+        df2["treat_text"] = df2.apply(lambda r: f"{r['dataset_key']} :: {r['signature']}", axis=1)
 
         ins_treat = text(
             """
@@ -445,7 +272,62 @@ def main() -> None:
             VALUES (gen_random_uuid(), 'legacy', :treat_code, :treat_text, now())
             ON CONFLICT (treat_code) DO UPDATE
               SET treat_text = EXCLUDED.treat_text
-            RETURNING id::text AS treatment_id;
+            RETURNING id::text;
+            """
+        )
+
+        ensure_mix = text(
+            """
+            INSERT INTO public.treatment_mixes (treatment_id, mix_code, notes, created_at)
+            VALUES (:treatment_id, 'M1', 'auto: v11_apply_exp_treatment_signatures_csv', now())
+            ON CONFLICT (treatment_id, mix_code)
+            DO UPDATE SET notes = EXCLUDED.notes
+            RETURNING id::text;
+            """
+        )
+
+        get_mix = text(
+            """
+            SELECT id::text
+            FROM public.treatment_mixes
+            WHERE treatment_id = :treatment_id AND mix_code = 'M1'
+            LIMIT 1;
+            """
+        )
+
+        get_construct_id = text(
+            """
+            SELECT id::text
+            FROM public.constructs
+            WHERE lower(base_code) = :base_code
+            LIMIT 1;
+            """
+        )
+
+        ins_mix_construct = text(
+            """
+            INSERT INTO public.treatment_mix_constructs (mix_id, construct_id, delivery_form)
+            VALUES (:mix_id, :construct_id, :delivery_form)
+            ON CONFLICT DO NOTHING;
+            """
+        )
+
+        get_dye_id = text(
+            """
+            SELECT id::text
+            FROM public.dyes
+            WHERE regexp_replace(lower(btrim(code)),        '[^a-z0-9]+', '', 'g') = :k
+               OR regexp_replace(lower(btrim(nickname)),    '[^a-z0-9]+', '', 'g') = :k
+               OR regexp_replace(lower(btrim(display_name)),'[^a-z0-9]+', '', 'g') = :k
+            LIMIT 2;
+            """
+        )
+
+        ins_mix_dye = text(
+            """
+            INSERT INTO public.treatment_mix_dyes (mix_id, dye_id)
+            VALUES (:mix_id, :dye_id)
+            ON CONFLICT DO NOTHING;
             """
         )
 
@@ -459,60 +341,96 @@ def main() -> None:
             DO UPDATE SET
               treated_clutch_code = EXCLUDED.treated_clutch_code,
               notes = EXCLUDED.notes
-            RETURNING id::text AS treated_clutch_id;
+            RETURNING id::text;
             """
         )
 
-        upd_m = text(
+        upd_membership_slot = text(
             """
             UPDATE public.imaging_clutch_memberships
             SET treated_clutch_id = :treated_clutch_id
-            WHERE clutch_id = :clutch_id;
+            WHERE clutch_id = :clutch_id AND slot_id = :slot_id;
             """
         )
 
-        pairs = df2[["clutch_id", "treatment_code", "dataset_key", "signature"]].drop_duplicates().reset_index(drop=True)
+        rows = (
+            df2[["dataset_key", "signature", "treat_code", "treat_text", "clutch_id", "slot_id"]]
+            .drop_duplicates()
+            .reset_index(drop=True)
+        )
 
+        treat_code_to_id: Dict[str, str] = {}
         n_treat = 0
         n_tc = 0
         n_upd = 0
-        treat_code_to_id: Dict[str, str] = {}
 
-        for _, r in pairs.iterrows():
-            clutch_id = str(r["clutch_id"])
-            tcode = str(r["treatment_code"])
+        for _, r in rows.iterrows():
             dataset_key = str(r["dataset_key"])
-            sig = str(r["signature"])
+            signature = str(r["signature"])
+            treat_code = str(r["treat_code"])
+            treat_text = str(r["treat_text"])
+            clutch_id = str(r["clutch_id"])
+            slot_id = str(r["slot_id"])
 
             if clutch_id not in clutch_id_to_code:
-                raise SystemExit(f"[STOP] clutch_id not found in public.clutches: {clutch_id}")
+                raise SystemExit(f"[STOP] clutch_id not found in clutches: {clutch_id}")
 
-            if tcode not in treat_code_to_id:
-                tid = cx.execute(ins_treat, {"treat_code": tcode, "treat_text": f"{dataset_key} :: {sig}"}).scalar()
-                if not tid:
-                    raise SystemExit(f"[STOP] failed to upsert treatments for {tcode}")
-                treat_code_to_id[tcode] = tid
+            if treat_code not in treat_code_to_id:
+                treatment_id = cx.execute(ins_treat, {"treat_code": treat_code, "treat_text": treat_text}).scalar()
+                if not treatment_id:
+                    raise SystemExit(f"[STOP] failed to upsert treatment for treat_code={treat_code}")
+                treat_code_to_id[treat_code] = treatment_id
                 n_treat += 1
+            else:
+                treatment_id = treat_code_to_id[treat_code]
 
-            treatment_id = treat_code_to_id[tcode]
+            mix_id = cx.execute(ensure_mix, {"treatment_id": treatment_id}).scalar()
+            if not mix_id:
+                mix_id = cx.execute(get_mix, {"treatment_id": treatment_id}).scalar()
+            if not mix_id:
+                raise SystemExit(f"[STOP] failed to ensure mix M1 for treatment_id={treatment_id}")
 
-            # Ensure mix + ingredients exist (strict resolution; no silent fallback)
-            _ensure_treatment_mix_and_ingredients(cx, treatment_id, sig, alias_to_base)
+            plas, rnas, dyes = _parse_signature(signature)
+
+            for base_code in plas:
+                cid = cx.execute(get_construct_id, {"base_code": base_code}).scalar()
+                if not cid:
+                    raise SystemExit(f"[STOP] unknown construct base_code {base_code!r} (treat_code={treat_code}, dataset_key={dataset_key})")
+                cx.execute(ins_mix_construct, {"mix_id": mix_id, "construct_id": cid, "delivery_form": "plasmid"})
+
+            for base_code in rnas:
+                cid = cx.execute(get_construct_id, {"base_code": base_code}).scalar()
+                if not cid:
+                    raise SystemExit(f"[STOP] unknown construct base_code {base_code!r} (treat_code={treat_code}, dataset_key={dataset_key})")
+                cx.execute(ins_mix_construct, {"mix_id": mix_id, "construct_id": cid, "delivery_form": "rna"})
+
+            for dye in dyes:
+                k = _alnum_key(dye)
+                rows_d = cx.execute(get_dye_id, {"k": k}).fetchall()
+                ids = sorted({rr[0] for rr in rows_d if rr and rr[0]})
+                if len(ids) == 0:
+                    raise SystemExit(f"[STOP] unknown dye token {dye!r} (treat_code={treat_code}, dataset_key={dataset_key})")
+                if len(ids) > 1:
+                    raise SystemExit(f"[STOP] ambiguous dye token {dye!r} matched {ids} (treat_code={treat_code}, dataset_key={dataset_key})")
+                cx.execute(ins_mix_dye, {"mix_id": mix_id, "dye_id": ids[0]})
 
             clutch_code = clutch_id_to_code[clutch_id]
             base = clutch_code.replace("LCL-", "TCL-", 1) if clutch_code.startswith("LCL-") else f"TCL-{clutch_code}"
-            treated_code = f"{base}-{tcode[-6:]}"
-            notes = f"{dataset_key} :: {sig}"
+            treated_code = f"{base}-{treat_code[-6:]}"
+            notes = treat_text
 
             tclid = cx.execute(
                 ins_tc,
                 {"clutch_id": clutch_id, "treated_clutch_code": treated_code, "treatment_id": treatment_id, "notes": notes},
             ).scalar()
             if not tclid:
-                raise SystemExit(f"[STOP] failed to upsert treated_clutches_v11 for clutch_id={clutch_id} tcode={tcode}")
+                raise SystemExit(f"[STOP] failed to upsert treated_clutches_v11 for clutch_id={clutch_id} treat_code={treat_code}")
 
             n_tc += 1
-            n_upd += cx.execute(upd_m, {"treated_clutch_id": tclid, "clutch_id": clutch_id}).rowcount or 0
+            n_upd += cx.execute(
+                upd_membership_slot,
+                {"treated_clutch_id": tclid, "clutch_id": clutch_id, "slot_id": slot_id},
+            ).rowcount or 0
 
         print(f"[OK] ensured treatments={n_treat} treated_clutches_v11_upserts={n_tc} memberships_updated={n_upd}")
 

@@ -35,6 +35,15 @@ def main() -> None:
 
     # explicit “known” shorthands you already validated
     set_map("msg:sec61b", "mgco-4")
+    set_map("2xcox8a:msg", "mgco-1")
+    set_map("2xlynk:msg", "pdqm-5")
+    set_map("lifeact:msg", "hc-9")
+    set_map("mchilada:h2b", "pdqm-104")
+    set_map("ef1a:mgold2s", "pdqm-140")
+    set_map("phic-nls", "pdqm-110")
+    set_map("tdmchilada:pcna", "pdqm-37")
+    set_map("mgco-49_peroxisome-a2ucoe-ef1aextra-msg-skl", "mgco-49")
+    set_map("mgco-52-peroxisome-a2ucoe-attb_entire+pdqm-147-abcdpmp70-msg", "mgco-52")
     set_map("mscarlet3-s2:h2b", "pdqm-117")
 
     # compound tokens that embed explicit basecodes
@@ -44,14 +53,14 @@ def main() -> None:
         tok = r["token"].lower()
 
         mg = RX_MGCO.findall(tok)
-        pd = RX_PDQM.findall(tok)
+        pdqm = RX_PDQM.findall(tok)
         hc = RX_HC.findall(tok)
 
         out = []
         if mg:
             out += [f"mgco-{int(x)}" for x in mg]
-        if pd:
-            out += [f"pdqm-{int(x)}" for x in pd]
+        if pdqm:
+            out += [f"pdqm-{int(x)}" for x in pdqm]
         if hc:
             out += [f"hc-{int(x)}" for x in hc]
 

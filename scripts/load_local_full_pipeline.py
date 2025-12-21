@@ -67,6 +67,7 @@ def main() -> None:
 
     run(["python", "scripts/v10_seed_construct_aliases_from_constructs.py"])
     run(["python", "scripts/v11_build_exp_treatment_signatures_with_basecodes.py"])
+    run(["python", "scripts/v11_autofill_exp_treatment_token_map.py"])
     run(["python", "scripts/v11_expand_exp_treatment_dataset_overrides.py"])
     run(["python", "scripts/v11_apply_exp_treatment_signatures_csv.py"])
 

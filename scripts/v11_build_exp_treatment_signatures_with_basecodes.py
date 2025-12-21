@@ -78,6 +78,22 @@ def _split_list_cell(cell: str) -> List[str]:
     parts = [p.strip() for p in s.split(",") if p.strip()]
     return parts
 
+
+def _split_construct_cell(cell: str) -> List[str]:
+    s = _s(cell)
+    if not s:
+        return []
+    s = _strip_parens(s)
+    s = s.replace('|', ',').replace(';', ',')
+    s = s.replace('—', '-').replace('–', '-')
+    s = RE_WS.sub(' ', s).strip()
+    chunks = [c.strip() for c in s.split(',') if c.strip()]
+    out: List[str] = []
+    for chunk in chunks:
+        for w in [x for x in re.split(r'\s+', chunk.strip()) if x]:
+            out.append(w)
+    return out
+
 def _norm_token(raw: str) -> str:
     """
     Normalize to a stable token key (still human-ish, not basecode).
@@ -114,8 +130,8 @@ def main() -> None:
     df_sheet["dataset_key"] = df_sheet["Data location"].map(key_from_sheet)
     df_sheet = df_sheet[df_sheet["dataset_key"] != ""].copy()
 
-    df_sheet["pla_raw"] = df_sheet["additional plasmids injected"].map(_split_list_cell)
-    df_sheet["rna_raw"] = df_sheet["additional mRNAs injected"].map(_split_list_cell)
+    df_sheet["pla_raw"] = df_sheet["additional plasmids injected"].map(_split_construct_cell)
+    df_sheet["rna_raw"] = df_sheet["additional mRNAs injected"].map(_split_construct_cell)
     df_sheet["dye_raw"] = df_sheet["additonal dye and chemicals"].map(_split_list_cell)
 
     df_sheet["pla_tok"] = df_sheet["pla_raw"].map(lambda xs: [_norm_token(x) for x in xs])
