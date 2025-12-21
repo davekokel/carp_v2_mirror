@@ -14,7 +14,35 @@ def main() -> None:
     if not db_url:
         raise SystemExit("[STOP] DB_URL is not set")
 
-    df = pd.read_csv(CSV, low_memory=False)
+    csv_auto = "seed_kits/legacy_wrangling_v3/working/exp_treatment_signatures.csv"
+    csv_override = "seed_kits/legacy_wrangling_v3/working/exp_treatment_manual_overrides.csv"
+
+    df_auto = pd.read_csv(csv_auto, low_memory=False)
+    df_auto["source"] = "auto"
+
+    try:
+        df_ovr = pd.read_csv(csv_override, low_memory=False)
+        df_ovr["source"] = "override"
+    except FileNotFoundError:
+        df_ovr = pd.DataFrame(columns=["bruker_roi_id", "dataset_key", "signature", "source"])
+
+    df = pd.concat([df_auto, df_ovr], ignore_index=True)
+
+    # Normalize columns
+    for c in ("bruker_roi_id", "dataset_key", "signature"):
+        if c not in df.columns:
+            raise SystemExit(f"[STOP] combined mapping missing column {c!r}; found {list(df.columns)}")
+
+    df["bruker_roi_id"] = df["bruker_roi_id"].astype(str).str.strip()
+    df["dataset_key"] = df["dataset_key"].astype(str).str.strip()
+    df["signature"] = df["signature"].astype(str).str.strip()
+
+    # Overrides take precedence: keep last occurrence per (dataset_key, bruker_roi_id)
+    df = df.dropna(subset=["bruker_roi_id", "dataset_key", "signature"])
+    df = df.sort_values(["dataset_key", "bruker_roi_id", "source"]).drop_duplicates(
+        subset=["dataset_key", "bruker_roi_id"],
+        keep="last",
+    ).reset_index(drop=True)
     for c in ("bruker_roi_id","dataset_key","signature"):
         if c not in df.columns:
             raise SystemExit(f"[STOP] {CSV} missing column {c!r}; found {list(df.columns)}")

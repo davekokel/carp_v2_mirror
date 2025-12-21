@@ -53,6 +53,7 @@ def assert_transgene_alleles_exist() -> None:
         "  raise SystemExit('[STOP] public.transgene_alleles is empty; run foundation pipeline first')\n"
     )
     run(["python", "-c", code])
+
 def main() -> None:
     require_env("DB_URL")
     print("[DB_URL]", os.environ["DB_URL"])
@@ -63,7 +64,10 @@ def main() -> None:
     assert_transgene_alleles_exist()
 
     run(["python", "scripts/legacy_imaging_run_pipeline.py"])
-    run(["python", "scripts/v11_seed_legacy_treatments_from_raw_roi.py"])
+
+    run(["python", "scripts/v10_seed_construct_aliases_from_constructs.py"])
+    run(["python", "scripts/v11_build_exp_treatment_signatures_csv_filtered.py"])
+    run(["python", "scripts/v11_apply_exp_treatment_signatures_csv.py"])
 
     print("\n[OK] full local load pipeline completed cleanly")
 
