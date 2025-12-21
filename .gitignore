@@ -101,3 +101,5 @@ seed_kits/legacy_wrangling_v2/working/Unique_parent_names__mom_dad_combined__pre
 
 # Excel temp files
 ~$*.xlsx
+
+seed_kits/legacy_wrangling_v3/working/exp_treatment_manual_overrides.csv
