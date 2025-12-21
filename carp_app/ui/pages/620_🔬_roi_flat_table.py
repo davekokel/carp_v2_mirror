@@ -139,50 +139,24 @@ def _load_filter_choices() -> Dict[str, Any]:
 
 def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
     have = set(_cols(VIEW_NAME))
-    show_debug = bool(params.get("show_debug"))
 
-    # Primary display fields (the point of this page)
-    top_cols = [
-        "experiment_date",
+    # Only the columns we want on this page
+    select_cols = [
         "experiment_name",
         "roi_code",
         "roi_path",
         "clutch_code",
-        "treated_clutch_code",
         "treatment_code",
-        "treatment_text",
-
         "tx_gt_tg",
         "tx_gt_fluortag",
         "tx_gt_fluororganelle",
-
-        "genotype_pretty",
-
-        "created_at",
-    ]
-
-    tail_cols = [
-        "plate_code",
-        "slot_index",
-        "slot_label",
-        "roi_index_within_slot",
         "roi_note_anatomy",
         "plate_note",
         "slot_note",
     ]
-
-    debug_cols = [
-        "treatment_pretty_tg",
-        "treatment_pretty_fluortag",
-        "treatment_pretty_fluororganelle",
-        "marker_rollup_display_tg",
-        "marker_rollup_display_fluortag",
-        "marker_rollup_display_fluororganelle",
-        "genotype_basecodes",
-    ]
-
-    base = top_cols + tail_cols + (debug_cols if show_debug else [])
-    select_cols = [c for c in base if c in have]
+    select_cols = [c for c in select_cols if c in have]
+    if not select_cols:
+        raise SystemExit(f"[STOP] {VIEW_NAME} has none of the expected columns; have={sorted(have)}")
 
     where: List[str] = []
     p: Dict[str, Any] = {}
@@ -190,71 +164,76 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
     q = (params.get("q") or "").strip()
     if q:
         like_cols = [
+            "experiment_name",
             "roi_code",
             "roi_path",
-            "experiment_name",
-            "plate_code",
-            "slot_label",
             "clutch_code",
-            "treated_clutch_code",
             "treatment_code",
-            "treatment_text",
             "tx_gt_tg",
             "tx_gt_fluortag",
             "tx_gt_fluororganelle",
-            "genotype_pretty",
+            "roi_note_anatomy",
+            "plate_note",
+            "slot_note",
         ]
         like_cols = [c for c in like_cols if c in have]
         if like_cols:
-            where.append("(" + " or ".join([f"{c} ilike :q" for c in like_cols]) + ")")
+            where.append("(" + " OR ".join([f"{c} ILIKE :q" for c in like_cols]) + ")")
             p["q"] = f"%{q}%"
 
     exp_names = params.get("experiment_names") or []
-    if exp_names:
-        where.append("experiment_name = any(:experiment_names)")
+    if exp_names and "experiment_name" in have:
+        where.append("experiment_name = ANY(:experiment_names)")
         p["experiment_names"] = exp_names
 
     date_min = params.get("date_min")
-    if date_min is not None:
+    if date_min is not None and "experiment_date" in have:
         where.append("experiment_date >= :date_min")
         p["date_min"] = date_min
 
     date_max = params.get("date_max")
-    if date_max is not None:
+    if date_max is not None and "experiment_date" in have:
         where.append("experiment_date <= :date_max")
         p["date_max"] = date_max
 
     if params.get("only_treated"):
-        where.append("coalesce(btrim(treatment_code),'') <> ''")
+        # robust: prefer treated_clutch_code if present, else treatment_code, else treatment_text
+        if "treated_clutch_code" in have:
+            where.append("coalesce(btrim(treated_clutch_code),'') <> ''")
+        elif "treatment_code" in have:
+            where.append("coalesce(btrim(treatment_code),'') <> ''")
+        elif "treatment_text" in have:
+            where.append("coalesce(btrim(treatment_text),'') <> ''")
 
-    where_sql = ("where " + " and ".join(where)) if where else ""
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     limit = int(params.get("limit") or 1000)
     p["limit"] = limit
 
+    order_parts: List[str] = []
+    if "experiment_date" in have:
+        order_parts.append("experiment_date DESC NULLS LAST")
+    if "experiment_name" in have:
+        order_parts.append("experiment_name DESC NULLS LAST")
+    if "plate_code" in have:
+        order_parts.append("plate_code DESC NULLS LAST")
+    if "slot_index" in have:
+        order_parts.append("slot_index")
+    if "roi_index_within_slot" in have:
+        order_parts.append("roi_index_within_slot")
+    order_sql = ("ORDER BY " + ", ".join(order_parts)) if order_parts else ""
+
     sql = f"""
-    select
+    SELECT
       {", ".join(select_cols)}
-    from public.{VIEW_NAME}
+    FROM public.{VIEW_NAME}
     {where_sql}
-    order by experiment_date desc nulls last, plate_code desc nulls last, slot_index, roi_index_within_slot
-    limit :limit;
+    {order_sql}
+    LIMIT :limit;
     """
 
     with _ENGINE.begin() as con:
         df = pd.read_sql(text(sql), con, params=p)
-
-    legacy = _load_legacy_csv()
-    if not legacy.empty and "roi_path" in df.columns:
-        df = df.merge(
-            legacy,
-            left_on="roi_path",
-            right_on="legacy_roi_dir",
-            how="left",
-        )
-
-    if getattr(df, "columns", None) is not None and df.columns.duplicated().any():
-        df = df.loc[:, ~df.columns.duplicated()].copy()
 
     return df
 
@@ -294,50 +273,17 @@ st.dataframe(
     width="stretch",
     hide_index=True,
     column_config={
-        "experiment_date": st.column_config.DateColumn("experiment_date", width="small"),
         "experiment_name": st.column_config.TextColumn("experiment_name", width="large"),
         "roi_code": st.column_config.TextColumn("roi_code", width="medium"),
         "roi_path": st.column_config.TextColumn("roi_path", width="large"),
         "clutch_code": st.column_config.TextColumn("clutch_code", width="small"),
-        "treated_clutch_code": st.column_config.TextColumn("treated_clutch_code", width="small"),
         "treatment_code": st.column_config.TextColumn("treatment_code", width="small"),
-        "treatment_text": st.column_config.TextColumn("treatment_text", width="medium"),
-
         "tx_gt_tg": st.column_config.TextColumn("tx_gt_tg", width="large"),
         "tx_gt_fluortag": st.column_config.TextColumn("tx_gt_fluortag", width="large"),
         "tx_gt_fluororganelle": st.column_config.TextColumn("tx_gt_fluororganelle", width="large"),
-
-        "genotype_pretty": st.column_config.TextColumn("genotype_pretty", width="large"),
-        "created_at": st.column_config.DatetimeColumn("created_at", width="medium"),
-
-        "plate_code": st.column_config.TextColumn("plate_code", width="small"),
-        "slot_index": st.column_config.NumberColumn("slot_index", width="small"),
-        "slot_label": st.column_config.TextColumn("slot_label", width="small"),
-        "roi_index_within_slot": st.column_config.NumberColumn("roi_index_within_slot", width="small"),
-
         "roi_note_anatomy": st.column_config.TextColumn("roi_note_anatomy", width="medium"),
         "plate_note": st.column_config.TextColumn("plate_note", width="medium"),
         "slot_note": st.column_config.TextColumn("slot_note", width="medium"),
-
-        "treatment_pretty_tg": st.column_config.TextColumn("treatment_pretty_tg", width="large"),
-        "treatment_pretty_fluortag": st.column_config.TextColumn("treatment_pretty_fluortag", width="large"),
-        "treatment_pretty_fluororganelle": st.column_config.TextColumn("treatment_pretty_fluororganelle", width="large"),
-
-        "marker_rollup_display_tg": st.column_config.TextColumn("marker_rollup_display_tg", width="large"),
-        "marker_rollup_display_fluortag": st.column_config.TextColumn("marker_rollup_display_fluortag", width="large"),
-        "marker_rollup_display_fluororganelle": st.column_config.TextColumn("marker_rollup_display_fluororganelle", width="large"),
-
-        "genotype_basecodes": st.column_config.TextColumn("genotype_basecodes", width="large"),
-
-        "legacy_roi_dir": st.column_config.TextColumn("legacy_roi_dir", width="large"),
-        "legacy_plate_date": st.column_config.TextColumn("legacy_plate_date", width="small"),
-        "legacy_mount_id": st.column_config.TextColumn("legacy_mount_id", width="small"),
-        "legacy_date_mount": st.column_config.TextColumn("legacy_date_mount", width="small"),
-        "legacy_date_born": st.column_config.TextColumn("legacy_date_born", width="small"),
-        "legacy_parent_female_genotype_text": st.column_config.TextColumn("legacy_parent_female_genotype_text", width="large"),
-        "legacy_parent_male_genotype_text": st.column_config.TextColumn("legacy_parent_male_genotype_text", width="large"),
-        "legacy_treatment_rna_rna_base_code": st.column_config.TextColumn("legacy_treatment_rna_rna_base_code", width="large"),
-        "legacy_treatment_plasmid_plasmid_base_code": st.column_config.TextColumn("legacy_treatment_plasmid_plasmid_base_code", width="large"),
     },
 )
 
