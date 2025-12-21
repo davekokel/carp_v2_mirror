@@ -69,6 +69,7 @@ def main() -> None:
     run(["python", "scripts/v11_build_exp_treatment_signatures_csv_filtered.py"])
     run(["python", "scripts/v11_apply_exp_treatment_signatures_csv.py"])
 
+    run(["python", "scripts/v11_qc_legacy_imaging_treatments.py"])
     print("\n[OK] full local load pipeline completed cleanly")
 
 if __name__ == "__main__":
