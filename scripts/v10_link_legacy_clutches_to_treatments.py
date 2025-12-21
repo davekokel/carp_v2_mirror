@@ -50,13 +50,11 @@ def build_construct_lookup(engine: Engine) -> Dict[str, str]:
     sql = text(
         """
         SELECT
-          c.id::text      AS construct_id,
-          c.construct_code,
-          c.base_code,
-          a.alias
-        FROM public.constructs c
-        LEFT JOIN public.construct_aliases a
-          ON a.construct_id = c.id
+          c.code AS construct_code,
+          c.code AS base_code,
+          a.alias AS alias
+        FROM public.construct_aliases a
+        JOIN public.constructs c ON c.id = a.construct_id
         """
     )
     with engine.begin() as cx:
@@ -64,8 +62,8 @@ def build_construct_lookup(engine: Engine) -> Dict[str, str]:
 
     lookup: Dict[str, str] = {}
     for _, row in df.iterrows():
-        construct_code = norm(row["construct_code"])
-        base_code      = norm(row["base_code"])
+        construct_code = norm(row.get("construct_code"))
+        base_code      = norm(row.get("base_code"))
         alias          = norm(row.get("alias"))
 
         canon = construct_code or base_code
@@ -89,23 +87,24 @@ def build_construct_lookup(engine: Engine) -> Dict[str, str]:
 
 def build_dye_alias_lookup(engine: Engine) -> Dict[str, str]:
     sql = text(
-        """
-        SELECT dye_base_code, name
+        '''
+        SELECT
+          code AS dye_base_code,
+          display_name AS name
         FROM public.dyes
-        """
+        '''
     )
     with engine.begin() as cx:
         df = pd.read_sql(sql, cx)
 
     alias_to_base: Dict[str, str] = {}
     for _, row in df.iterrows():
-        base = norm(row["dye_base_code"])
+        base = norm(row.get("dye_base_code"))
         name = norm(row.get("name"))
         if not base:
             continue
 
         candidates: Set[str] = set()
-
         for raw in (base, name):
             r = norm(raw)
             if not r:
@@ -125,6 +124,7 @@ def build_dye_alias_lookup(engine: Engine) -> Dict[str, str]:
                 r_space_no = r_space.replace(" ", "")
                 candidates.add(r_space_no)
                 candidates.add(r_space_no.lower())
+
             if " " in r:
                 r_dash = r.replace(" ", "-")
                 candidates.add(r_dash)
@@ -254,6 +254,10 @@ def main() -> None:
         dye_sig       = ",".join(sorted(dye_codes_used)) if dye_codes_used else ""
         sig           = f"constructs={construct_sig}|dyes={dye_sig}"
 
+        # STRICT: this CSV uses 'bruker_roi_id' as the DB roi_code
+        roi_code_col = 'bruker_roi_id'
+        if roi_code_col not in df.columns:
+            raise SystemExit(f"[STOP] Expected column {roi_code_col!r} in ROI CSV; found {list(df.columns)}")
         roi_code = norm(row[roi_code_col])
 
         records.append(
