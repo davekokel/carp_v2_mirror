@@ -98,6 +98,10 @@ def _norm_token(raw: str) -> str:
     """
     Normalize to a stable token key (still human-ish, not basecode).
     This is ONLY for joining into token_map.
+
+    Hard rule: emitted tokens must be atomic.
+    If an input contains a recognizable basecode (mgco/pdqm/hc) plus extra payload,
+    collapse to just the basecode (e.g. "MGCO-49_peroxisome-..." -> "mgco-49").
     """
     s = _s(raw).lower()
     if not s:
@@ -105,12 +109,24 @@ def _norm_token(raw: str) -> str:
     s = _strip_parens(s).strip()
     s = s.replace("—", "-").replace("–", "-")
     s = RE_WS.sub("", s)  # remove whitespace entirely for stability
+
+    # canonicalize basecode formatting (may still be embedded in a longer string)
     s = RE_MGCO.sub(r"mgco-\1", s)
     s = RE_PDQM.sub(r"pdqm-\1", s)
     s = RE_HC.sub(r"hc-\1", s)
+
+    # fluor shorthand normalization
     s = re.sub(r"\bmstaygold\b", "msg", s)
     s = re.sub(r"\btdmstaygold\b", "tdmsg", s)
     s = re.sub(r"\bjf\s*-?\s*0*635\b", "jf-635", s)
+
+    # If a basecode is embedded inside a longer token, collapse to that basecode.
+    m = re.search(r"(mgco|pdqm|hc)-0*([0-9]+)", s)
+    if m:
+        base = f"{m.group(1)}-{int(m.group(2))}"
+        if s != base:
+            return base
+
     return s
 
 def _ing_sig(tokens: List[str]) -> str:
@@ -155,7 +171,60 @@ def main() -> None:
     df_roi = df_roi[df_roi["dataset_key"] != ""].copy()
     df_roi["bruker_roi_id"] = df_roi["bruker_roi_id"].astype(str).str.strip()
 
-    df_units = df_sheet[["dataset_key", "signature_tokens"]].drop_duplicates()
+
+    # Backfill EMPTY sheet signatures using ROI compat treatment basecodes (when available).
+    # This only applies when the sheet-derived signature is fully empty (plasmids=|rnas=|dyes=).
+    empty_sig = "plasmids=|rnas=|dyes="
+    if "treatment_plasmid_plasmid_base_code" in df_roi.columns or "treatment_rna_rna_base_code" in df_roi.columns:
+        pla_col = "treatment_plasmid_plasmid_base_code" if "treatment_plasmid_plasmid_base_code" in df_roi.columns else None
+        rna_col = "treatment_rna_rna_base_code" if "treatment_rna_rna_base_code" in df_roi.columns else None
+
+        def _norm_base(x: str) -> str:
+            s = _s(x).lower()
+            if not s:
+                return ""
+            # normalize mgco/pdqm/hc formatting via existing regexes
+            s = RE_MGCO.sub(r"mgco-\1", s)
+            s = RE_PDQM.sub(r"pdqm-\1", s)
+            s = RE_HC.sub(r"hc-\1", s)
+
+            # If a basecode is embedded inside a longer token, collapse to that basecode.
+            m = re.search(r"(mgco|pdqm|hc)-0*([0-9]+)", s)
+            if m:
+                return f"{m.group(1)}-{int(m.group(2))}"
+
+            return s
+
+        tmp = df_roi[["dataset_key"]].copy()
+        if pla_col:
+            tmp["pla"] = df_roi[pla_col].map(_norm_base)
+        else:
+            tmp["pla"] = ""
+        if rna_col:
+            tmp["rna"] = df_roi[rna_col].map(_norm_base)
+        else:
+            tmp["rna"] = ""
+
+        df_roi_units = (
+            tmp.groupby("dataset_key", as_index=False)
+               .agg({"pla": lambda xs: ",".join(sorted({x for x in xs if x})),
+                     "rna": lambda xs: ",".join(sorted({x for x in xs if x}))})
+        )
+        df_roi_units["signature_tokens"] = df_roi_units.apply(
+            lambda r: f"plasmids={r.pla}|rnas={r.rna}|dyes=", axis=1
+        )
+
+        # merge: override only empty sheet signatures
+        df_units = df_sheet[["dataset_key", "signature_tokens"]].drop_duplicates()
+        df_units = df_units.merge(df_roi_units[["dataset_key","signature_tokens"]].rename(columns={"signature_tokens":"signature_tokens_roi"}),
+                                  on="dataset_key", how="left")
+        df_units["signature_tokens"] = df_units.apply(
+            lambda r: (r.signature_tokens_roi if (str(r.signature_tokens).strip() == empty_sig and _s(r.signature_tokens_roi)) else r.signature_tokens),
+            axis=1,
+        )
+        df_units = df_units[["dataset_key","signature_tokens"]].drop_duplicates()
+    else:
+        df_units = df_sheet[["dataset_key", "signature_tokens"]].drop_duplicates()
     df_join = df_roi[["bruker_roi_id", "dataset_key"]].merge(df_units, on="dataset_key", how="inner").drop_duplicates()
 
     df_bad = df_join[df_join["dataset_key"].isin(bad_keys)].sort_values(["dataset_key", "bruker_roi_id", "signature_tokens"]).reset_index(drop=True)
@@ -215,34 +284,64 @@ def main() -> None:
                 if k:
                     dye_key_to_code[k] = cc
 
+    # Merge token_map: preserve existing mappings/notes; add new tokens; do not clobber curated rows.
+    token_fp = Path(OUT_TOKEN_MAP)
+    if token_fp.exists():
+        existing = pd.read_csv(token_fp, dtype=str, keep_default_na=False, na_filter=False)
+        existing.columns = [str(c).strip() for c in existing.columns]
+    else:
+        existing = pd.DataFrame(columns=['token','kind','mapped_code','notes'])
+    
+    exist_by_tok = {}
+    for r in existing.itertuples(index=False):
+        tok = str(getattr(r,'token','')).strip().lower()
+        if not tok:
+            continue
+        exist_by_tok[tok] = {
+            'kind': str(getattr(r,'kind','')).strip(),
+            'mapped_code': str(getattr(r,'mapped_code','')).strip(),
+            'notes': str(getattr(r,'notes','')).strip(),
+        }
+    
+    all_tokens = sorted(set([t.lower() for t in toks]) | set(exist_by_tok.keys()))
     rows = []
-    for t in sorted(toks):
-        kind = "construct"
-        mapped = ""
-        notes = ""
-        if t.startswith("jf") or t.startswith("dye") or t == "635":
-            kind = "dye"
-
-        if kind == "construct":
-            mapped = alias_to_base.get(t, "")
-        else:
-            k = re.sub(r"[^a-z0-9]+", "", t)
-            mapped = dye_key_to_code.get(k, "")
-
-        rows.append(
-            {
-                "token": t,
-                "kind": kind,
-                "mapped_code": mapped,  # fill this manually when blank
-                "notes": notes,
-            }
-        )
-
-    pd.DataFrame(rows).to_csv(OUT_TOKEN_MAP, index=False)
-
-    print("WROTE_OK", OUT_OK, "rows", len(df_ok), "dataset_keys", df_ok["dataset_key"].nunique())
-    print("WROTE_BAD", OUT_BAD, "rows", len(df_bad), "dataset_keys", df_bad["dataset_key"].nunique())
-    print("WROTE_TOKEN_MAP", OUT_TOKEN_MAP, "rows", len(rows))
+    for t in all_tokens:
+        prev = exist_by_tok.get(t, {})
+        kind = prev.get('kind','').strip()
+        if not kind:
+            kind = 'dye' if (t.startswith('jf') or t.startswith('dye') or t == '635') else 'construct'
+        mapped = prev.get('mapped_code','').strip()
+        notes = prev.get('notes','').strip()
+    
+        # Only auto-fill when there is no existing mapping.
+        if not mapped:
+            if kind == 'construct':
+                mapped = alias_to_base.get(t, '')
+            else:
+                k = re.sub(r'[^a-z0-9]+', '', t)
+                mapped = dye_key_to_code.get(k, '')
+    
+        rows.append({'token': t, 'kind': kind, 'mapped_code': mapped, 'notes': notes})
+    
+    out_map = pd.DataFrame(rows)
+    for c in ['token','kind','mapped_code','notes']:
+        out_map[c] = out_map[c].fillna('').astype(str).str.strip()
+    
+    # Hard rule: never persist illegal tokens into the map
+    out_map = out_map[~out_map['token'].astype(str).str.contains(r'\s', regex=True)].copy()
+    out_map = out_map[~out_map['token'].astype(str).str.contains(r'[()]', regex=True)].copy()
+    
+    out_map['_has_mapped'] = (out_map['mapped_code'].astype(str).str.strip() != '').astype(int)
+    out_map['_has_notes'] = (out_map['notes'].astype(str).str.strip() != '').astype(int)
+    out_map = (
+        out_map.sort_values(['token','_has_mapped','_has_notes','kind','mapped_code'],
+                           ascending=[True, False, False, True, True])
+              .drop_duplicates(subset=['token'], keep='first')
+              .drop(columns=['_has_mapped','_has_notes'])
+              .reset_index(drop=True)
+    )
+    
+    out_map.to_csv(OUT_TOKEN_MAP, index=False)
 
 if __name__ == "__main__":
     main()
