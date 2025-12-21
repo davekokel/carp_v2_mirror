@@ -142,17 +142,17 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
 
     # Only the columns we want on this page
     select_cols = [
-        "experiment_name",
-        "roi_code",
         "roi_path",
-        "clutch_code",
-        "treatment_code",
+        "tx_gt_fluororganelle",
         "tx_gt_tg",
         "tx_gt_fluortag",
-        "tx_gt_fluororganelle",
         "roi_note_anatomy",
         "plate_note",
         "slot_note",
+        "experiment_name",
+        "roi_code",
+        "clutch_code",
+        "treatment_code",
     ]
     select_cols = [c for c in select_cols if c in have]
     if not select_cols:
