@@ -88,9 +88,19 @@ LEFT JOIN roi_counts rc
   ON rc.slot_id = bs.slot_id
 LEFT JOIN membership m
   ON m.slot_id = bs.slot_id
-LEFT JOIN labels l
-  ON l.clutch_code = m.clutch_code
- AND COALESCE(l.treated_clutch_code, '') = COALESCE(m.treated_clutch_code, '')
+LEFT JOIN LATERAL (
+  SELECT l.*
+  FROM labels l
+  WHERE l.clutch_code = m.clutch_code
+    AND (
+      m.treated_clutch_code IS NULL
+      OR COALESCE(l.treated_clutch_code, '') = COALESCE(m.treated_clutch_code, '')
+    )
+  ORDER BY
+    (COALESCE(l.treated_clutch_code, '') = COALESCE(m.treated_clutch_code, '')) DESC,
+    l.treated_clutch_code NULLS LAST
+  LIMIT 1
+) l ON true
 ORDER BY
   bs.experiment_date DESC NULLS LAST,
   bs.plate_code,
