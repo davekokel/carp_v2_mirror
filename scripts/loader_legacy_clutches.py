@@ -378,11 +378,37 @@ def _assign_clutch_genotypes_strict(
         SET genotype_v11_id = CAST(:gid AS uuid)
         WHERE c.clutch_code = :clutch_code
           AND c.source_system = 'legacy_imaging'
-          AND c.import_batch_id = :batch;
+          AND c.import_batch_id = :batch
+        RETURNING c.id::text;
+        """
+    )
+
+    sql_ins_cg = text(
+        """
+        INSERT INTO public.clutch_genotypes_v11 (
+          id, clutch_id, genotype_v11_id,
+          expected_fraction, expected_label, expected_percent_label,
+          notes, created_at, created_by, is_enabled
+        )
+        VALUES (
+          gen_random_uuid(),
+          CAST(:clutch_id AS uuid),
+          CAST(:genotype_v11_id AS uuid),
+          1, 'primary', '100%',
+          :notes, now(), 'loader_legacy_clutches', true
+        )
+        ON CONFLICT (clutch_id, genotype_v11_id)
+        DO UPDATE SET
+          is_enabled = true,
+          expected_fraction = EXCLUDED.expected_fraction,
+          expected_label = EXCLUDED.expected_label,
+          expected_percent_label = EXCLUDED.expected_percent_label,
+          notes = EXCLUDED.notes;
         """
     )
 
     updated = 0
+    inserted_cg = 0
 
     for r in df.itertuples(index=False):
         clutch_code = str(r.clutch_code).strip()
@@ -399,13 +425,23 @@ def _assign_clutch_genotypes_strict(
             cx.execute(text("SET LOCAL statement_timeout = '60s';"))
 
             gid = _ensure_genotype(cx, bc, pretty)
-            res = cx.execute(
-                sql_upd,
-                {"gid": gid, "clutch_code": clutch_code, "batch": batch},
-            )
-            updated += int(res.rowcount or 0)
+            clutch_id = cx.execute(sql_upd, {"gid": gid, "clutch_code": clutch_code, "batch": batch}).scalar()
+            if not clutch_id:
+                raise SystemExit(
+                    f"[STOP] loader_legacy_clutches: failed to update clutch genotype_v11_id for clutch_code={clutch_code!r} batch={batch!r}"
+                )
+            updated += 1
+
+            notes = f"legacy_imaging primary genotype; batch={batch}"
+            res = cx.execute(sql_ins_cg, {
+                "clutch_id": str(clutch_id),
+                "genotype_v11_id": str(gid),
+                "notes": notes,
+            })
+            inserted_cg += int(res.rowcount or 0)
 
     print(f"[OK] loader_legacy_clutches: set genotype_v11_id for {updated} clutch(es) in batch='{batch}'.")
+    print(f"[OK] loader_legacy_clutches: ensured clutch_genotypes_v11 rows (rowcount sum)={inserted_cg} for batch='{batch}'.")
     return updated
 def _qc_report(engine: Engine, batch: str, out_dir: pathlib.Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)

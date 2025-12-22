@@ -354,6 +354,34 @@ def main() -> None:
             """
         )
 
+
+        get_clutch_genotype_id = text(
+            """
+            SELECT cg.id::text
+            FROM public.clutch_genotypes_v11 cg
+            JOIN public.clutches c ON c.id = cg.clutch_id
+            WHERE c.id = CAST(:clutch_id AS uuid)
+              AND cg.genotype_v11_id = c.genotype_v11_id
+            LIMIT 1;
+            """
+        )
+
+        ins_tcg = text(
+            """
+            INSERT INTO public.treated_clutch_genotypes_v11 (
+              id, treated_clutch_id, clutch_genotype_id, is_primary, created_at, created_by
+            )
+            VALUES (
+              gen_random_uuid(),
+              CAST(:treated_clutch_id AS uuid),
+              CAST(:clutch_genotype_id AS uuid),
+              true, now(), 'v11_apply_exp_treatment_signatures_csv'
+            )
+            ON CONFLICT (treated_clutch_id, clutch_genotype_id)
+            DO UPDATE SET is_primary = true;
+            """
+        )
+
         rows = (
             df2[["dataset_key", "signature", "treat_code", "treat_text", "clutch_id", "slot_id"]]
             .drop_duplicates()
@@ -430,6 +458,13 @@ def main() -> None:
             ).scalar()
             if not tclid:
                 raise SystemExit(f"[STOP] failed to upsert treated_clutches_v11 for clutch_id={clutch_id} treat_code={treat_code}")
+
+            clutch_genotype_id = cx.execute(get_clutch_genotype_id, {"clutch_id": clutch_id}).scalar()
+            if not clutch_genotype_id:
+                raise SystemExit(
+                    f"[STOP] missing clutch_genotypes_v11 row for clutch_id={clutch_id} (treat_code={treat_code}, dataset_key={dataset_key}); run loader_legacy_clutches first"
+                )
+            cx.execute(ins_tcg, {"treated_clutch_id": tclid, "clutch_genotype_id": clutch_genotype_id})
 
             n_tc += 1
             n_upd += cx.execute(

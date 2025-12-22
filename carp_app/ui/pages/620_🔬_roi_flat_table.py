@@ -93,6 +93,13 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
                     "r.tx_gt_tg ILIKE :q",
                     "r.tx_gt_fluortag ILIKE :q",
                     "r.tx_gt_fluororganelle ILIKE :q",
+                    "r.tg_label ILIKE :q",
+                    "r.fluortag_label ILIKE :q",
+                    "r.fluororganelle_name ILIKE :q",
+                    "r.fluororganelle_basecodes ILIKE :q",
+                    "r.plasmids_display ILIKE :q",
+                    "r.rnas_display ILIKE :q",
+                    "r.dyes_display ILIKE :q",
                     "r.roi_note_anatomy ILIKE :q",
                     "r.slot_orientation ILIKE :q",
                     "r.plate_note ILIKE :q",
@@ -127,92 +134,31 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
     p["limit"] = limit
 
     sql = f"""
-    WITH base AS (
-      SELECT
-        ps.experiment_date,
-        ps.experiment_name,
-        ps.plate_note,
-        ps.slot_note,
-        ps.slot_orientation,
-        ra.roi_code,
-        ra.roi_index_within_slot,
-        ra.roi_note_anatomy,
-        ra.roi_path,
-        ps.clutch_code,
-        tg.treated_clutch_code,
-        ps.treat_code AS treatment_code,
-        ps.treat_text AS treatment_text,
-        NULLIF(btrim(tg.treatment_label_tg_style), '') AS marker_rollup_display_tg,
-        NULLIF(btrim(tg.treatment_label_fluortag_style), '') AS marker_rollup_display_fluortag,
-        NULLIF(btrim(tg.treatment_label_fluororganelle_style), '') AS marker_rollup_display_fluororganelle
-      FROM public.imaging_roi_annotations ra
-      LEFT JOIN public.v11_imaging_plate_slot_overview ps
-        ON ps.slot_id::uuid = ra.slot_id
-      LEFT JOIN public.v11_treated_clutch_genotype_star_labels tg
-        ON tg.genotype_code = ps.genotype_code
-    ),
-    rows AS (
-      SELECT
-        roi_path,
-        roi_note_anatomy,
-        slot_orientation,
-        plate_note,
-        slot_note,
-        experiment_name,
-        experiment_date,
-        roi_code,
-        roi_index_within_slot,
-        clutch_code,
-        treated_clutch_code,
-        treatment_code,
-        treatment_text,
-
-        CASE
-          WHEN COALESCE(btrim(treatment_text), '') <> '' THEN
-            CASE
-              WHEN COALESCE(btrim(marker_rollup_display_tg), '') <> ''
-                THEN (treatment_text || ' > ' || marker_rollup_display_tg)
-              ELSE NULL
-            END
-          ELSE NULLIF(btrim(marker_rollup_display_tg), '')
-        END AS tx_gt_tg,
-
-        CASE
-          WHEN COALESCE(btrim(treatment_text), '') <> '' THEN
-            CASE
-              WHEN COALESCE(btrim(marker_rollup_display_fluortag), '') <> ''
-                THEN (treatment_text || ' > ' || marker_rollup_display_fluortag)
-              ELSE NULL
-            END
-          ELSE NULLIF(btrim(marker_rollup_display_fluortag), '')
-        END AS tx_gt_fluortag,
-
-        CASE
-          WHEN COALESCE(btrim(treatment_text), '') <> '' THEN
-            CASE
-              WHEN COALESCE(btrim(marker_rollup_display_fluororganelle), '') <> ''
-                THEN (treatment_text || ' > ' || marker_rollup_display_fluororganelle)
-              ELSE NULL
-            END
-          ELSE NULLIF(btrim(marker_rollup_display_fluororganelle), '')
-        END AS tx_gt_fluororganelle
-
-      FROM base
-    )
     SELECT
-      roi_path,
-      tx_gt_fluororganelle,
-      tx_gt_tg,
-      tx_gt_fluortag,
-      roi_note_anatomy,
-      slot_orientation,
+      experiment_date,
+      experiment_name,
       plate_note,
       slot_note,
-      experiment_name,
+      slot_orientation,
       roi_code,
+      roi_index_within_slot,
+      roi_path,
+      roi_note_anatomy,
       clutch_code,
-      treatment_code
-    FROM rows r
+      treated_clutch_code,
+      treatment_code,
+      treatment_text,
+      tx_gt_tg,
+      tx_gt_fluortag,
+      tx_gt_fluororganelle,
+      rnas_display,
+      plasmids_display,
+      dyes_display,
+      tg_label,
+      fluortag_label,
+      fluororganelle_name,
+      fluororganelle_basecodes
+    FROM public.v11_roi_flat_table_display r
     {where_sql}
     ORDER BY
       r.experiment_date DESC NULLS LAST,
@@ -232,7 +178,7 @@ choices = _load_filter_choices()
 
 with st.expander("Filters", expanded=True):
     c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
-    q = c1.text_input("Search", value="", placeholder="roi, clutch, treatment, tx_gt, paths…")
+    q = c1.text_input("Search", value="", placeholder="roi, clutch, treatment, labels, paths…")
     experiment_names = c2.multiselect("Experiment name", options=choices["experiment_names"])
     limit = c3.selectbox("Limit", options=[200, 500, 1000, 2000, 5000], index=2)
     only_treated = c4.checkbox("Only treated", value=False)
@@ -256,25 +202,137 @@ df = _load_rois(
 
 st.caption(f"{len(df):,} row(s) shown")
 
-st.dataframe(
-    df,
-    width="stretch",
-    hide_index=True,
-    column_config={
-        "roi_path": st.column_config.TextColumn("roi_path", width="large"),
-        "tx_gt_fluororganelle": st.column_config.TextColumn("tx_gt_fluororganelle", width="large"),
-        "tx_gt_tg": st.column_config.TextColumn("tx_gt_tg", width="large"),
-        "tx_gt_fluortag": st.column_config.TextColumn("tx_gt_fluortag", width="large"),
-        "roi_note_anatomy": st.column_config.TextColumn("roi_note_anatomy", width="medium"),
-        "slot_orientation": st.column_config.TextColumn("slot_orientation", width="small"),
-        "plate_note": st.column_config.TextColumn("plate_note", width="medium"),
-        "slot_note": st.column_config.TextColumn("slot_note", width="medium"),
-        "experiment_name": st.column_config.TextColumn("experiment_name", width="large"),
-        "roi_code": st.column_config.TextColumn("roi_code", width="medium"),
-        "clutch_code": st.column_config.TextColumn("clutch_code", width="small"),
-        "treatment_code": st.column_config.TextColumn("treatment_code", width="small"),
-    },
+show_cols = [c for c in [
+    "experiment_date",
+    "experiment_name",
+    "plate_note",
+    "slot_note",
+    "slot_orientation",
+    "roi_code",
+    "roi_index_within_slot",
+    "roi_path",
+    "roi_note_anatomy",
+    "clutch_code",
+    "treated_clutch_code",
+    "treatment_code",
+    "treatment_text",
+    "tx_gt_tg",
+    "tx_gt_fluortag",
+    "tx_gt_fluororganelle",
+    "rnas_display",
+    "plasmids_display",
+    "dyes_display",
+    "tg_label",
+    "fluortag_label",
+    "fluororganelle_name",
+    "fluororganelle_basecodes",
+] if c in df.columns]
+
+
+def _esc(v) -> str:
+    if v is None:
+        return ""
+    s = str(v)
+    return (s.replace("&", "&amp;")
+              .replace("<", "&lt;")
+              .replace(">", "&gt;"))
+
+
+_width_px = {
+    "experiment_date": 120,
+    "experiment_name": 220,
+    "plate_note": 220,
+    "slot_note": 220,
+    "slot_orientation": 110,
+    "roi_code": 190,
+    "roi_index_within_slot": 80,
+    "roi_path": 520,
+    "roi_note_anatomy": 220,
+    "clutch_code": 160,
+    "treated_clutch_code": 180,
+    "treatment_code": 180,
+    "treatment_text": 420,
+    "tx_gt_tg": 360,
+    "tx_gt_fluortag": 420,
+    "tx_gt_fluororganelle": 420,
+    "rnas_display": 220,
+    "plasmids_display": 220,
+    "dyes_display": 180,
+    "tg_label": 240,
+    "fluortag_label": 260,
+    "fluororganelle_name": 200,
+    "fluororganelle_basecodes": 260,
+}
+
+
+colgroup = "".join([
+    "<col style='width:" + str(_width_px.get(c, 180)) + "px'>"
+    for c in show_cols
+])
+
+headers = "".join([
+    "<th>" + _esc(c) + "</th>"
+    for c in show_cols
+])
+
+rows_html = []
+for _, r in df[show_cols].iterrows():
+    tds = []
+    for c in show_cols:
+        tds.append("<td><div class='cell'>" + _esc(r[c]) + "</div></td>")
+    rows_html.append("<tr>" + "".join(tds) + "</tr>")
+
+css = """
+<style>
+.carp-roi-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 72vh;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+}
+.carp-roi-table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  table-layout: fixed;
+}
+.carp-roi-table th, .carp-roi-table td {
+  border: 1px solid #e6e6e6;
+  padding: 6px 8px;
+  vertical-align: top;
+}
+.carp-roi-table th {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 2;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.carp-roi-table td .cell {
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+</style>
+"""
+
+html = (
+    css
+    + "<div class='carp-roi-wrap'>"
+    + "<table class='carp-roi-table'>"
+    + "<colgroup>" + colgroup + "</colgroup>"
+    + "<thead><tr>" + headers + "</tr></thead>"
+    + "<tbody>" + "".join(rows_html) + "</tbody>"
+    + "</table></div>"
 )
+
+st.markdown(html, unsafe_allow_html=True)
 
 csv = df.to_csv(index=False).encode("utf-8")
 st.download_button("Download CSV", data=csv, file_name="rois_flat.csv", mime="text/csv")
