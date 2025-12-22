@@ -31,56 +31,41 @@ require_app_unlock()
 st.set_page_config(page_title="CARP — 🔬 ROIs (flat)", page_icon="🔬", layout="wide")
 st.title("🔬 ROIs — flat table")
 
-VIEW_NAME = "v_roi_overview_display_v6"
 _ENGINE: Engine = get_engine()
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def _cols(table_or_view: str) -> List[str]:
+def _load_filter_choices() -> Dict[str, Any]:
     with _ENGINE.begin() as con:
-        rows = con.execute(
+        exp_names = pd.read_sql(
             text(
                 """
-                select column_name
-                from information_schema.columns
-                where table_schema='public' and table_name=:t
-                order by ordinal_position
+                SELECT DISTINCT
+                  ps.experiment_name
+                FROM public.imaging_roi_annotations ra
+                LEFT JOIN public.v11_imaging_plate_slot_overview ps
+                  ON ps.slot_id::uuid = ra.slot_id
+                WHERE ps.experiment_name IS NOT NULL
+                  AND btrim(ps.experiment_name) <> ''
+                ORDER BY ps.experiment_name;
                 """
             ),
-            {"t": table_or_view},
-        ).fetchall()
-    return [r[0] for r in rows]
+            con,
+        )
 
-
-@st.cache_data(ttl=60, show_spinner=False)
-def _load_filter_choices() -> Dict[str, Any]:
-    have = set(_cols(VIEW_NAME))
-    with _ENGINE.begin() as con:
-        exp_names = pd.DataFrame({"experiment_name": []})
-        if "experiment_name" in have:
-            exp_names = pd.read_sql(
-                text(
-                    f"""
-                    select distinct experiment_name
-                    from public.{VIEW_NAME}
-                    where experiment_name is not null and btrim(experiment_name) <> ''
-                    order by experiment_name;
-                    """
-                ),
-                con,
-            )
-
-        dates = pd.DataFrame({"min_date": [None], "max_date": [None]})
-        if "experiment_date" in have:
-            dates = pd.read_sql(
-                text(
-                    f"""
-                    select min(experiment_date) as min_date, max(experiment_date) as max_date
-                    from public.{VIEW_NAME};
-                    """
-                ),
-                con,
-            )
+        dates = pd.read_sql(
+            text(
+                """
+                SELECT
+                  min(ps.experiment_date) AS min_date,
+                  max(ps.experiment_date) AS max_date
+                FROM public.imaging_roi_annotations ra
+                LEFT JOIN public.v11_imaging_plate_slot_overview ps
+                  ON ps.slot_id::uuid = ra.slot_id;
+                """
+            ),
+            con,
+        )
 
     return {
         "experiment_names": exp_names["experiment_name"].astype(str).tolist() if "experiment_name" in exp_names.columns else [],
@@ -90,97 +75,150 @@ def _load_filter_choices() -> Dict[str, Any]:
 
 
 def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
-    have = set(_cols(VIEW_NAME))
-
-    select_cols = [
-        "roi_path",
-        "tx_gt_fluororganelle",
-        "tx_gt_tg",
-        "tx_gt_fluortag",
-        "roi_note_anatomy",
-        "slot_orientation",
-        "plate_note",
-        "slot_note",
-        "experiment_name",
-        "roi_code",
-        "clutch_code",
-        "treatment_code",
-    ]
-    select_cols = [c for c in select_cols if c in have]
-    if not select_cols:
-        raise SystemExit(f"[STOP] {VIEW_NAME} has none of the expected columns; have={sorted(have)}")
-
     where: List[str] = []
     p: Dict[str, Any] = {}
 
     q = (params.get("q") or "").strip()
     if q:
-        like_cols = [
-            "experiment_name",
-            "roi_code",
-            "roi_path",
-            "clutch_code",
-            "treatment_code",
-            "tx_gt_tg",
-            "tx_gt_fluortag",
-            "tx_gt_fluororganelle",
-            "roi_note_anatomy",
-            "slot_orientation",
-            "plate_note",
-            "slot_note",
-        ]
-        like_cols = [c for c in like_cols if c in have]
-        if like_cols:
-            where.append("(" + " OR ".join([f"{c} ILIKE :q" for c in like_cols]) + ")")
-            p["q"] = f"%{q}%"
+        where.append(
+            "("
+            + " OR ".join(
+                [
+                    "r.experiment_name ILIKE :q",
+                    "r.roi_code ILIKE :q",
+                    "r.roi_path ILIKE :q",
+                    "r.clutch_code ILIKE :q",
+                    "r.treatment_code ILIKE :q",
+                    "r.treatment_text ILIKE :q",
+                    "r.tx_gt_tg ILIKE :q",
+                    "r.tx_gt_fluortag ILIKE :q",
+                    "r.tx_gt_fluororganelle ILIKE :q",
+                    "r.roi_note_anatomy ILIKE :q",
+                    "r.slot_orientation ILIKE :q",
+                    "r.plate_note ILIKE :q",
+                    "r.slot_note ILIKE :q",
+                ]
+            )
+            + ")"
+        )
+        p["q"] = f"%{q}%"
 
     exp_names = params.get("experiment_names") or []
-    if exp_names and "experiment_name" in have:
-        where.append("experiment_name = ANY(:experiment_names)")
+    if exp_names:
+        where.append("r.experiment_name = ANY(:experiment_names)")
         p["experiment_names"] = exp_names
 
     date_min = params.get("date_min")
-    if date_min is not None and "experiment_date" in have:
-        where.append("experiment_date >= :date_min")
+    if date_min is not None:
+        where.append("r.experiment_date >= :date_min")
         p["date_min"] = date_min
 
     date_max = params.get("date_max")
-    if date_max is not None and "experiment_date" in have:
-        where.append("experiment_date <= :date_max")
+    if date_max is not None:
+        where.append("r.experiment_date <= :date_max")
         p["date_max"] = date_max
 
     if params.get("only_treated"):
-        if "treated_clutch_code" in have:
-            where.append("coalesce(btrim(treated_clutch_code),'') <> ''")
-        elif "treatment_code" in have:
-            where.append("coalesce(btrim(treatment_code),'') <> ''")
-        elif "treatment_text" in have:
-            where.append("coalesce(btrim(treatment_text),'') <> ''")
+        where.append("coalesce(btrim(r.treatment_code),'') <> '' OR coalesce(btrim(r.treated_clutch_code),'') <> ''")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     limit = int(params.get("limit") or 1000)
     p["limit"] = limit
 
-    order_parts: List[str] = []
-    if "experiment_date" in have:
-        order_parts.append("experiment_date DESC NULLS LAST")
-    if "experiment_name" in have:
-        order_parts.append("experiment_name DESC NULLS LAST")
-    if "plate_code" in have:
-        order_parts.append("plate_code DESC NULLS LAST")
-    if "slot_index" in have:
-        order_parts.append("slot_index")
-    if "roi_index_within_slot" in have:
-        order_parts.append("roi_index_within_slot")
-    order_sql = ("ORDER BY " + ", ".join(order_parts)) if order_parts else ""
-
     sql = f"""
+    WITH base AS (
+      SELECT
+        ps.experiment_date,
+        ps.experiment_name,
+        ps.plate_note,
+        ps.slot_note,
+        ps.slot_orientation,
+        ra.roi_code,
+        ra.roi_index_within_slot,
+        ra.roi_note_anatomy,
+        ra.roi_path,
+        ps.clutch_code,
+        tg.treated_clutch_code,
+        ps.treat_code AS treatment_code,
+        ps.treat_text AS treatment_text,
+        NULLIF(btrim(tg.treatment_label_tg_style), '') AS marker_rollup_display_tg,
+        NULLIF(btrim(tg.treatment_label_fluortag_style), '') AS marker_rollup_display_fluortag,
+        NULLIF(btrim(tg.treatment_label_fluororganelle_style), '') AS marker_rollup_display_fluororganelle
+      FROM public.imaging_roi_annotations ra
+      LEFT JOIN public.v11_imaging_plate_slot_overview ps
+        ON ps.slot_id::uuid = ra.slot_id
+      LEFT JOIN public.v11_treated_clutch_genotype_star_labels tg
+        ON tg.genotype_code = ps.genotype_code
+    ),
+    rows AS (
+      SELECT
+        roi_path,
+        roi_note_anatomy,
+        slot_orientation,
+        plate_note,
+        slot_note,
+        experiment_name,
+        experiment_date,
+        roi_code,
+        roi_index_within_slot,
+        clutch_code,
+        treated_clutch_code,
+        treatment_code,
+        treatment_text,
+
+        CASE
+          WHEN COALESCE(btrim(treatment_text), '') <> '' THEN
+            CASE
+              WHEN COALESCE(btrim(marker_rollup_display_tg), '') <> ''
+                THEN (treatment_text || ' > ' || marker_rollup_display_tg)
+              ELSE NULL
+            END
+          ELSE NULLIF(btrim(marker_rollup_display_tg), '')
+        END AS tx_gt_tg,
+
+        CASE
+          WHEN COALESCE(btrim(treatment_text), '') <> '' THEN
+            CASE
+              WHEN COALESCE(btrim(marker_rollup_display_fluortag), '') <> ''
+                THEN (treatment_text || ' > ' || marker_rollup_display_fluortag)
+              ELSE NULL
+            END
+          ELSE NULLIF(btrim(marker_rollup_display_fluortag), '')
+        END AS tx_gt_fluortag,
+
+        CASE
+          WHEN COALESCE(btrim(treatment_text), '') <> '' THEN
+            CASE
+              WHEN COALESCE(btrim(marker_rollup_display_fluororganelle), '') <> ''
+                THEN (treatment_text || ' > ' || marker_rollup_display_fluororganelle)
+              ELSE NULL
+            END
+          ELSE NULLIF(btrim(marker_rollup_display_fluororganelle), '')
+        END AS tx_gt_fluororganelle
+
+      FROM base
+    )
     SELECT
-      {", ".join(select_cols)}
-    FROM public.{VIEW_NAME}
+      roi_path,
+      tx_gt_fluororganelle,
+      tx_gt_tg,
+      tx_gt_fluortag,
+      roi_note_anatomy,
+      slot_orientation,
+      plate_note,
+      slot_note,
+      experiment_name,
+      roi_code,
+      clutch_code,
+      treatment_code
+    FROM rows r
     {where_sql}
-    {order_sql}
+    ORDER BY
+      r.experiment_date DESC NULLS LAST,
+      r.experiment_name DESC NULLS LAST,
+      r.roi_code,
+      r.roi_index_within_slot
     LIMIT :limit;
     """
 
