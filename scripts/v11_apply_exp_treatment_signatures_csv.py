@@ -214,6 +214,7 @@ def main() -> None:
         raise SystemExit(f"[STOP] missing {CSV_AUTO}")
 
     tok2code = _load_token_map()
+    rev_code_to_token = {v: k for (k, v) in tok2code.items() if v}
 
     df_auto = _read_mapping_csv(CSV_AUTO, "auto", tok2code)
 
@@ -405,15 +406,19 @@ def main() -> None:
                 cx.execute(ins_mix_construct, {"mix_id": mix_id, "construct_id": cid, "delivery_form": "rna"})
 
             for dye in dyes:
-                k = _alnum_key(dye)
+                d_raw = str(dye).strip().lower()
+                if not d_raw:
+                    continue
+                if d_raw in rev_code_to_token:
+                    d_raw = rev_code_to_token[d_raw]
+                k = _alnum_key(d_raw)
                 rows_d = cx.execute(get_dye_id, {"k": k}).fetchall()
                 ids = sorted({rr[0] for rr in rows_d if rr and rr[0]})
                 if len(ids) == 0:
-                    raise SystemExit(f"[STOP] unknown dye token {dye!r} (treat_code={treat_code}, dataset_key={dataset_key})")
+                    raise SystemExit(f"[STOP] unknown dye token {d_raw!r} (treat_code={treat_code}, dataset_key={dataset_key})")
                 if len(ids) > 1:
-                    raise SystemExit(f"[STOP] ambiguous dye token {dye!r} matched {ids} (treat_code={treat_code}, dataset_key={dataset_key})")
+                    raise SystemExit(f"[STOP] ambiguous dye token {d_raw!r} matched {ids} (treat_code={treat_code}, dataset_key={dataset_key})")
                 cx.execute(ins_mix_dye, {"mix_id": mix_id, "dye_id": ids[0]})
-
             clutch_code = clutch_id_to_code[clutch_id]
             base = clutch_code.replace("LCL-", "TCL-", 1) if clutch_code.startswith("LCL-") else f"TCL-{clutch_code}"
             treated_code = f"{base}-{treat_code[-6:]}"

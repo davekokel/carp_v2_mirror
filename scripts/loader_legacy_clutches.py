@@ -264,13 +264,12 @@ def _upsert_clutches(engine: Engine, rows: List[Dict[str, Any]], batch: str) -> 
 
 
 
-def _ensure_genotype(engine: Engine, genotype_basecodes: str, genotype_pretty: Optional[str] = None) -> str:
+def _ensure_genotype(cx, genotype_basecodes: str, genotype_pretty: Optional[str] = None) -> str:
     bc = str(genotype_basecodes).strip()
     if not bc:
         raise ValueError("empty genotype_basecodes")
 
     pretty = str(genotype_pretty).strip() if _nonempty(genotype_pretty) else bc
-
     genotype_code = "G-" + bc.upper()
 
     sql_upsert = text(
@@ -320,34 +319,33 @@ def _ensure_genotype(engine: Engine, genotype_basecodes: str, genotype_pretty: O
     toks = [t.lower() for t in toks if t.lower() not in ("nan", "none", "na", "n/a", "<na>")]
     toks = sorted(dict.fromkeys(toks))
 
-    with engine.begin() as cx:
-        gid = cx.execute(
-            sql_upsert,
-            {
-                "genotype_code": genotype_code,
-                "genotype_basecodes": bc,
-                "genotype_pretty": pretty,
-                "display_name": genotype_code,
-            },
-        ).scalar()
+    gid = cx.execute(
+        sql_upsert,
+        {
+            "genotype_code": genotype_code,
+            "genotype_basecodes": bc,
+            "genotype_pretty": pretty,
+            "display_name": genotype_code,
+        },
+    ).scalar()
 
-        if gid is None:
-            raise SystemExit(f"[STOP] failed to upsert genotype_v11 for genotype_code={genotype_code}")
+    if gid is None:
+        raise SystemExit(f"[STOP] failed to upsert genotype_v11 for genotype_code={genotype_code}")
 
-        if toks:
-            rows = cx.execute(sql_lookup_constructs, {"toks": toks}).fetchall()
-            found = [str(r[0]) for r in rows]
-            if len(found) != len(toks):
-                raise SystemExit(
-                    f"[STOP] construct lookup failed for genotype={genotype_code} basecodes={toks!r} "
-                    f"(found {len(found)} of {len(toks)})"
-                )
+    if toks:
+        rows = cx.execute(sql_lookup_constructs, {"toks": toks}).fetchall()
+        found = [str(r[0]) for r in rows]
+        if len(found) != len(toks):
+            raise SystemExit(
+                f"[STOP] construct lookup failed for genotype={genotype_code} basecodes={toks!r} "
+                f"(found {len(found)} of {len(toks)})"
+            )
 
-            for (cid,) in rows:
-                cx.execute(sql_join, {"genotype_id": gid, "construct_id": cid})
+        for (cid,) in rows:
+            cx.execute(sql_join, {"genotype_id": gid, "construct_id": cid})
 
-        return str(gid)
-    
+    return str(gid)
+
 def _assign_clutch_genotypes_strict(
     engine: Engine,
     df_clutches: pd.DataFrame,
@@ -385,19 +383,22 @@ def _assign_clutch_genotypes_strict(
     )
 
     updated = 0
-    with engine.begin() as cx:
-        for r in df.itertuples(index=False):
-            clutch_code = str(r.clutch_code).strip()
-            bc = str(r.genotype_basecodes).strip()
 
-            pretty = None
-            if hasattr(r, "genotype_alleles_display"):
-                v = getattr(r, "genotype_alleles_display")
-                if _nonempty(v):
-                    pretty = str(v).strip()
+    for r in df.itertuples(index=False):
+        clutch_code = str(r.clutch_code).strip()
+        bc = str(r.genotype_basecodes).strip()
 
-            gid = _ensure_genotype(engine, bc, pretty)
+        pretty = None
+        if hasattr(r, "genotype_alleles_display"):
+            v = getattr(r, "genotype_alleles_display")
+            if _nonempty(v):
+                pretty = str(v).strip()
 
+        with engine.begin() as cx:
+            cx.execute(text("SET LOCAL lock_timeout = '5s';"))
+            cx.execute(text("SET LOCAL statement_timeout = '60s';"))
+
+            gid = _ensure_genotype(cx, bc, pretty)
             res = cx.execute(
                 sql_upd,
                 {"gid": gid, "clutch_code": clutch_code, "batch": batch},
@@ -406,7 +407,6 @@ def _assign_clutch_genotypes_strict(
 
     print(f"[OK] loader_legacy_clutches: set genotype_v11_id for {updated} clutch(es) in batch='{batch}'.")
     return updated
-
 def _qc_report(engine: Engine, batch: str, out_dir: pathlib.Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_csv = out_dir / f"qc_missing_genotype_but_has_membership__{batch}.csv"
