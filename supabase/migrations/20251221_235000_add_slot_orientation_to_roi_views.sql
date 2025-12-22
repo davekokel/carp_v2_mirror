@@ -111,11 +111,6 @@ LEFT JOIN public.v11_treated_clutch_genotype_star_labels tg
   ON tg.genotype_code = ps.genotype_code
 LEFT JOIN public.v_genotype_marker_styles_strict gms
   ON gms.genotype_code = ps.genotype_code
-ORDER BY
-  ps.experiment_date DESC NULLS LAST,
-  ps.plate_code,
-  ps.slot_index,
-  r.roi_index_within_slot;
 
 -- -------------------------------------------------------------------
 -- v_roi_overview_rollups (append slot_orientation)
