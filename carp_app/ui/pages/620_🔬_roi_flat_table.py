@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 import pathlib
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -74,6 +74,18 @@ def _load_filter_choices() -> Dict[str, Any]:
     }
 
 
+def _split_canonical_tx(v: Any) -> Tuple[str, str]:
+    if v is None:
+        return ("", "")
+    s = str(v).strip()
+    if not s:
+        return ("", "")
+    if " > " not in s:
+        return (s, "")
+    a, b = s.split(" > ", 1)
+    return (a.strip(), b.strip())
+
+
 def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
     where: List[str] = []
     p: Dict[str, Any] = {}
@@ -88,6 +100,7 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
                     "r.roi_code ILIKE :q",
                     "r.roi_path ILIKE :q",
                     "r.clutch_code ILIKE :q",
+                    "r.treated_clutch_code ILIKE :q",
                     "r.treatment_code ILIKE :q",
                     "r.treatment_text ILIKE :q",
                     "r.tx_gt_tg ILIKE :q",
@@ -171,6 +184,13 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
     with _ENGINE.begin() as con:
         df = pd.read_sql(text(sql), con, params=p)
 
+    if len(df):
+        ft_parts = df["tx_gt_fluortag"].apply(_split_canonical_tx)
+        df["tx_gt_fluortag_parts"] = ft_parts.apply(lambda t: f"treat={t[0]}\ngt={t[1]}".strip())
+
+        fo_parts = df["tx_gt_fluororganelle"].apply(_split_canonical_tx)
+        df["tx_gt_fluororganelle_parts"] = fo_parts.apply(lambda t: f"treat={t[0]}\ngt={t[1]}".strip())
+
     return df
 
 
@@ -200,34 +220,41 @@ df = _load_rois(
     }
 )
 
-st.caption(f"{len(df):,} row(s) shown")
+def _n_nonblank(series: pd.Series) -> int:
+    if series is None or series.name not in df.columns:
+        return 0
+    s = series.astype(str).fillna("").map(lambda x: x.strip())
+    return int((s != "").sum())
+
+n = len(df)
+n_tg = _n_nonblank(df["tx_gt_tg"]) if "tx_gt_tg" in df.columns else 0
+n_ft = _n_nonblank(df["tx_gt_fluortag"]) if "tx_gt_fluortag" in df.columns else 0
+n_fo = _n_nonblank(df["tx_gt_fluororganelle"]) if "tx_gt_fluororganelle" in df.columns else 0
+
+st.caption(f"{n:,} row(s) shown | tx_gt_tg: {n_tg:,}/{n:,} | tx_gt_fluortag: {n_ft:,}/{n:,} | tx_gt_fluororganelle: {n_fo:,}/{n:,}")
 
 show_cols = [c for c in [
     "experiment_date",
     "experiment_name",
-    "plate_note",
-    "slot_note",
     "slot_orientation",
     "roi_code",
     "roi_index_within_slot",
     "roi_path",
-    "roi_note_anatomy",
     "clutch_code",
     "treated_clutch_code",
     "treatment_code",
-    "treatment_text",
     "tx_gt_tg",
     "tx_gt_fluortag",
     "tx_gt_fluororganelle",
-    "rnas_display",
+    "tx_gt_fluortag_parts",
+    "tx_gt_fluororganelle_parts",
     "plasmids_display",
+    "rnas_display",
     "dyes_display",
-    "tg_label",
-    "fluortag_label",
-    "fluororganelle_name",
-    "fluororganelle_basecodes",
+    "roi_note_anatomy",
+    "plate_note",
+    "slot_note",
 ] if c in df.columns]
-
 
 def _esc(v) -> str:
     if v is None:
@@ -237,33 +264,28 @@ def _esc(v) -> str:
               .replace("<", "&lt;")
               .replace(">", "&gt;"))
 
-
 _width_px = {
     "experiment_date": 120,
     "experiment_name": 220,
-    "plate_note": 220,
-    "slot_note": 220,
-    "slot_orientation": 110,
-    "roi_code": 190,
+    "slot_orientation": 90,
+    "roi_code": 220,
     "roi_index_within_slot": 80,
     "roi_path": 520,
-    "roi_note_anatomy": 220,
-    "clutch_code": 160,
+    "clutch_code": 150,
     "treated_clutch_code": 180,
     "treatment_code": 180,
-    "treatment_text": 420,
     "tx_gt_tg": 360,
     "tx_gt_fluortag": 420,
     "tx_gt_fluororganelle": 420,
-    "rnas_display": 220,
-    "plasmids_display": 220,
-    "dyes_display": 180,
-    "tg_label": 240,
-    "fluortag_label": 260,
-    "fluororganelle_name": 200,
-    "fluororganelle_basecodes": 260,
+    "tx_gt_fluortag_parts": 360,
+    "tx_gt_fluororganelle_parts": 360,
+    "plasmids_display": 260,
+    "rnas_display": 260,
+    "dyes_display": 200,
+    "roi_note_anatomy": 220,
+    "plate_note": 220,
+    "slot_note": 220,
 }
-
 
 colgroup = "".join([
     "<col style='width:" + str(_width_px.get(c, 180)) + "px'>"
@@ -315,7 +337,7 @@ css = """
 .carp-roi-table td .cell {
   font-size: 12px;
   line-height: 1.2;
-  white-space: normal;
+  white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
 }

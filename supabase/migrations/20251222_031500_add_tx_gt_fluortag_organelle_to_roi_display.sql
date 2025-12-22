@@ -20,7 +20,7 @@ tokens AS (
   FROM g
   CROSS JOIN LATERAL regexp_split_to_table(
     coalesce(g.genotype_basecodes,''),
-    '[,;[:space:]]+'
+    '[,;|[:space:]]+'
   ) AS tok
   WHERE nullif(btrim(tok),'') IS NOT NULL
 ),
