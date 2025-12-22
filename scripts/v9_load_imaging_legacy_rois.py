@@ -277,20 +277,33 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
     else:
         df["_anatomy_src"] = ""
 
-    df["_anatomy_inf"] = df["roi_path"].map(_infer_anatomy_from_roi_dir)
+    df["_anatomy_inf_path"] = df["roi_path"].map(_infer_anatomy_from_roi_dir)
+
+    if "Imaged Locations" in df.columns:
+        _loc = df["Imaged Locations"].astype(str).fillna("").map(lambda x: x.replace("\u00a0", " ").strip())
+        _loc = _loc.where(~_loc.str.lower().isin(["nan", "none", "<na>"]), "")
+        _loc = _loc.str.replace("|", ",", regex=False).str.replace(";", ",", regex=False)
+        _loc_list = _loc.map(lambda s: sorted({x.strip() for x in s.split(",") if x.strip()}))
+        df["_anatomy_inf_loc"] = _loc_list.map(lambda xs: xs[0] if len(xs) == 1 else "")
+    else:
+        df["_anatomy_inf_loc"] = ""
 
     df["roi_note_anatomy"] = df["_anatomy_src"]
     need_fill = df["roi_note_anatomy"].astype(str).str.strip().eq("")
-    df.loc[need_fill, "roi_note_anatomy"] = df.loc[need_fill, "_anatomy_inf"]
+    df.loc[need_fill, "roi_note_anatomy"] = df.loc[need_fill, "_anatomy_inf_path"]
+
+    need_fill2 = df["roi_note_anatomy"].astype(str).str.strip().eq("")
+    df.loc[need_fill2, "roi_note_anatomy"] = df.loc[need_fill2, "_anatomy_inf_loc"]
 
     n_src = int((df["_anatomy_src"].astype(str).str.strip() != "").sum())
-    n_inf = int((df["_anatomy_inf"].astype(str).str.strip() != "").sum())
+    n_path = int((df["_anatomy_inf_path"].astype(str).str.strip() != "").sum())
+    n_loc = int((df["_anatomy_inf_loc"].astype(str).str.strip() != "").sum())
     n_final = int((df["roi_note_anatomy"].astype(str).str.strip() != "").sum())
 
-    print(f"[ANATOMY] src_nonblank={n_src} inferred_nonblank={n_inf} final_nonblank={n_final} rois={len(df)}")
-    if n_src == 0 and n_inf == 0:
+    print(f"[ANATOMY] src_nonblank={n_src} path_nonblank={n_path} loc_singleton_nonblank={n_loc} final_nonblank={n_final} rois={len(df)}")
+    if n_src == 0 and n_path == 0 and n_loc == 0:
         ex = df[["roi_path"]].head(50)
-        raise SystemExit("[STOP] anatomy inference produced 0 nonblank values; wiring is wrong. Example roi_path:\n" + ex.to_string(index=False))
+        raise SystemExit("[STOP] anatomy inference produced 0 nonblank values (src+path+loc); wiring is wrong. Example roi_path:\n" + ex.to_string(index=False))
 
     plate_codes = sorted(set(df["plate_code"].astype(str).str.strip().tolist()))
     if not plate_codes:

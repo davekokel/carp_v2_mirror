@@ -307,8 +307,16 @@ def main() -> None:
     df["mount_id_inferred"] = df.get("mount_id", pd.Series([pd.NA]*len(df)))
     df["mount_id_source"] = "from_v3"
 
+    # Propagate imaging-sheet anatomy/orientation into v9 compat (source-of-truth for downstream loaders).
+    # No fallbacks: if the columns are absent upstream, they remain NA downstream.
+    if "anatomy_hints" in df.columns:
+        df["roi_anatomy"] = df["anatomy_hints"].astype("string")
+    else:
+        df["roi_anatomy"] = pd.NA
+
     keep_roi_cols = [
         "plate_date",
+        "date_mount",
         "mount_id",
         "mount_id_inferred",
         "plate_id_filled",
@@ -324,6 +332,10 @@ def main() -> None:
         "parent_male_genotype_text",
         "treatment_rna_rna_base_code",
         "treatment_plasmid_plasmid_base_code",
+        "Mounting Orientation",
+        "Imaged Locations",
+        "anatomy_hints",
+        "roi_anatomy",
     ]
     for c in keep_roi_cols:
         if c not in df.columns:
