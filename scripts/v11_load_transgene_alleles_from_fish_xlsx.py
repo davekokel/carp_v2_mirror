@@ -35,11 +35,11 @@ def load_construct_lut(cx) -> dict[str, str]:
               c.id::text        AS construct_id,
               c.construct_code  AS construct_code,
               c.base_code       AS base_code,
-              vc.code_normalized,
-              vc.alias
+              regexp_replace(lower(coalesce(c.base_code, c.construct_code)), '[^a-z0-9]+', '', 'g') AS code_normalized,
+              a.alias           AS alias
             FROM public.constructs c
-            LEFT JOIN public.v_construct_codes_normalized vc
-              ON vc.construct_id = c.id
+            LEFT JOIN public.construct_aliases a
+              ON a.construct_id = c.id
             """
         ),
         cx,
