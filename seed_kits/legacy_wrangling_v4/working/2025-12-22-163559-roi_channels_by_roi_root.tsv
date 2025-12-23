@@ -1,0 +1,1164 @@
+foundation	experiment_key	roi_root	cams	channels	wavelengths_nm	file_exts	n_paths
+Aang_Foundation	20250717_LLS-SIM_test	Aang_Foundation/20250717_LLS-SIM_test/GPUsirecon					9
+Aang_Foundation	20250717_LLS-SIM_test	Aang_Foundation/20250717_LLS-SIM_test/GPUsirecon_1					1
+Aang_Foundation	20250717_LLS-SIM_test	Aang_Foundation/20250717_LLS-SIM_test/GPUsirecon_2					5
+Aang_Foundation	20250717_LLS-SIM_test	Aang_Foundation/20250717_LLS-SIM_test/job_logs					1
+Aang_Foundation	20250721_72hpf_mrna_mSG_organelle_LLS-SIM	Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/er_roi1					6
+Aang_Foundation	20250721_72hpf_mrna_mSG_organelle_LLS-SIM	Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/er_roi2					4
+Aang_Foundation	20250721_72hpf_mrna_mSG_organelle_LLS-SIM	Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/er_roi3					6
+Aang_Foundation	20250721_72hpf_mrna_mSG_organelle_LLS-SIM	Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/er_step_sweep					1
+Aang_Foundation	20250721_72hpf_mrna_mSG_organelle_LLS-SIM	Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/mito_roi1					14
+Aang_Foundation	20250721_72hpf_mrna_mSG_organelle_LLS-SIM	Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/mito_roi2					11
+Aang_Foundation	20250721_72hpf_mrna_mSG_organelle_LLS-SIM	Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/mito_step_sweep					3
+Aang_Foundation	20250722_mem-halo_er-mSG	Aang_Foundation/20250722_mem-halo_er-mSG/fish1_24hpf_roi1					6
+Aang_Foundation	20250722_mem-halo_er-mSG	Aang_Foundation/20250722_mem-halo_er-mSG/fish1_24hpf_roi2					4
+Aang_Foundation	20250722_mem-halo_er-mSG	Aang_Foundation/20250722_mem-halo_er-mSG/fish1_24hpf_roi3					8
+Aang_Foundation	20250722_mem-halo_er-mSG	Aang_Foundation/20250722_mem-halo_er-mSG/fish1_24hpf_roi4					4
+Aang_Foundation	20250722_mem-halo_er-mSG	Aang_Foundation/20250722_mem-halo_er-mSG/fish1_24hpf_roi5					6
+Aang_Foundation	20250722_mem-halo_er-mSG	Aang_Foundation/20250722_mem-halo_er-mSG/fish2_24hpf_roi1					6
+Aang_Foundation	20250722_mem-halo_er-mSG	Aang_Foundation/20250722_mem-halo_er-mSG/fish2_24hpf_roi2					3
+Aang_Foundation	20250722_mem-halo_er-mSG	Aang_Foundation/20250722_mem-halo_er-mSG/fish2_24hpf_roi3					3
+Aang_Foundation	20250722_mem-halo_er-mSG	Aang_Foundation/20250722_mem-halo_er-mSG/fish2_24hpf_roi4					3
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish1_roi1					13
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish1_roi2					10
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish1_roi3					10
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish1_test					7
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish2_48hpf_roi1					10
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish2_48hpf_roi2					10
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish2_48hpf_roi3					10
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish2_48hpf_roi4					10
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish2_48hpf_roi5					10
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish3_48hpf_roi1					9
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish3_48hpf_roi2					9
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish3_48hpf_roi3					9
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/fish3_48hpf_roi4					9
+Aang_Foundation	20250722_mrna_mito-mSG_mem-mChilada	Aang_Foundation/20250722_mrna_mito-mSG_mem-mChilada/job_logs					8
+Aang_Foundation	20250723_er-mSG_mem-mChilada	Aang_Foundation/20250723_er-mSG_mem-mChilada/fish1_24hpf_roi1					12
+Aang_Foundation	20250805_lifeact_mem-halo	Aang_Foundation/20250805_lifeact_mem-halo/fish1_48hpf_roi1					6
+Aang_Foundation	20250805_lifeact_mem-halo	Aang_Foundation/20250805_lifeact_mem-halo/fish1_48hpf_roi2					6
+Aang_Foundation	20250805_lifeact_mem-halo	Aang_Foundation/20250805_lifeact_mem-halo/fish1_48hpf_roi3					5
+Aang_Foundation	20250805_lifeact_mem-halo	Aang_Foundation/20250805_lifeact_mem-halo/fish1_48hpf_roi4					5
+Aang_Foundation	20250805_lifeact_mem-halo	Aang_Foundation/20250805_lifeact_mem-halo/fish1_48hpf_roi5					5
+Aang_Foundation	20250805_mito_mem-halo	Aang_Foundation/20250805_mito_mem-halo/fish1_24hpf_roi1					8
+Aang_Foundation	20250805_mito_mem-halo	Aang_Foundation/20250805_mito_mem-halo/fish1_24hpf_roi2					7
+Aang_Foundation	20250805_mito_mem-halo	Aang_Foundation/20250805_mito_mem-halo/fish2_24hpf_roi1					6
+Aang_Foundation	20250805_mito_mem-halo	Aang_Foundation/20250805_mito_mem-halo/fish2_24hpf_roi2					6
+Aang_Foundation	20250805_mito_mem-halo	Aang_Foundation/20250805_mito_mem-halo/fish2_24hpf_roi3					6
+Aang_Foundation	20250805_mito_mem-halo	Aang_Foundation/20250805_mito_mem-halo/fish3_24hpf_roi1					6
+Aang_Foundation	20250805_mito_mem-halo	Aang_Foundation/20250805_mito_mem-halo/fish3_24hpf_roi2					6
+Aang_Foundation	20250808_mem_organelle	Aang_Foundation/20250808_mem_organelle/fish1_24hpf_mem-mchilada_lyso-mSG					29
+Aang_Foundation	20250808_mem_organelle	Aang_Foundation/20250808_mem_organelle/fish2_24hpf_mem-mchilada_lyso-mSG					17
+Aang_Foundation	20250808_mem_organelle	Aang_Foundation/20250808_mem_organelle/fish3_24hpf_mem-mchilada_mito-mSG					27
+Aang_Foundation	20250808_mem_organelle	Aang_Foundation/20250808_mem_organelle/fish4_24hpf_mem-mchilada_mito-mSG					56
+Aang_Foundation	20250819_mem_ER	Aang_Foundation/20250819_mem_ER/fish1_24hpf_roi2					8
+Aang_Foundation	20250819_mem_ER	Aang_Foundation/20250819_mem_ER/fish1_24hpf_roi3					8
+Aang_Foundation	20250819_mem_ER	Aang_Foundation/20250819_mem_ER/fish1_24hpf_roi4					8
+Aang_Foundation	20250819_mem_ER	Aang_Foundation/20250819_mem_ER/fish1_24hpf_roi5					8
+Aang_Foundation	20250819_mem_ER	Aang_Foundation/20250819_mem_ER/fish2_24hpf_roi1					8
+Aang_Foundation	20250819_mem_ER	Aang_Foundation/20250819_mem_ER/fish2_24hpf_roi2					7
+Aang_Foundation	20250819_mem_ER	Aang_Foundation/20250819_mem_ER/fish2_24hpf_roi3					8
+Aang_Foundation	20250819_mem_ER	Aang_Foundation/20250819_mem_ER/roi1_newscripttest					8
+Aang_Foundation	20250819_mem_ER	Aang_Foundation/20250819_mem_ER/test					4
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish1_24hpf_roi1					8
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish1_24hpf_roi2					7
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish1_24hpf_roi3					8
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish1_24hpf_roi4					7
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish1_24hpf_roi5					7
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish1_24hpf_roi6					7
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish1_24hpf_roi7					7
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish1_24hpf_roi8					7
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish2_24hpf_roi1					8
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish2_24hpf_roi2					8
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish3_24hpf_roi1					8
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish4_48hpf_roi1					13
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish4_48hpf_roi3					13
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish4_48hpf_roi4					12
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish4_48hpf_roi5					12
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish4_48hpf_roi6					13
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish4_48hpf_roi7					12
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish4_48hpf_roi8					12
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi1					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi10					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi11					13
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi12					12
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi13					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi14					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi15					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi16					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi17					2
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi2					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi3					8
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi4					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi5					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi6					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi7					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi8					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish5_48hpf_roi9					1
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish6_48hpf_roi1					13
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish6_48hpf_roi2					12
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish6_48hpf_roi3					12
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish6_48hpf_roi4					12
+Aang_Foundation	20250819_mem_mito	Aang_Foundation/20250819_mem_mito/fish6_48hpf_roi5					12
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish1_24hpf_roi1					13
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish1_24hpf_roi2					13
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish2_24hpf_roi1					12
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish2_24hpf_roi2					12
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish3_24hpf_roi1					12
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish3_24hpf_roi2					12
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish4_24hpf_roi1					13
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish4_24hpf_roi2					12
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish5_24hpf_roi1					8
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish6_24hpf_roi1					13
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish6_24hpf_roi2					12
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish7_48hpf_roi1					13
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish7_48hpf_roi2					12
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish8_48hpf_roi1					13
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish8_48hpf_roi2					12
+Aang_Foundation	20250821_mem_mito	Aang_Foundation/20250821_mem_mito/fish8_48hpf_roi3					5
+Aang_Foundation	20250826_mem_actin	Aang_Foundation/20250826_mem_actin/fish1_24hpf_roi1					13
+Aang_Foundation	20250826_mem_actin	Aang_Foundation/20250826_mem_actin/fish1_24hpf_roi2					13
+Aang_Foundation	20250826_mem_actin	Aang_Foundation/20250826_mem_actin/fish2_24hpf_roi1					12
+Aang_Foundation	20250826_mem_actin	Aang_Foundation/20250826_mem_actin/fish3_24hpf_roi1					13
+Aang_Foundation	20250826_mem_actin	Aang_Foundation/20250826_mem_actin/fish3_24hpf_roi2					12
+Aang_Foundation	20250826_mem_actin	Aang_Foundation/20250826_mem_actin/fish5_24hpf_roi1					12
+Aang_Foundation	20250826_mem_actin	Aang_Foundation/20250826_mem_actin/fish5_24hpf_roi2					12
+Aang_Foundation	20250826_mem_actin	Aang_Foundation/20250826_mem_actin/fish6_24hpf_roi1					13
+Aang_Foundation	20250827_mem_actin	Aang_Foundation/20250827_mem_actin/fish3_48hpf_roi1					13
+Aang_Foundation	20250827_mem_actin	Aang_Foundation/20250827_mem_actin/fish3_48hpf_roi2					13
+Aang_Foundation	20250827_mem_actin	Aang_Foundation/20250827_mem_actin/fish5_48hpf_roi1					13
+Aang_Foundation	20250827_mem_actin	Aang_Foundation/20250827_mem_actin/fish5_48hpf_roi2					12
+Aang_Foundation	20250827_mem_actin	Aang_Foundation/20250827_mem_actin/fish5_48hpf_roi3					12
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish1_24hpf_roi1					13
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish1_24hpf_roi1-2					13
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish1_24hpf_roi2					13
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish1_24hpf_roi3					12
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish2_24hpf_roi1					12
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish2_24hpf_roi2					13
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish2_24hpf_roi2-2					13
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish2_24hpf_roi3					2
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish3_24hpf_roi1					2
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish4_24hpf_roi1					12
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish4_24hpf_roi2					12
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish5_24hpf_roi1					12
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish5_24hpf_roi2					12
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish5_24hpf_roi3					12
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish6_24hpf_roi1					13
+Aang_Foundation	20250828_mem_actin	Aang_Foundation/20250828_mem_actin/fish6_24hpf_roi2					12
+Aang_Foundation	20250903_lifeact-mSG	Aang_Foundation/20250903_lifeact-mSG/fish1_24hpf_roi1					13
+Aang_Foundation	20250903_lifeact-mSG	Aang_Foundation/20250903_lifeact-mSG/fish1_24hpf_roi2					13
+Aang_Foundation	20250903_lifeact-mSG	Aang_Foundation/20250903_lifeact-mSG/fish1_24hpf_roi3					13
+Aang_Foundation	20250903_lifeact-mSG	Aang_Foundation/20250903_lifeact-mSG/fish1_24hpf_roi3_2					13
+Aang_Foundation	20250903_lifeact-mSG	Aang_Foundation/20250903_lifeact-mSG/fish2_24hpf_roi1					13
+Aang_Foundation	20250903_lifeact-mSG	Aang_Foundation/20250903_lifeact-mSG/fish2_24hpf_roi2					13
+Aang_Foundation	20250904_lifeact-mSG	Aang_Foundation/20250904_lifeact-mSG/fish1_24hpf_roi1					13
+Aang_Foundation	20250904_lifeact-mSG	Aang_Foundation/20250904_lifeact-mSG/fish1_24hpf_roi2					13
+Aang_Foundation	20250904_lifeact-mSG	Aang_Foundation/20250904_lifeact-mSG/fish1_24hpf_roi3					13
+Aang_Foundation	20250904_lifeact-mSG	Aang_Foundation/20250904_lifeact-mSG/fish1_24hpf_roi4					13
+Aang_Foundation	20250904_lifeact-mSG	Aang_Foundation/20250904_lifeact-mSG/fish1_24hpf_roi5					13
+Aang_Foundation	20250905_lifeact-mSG	Aang_Foundation/20250905_lifeact-mSG/fish2_72hpf_roi1					13
+Aang_Foundation	20250905_lifeact-mSG	Aang_Foundation/20250905_lifeact-mSG/fish2_72hpf_roi2					13
+Aang_Foundation	20250905_lifeact-mSG	Aang_Foundation/20250905_lifeact-mSG/fish2_72hpf_roi3					13
+Aang_Foundation	20250905_lifeact-mSG	Aang_Foundation/20250905_lifeact-mSG/fish2_72hpf_roi4					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish1_24hpf_roi1					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish1_24hpf_roi2					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish1_24hpf_roi3					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish1_24hpf_roi4					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish2_24hpf_roi1					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish2_24hpf_roi2					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish2_24hpf_roi3					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish2_72hpf_roi1					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish2_72hpf_roi2					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish2_72hpf_roi3					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish2_72hpf_roi4					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish2_72hpf_roi5					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish3_24hpf_roi1					1
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish3_24hpf_roi2					1
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish4_24hpf_roi1					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish4_24hpf_roi2					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish4_24hpf_roi3					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish5_24hpf_roi1					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish5_24hpf_roi2					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish5_24hpf_roi3					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish5_24hpf_roi4					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish6_24hpf_roi1					13
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish6_24hpf_roi2					12
+Aang_Foundation	20250908_mem-mito	Aang_Foundation/20250908_mem-mito/fish6_24hpf_roi3					12
+Aang_Foundation	20250911_mem-mito	Aang_Foundation/20250911_mem-mito/fish1_48hpf_roi1					13
+Aang_Foundation	20250911_mem-mito	Aang_Foundation/20250911_mem-mito/fish1_48hpf_roi2					13
+Aang_Foundation	20250911_mem-mito	Aang_Foundation/20250911_mem-mito/fish1_48hpf_roi3					13
+Aang_Foundation	20250911_mem-mito	Aang_Foundation/20250911_mem-mito/fish1_48hpf_roi4					12
+Aang_Foundation	20250911_mem-mito	Aang_Foundation/20250911_mem-mito/fish1_48hpf_roi5					12
+Aang_Foundation	20250911_mem-mito	Aang_Foundation/20250911_mem-mito/fish2_48hpf_roi1					12
+Aang_Foundation	20250911_mem-mito	Aang_Foundation/20250911_mem-mito/fish2_48hpf_roi2					12
+Aang_Foundation	20250911_mem-mito	Aang_Foundation/20250911_mem-mito/fish2_48hpf_roi3					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish1_72hpf_roi1					13
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish1_72hpf_roi2					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish1_72hpf_roi3					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish1_72hpf_roi4					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish2_72hpf_roi1					13
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish2_72hpf_roi2					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish2_72hpf_roi3					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish2_72hpf_roi4					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi1					13
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi10					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi11					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi12					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi2					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi3					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi4					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi5					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi6					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi7					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi8					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish3_72hpf_roi9					13
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish4_72hpf_roi1					13
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish4_72hpf_roi2					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish4_72hpf_roi3					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish4_72hpf_roi4					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish4_72hpf_roi5					12
+Aang_Foundation	20250912_mem-mito	Aang_Foundation/20250912_mem-mito/fish4_72hpf_roi6					14
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish1_72hpf_roi1					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish1_72hpf_roi2					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish1_72hpf_roi3					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish1_72hpf_roi4					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish1_72hpf_roi5					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish2_72hpf_roi1					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish2_72hpf_roi2					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish2_72hpf_roi3					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish3_72hpf_roi1					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish3_72hpf_roi2					12
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish3_72hpf_roi3					12
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish3_72hpf_roi4					12
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish3_72hpf_roi5					12
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish3_72hpf_roi6					12
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish3_72hpf_roi7					12
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish5_72hpf_roi1					13
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish5_72hpf_roi2					12
+Aang_Foundation	20250915_mem-mito	Aang_Foundation/20250915_mem-mito/fish5_72hpf_roi3					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish1_48hpf_roi1					13
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish1_48hpf_roi2					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish2_48hpf_roi1					13
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish2_48hpf_roi2					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish3_48hpf_roi1					13
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish3_48hpf_roi2					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish3_48hpf_roi3					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish3_48hpf_roi4					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish4_48hpf_roi1					13
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish4_48hpf_roi2					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish4_48hpf_roi3					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish4_48hpf_roi4					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish4_48hpf_roi5					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish4_48hpf_roi6					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish5_48hpf_roi1					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish5_48hpf_roi2					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish5_48hpf_roi3					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish5_48hpf_roi4					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish5_48hpf_roi5					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish6_48hpf_roi1					12
+Aang_Foundation	20250917_mem-mito	Aang_Foundation/20250917_mem-mito/fish6_48hpf_roi2					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish1_72hpf_roi1					13
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish1_72hpf_roi2					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish1_72hpf_roi3					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish1_72hpf_roi4					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish1_72hpf_roi5					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish1_72hpf_roi6					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish2_72hpf_roi1					13
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish2_72hpf_roi2					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish2_72hpf_roi3					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish2_72hpf_roi4					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi1					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi10					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi11					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi2					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi3					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi4					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi5					13
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi6					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi7					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi8					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish3_72hpf_roi9					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish5_72hpf_roi1					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish5_72hpf_roi2					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish5_72hpf_roi3					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish5_72hpf_roi4					12
+Aang_Foundation	20250918_mem-mito	Aang_Foundation/20250918_mem-mito/fish6_72hpf_roi1					12
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish1_24hpf_roi1					13
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish1_24hpf_roi2					13
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish1_24hpf_roi3					12
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish2_24hpf_roi1					12
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish2_24hpf_roi2					12
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish2_24hpf_roi3					12
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish4_24hpf_roi1					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish4_24hpf_roi2					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish4_24hpf_roi3					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish5_24hpf_roi1					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish5_24hpf_roi2					8
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish5_24hpf_roi3					8
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish5_24hpf_roi4					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish7_24hpf_roi1					8
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish7_24hpf_roi2					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish7_24hpf_roi3					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish7_24hpf_roi4					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish7_24hpf_roi5					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish8_24hpf_roi1					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish8_24hpf_roi2					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish8_24hpf_roi3					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish8_24hpf_roi4					7
+Aang_Foundation	20250919_mem-mito	Aang_Foundation/20250919_mem-mito/fish8_24hpf_roi5					9
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish1_72hpf_roi1					13
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish1_72hpf_roi2					13
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish1_72hpf_roi3					12
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish1_72hpf_roi4					12
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish1_72hpf_roi5					12
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish1_72hpf_roi6					13
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish1_72hpf_roi7					12
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish1_72hpf_roi8					12
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish2_72hpf_roi1					8
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish2_72hpf_roi2					7
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish2_72hpf_roi3					7
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish2_72hpf_roi4					7
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish4_72hpf_roi1					7
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish4_72hpf_roi2					5
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish4_72hpf_roi3					1
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish5_72hpf_roi1					8
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish5_72hpf_roi2					7
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish5_72hpf_roi3					7
+Aang_Foundation	20250922_mem-mito	Aang_Foundation/20250922_mem-mito/fish5_72hpf_roi4					7
+Aang_Foundation	20250923_AO_recalib	Aang_Foundation/20250923_AO_recalib/DSH1					5
+Aang_Foundation	20250923_AO_recalib	Aang_Foundation/20250923_AO_recalib/LVScripts					1
+Aang_Foundation	20250923_AO_recalib	Aang_Foundation/20250923_AO_recalib/Logs					1
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/calib					1
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish1_24hpf_roi1					13
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish1_24hpf_roi2					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish1_24hpf_roi3					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish1_24hpf_roi4					13
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish1_24hpf_roi5					13
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish1_24hpf_roi6					13
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish2_24hpf_roi1					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish2_24hpf_roi2					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish3_24hpf_roi1					13
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish3_24hpf_roi1_test					13
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish3_24hpf_roi3					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish3_24hpf_roi4					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish3_24hpf_roi5					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish3_24hpf_roi6					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish3_24hpf_roi7					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish4_24hpf_roi1					13
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish4_24hpf_roi2					12
+Aang_Foundation	20250924_mem-mito	Aang_Foundation/20250924_mem-mito/fish4_24hpf_roi3					13
+Aang_Foundation	20250925_mem-mito	Aang_Foundation/20250925_mem-mito/fish1_48hpf_roi1					13
+Aang_Foundation	20250925_mem-mito	Aang_Foundation/20250925_mem-mito/fish1_48hpf_roi2					13
+Aang_Foundation	20250925_mem-mito	Aang_Foundation/20250925_mem-mito/fish1_48hpf_roi3					12
+Aang_Foundation	20250925_mem-mito	Aang_Foundation/20250925_mem-mito/fish3_48hpf_roi1					13
+Aang_Foundation	20250925_mem-mito	Aang_Foundation/20250925_mem-mito/fish3_48hpf_roi2					12
+Aang_Foundation	20250925_mem-mito	Aang_Foundation/20250925_mem-mito/fish3_48hpf_roi3					12
+Aang_Foundation	20250925_mem-mito	Aang_Foundation/20250925_mem-mito/fish3_48hpf_roi4					12
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish1_48hpf_roi1					13
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish1_48hpf_roi2					13
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish1_48hpf_roi3					13
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish1_48hpf_roi4					12
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish2_48hpf_roi1					13
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish2_48hpf_roi2					13
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish2_48hpf_roi3					12
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish2_48hpf_roi4					12
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish2_48hpf_roi5					1
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish3_48hpf_roi1					13
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish3_48hpf_roi2					12
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish3_48hpf_roi3					12
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish3_48hpf_roi4					12
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish_48hpf_roi1					13
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish_48hpf_roi2					12
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish_48hpf_roi3					12
+Aang_Foundation	20250926_mem-mito	Aang_Foundation/20250926_mem-mito/fish_48hpf_roi4					14
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish1_24hpf_roi1					11
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish1_24hpf_roi2					11
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish2_24hpf_roi1					11
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish2_24hpf_roi2					10
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish2_24hpf_roi3					10
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish4_24hpf_roi1					10
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish4_24hpf_roi2					10
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish5_24hpf_roi1					10
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish5_24hpf_roi2					10
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish5_24hpf_roi3					10
+Aang_Foundation	20251001_mem-histone	Aang_Foundation/20251001_mem-histone/fish5_24hpf_roi4					10
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish10_24hpf_roi1					13
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish10_24hpf_roi2					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish11_24hpf_roi1					13
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish11_24hpf_roi2					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish11_24hpf_roi3					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish12_24hpf_roi1					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish12_24hpf_roi2					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish12_24hpf_roi3					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish12_24hpf_roi4					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish1_24hpf_roi1					13
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish3_24hpf_roi1					13
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish3_24hpf_roi2					13
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish5_24hpf_roi1					13
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish5_24hpf_roi2					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish5_24hpf_roi3					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish6_24hpf_roi1					13
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish6_24hpf_roi2					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish6_24hpf_roi3					13
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish7_24hpf_roi1					13
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish7_24hpf_roi2					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish8_24hpf_roi1					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish8_24hpf_roi2					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish9_24hpf_roi1					12
+Aang_Foundation	20251002_mem_mito	Aang_Foundation/20251002_mem_mito/fish9_24hpf_roi2					12
+Aang_Foundation	20251003_mem_tester	Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi1_brain					6
+Aang_Foundation	20251003_mem_tester	Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi1_brain_2					2
+Aang_Foundation	20251003_mem_tester	Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi2_spine_muscle					6
+Aang_Foundation	20251003_mem_tester	Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi3_spine_muscle_tail					6
+Aang_Foundation	20251003_mem_tester	Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi4_spine_muscle_tail					6
+Aang_Foundation	20251003_mem_tester	Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi5_spine_muscle_tail					6
+Aang_Foundation	20251003_mem_tester	Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi6_spine_muscle_tail					5
+Aang_Foundation	20251003_mem_tester	Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi7_spine_muscle_tail					5
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish1_24hpf_roi1					11
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish1_24hpf_roi2					11
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish1_24hpf_roi3					10
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish1_24hpf_roi4					11
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish3_24hpf_roi1					11
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish3_24hpf_roi2					11
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish4_24hpf_roi1					10
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish4_24hpf_roi2					10
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish4_24hpf_roi3					10
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish6_24hpf_roi1					10
+Aang_Foundation	20251006_mem_histone	Aang_Foundation/20251006_mem_histone/fish6_24hpf_roi2					10
+Aang_Foundation	20251007_mem_histone	Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi1					11
+Aang_Foundation	20251007_mem_histone	Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi2					12
+Aang_Foundation	20251007_mem_histone	Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi2_test					11
+Aang_Foundation	20251007_mem_histone	Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi3					11
+Aang_Foundation	20251007_mem_histone	Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi4					10
+Aang_Foundation	20251007_mem_histone	Aang_Foundation/20251007_mem_histone/fish2_48hpf_roi5					10
+Aang_Foundation	20251007_mem_histone	Aang_Foundation/20251007_mem_histone/fish3_48hpf_roi1					11
+Aang_Foundation	20251009_mem-mito	Aang_Foundation/20251009_mem-mito/fish3_48hpf_roi1					11
+Aang_Foundation	20251009_mem-mito	Aang_Foundation/20251009_mem-mito/fish3_48hpf_roi2					11
+Aang_Foundation	20251009_mem-mito	Aang_Foundation/20251009_mem-mito/fish3_48hpf_roi3					11
+Aang_Foundation	20251009_mem-mito	Aang_Foundation/20251009_mem-mito/fish3_48hpf_roi4					10
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish1_24hpf_roi1					11
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish1_24hpf_roi2					11
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish2_24hpf_roi1					11
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish2_24hpf_roi2					10
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish3_24hpf_roi1					11
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish3_24hpf_roi2					10
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish4_24hpf_roi1					10
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish4_24hpf_roi2					10
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish5_24hpf_roi1					11
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish5_24hpf_roi2					10
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish6_24hpf_roi1					10
+Aang_Foundation	20251010_mem-mito	Aang_Foundation/20251010_mem-mito/fish6_24hpf_roi2					10
+Aang_Foundation	20251013_mem-histone	Aang_Foundation/20251013_mem-histone/fish1_96hpf_roi1					11
+Aang_Foundation	20251013_mem-histone	Aang_Foundation/20251013_mem-histone/fish1_96hpf_roi3					11
+Aang_Foundation	20251013_mem-histone	Aang_Foundation/20251013_mem-histone/fish3_96hpf_roi1					11
+Aang_Foundation	20251013_mem-histone	Aang_Foundation/20251013_mem-histone/fish3_96hpf_roi2					10
+Aang_Foundation	20251013_mem-histone	Aang_Foundation/20251013_mem-histone/fish3_96hpf_roi3					10
+Aang_Foundation	20251013_mem-histone	Aang_Foundation/20251013_mem-histone/fish3_96hpf_roi4					10
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish1_48hpf_roi1					11
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish1_48hpf_roi2					10
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish1_48hpf_roi3					10
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish2_48hpf_roi1					10
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish3_48hpf_roi1					11
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish3_48hpf_roi2					10
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish4_48hpf_roi1					10
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish4_48hpf_roi2					10
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish4_48hpf_roi3					10
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish5_48hpf_roi1					11
+Aang_Foundation	20251015_mem-histone	Aang_Foundation/20251015_mem-histone/fish6_48hpf_roi1					10
+Aang_Foundation	20251016_mem-mito	Aang_Foundation/20251016_mem-mito/fish1_72hpf_roi1					11
+Aang_Foundation	20251016_mem-mito_v2	Aang_Foundation/20251016_mem-mito_v2/fish1_72hpf_roi1					11
+Aang_Foundation	20251016_mem-mito_v2	Aang_Foundation/20251016_mem-mito_v2/fish1_72hpf_roi2					11
+Aang_Foundation	20251017_nuclear_envelope	Aang_Foundation/20251017_nuclear_envelope/fish1_24hpf_roi1_test					11
+Aang_Foundation	20251017_nuclear_envelope	Aang_Foundation/20251017_nuclear_envelope/fish1_24hpf_roi1_test_SIM					11
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish1_72hpf_roi1					11
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish1_72hpf_roi2					10
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish1_72hpf_roi3					10
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish1_72hpf_roi4					10
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish1_72hpf_roi5					10
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish1_72hpf_roi6					10
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish1_72hpf_roi7					10
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish2_72hpf_roi1					11
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish2_72hpf_roi2					11
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish3_72hpf_roi1					11
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish3_72hpf_roi2					11
+Aang_Foundation	20251020_mem-histone	Aang_Foundation/20251020_mem-histone/fish3_72hpf_roi3					10
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish1_24hpf_roi1					11
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish1_24hpf_roi2					11
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish2_24hpf_roi1					11
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish2_24hpf_roi2					10
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish3_24hpf_roi1					10
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish3_24hpf_roi2					10
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish4_24hpf_roi1					10
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish5_24hpf_roi1					10
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish6_24hpf_roi1					10
+Aang_Foundation	20251021_mem-mito	Aang_Foundation/20251021_mem-mito/fish6_24hpf_roi2					10
+Aang_Foundation	20251021_mem-mito_v2	Aang_Foundation/20251021_mem-mito_v2/fish1_24hpf_roi1					11
+Aang_Foundation	20251021_mem-mito_v2	Aang_Foundation/20251021_mem-mito_v2/fish2_24hpf_roi1					11
+Aang_Foundation	20251021_mem-mito_v2	Aang_Foundation/20251021_mem-mito_v2/fish2_24hpf_roi2					10
+Aang_Foundation	20251021_mem-mito_v2	Aang_Foundation/20251021_mem-mito_v2/fish4_24hpf_roi1					10
+Aang_Foundation	20251021_mem-mito_v2	Aang_Foundation/20251021_mem-mito_v2/fish4_24hpf_roi2					10
+Aang_Foundation	20251021_mem-mito_v2	Aang_Foundation/20251021_mem-mito_v2/fish4_24hpf_roi3					10
+Aang_Foundation	20251021_mem-mito_v2	Aang_Foundation/20251021_mem-mito_v2/fish4_24hpf_roi4					10
+Aang_Foundation	20251022_mem-mito	Aang_Foundation/20251022_mem-mito/fish1_48hpf_roi1					11
+Aang_Foundation	20251022_mem-mito	Aang_Foundation/20251022_mem-mito/fish3_48hpf_roi1					11
+Aang_Foundation	20251022_mem-mito	Aang_Foundation/20251022_mem-mito/fish3_48hpf_roi2					10
+Aang_Foundation	20251022_mem-mito	Aang_Foundation/20251022_mem-mito/fish4_48hpf_roi1					10
+Aang_Foundation	20251023_mem-mito	Aang_Foundation/20251023_mem-mito/fish1_24hpf_roi1					13
+Aang_Foundation	20251023_mem-mito	Aang_Foundation/20251023_mem-mito/fish1_24hpf_roi2					11
+Aang_Foundation	20251023_mem-mito	Aang_Foundation/20251023_mem-mito/fish3_24hpf_roi1					11
+Aang_Foundation	20251027_mem-histone	Aang_Foundation/20251027_mem-histone/fish1_120hpf_roi1					11
+Aang_Foundation	20251027_mem-histone	Aang_Foundation/20251027_mem-histone/fish1_120hpf_roi2					11
+Aang_Foundation	20251027_mem-histone	Aang_Foundation/20251027_mem-histone/fish3_120hpf_roi1					11
+Aang_Foundation	20251027_mem-histone	Aang_Foundation/20251027_mem-histone/fish3_120hpf_roi2					11
+Aang_Foundation	20251027_mem-histone	Aang_Foundation/20251027_mem-histone/fish3_120hpf_roi3					10
+Aang_Foundation	20251027_mem-histone	Aang_Foundation/20251027_mem-histone/fish3_120hpf_roi4					10
+Aang_Foundation	20251027_mem-histone	Aang_Foundation/20251027_mem-histone/fish3_120hpf_roi5					10
+Aang_Foundation	20251027_mem-histone	Aang_Foundation/20251027_mem-histone/fish3_120hpf_roi6					10
+Aang_Foundation	20251027_mem-histone	Aang_Foundation/20251027_mem-histone/fish3_120hpf_roi7					10
+Aang_Foundation	20251028_mem-mito	Aang_Foundation/20251028_mem-mito/fish1_24hpf_roi1					11
+Aang_Foundation	20251028_mem-peroxi	Aang_Foundation/20251028_mem-peroxi/fish1_24hpf_roi1					11
+Aang_Foundation	20251028_mem-peroxi	Aang_Foundation/20251028_mem-peroxi/fish4_24hpf_roi1					11
+Aang_Foundation	20251028_mem-peroxi	Aang_Foundation/20251028_mem-peroxi/fish4_24hpf_roi2					10
+Aang_Foundation	20251028_mem-peroxi	Aang_Foundation/20251028_mem-peroxi/fish5_24hpf_roi1					10
+Aang_Foundation	20251028_mem-peroxi	Aang_Foundation/20251028_mem-peroxi/fish5_24hpf_roi2					10
+Aang_Foundation	20251028_mem-peroxi2	Aang_Foundation/20251028_mem-peroxi2/fish1_24hpf_roi1					11
+Aang_Foundation	20251028_mem-peroxi2	Aang_Foundation/20251028_mem-peroxi2/fish2_24hpf_roi1					11
+Aang_Foundation	20251028_mem-peroxi2	Aang_Foundation/20251028_mem-peroxi2/fish4_24hpf_roi1					11
+Aang_Foundation	20251028_mem-peroxi2	Aang_Foundation/20251028_mem-peroxi2/fish5_24hpf_roi1					11
+Aang_Foundation	20251028_mem-peroxi2	Aang_Foundation/20251028_mem-peroxi2/fish6_24hpf_roi1					10
+Aang_Foundation	20251029_peroxi	Aang_Foundation/20251029_peroxi/fish1_roi1					1
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish1_24hpf_roi1					11
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish2_24hpf_roi1					11
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish2_24hpf_roi2					10
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish2_24hpf_roi3					2
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish3_24hpf_roi1					11
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish3_24hpf_roi2					11
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish4_24hpf_roi1					11
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish4_24hpf_roi2					10
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish5_24hpf_roi1					11
+Aang_Foundation	20251105_mem-mito	Aang_Foundation/20251105_mem-mito/fish5_24hpf_roi2					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish1_48hpf_roi1					11
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish1_48hpf_roi2					11
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish1_48hpf_roi3					9
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish1_48hpf_roi4					2
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish2_48hpf_roi1					11
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish2_48hpf_roi2					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish2_48hpf_roi3					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish2_48hpf_roi4					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish3_48hpf_roi1					11
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish3_48hpf_roi2					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish3_48hpf_roi3					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish4_48hpf_roi1					11
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish4_48hpf_roi2					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish4_48hpf_roi3					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish4_48hpf_roi4					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish5_48hpf_roi1					11
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish5_48hpf_roi2					10
+Aang_Foundation	20251106_mem-mito	Aang_Foundation/20251106_mem-mito/fish5_48hpf_roi3					10
+Aang_Foundation	20251107_mem-kinectocore	Aang_Foundation/20251107_mem-kinectocore/fish1_72hpf_roi1					6
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish1_24hpf_roi1					11
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish1_24hpf_roi1-2					11
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish1_24hpf_roi2					10
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish1_24hpf_roi3					11
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish2_24hpf_roi1					8
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish2_24hpf_roi2					1
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish2_24hpf_roi3					11
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish3_24hpf_roi1					11
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish3_24hpf_roi2					10
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish4_24hpf_roi1					10
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish4_24hpf_roi2					10
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish5_24hpf_roi1					10
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish5_24hpf_roi2					10
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish6_24hpf_roi1					10
+Aang_Foundation	20251107_mem-mito	Aang_Foundation/20251107_mem-mito/fish6_24hpf_roi2					10
+Aang_Foundation	20251124_mem-histone	Aang_Foundation/20251124_mem-histone/fish2_72hpf_roi1					4
+Aang_Foundation	20251125_mem-histone	Aang_Foundation/20251125_mem-histone/fish1_96hpf_roi1					4
+Aang_Foundation	20251125_mem-histone	Aang_Foundation/20251125_mem-histone/fish1_96hpf_roi2					4
+Aang_Foundation	20251126_mem-histone	Aang_Foundation/20251126_mem-histone/fish1_120hpf_roi1					4
+Aang_Foundation	20251126_mem-histone	Aang_Foundation/20251126_mem-histone/fish2_120hpf_roi1					4
+Aang_Foundation	20251126_mem-histone	Aang_Foundation/20251126_mem-histone/fish2_120hpf_roi2					3
+Aang_Foundation	20251128_mem-histone	Aang_Foundation/20251128_mem-histone/fish2_48hpf_roi1					4
+Aang_Foundation	20251128_mem-histone	Aang_Foundation/20251128_mem-histone/fish3_48hpf_roi1					4
+Aang_Foundation	20251202_mem-cytosolic	Aang_Foundation/20251202_mem-cytosolic/fish1_24hpf_roi1					4
+Aang_Foundation	20251202_mem-cytosolic	Aang_Foundation/20251202_mem-cytosolic/fish2_24hpf_roi1					4
+Aang_Foundation	20251202_mem-cytosolic	Aang_Foundation/20251202_mem-cytosolic/fish3_24hpf_roi1					3
+Aang_Foundation	20251202_mem-cytosolic	Aang_Foundation/20251202_mem-cytosolic/fish4_24hpf_roi1					3
+Aang_Foundation	20251202_mem-cytosolic	Aang_Foundation/20251202_mem-cytosolic/fish5_24hpf_roi1					3
+Aang_Foundation	20251203_mem-cytosolic	Aang_Foundation/20251203_mem-cytosolic/fish1_48hpf_roi1					4
+Aang_Foundation	20251203_mem-cytosolic	Aang_Foundation/20251203_mem-cytosolic/fish2_48hpf_roi1					4
+Aang_Foundation	20251203_mem-cytosolic	Aang_Foundation/20251203_mem-cytosolic/fish3_48hpf_roi1					3
+Aang_Foundation	20251203_mem-cytosolic	Aang_Foundation/20251203_mem-cytosolic/fish4_48hpf_roi1					3
+Aang_Foundation	20251204_cdk_sensor_red_mem_red_nuc	Aang_Foundation/20251204_cdk_sensor_red_mem_red_nuc/fish1_24hpf_roi1	CamA;CamB	ch0	488	.zarr	11705
+Aang_Foundation	20251204_cdk_sensor_red_mem_red_nuc	Aang_Foundation/20251204_cdk_sensor_red_mem_red_nuc/fish3_24hpf_roi1					10
+Aang_Foundation	20251204_cdk_sensor_red_mem_red_nuc	Aang_Foundation/20251204_cdk_sensor_red_mem_red_nuc/fish6_24hpf_roi1					11
+Aang_Foundation	20251205_mem-histone	Aang_Foundation/20251205_mem-histone/fish1_96hpf_roi1					11
+Aang_Foundation	20251205_mem-histone	Aang_Foundation/20251205_mem-histone/fish1_96hpf_roi2					10
+Aang_Foundation	20251205_mem-histone	Aang_Foundation/20251205_mem-histone/fish1_96hpf_roi3					10
+Aang_Foundation	20251205_mem-histone	Aang_Foundation/20251205_mem-histone/fish1_96hpf_roi4					10
+Aang_Foundation	20251205_mem-histone	Aang_Foundation/20251205_mem-histone/fish2_96hpf_roi1					10
+Aang_Foundation	20251205_mem-histone	Aang_Foundation/20251205_mem-histone/fish2_96hpf_roi2					10
+Aang_Foundation	20251205_mem-histone	Aang_Foundation/20251205_mem-histone/fish2_96hpf_roi3					10
+Aang_Foundation	20251205_mem-histone	Aang_Foundation/20251205_mem-histone/fish2_96hpf_roi4					10
+Aang_Foundation	20251208_mem	Aang_Foundation/20251208_mem/fish1_24hpf_roi1					14
+Aang_Foundation	20251208_mem	Aang_Foundation/20251208_mem/fish1_24hpf_roi2					13
+Aang_Foundation	20251208_mem	Aang_Foundation/20251208_mem/fish2_24hpf_roi1					12
+Aang_Foundation	20251208_mem	Aang_Foundation/20251208_mem/fish2_24hpf_roi2					1
+Aang_Foundation	20251208_mem	Aang_Foundation/20251208_mem/fish3_24hpf_roi1					12
+Aang_Foundation	20251208_mem	Aang_Foundation/20251208_mem/fish4_24hpf_roi1					13
+Aang_Foundation	20251209_mem-histone	Aang_Foundation/20251209_mem-histone/fish2_24hpf_roi1					9
+Aang_Foundation	20251209_mem-histone	Aang_Foundation/20251209_mem-histone/fish2_24hpf_roi1CAM2					1
+Aang_Foundation	20251209_mem-histone	Aang_Foundation/20251209_mem-histone/fish3_24hpf_roi1					10
+Aang_Foundation	20251209_mem-histone	Aang_Foundation/20251209_mem-histone/fish3_24hpf_roi1CAM2					1
+Aang_Foundation	20251209_mem-histone	Aang_Foundation/20251209_mem-histone/fish4_24hpf_roi1					13
+Aang_Foundation	20251209_mem-histone	Aang_Foundation/20251209_mem-histone/fish4_24hpf_roi1CAM2					1
+Aang_Foundation	20251210_mem-histone	Aang_Foundation/20251210_mem-histone/fish1_48hpf_roi1					10
+Aang_Foundation	20251210_mem-histone	Aang_Foundation/20251210_mem-histone/fish1_48hpf_roi1CAM2					1
+Aang_Foundation	20251210_mem-histone	Aang_Foundation/20251210_mem-histone/fish2_48hpf_roi1					2
+Aang_Foundation	20251210_mem-histone	Aang_Foundation/20251210_mem-histone/fish4_48hpf_roi1					9
+Aang_Foundation	20251210_mem-histone	Aang_Foundation/20251210_mem-histone/fish4_48hpf_roi1-2					10
+Aang_Foundation	20251210_mem-histone	Aang_Foundation/20251210_mem-histone/fish4_48hpf_roi1-2CAM2					1
+Aang_Foundation	20251210_mem-histone	Aang_Foundation/20251210_mem-histone/fish4_48hpf_roi1CAM2					1
+Aang_Foundation	20251211_mem-histone	Aang_Foundation/20251211_mem-histone/fish1_72hpf_roi1					10
+Aang_Foundation	20251211_mem-histone	Aang_Foundation/20251211_mem-histone/fish1_72hpf_roi1CAM2					1
+Aang_Foundation	20251211_mem-histone	Aang_Foundation/20251211_mem-histone/fish3_72hpf_roi1					10
+Aang_Foundation	20251211_mem-histone	Aang_Foundation/20251211_mem-histone/fish3_72hpf_roi1CAM2					1
+Aang_Foundation	20251212_mem-histone	Aang_Foundation/20251212_mem-histone/fish2_96hpf_roi1					10
+Aang_Foundation	20251212_mem-histone	Aang_Foundation/20251212_mem-histone/fish2_96hpf_roi1CAM2					1
+Aang_Foundation	20251212_mem-histone	Aang_Foundation/20251212_mem-histone/fish3_96hpf_roi1					10
+Aang_Foundation	20251212_mem-histone	Aang_Foundation/20251212_mem-histone/fish3_96hpf_roi1CAM2					1
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish1_24hpf_roi1					10
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish1_24hpf_roi1CAM2					1
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish2_24hpf_roi1					10
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish2_24hpf_roi1CAM2					1
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish3_24hpf_roi1					9
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish3_24hpf_roi1CAM2					1
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish4_24hpf_roi1					11
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish4_24hpf_roi1-2					10
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish4_24hpf_roi1-2CAM2					1
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish4_24hpf_roi1CAM2					1
+Aang_Foundation	20251216_mem-histone	Aang_Foundation/20251216_mem-histone/fish5_24hpf_roi1					2
+Aang_Foundation	20251217_mem-histone	Aang_Foundation/20251217_mem-histone/fish1_48hpf_roi1					10
+Aang_Foundation	20251217_mem-histone	Aang_Foundation/20251217_mem-histone/fish1_48hpf_roi1CAM2					1
+Aang_Foundation	20251217_mem-histone	Aang_Foundation/20251217_mem-histone/fish2_48hpf_roi1					10
+Aang_Foundation	20251217_mem-histone	Aang_Foundation/20251217_mem-histone/fish2_48hpf_roi1CAM2					1
+Aang_Foundation	20251217_mem-histone	Aang_Foundation/20251217_mem-histone/fish3_48hpf_roi1					9
+Aang_Foundation	20251217_mem-histone	Aang_Foundation/20251217_mem-histone/fish3_48hpf_roi1CAM2					1
+Aang_Foundation	20251217_mem-histone	Aang_Foundation/20251217_mem-histone/fish4_48hpf_roi1					10
+Aang_Foundation	20251217_mem-histone	Aang_Foundation/20251217_mem-histone/fish4_48hpf_roi1CAM2					1
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish1_96hpf_roi1					10
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish1_96hpf_roi1CAM2					1
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish3_96hpf_roi1					1
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish3_96hpf_roi2					1
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish3_96hpf_roi3					1
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish3_96hpf_roi4					1
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish3_96hpf_roi5					10
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish3_96hpf_roi5CAM2					1
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish3_96hpf_roi6					10
+Aang_Foundation	20251219_mem-histone	Aang_Foundation/20251219_mem-histone/fish3_96hpf_roi6CAM2					1
+Aang_Foundation	20251222_mem-histone	Aang_Foundation/20251222_mem-histone/fish1_72hpf_roi1					10
+Aang_Foundation	20251222_mem-histone	Aang_Foundation/20251222_mem-histone/fish1_72hpf_roi1CAM2					1
+Aang_Foundation	20251222_mem-histone	Aang_Foundation/20251222_mem-histone/fish1_72hpf_roi2					2
+Aang_Foundation	Denoising	Aang_Foundation/Denoising/20251028_peroxi					11
+Aang_Foundation	Denoising	Aang_Foundation/Denoising/20251029_mem-histone					66
+Aang_Foundation	Denoising	Aang_Foundation/Denoising/20251029_peroxi					23
+Aang_Foundation	Denoising	Aang_Foundation/Denoising/ER_mStayGold					6
+Aang_Foundation	LLS-SIM_PSF	Aang_Foundation/LLS-SIM_PSF/archive					1
+Aang_Foundation	chromatic_shift	Aang_Foundation/chromatic_shift/20230923					1
+Aang_Foundation	chromatic_shift	Aang_Foundation/chromatic_shift/20250919					1
+Aang_Foundation	script	Aang_Foundation/script/archive					1
+Korra_Foundation	20250428_mem_histone	Korra_Foundation/20250428_mem_histone/fish1_72hpf					37
+Korra_Foundation	20250429_mem_cytosol	Korra_Foundation/20250429_mem_cytosol/fish1_24hpf					33
+Korra_Foundation	20250429_mem_cytosol	Korra_Foundation/20250429_mem_cytosol/fish2_48hpf					17
+Korra_Foundation	20250429_mem_cytosol	Korra_Foundation/20250429_mem_cytosol/fish3_mem-halo_24hpf					33
+Korra_Foundation	20250429_mem_cytosol	Korra_Foundation/20250429_mem_cytosol/fish4_mem-halo_48hpf	CamA;CamB	ch0;ch1	488;642	.zarr	14020
+Korra_Foundation	20250505_fish_transplant	Korra_Foundation/20250505_fish_transplant/0505_fish1_14somite	CamA	ch0	488	.zarr	3189
+Korra_Foundation	20250505_fish_transplant	Korra_Foundation/20250505_fish_transplant/0506_fish1_memSG_lamp-SG_transmSC_14somite	CamA;CamB	ch0;ch1	488	.zarr	679
+Korra_Foundation	20250505_fish_transplant	Korra_Foundation/20250505_fish_transplant/0506_fish2_memSG_vemHalo_transmSC	CamA;CamB	ch0;ch1;ch2	488;560	.zarr;.zarr_a88ef935-a1d6-403b-8f03-3501d4b7e597	6340
+Korra_Foundation	20250505_fish_transplant	Korra_Foundation/20250505_fish_transplant/0507_fish1_mchilada_mitoHalo_transmSG	CamA;CamB	ch0;ch1;ch2	488;560	.zarr;.zarr_f06a0c7e-85b2-4fb9-ae1e-180da38a29d2	1325
+Korra_Foundation	20250505_fish_transplant	Korra_Foundation/20250505_fish_transplant/0507_fish2_mchilada_lifeactHalo_transmSG					5
+Korra_Foundation	20250505_fish_transplant	Korra_Foundation/20250505_fish_transplant/0508_fish1_mem-mchilada_transmSG	CamA;CamB	ch0;ch1	488	.zarr	1832
+Korra_Foundation	20250505_fish_transplant	Korra_Foundation/20250505_fish_transplant/0508_fish2_mem-mchilada_transmSG	CamA;CamB	ch0;ch1	488	.zarr;.zarr_cea133a5-a21b-4fa6-94f2-ecbe62de6bfb	1834
+Korra_Foundation	20250505_fish_transplant	Korra_Foundation/20250505_fish_transplant/0509_fish1_transmSG_lifeactHalo					4
+Korra_Foundation	20250505_fish_transplant	Korra_Foundation/20250505_fish_transplant/0509_fish2_transmSG_lifeactHalo					4
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/denoise					1
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish1	CamA;CamB	ch0;ch1;ch2;ch3;ch4	405;445;488;514	.zarr	135
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish10					16
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish11					32
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish12	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr	218
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish13	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr	254
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish14	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr	173
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish15	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr	629
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish16	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr	90
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish2					35
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish3	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr	559
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish4	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr;.zarr_1d65d382-e0d9-4777-aaa3-19dff48ff300;.zarr_5702ff93-693c-4773-bc7d-5eb7e83efe60;.zarr_eb919013-c738-4d3d-b4a7-49b48ebf06b7;.zarr_f5c98289-abe9-4551-8ffb-4f5f7d9fe7e6	300
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish5	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr	756
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish6	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr;.zarr_3fd5cd9e-0024-4c14-be32-97ce3d4a6a26	332
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish7	CamA;CamB	ch0;ch1;ch2;ch3;ch4;ch5	405;445;488;514	.zarr	214
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish8					17
+Korra_Foundation	20250513_skittles	Korra_Foundation/20250513_skittles/fish9					17
+Korra_Foundation	20250520_mem_histone	Korra_Foundation/20250520_mem_histone/fish2					19
+Korra_Foundation	20250520_mem_histone	Korra_Foundation/20250520_mem_histone/fish4	CamA;CamB	ch0	488	.zarr	1055
+Korra_Foundation	20250520_mem_histone	Korra_Foundation/20250520_mem_histone/fish5					19
+Korra_Foundation	20250521_skittles_no-membrane	Korra_Foundation/20250521_skittles_no-membrane/fish1					8
+Korra_Foundation	20250521_skittles_no-membrane	Korra_Foundation/20250521_skittles_no-membrane/fish2					13
+Korra_Foundation	20250521_skittles_no-membrane	Korra_Foundation/20250521_skittles_no-membrane/fish3					7
+Korra_Foundation	20250521_skittles_no-membrane	Korra_Foundation/20250521_skittles_no-membrane/fish4					15
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/fish1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	113
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/fish2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr;.zarr_d0d67567-334b-4fb6-83f9-cebc7c039997	112
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/fish3	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	166
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/fish4	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	112
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/fish5	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	69
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/fish6	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	112
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/fish7	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	166
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/fish8	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	166
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/fish9	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	62
+Korra_Foundation	20250522_skittlez	Korra_Foundation/20250522_skittlez/job_logs					2
+Korra_Foundation	20250523_mem_histone	Korra_Foundation/20250523_mem_histone/fish1					17
+Korra_Foundation	20250523_mem_histone	Korra_Foundation/20250523_mem_histone/fish2					18
+Korra_Foundation	20250523_mem_histone	Korra_Foundation/20250523_mem_histone/fish3					17
+Korra_Foundation	20250523_mem_histone	Korra_Foundation/20250523_mem_histone/fish4					17
+Korra_Foundation	20250523_mem_histone	Korra_Foundation/20250523_mem_histone/fish5					19
+Korra_Foundation	20250523_mem_histone	Korra_Foundation/20250523_mem_histone/fish6_test					35
+Korra_Foundation	20250528_mem-histone	Korra_Foundation/20250528_mem-histone/fish1					19
+Korra_Foundation	20250528_mem-histone	Korra_Foundation/20250528_mem-histone/fish2					19
+Korra_Foundation	20250528_mem-histone	Korra_Foundation/20250528_mem-histone/fish3					19
+Korra_Foundation	20250528_skittlez	Korra_Foundation/20250528_skittlez/fish1					35
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish10_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	81
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish11_roi1_eye	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	74
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish11_roi1_eye_2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	81
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish12_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	80
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish13_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	80
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish14_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	80
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish14_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	80
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish14_roi3	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	65
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish15_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	92
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish1_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	84
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish1_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	80
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish1_roi3	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	80
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish2_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	86
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish2_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	87
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish4_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	87
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish5_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	86
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish5_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	86
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish6_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	86
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish7_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	59
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish8_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	65
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish9_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	65
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/fish9_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	80
+Korra_Foundation	20250529_skittlez	Korra_Foundation/20250529_skittlez/job_logs					5
+Korra_Foundation	20250530_mem-histone	Korra_Foundation/20250530_mem-histone/fish1_roi1					18
+Korra_Foundation	20250530_mem-histone	Korra_Foundation/20250530_mem-histone/fish1_roi1-2					18
+Korra_Foundation	20250530_mem-histone	Korra_Foundation/20250530_mem-histone/fish2_roi1					19
+Korra_Foundation	20250602_mem	Korra_Foundation/20250602_mem/fish2_roi1					16
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish10_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	68
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish11_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish12_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	79
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish13_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish14_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	91
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish15_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr;.zarr_3bbaf918-505c-4706-ac1b-43d44594a37c	74
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish16_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	61
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish1_roi1					5
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish1_roi1_1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish2_roi1					18
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish2_roi1_1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	56
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish3_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	61
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish4_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	73
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish6_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	85
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish7_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	67
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish8_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	56
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish9_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	56
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish9_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	56
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/fish9_roi3	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250603_skittlez	Korra_Foundation/20250603_skittlez/job_logs					2
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish10_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish10_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish11_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	56
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish11_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	61
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish12_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish13_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish13_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish14_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish1_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	62
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish2_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	56
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish2_roi12	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish3_roi12	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish3_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish4_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish5_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	48
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish5_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	48
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish6_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish7_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	56
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish8_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	48
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish9_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/fish9_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	55
+Korra_Foundation	20250605_skittlez	Korra_Foundation/20250605_skittlez/job_logs					2
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish10_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	58
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish11_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish11_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish12_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish12_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish13_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr;.zarr_73da8421-4dc9-43fc-ac18-f6eefed118a4	59
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish13_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish14_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish14_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish14_roi3	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish15_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish15_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish15_roi3	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr;.zarr_ee27bb10-94a6-4b7c-a1c2-366abdaeb45c	58
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish1_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	58
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish2_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish3_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish4_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish6_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish7_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish7_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish8_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	58
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish9_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	58
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/fish9_roi2	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	57
+Korra_Foundation	20250606_skittlez	Korra_Foundation/20250606_skittlez/job_logs					2
+Korra_Foundation	20250609_mem-histone	Korra_Foundation/20250609_mem-histone/fish11_72hpf_roi1					19
+Korra_Foundation	20250609_mem-histone	Korra_Foundation/20250609_mem-histone/fish2_24hpf_roi1					16
+Korra_Foundation	20250609_mem-histone	Korra_Foundation/20250609_mem-histone/fish2_24hpf_roi2					16
+Korra_Foundation	20250609_mem-histone	Korra_Foundation/20250609_mem-histone/fish3_24hpf_roi1					15
+Korra_Foundation	20250609_mem-histone	Korra_Foundation/20250609_mem-histone/fish4_24hpf_roi1					15
+Korra_Foundation	20250609_mem-histone	Korra_Foundation/20250609_mem-histone/fish5_24hpf_roi1					15
+Korra_Foundation	20250609_mem-histone	Korra_Foundation/20250609_mem-histone/fish5_48hpf_roi2					16
+Korra_Foundation	20250609_mem-histone	Korra_Foundation/20250609_mem-histone/fish6_48hpf_roi1					16
+Korra_Foundation	20250609_mem-histone	Korra_Foundation/20250609_mem-histone/fish6_48hpf_roi2					16
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish1_roi1					16
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish2_roi1					16
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish3_roi1					15
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish4_roi1					15
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish5_roi1					15
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish5_roi2					15
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish5_roi3					15
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish6_roi1					15
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish7_roi1					15
+Korra_Foundation	20250612_skittlez	Korra_Foundation/20250612_skittlez/fish8_roi1					15
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish10_roi1					15
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish11_roi1					15
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish12_roi1					15
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish13_roi1					2
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish1_roi1					16
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish2_roi1					15
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish3_roi1					15
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish4_roi1					15
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish5_roi1					15
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish6_roi1					16
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish7_roi					16
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish8_roi1					15
+Korra_Foundation	20250613_skittlez	Korra_Foundation/20250613_skittlez/fish9_roi1					16
+Korra_Foundation	20250616_mem-histone	Korra_Foundation/20250616_mem-histone/fish1_24hpf_roi1_brain					16
+Korra_Foundation	20250616_mem-histone	Korra_Foundation/20250616_mem-histone/fish1_72hpf_roi1-ear					16
+Korra_Foundation	20250616_mem-histone	Korra_Foundation/20250616_mem-histone/fish1_72hpf_roi2_muscle					16
+Korra_Foundation	20250616_mem-histone	Korra_Foundation/20250616_mem-histone/fish2_24hpf_roi1_brain					16
+Korra_Foundation	20250616_mem-histone	Korra_Foundation/20250616_mem-histone/fish3_24hpf_roi1_brain					16
+Korra_Foundation	20250616_mem-histone	Korra_Foundation/20250616_mem-histone/fish4_24hpf_roi1_brain					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish10_roi1					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish10_roi2					16
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish10_roi3					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish10_roi4					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish11_roi1					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish1_roi1					16
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish1_roi1_2					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish2_roi1					16
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish3_roi1					16
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish4_roi1					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish5_roi1					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish6_roi1					16
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish6_roi2					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish7_roi1					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish7_roi2					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish7_roi3					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish7_roi4					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish8_roi1					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish8_roi2					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish8_roi3					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish8_roi4					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish9_roi1					15
+Korra_Foundation	20250618_skittlez	Korra_Foundation/20250618_skittlez/fish9_roi2					15
+Korra_Foundation	20250619_skittlez	Korra_Foundation/20250619_skittlez/fish1_roi1					16
+Korra_Foundation	20250619_skittlez	Korra_Foundation/20250619_skittlez/fish1_roi2					15
+Korra_Foundation	20250619_skittlez	Korra_Foundation/20250619_skittlez/fish2_roi1					15
+Korra_Foundation	20250619_skittlez	Korra_Foundation/20250619_skittlez/fish3_roi1					15
+Korra_Foundation	20250619_skittlez	Korra_Foundation/20250619_skittlez/fish3_roi2					15
+Korra_Foundation	20250619_skittlez	Korra_Foundation/20250619_skittlez/fish4_roi1					16
+Korra_Foundation	20250619_skittlez	Korra_Foundation/20250619_skittlez/fish5_roi1					15
+Korra_Foundation	20250619_skittlez	Korra_Foundation/20250619_skittlez/fish5_roi2					15
+Korra_Foundation	20250620_mitomSG	Korra_Foundation/20250620_mitomSG/fish1_roi1	CamA	ch0	488	.zarr	35
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish2_roi1					16
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish3_roi1					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish3_roi2					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish3_roi3					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish4_roi1					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish4_roi2					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish4_roi3					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish4_roi4					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish5_roi1					17
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish5_roi1-1					16
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish6_roi1					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish6_roi2					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish6_roi3					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish7_roi1					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish7_roi2					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish7_roi3					15
+Korra_Foundation	20250624_skittlez_Chris_x_Liam	Korra_Foundation/20250624_skittlez_Chris_x_Liam/fish7_roi4					15
+Korra_Foundation	20250624_skittlez_Issac_x_Ken	Korra_Foundation/20250624_skittlez_Issac_x_Ken/fish1_roi1					16
+Korra_Foundation	20250624_skittlez_Issac_x_Ken	Korra_Foundation/20250624_skittlez_Issac_x_Ken/fish2_roi1					15
+Korra_Foundation	20250624_skittlez_Issac_x_Ken	Korra_Foundation/20250624_skittlez_Issac_x_Ken/fish2_roi2					15
+Korra_Foundation	20250624_skittlez_Issac_x_Ken	Korra_Foundation/20250624_skittlez_Issac_x_Ken/fish3_roi1					15
+Korra_Foundation	20250624_skittlez_Issac_x_Ken	Korra_Foundation/20250624_skittlez_Issac_x_Ken/fish4_roi1					15
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish1_roi1					16
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish1_roi2					15
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish3_roi1					15
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish4_roi1					15
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish5_roi1					15
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish5_roi2					15
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish7_roi1					15
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish8_roi1					15
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish8_roi2					15
+Korra_Foundation	20250625_skittlez	Korra_Foundation/20250625_skittlez/fish9_roi1					15
+Korra_Foundation	20250626_mem-histone	Korra_Foundation/20250626_mem-histone/fish1_48hpf_brain					18
+Korra_Foundation	20250626_mem-histone	Korra_Foundation/20250626_mem-histone/fish3_48hpf_hindbrain-to-tail					18
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish10_roi1					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish1_roi1					16
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish1_roi2					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish1_roi3					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish2_roi1					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish3_roi1					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish4_roi1					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish4_roi2					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish5_roi1					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish7_roi1					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish8_roi1					15
+Korra_Foundation	20250627_skittlez	Korra_Foundation/20250627_skittlez/fish9_roi1					15
+Korra_Foundation	20250715_mem_organelle	Korra_Foundation/20250715_mem_organelle/fish1_mem_sg_mito_msc3					33
+Korra_Foundation	20250715_mem_organelle	Korra_Foundation/20250715_mem_organelle/fish2_24hpf_mem_mito_msc3_er_halo					17
+Korra_Foundation	20250715_mem_organelle	Korra_Foundation/20250715_mem_organelle/fish3_24hpf_mem_mito_msc3_er_halo					32
+Korra_Foundation	20250715_mem_organelle	Korra_Foundation/20250715_mem_organelle/fish4_24hpf_mem_mito_msc3_er_halo					46
+Korra_Foundation	20250715_mem_organelle	Korra_Foundation/20250715_mem_organelle/fish5_48hpf_mem_mito_halo_er_msc2					65
+Korra_Foundation	20250715_mem_organelle	Korra_Foundation/20250715_mem_organelle/fish6_48hpf_mem_mito_halo_er_msc2					79
+Korra_Foundation	20250715_mem_organelle	Korra_Foundation/20250715_mem_organelle/fish7_48hpf_mem_mito_halo_er_msc2					16
+Korra_Foundation	20250715_mem_organelle	Korra_Foundation/20250715_mem_organelle/fish8_72hpf_mem_mito_msc3_er_halo					47
+Korra_Foundation	20250718_histone_mSC3_transgenic_test	Korra_Foundation/20250718_histone_mSC3_transgenic_test/fish1					4
+Korra_Foundation	20250718_histone_mSC3_transgenic_test	Korra_Foundation/20250718_histone_mSC3_transgenic_test/fish2					4
+Korra_Foundation	20250718_histone_mSC3_transgenic_test	Korra_Foundation/20250718_histone_mSC3_transgenic_test/fish3					4
+Korra_Foundation	20250723_mem-halo_ER-mSG	Korra_Foundation/20250723_mem-halo_ER-mSG/fish3_48hpf	CamA	ch0	488	.zarr	137
+Korra_Foundation	20250724_mem-mchilada_er-mSG	Korra_Foundation/20250724_mem-mchilada_er-mSG/fish1_24hpf	CamA	ch0	488	.zarr	94
+Korra_Foundation	20250728_mem-histone	Korra_Foundation/20250728_mem-histone/fish1_roi1					19
+Korra_Foundation	20250728_mem-histone	Korra_Foundation/20250728_mem-histone/fish1_roi2					17
+Korra_Foundation	20250801_mem-PCNA	Korra_Foundation/20250801_mem-PCNA/fish1_roi1					17
+Korra_Foundation	20250801_mem-PCNA	Korra_Foundation/20250801_mem-PCNA/fish2_roi1	CamA;CamB	ch0	488	.zarr	3340
+Korra_Foundation	20250801_mem-PCNA	Korra_Foundation/20250801_mem-PCNA/fish3_72hpf_roi1					17
+Korra_Foundation	20250801_mem-histone	Korra_Foundation/20250801_mem-histone/fish1_roi1					16
+Korra_Foundation	20250801_mem-histone	Korra_Foundation/20250801_mem-histone/fish2_roi1					2
+Korra_Foundation	20250805_mem-histone	Korra_Foundation/20250805_mem-histone/fish1_24hpf	CamA;CamB	ch0	488	.zarr	13502
+Korra_Foundation	20250805_mem-histone	Korra_Foundation/20250805_mem-histone/fish2_36hpf					16
+Korra_Foundation	20250805_mem-histone	Korra_Foundation/20250805_mem-histone/fish3_48hpf					16
+Korra_Foundation	20250805_mem-histone	Korra_Foundation/20250805_mem-histone/fish4_48hpf					15
+Korra_Foundation	20250811_mem_cytosol_test	Korra_Foundation/20250811_mem_cytosol_test/fish1_86					5
+Korra_Foundation	20250811_mem_cytosol_test	Korra_Foundation/20250811_mem_cytosol_test/fish2_144					8
+Korra_Foundation	20250811_mem_cytosol_test	Korra_Foundation/20250811_mem_cytosol_test/fish3_145					6
+Korra_Foundation	20251007_mem-histone	Korra_Foundation/20251007_mem-histone/fish1_48hpf_roi1					15
+Korra_Foundation	20251007_mem-histone	Korra_Foundation/20251007_mem-histone/fish1_48hpf_roi1_test					15
+Korra_Foundation	20251007_mem-histone	Korra_Foundation/20251007_mem-histone/fish1_48hpf_roi1test					16
+Korra_Foundation	20251007_mem-histone	Korra_Foundation/20251007_mem-histone/fish2_48hpf_roi1_test					8
+Korra_Foundation	20251007_mem-histone	Korra_Foundation/20251007_mem-histone/fish3_48hpf_roi1					17
+Korra_Foundation	20251007_mem-histone	Korra_Foundation/20251007_mem-histone/fish3_48hpf_roi1_test					15
+Korra_Foundation	20251007_mem-histone	Korra_Foundation/20251007_mem-histone/fish3_48hpf_roi2					15
+Korra_Foundation	20251007_mem-histone	Korra_Foundation/20251007_mem-histone/fish3_48hpf_roi2_test					15
+Korra_Foundation	20251009_skittlez	Korra_Foundation/20251009_skittlez/fish1_roi1					4
+Korra_Foundation	20251010_mem-histone	Korra_Foundation/20251010_mem-histone/fish1_24hpf_roi1					12
+Korra_Foundation	20251013_mem-histone	Korra_Foundation/20251013_mem-histone/fish1_96hpf_roi0_test					11
+Korra_Foundation	20251013_mem-histone	Korra_Foundation/20251013_mem-histone/fish1_96hpf_roi1					16
+Korra_Foundation	20251013_mem-histone	Korra_Foundation/20251013_mem-histone/fish1_96hpf_roi2					16
+Korra_Foundation	20251013_mem-histone	Korra_Foundation/20251013_mem-histone/fish1_96hpf_roi3					16
+Korra_Foundation	20251013_mem-histone	Korra_Foundation/20251013_mem-histone/fish2_96hpf_roi1					17
+Korra_Foundation	20251013_mem-histone	Korra_Foundation/20251013_mem-histone/fish2_96hpf_roi2					16
+Korra_Foundation	20251013_mem-histone	Korra_Foundation/20251013_mem-histone/fish3_96hpf_roi1					15
+Korra_Foundation	20251013_mem-histone	Korra_Foundation/20251013_mem-histone/fish3_96hpf_roi2					15
+Korra_Foundation	20251013_mem-histone	Korra_Foundation/20251013_mem-histone/fish3_96hpf_roi3					15
+Korra_Foundation	20251015_mem-histone	Korra_Foundation/20251015_mem-histone/fish1_48hpf_roi1					17
+Korra_Foundation	20251015_mem-histone	Korra_Foundation/20251015_mem-histone/fish2_48hpf_roi1					17
+Korra_Foundation	20251015_mem-histone	Korra_Foundation/20251015_mem-histone/fish3_48hpf_roi1					17
+Korra_Foundation	20251015_mem-histone	Korra_Foundation/20251015_mem-histone/fish3_48hpf_roi2					16
+Korra_Foundation	20251015_mem-histone	Korra_Foundation/20251015_mem-histone/fish4_48hpf_roi1					17
+Korra_Foundation	20251016_mem-histone	Korra_Foundation/20251016_mem-histone/fish1_72hpf_roi1					17
+Korra_Foundation	20251016_mem-histone	Korra_Foundation/20251016_mem-histone/fish2_72hpf_roi1					17
+Korra_Foundation	20251016_mem-histone	Korra_Foundation/20251016_mem-histone/fish2_72hpf_roi2					17
+Korra_Foundation	20251016_mem-histone	Korra_Foundation/20251016_mem-histone/fish2_72hpf_roi3					17
+Korra_Foundation	20251016_mem-histone	Korra_Foundation/20251016_mem-histone/fish3_72hpf_roi1					18
+Korra_Foundation	20251016_mem-histone	Korra_Foundation/20251016_mem-histone/fish3_72hpf_roi2					15
+Korra_Foundation	20251017_microtubules	Korra_Foundation/20251017_microtubules/fish2_24hpf_roi1_test					15
+Korra_Foundation	20251020_mem-histone	Korra_Foundation/20251020_mem-histone/fish1_72hpf_roi1					17
+Korra_Foundation	20251020_mem-histone	Korra_Foundation/20251020_mem-histone/fish1_72hpf_roi2					17
+Korra_Foundation	20251020_mem-histone	Korra_Foundation/20251020_mem-histone/fish1_72hpf_roi3					16
+Korra_Foundation	20251020_mem-histone	Korra_Foundation/20251020_mem-histone/fish1_72hpf_roi4					16
+Korra_Foundation	20251020_mem-histone	Korra_Foundation/20251020_mem-histone/fish1_72hpf_roi5					15
+Korra_Foundation	20251020_mem-histone	Korra_Foundation/20251020_mem-histone/fish2_72hpf_roi1					16
+Korra_Foundation	20251020_mem-histone	Korra_Foundation/20251020_mem-histone/fish2_72hpf_roi2					16
+Korra_Foundation	20251020_mem-histone	Korra_Foundation/20251020_mem-histone/fish2_72hpf_roi3	CamA;CamB	ch0	488	.zarr	335
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish1_24hpf_roi2					17
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish1_24hpf_roi3					16
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish2_24hpf_roi1					16
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish2_24hpf_roi2					16
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish2_24hpf_roi3					15
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish3_24hpf_roi1					15
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish3_24hpf_roi2					15
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish4_24hpf_roi1					16
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish4_24hpf_roi2					16
+Korra_Foundation	20251022_mem-histone	Korra_Foundation/20251022_mem-histone/fish4_24hpf_roi3					16
+Korra_Foundation	20251024_mem-histone	Korra_Foundation/20251024_mem-histone/fish2_72hpf_roi1					17
+Korra_Foundation	20251024_mem-histone	Korra_Foundation/20251024_mem-histone/fish2_72hpf_roi2					16
+Korra_Foundation	20251024_mem-histone	Korra_Foundation/20251024_mem-histone/fish2_72hpf_roi3					16
+Korra_Foundation	20251024_mem-histone	Korra_Foundation/20251024_mem-histone/fish3_72hpf_roi1					16
+Korra_Foundation	20251024_mem-histone	Korra_Foundation/20251024_mem-histone/fish3_72hpf_roi2					16
+Korra_Foundation	20251024_mem-histone	Korra_Foundation/20251024_mem-histone/fish3_72hpf_roi3					16
+Korra_Foundation	20251024_mem-histone	Korra_Foundation/20251024_mem-histone/fish3_72hpf_roi4					16
+Korra_Foundation	20251024_mem-histone	Korra_Foundation/20251024_mem-histone/fish3_72hpf_roi5					16
+Korra_Foundation	20251027_mem-histone	Korra_Foundation/20251027_mem-histone/fish3_72hpf_roi1					16
+Korra_Foundation	20251027_mem-histone	Korra_Foundation/20251027_mem-histone/fish3_72hpf_roi2					15
+Korra_Foundation	20251027_mem-histone	Korra_Foundation/20251027_mem-histone/fish3_72hpf_roi3					15
+Korra_Foundation	20251027_mem-histone	Korra_Foundation/20251027_mem-histone/fish3_72hpf_roi4					15
+Korra_Foundation	20251029_mem-histone	Korra_Foundation/20251029_mem-histone/fish2_24hpf_roi1					15
+Korra_Foundation	20251029_mem-histone	Korra_Foundation/20251029_mem-histone/fish3_24hpf_roi1					14
+Korra_Foundation	20251029_mem-histone	Korra_Foundation/20251029_mem-histone/fish5_24hpf_roi1					15
+Korra_Foundation	20251029_mem-histone	Korra_Foundation/20251029_mem-histone/fish5_24hpf_roi2					14
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish1_48hpf_roi1					15
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish1_48hpf_roi2					15
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish1_48hpf_roi3					14
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish1_48hpf_roi4					14
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish1_48hpf_roi5					14
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish2_48hpf_roi1					15
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish2_48hpf_roi2					14
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish2_48hpf_roi3					14
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish2_48hpf_roi4					14
+Korra_Foundation	20251106_mem-mito	Korra_Foundation/20251106_mem-mito/fish2_48hpf_roi5					14
+Korra_Foundation	20251107_mem-centrioles	Korra_Foundation/20251107_mem-centrioles/fish2_72hpf_roi1					13
+Korra_Foundation	20251110_mem-histone	Korra_Foundation/20251110_mem-histone/fish1_48hpf_roi1					15
+Korra_Foundation	20251110_mem-histone	Korra_Foundation/20251110_mem-histone/fish1_48hpf_roi2					16
+Korra_Foundation	20251110_mem-histone	Korra_Foundation/20251110_mem-histone/fish2_48hpf_roi1					15
+Korra_Foundation	20251110_mem-histone	Korra_Foundation/20251110_mem-histone/fish2_48hpf_roi1-2					16
+Korra_Foundation	20251110_mem-histone	Korra_Foundation/20251110_mem-histone/fish3_48hpf_roi1					16
+Korra_Foundation	20251110_mem-histone	Korra_Foundation/20251110_mem-histone/fish4_48hpf_roi1	CamA;CamB	ch0	488	.zarr	454
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish2_48hpf_roi1					14
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish2_48hpf_roi2					14
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish2_48hpf_roi3					15
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish3_48hpf_roi1					14
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish3_48hpf_roi2					13
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish3_48hpf_roi3					13
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish3_48hpf_roi4					13
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish4_48hpf_roi1					14
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish4_48hpf_roi2					13
+Korra_Foundation	20251112_mem-mito	Korra_Foundation/20251112_mem-mito/fish4_48hpf_roi3					13
+Korra_Foundation	20251113_mem-histone	Korra_Foundation/20251113_mem-histone/fish1_120hpf_roi1					15
+Korra_Foundation	20251113_mem-histone	Korra_Foundation/20251113_mem-histone/fish2_120hpf_roi1					15
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish1_24hpf_roi1					15
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish1_24hpf_roi2					15
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish1_24hpf_roi3					1
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish2_24hpf_roi1					14
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish2_24hpf_roi2					14
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish2_24hpf_roi3					14
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish3_24hpf_roi1					14
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish3_24hpf_roi2					15
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish3_24hpf_roi3					14
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish4_24hpf_roi1					15
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish4_24hpf_roi2					14
+Korra_Foundation	20251114_mem-mito_mount1	Korra_Foundation/20251114_mem-mito_mount1/fish4_24hpf_roi3					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish1_24hpf_roi1					15
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish1_24hpf_roi2					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish2_24hpf_roi1					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish2_24hpf_roi2					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish4_24hpf_roi1					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish4_24hpf_roi2					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish4_24hpf_roi3					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish5_24hpf_roi1					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish5_24hpf_roi2					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish5_24hpf_roi3					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish6_24hpf_roi1					14
+Korra_Foundation	20251114_mem-mito_mount2	Korra_Foundation/20251114_mem-mito_mount2/fish6_24hpf_roi2					15
+Korra_Foundation	20251117_mem-histone	Korra_Foundation/20251117_mem-histone/fish1_48hpf_roi1					15
+Korra_Foundation	20251121_mem-histone	Korra_Foundation/20251121_mem-histone/fish1_48hpf_roi1					15
+Korra_Foundation	20251121_mem-histone	Korra_Foundation/20251121_mem-histone/fish1_48hpf_roi1-2					15
+Korra_Foundation	20251121_mem-histone	Korra_Foundation/20251121_mem-histone/fish1_48hpf_roi2					15
+Korra_Foundation	20251121_mem-histone	Korra_Foundation/20251121_mem-histone/fish2_48hpf_roi1					14
+Korra_Foundation	20251124_mem-histone	Korra_Foundation/20251124_mem-histone/fish1_72hpf_roi1					4
+Korra_Foundation	20251125_mem-histone	Korra_Foundation/20251125_mem-histone/fish1_96hpf_roi1					14
+Korra_Foundation	20251125_mem-histone	Korra_Foundation/20251125_mem-histone/fish1_96hpf_roi1-2					15
+Korra_Foundation	20251125_mem-histone	Korra_Foundation/20251125_mem-histone/fish1_96hpf_roi1-3					15
+Korra_Foundation	20251125_mem-histone	Korra_Foundation/20251125_mem-histone/fish1_96hpf_roi1-4					15
+Korra_Foundation	20251126_mem-histone	Korra_Foundation/20251126_mem-histone/fish1_120hpf_roi1					14
+Korra_Foundation	20251126_mem-histone	Korra_Foundation/20251126_mem-histone/fish2_120hpf_roi1					3
+Korra_Foundation	20251128_mem-histone	Korra_Foundation/20251128_mem-histone/fish1_120hpf_roi1					3
+Korra_Foundation	20251128_mem-histone	Korra_Foundation/20251128_mem-histone/fish2_120hpf_roi1					4
+Korra_Foundation	20251202_mem-cytosolic	Korra_Foundation/20251202_mem-cytosolic/fish1_24hpf_roi1					4
+Korra_Foundation	20251202_mem-cytosolic	Korra_Foundation/20251202_mem-cytosolic/fish1_24hpf_roi2					4
+Korra_Foundation	20251202_mem-cytosolic	Korra_Foundation/20251202_mem-cytosolic/fish4_24hpf_roi1					3
+Korra_Foundation	20251202_mem-cytosolic	Korra_Foundation/20251202_mem-cytosolic/fish5_24hpf_roi1					3
+Korra_Foundation	20251202_mem-cytosolic	Korra_Foundation/20251202_mem-cytosolic/fish6_24hpf_roi1					3
+Korra_Foundation	20251203_mem-cytosolic	Korra_Foundation/20251203_mem-cytosolic/fish1_48hpf_roi1					4
+Korra_Foundation	20251203_mem-cytosolic	Korra_Foundation/20251203_mem-cytosolic/fish2_48hpf_roi1					4
+Korra_Foundation	20251203_mem-cytosolic	Korra_Foundation/20251203_mem-cytosolic/fish3_48hpf_roi1					3
+Korra_Foundation	20251203_mem-cytosolic	Korra_Foundation/20251203_mem-cytosolic/fish4_48hpf_roi1					3
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish1_72hpf_roi1					15
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish1_72hpf_roi2					15
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish1_72hpf_roi3					15
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish1_72hpf_roi4					14
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish1_72hpf_roi5					14
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish1_72hpf_roi6					14
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish1_72hpf_roi7					14
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish1_72hpf_roi8					14
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish1_72hpf_roi9					14
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish3_72hpf_roi1					15
+Korra_Foundation	20251204_mem_histone	Korra_Foundation/20251204_mem_histone/fish3_72hpf_roi2					14
+Korra_Foundation	20251205_mem-histone	Korra_Foundation/20251205_mem-histone/fish1_96hpf_roi1					15
+Korra_Foundation	20251205_mem-histone	Korra_Foundation/20251205_mem-histone/fish1_96hpf_roi2					14
+Korra_Foundation	20251205_mem-histone	Korra_Foundation/20251205_mem-histone/fish1_96hpf_roi3					14
+Korra_Foundation	20251205_mem-histone	Korra_Foundation/20251205_mem-histone/fish2_96hpf_roi1					14
+Korra_Foundation	20251205_mem-histone	Korra_Foundation/20251205_mem-histone/fish2_96hpf_roi2					14
+Korra_Foundation	20251205_mem-histone	Korra_Foundation/20251205_mem-histone/fish2_96hpf_roi3					14
+Korra_Foundation	20251208_mem-histone	Korra_Foundation/20251208_mem-histone/fish1_24hpf_roi1					15
+Korra_Foundation	20251208_mem-histone	Korra_Foundation/20251208_mem-histone/fish1_24hpf_roi1-2					15
+Korra_Foundation	20251208_mem-histone	Korra_Foundation/20251208_mem-histone/fish2_24hpf_roi1					1
+Korra_Foundation	20251208_mem-histone	Korra_Foundation/20251208_mem-histone/fish2_24hpf_roi2					1
+Korra_Foundation	20251208_mem-histone	Korra_Foundation/20251208_mem-histone/fish3_24hpf_roi1					1
+Korra_Foundation	20251208_mem-histone	Korra_Foundation/20251208_mem-histone/fish3_24hpf_roi2					1
+Korra_Foundation	20251208_mem-histone	Korra_Foundation/20251208_mem-histone/fish4_24hpf_roi2					15
+Korra_Foundation	20251209_mem-histone	Korra_Foundation/20251209_mem-histone/fish1_24hpf_roi1					15
+Korra_Foundation	20251209_mem-histone	Korra_Foundation/20251209_mem-histone/fish2_24hpf_roi1					12
+Korra_Foundation	20251209_mem-histone	Korra_Foundation/20251209_mem-histone/fish3_48hpf_roi1					15
+Korra_Foundation	20251210_mem-histone	Korra_Foundation/20251210_mem-histone/fish1_48hpf_roi1					15
+Korra_Foundation	20251210_mem-histone	Korra_Foundation/20251210_mem-histone/fish2_48hpf_roi1					14
+Korra_Foundation	20251210_mem-histone	Korra_Foundation/20251210_mem-histone/fish2_48hpf_roi2					15
+Korra_Foundation	20251210_mem-histone	Korra_Foundation/20251210_mem-histone/fish3_48hpf_roi1					15
+Korra_Foundation	20251211_mem-histone	Korra_Foundation/20251211_mem-histone/fish1_72hpf_roi1					15
+Korra_Foundation	20251211_mem-histone	Korra_Foundation/20251211_mem-histone/fish2_72hpf_roi1					15
+Korra_Foundation	20251212_mem-histone	Korra_Foundation/20251212_mem-histone/fish1_72hpf_roi1					16
+Korra_Foundation	20251212_mem-histone	Korra_Foundation/20251212_mem-histone/fish2_72hpf_roi1					15
+Korra_Foundation	20251212_mem-histone	Korra_Foundation/20251212_mem-histone/fish3_72hpf_roi1					14
+Korra_Foundation	20251216_mem-histone	Korra_Foundation/20251216_mem-histone/fish1_24hpf_roi1					15
+Korra_Foundation	20251216_mem-histone	Korra_Foundation/20251216_mem-histone/fish2_24hpf_roi1					15
+Korra_Foundation	20251216_mem-histone	Korra_Foundation/20251216_mem-histone/fish3_24hpf_roi1					15
+Korra_Foundation	20251216_mem-histone	Korra_Foundation/20251216_mem-histone/fish4_24hpf_roi1					14
+Korra_Foundation	20251216_mem-histone	Korra_Foundation/20251216_mem-histone/fish5_24hpf_roi1					15
+Korra_Foundation	20251217_mem-histone	Korra_Foundation/20251217_mem-histone/fish1_48hpf_roi1					15
+Korra_Foundation	20251217_mem-histone	Korra_Foundation/20251217_mem-histone/fish4_48hpf_roi1					2
+Korra_Foundation	20251218_mem-histone	Korra_Foundation/20251218_mem-histone/fish1_72hpf_roi1					14
+Korra_Foundation	20251218_mem-histone	Korra_Foundation/20251218_mem-histone/fish1_72hpf_roi2					14
+Korra_Foundation	20251218_mem-histone	Korra_Foundation/20251218_mem-histone/fish1_72hpf_roi3					14
+Korra_Foundation	20251218_mem-histone	Korra_Foundation/20251218_mem-histone/fish2_72hpf_roi1_eye					15
+Korra_Foundation	20251218_mem-histone	Korra_Foundation/20251218_mem-histone/fish3_72hpf_roi1					15
+Korra_Foundation	20251218_mem-histone	Korra_Foundation/20251218_mem-histone/fish3_72hpf_roi2					14
+Korra_Foundation	20251218_mem-histone	Korra_Foundation/20251218_mem-histone/fish3_72hpf_roi3					14
+Korra_Foundation	20251222_mem-histone	Korra_Foundation/20251222_mem-histone/fish1_72hpf_roi1					15
+Korra_Foundation	PSF	Korra_Foundation/PSF/archive					1
+Korra_Foundation	PSF	Korra_Foundation/PSF/job_logs					7
+Korra_Foundation	analysis_test	Korra_Foundation/analysis_test/.ipynb_checkpoints					1
+Korra_Foundation	analysis_test	Korra_Foundation/analysis_test/fish1_roi1	CamA;CamB	ch0;ch1;ch2;ch3	405;445;488;514	.zarr	64
+Korra_Foundation	background	Korra_Foundation/background/archive					1
+Korra_Foundation	background	Korra_Foundation/background/averaged					1
+Korra_Foundation	background	Korra_Foundation/background/averagedBAK					1
+Korra_Foundation	chromatic	Korra_Foundation/chromatic/20251128					1
+Korra_Foundation	denoising	Korra_Foundation/denoising/20251029_mem-histone					1
+Korra_Foundation	denoising	Korra_Foundation/denoising/20251118_histone	CamB	ch0	488;514;560	.zarr	273
+Korra_Foundation	denoising	Korra_Foundation/denoising/20251121_histone					1
