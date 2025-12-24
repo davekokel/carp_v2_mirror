@@ -145,12 +145,12 @@ def main() -> None:
     ap.add_argument("--out-csv", required=True, help="Output legacy_clutches_v9_for_loader.csv")
     ap.add_argument(
         "--roi-compat-csv",
-        default="seed_kits/legacy_wrangling_v3/working/legacy_imaging_annotations_for_db_v9_compat.csv",
+        default="seed_kits/legacy_wrangling_v4/working/legacy_imaging_annotations_for_db_v9_compat.csv",
         help="ROI compat CSV (must include legacy_clutch_key + roi_dir)",
     )
     ap.add_argument(
         "--roi-for-db-csv",
-        default="seed_kits/legacy_wrangling_v3/working/legacy_imaging_annotations_for_db_v9.csv",
+        default="seed_kits/legacy_wrangling_v4/working/legacy_imaging_annotations_for_db_v9.csv",
         help="ROI for_db CSV (must include roi_dir + genotype_base_codes + genotype_allele_codes)",
     )
     args = ap.parse_args()

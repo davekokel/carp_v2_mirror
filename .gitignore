@@ -107,3 +107,9 @@ seed_kits/legacy_wrangling_v3/working/exp_treatment_manual_overrides.csv
 # legacy imaging: huge filesystem scan artifacts (do not commit)
 seed_kits/legacy_wrangling_v4/raw/foundation_tiff_files_*.txt
 seed_kitsseed_kits/legacy_wrangling_v4/raw/foundation_tiff_files_*.txt.gz
+
+# legacy imaging v4: generated working/QC artifacts (do not commit)
+seed_kits/legacy_wrangling_v4/working/
+seed_kits/legacy_wrangling_v4/qc/
+seed_kits/legacy_wrangling_v4/raw/foundation_tiff_files_*.txt
+seed_kits/legacy_wrangling_v4/raw/foundation_tiff_files_*.txt.gz

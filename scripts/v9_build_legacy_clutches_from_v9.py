@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 from typing import List
 
@@ -8,31 +9,35 @@ import numpy as np
 import pandas as pd
 
 
-def plate_code_from_row(row: pd.Series) -> str | None:
-    """
-    Build plate_code from plate_date + plate_id_filled, e.g.
-    plate_date=20250721, plate_id_filled=65 -> '20250721-plate65'.
-    """
-    plate_date = row.get("plate_date")
-    plate_id = row.get("plate_id_filled")
-    if pd.isna(plate_date) or pd.isna(plate_id):
+def _plate_code_from_cols(plate_date: object, plate_id_filled: object) -> str | None:
+    if plate_date is None or plate_id_filled is None:
         return None
-    d_int = int(plate_date)
-    plate_num = int(plate_id)
+
+    s = str(plate_date).strip()
+    if not s or s.lower() in ("nan", "none", "<na>"):
+        return None
+
+    if s.endswith(".0"):
+        s = s[:-2]
+
+    m = re.search(r"(20\d{6})", s.replace("-", ""))
+    if not m:
+        return None
+
+    d_int = int(m.group(1))
+
+    pid = plate_id_filled
+    if isinstance(pid, str) and pid.strip().endswith(".0"):
+        pid = pid.strip()[:-2]
+    try:
+        plate_num = int(pid)
+    except Exception:
+        try:
+            plate_num = int(float(pid))
+        except Exception:
+            return None
+
     return f"{d_int}-plate{plate_num}"
-
-
-def is_nontrivial_clutch_key(key: str) -> bool:
-    """
-    legacy_clutch_key is 'date_born | mom_genotype | dad_genotype'.
-    Treat it as trivial (empty) if all three parts are empty.
-    """
-    key = "" if key is None else str(key)
-    parts = [p.strip() for p in key.split("|")]
-    if len(parts) != 3:
-        return key.strip() != ""
-    date, mom, dad = parts
-    return bool(date or mom or dad)
 
 
 def first_nonnull(grp: pd.DataFrame, col: str) -> str:
@@ -43,19 +48,13 @@ def first_nonnull(grp: pd.DataFrame, col: str) -> str:
 
 
 def build_clutches_and_memberships(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    # basic sanity
     required_cols: List[str] = [
-        "legacy_clutch_key",
-        "date_born",
-        "parent_female_genotype_text",
-        "parent_male_genotype_text",
-        "treatment_rna_rna_base_code",
-        "treatment_plasmid_plasmid_base_code",
         "plate_date",
         "plate_id_filled",
         "slot_id_filled",
         "roi_index_within_slot",
         "bruker_roi_id",
+        "roi_dir",
     ]
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
@@ -63,60 +62,59 @@ def build_clutches_and_memberships(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.D
 
     df2 = df.copy()
 
-    # derive plate_code + slot_index to match the loader logic
-    df2["plate_code"] = df2.apply(plate_code_from_row, axis=1)
-    df2["slot_index"] = df2["slot_id_filled"].astype("Int64")
+    df2["plate_code"] = df2.apply(lambda r: _plate_code_from_cols(r.get("plate_date"), r.get("plate_id_filled")), axis=1)
+    df2["slot_index"] = pd.to_numeric(df2["slot_id_filled"], errors="coerce").astype("Int64")
 
-    # normalize clutch key
-    df2["legacy_clutch_key"] = df2["legacy_clutch_key"].fillna("")
+    df2 = df2[df2["plate_code"].notna() & df2["slot_index"].notna()].copy()
 
-    # keep only rows with a non-trivial clutch key
-    df2["has_clutch_key"] = df2["legacy_clutch_key"].apply(is_nontrivial_clutch_key)
-    df_valid = df2[df2["has_clutch_key"]].copy()
+    df2["legacy_clutch_key"] = df2["plate_code"].astype(str) + "|slot" + df2["slot_index"].astype(int).astype(str)
 
-    # ── build clutches table ────────────────────────────────────────────────
-    clutch_rows = []
-    for key, grp in df_valid.groupby("legacy_clutch_key"):
-        row = {
-            "legacy_clutch_key": key,
-            "date_born": first_nonnull(grp, "date_born"),
-            "parent_female_genotype_text": first_nonnull(grp, "parent_female_genotype_text"),
-            "parent_male_genotype_text": first_nonnull(grp, "parent_male_genotype_text"),
-            "treatment_rna_rna_base_code": first_nonnull(grp, "treatment_rna_rna_base_code"),
-            "treatment_plasmid_plasmid_base_code": first_nonnull(grp, "treatment_plasmid_plasmid_base_code"),
-            "roi_count": int(len(grp)),
-        }
-        # optional dataset summary
-        if "dataset_slug" in grp.columns:
-            row["datasets"] = ",".join(sorted(grp["dataset_slug"].dropna().astype(str).unique()))
+    if "date_born" not in df2.columns:
+        if "Date born" in df2.columns:
+            df2["date_born"] = df2["Date born"]
         else:
-            row["datasets"] = ""
-        clutch_rows.append(row)
+            df2["date_born"] = ""
+
+    if "parent_female_genotype_text" not in df2.columns:
+        df2["parent_female_genotype_text"] = df2.get("ZF female genotype", "")
+    if "parent_male_genotype_text" not in df2.columns:
+        df2["parent_male_genotype_text"] = df2.get("ZF male genotype", "")
+
+    if "treatment_rna_rna_base_code" not in df2.columns:
+        df2["treatment_rna_rna_base_code"] = ""
+    if "treatment_plasmid_plasmid_base_code" not in df2.columns:
+        df2["treatment_plasmid_plasmid_base_code"] = ""
+
+    clutch_rows = []
+    for key, grp in df2.groupby("legacy_clutch_key", dropna=False):
+        clutch_rows.append(
+            {
+                "legacy_clutch_key": str(key),
+                "date_born": first_nonnull(grp, "date_born"),
+                "parent_female_genotype_text": first_nonnull(grp, "parent_female_genotype_text"),
+                "parent_male_genotype_text": first_nonnull(grp, "parent_male_genotype_text"),
+                "treatment_rna_rna_base_code": first_nonnull(grp, "treatment_rna_rna_base_code"),
+                "treatment_plasmid_plasmid_base_code": first_nonnull(grp, "treatment_plasmid_plasmid_base_code"),
+                "roi_count": int(len(grp)),
+                "datasets": "",
+            }
+        )
 
     clutches_df = pd.DataFrame(clutch_rows)
 
-    # sort deterministically and assign LCL-style codes
     clutches_df["date_born_sort"] = clutches_df["date_born"].replace("", np.nan)
-    clutches_df["date_born_sort"] = pd.to_datetime(
-        clutches_df["date_born_sort"], errors="coerce"
-    )
-    clutches_df = clutches_df.sort_values(
-        ["date_born_sort", "legacy_clutch_key"]
-    ).reset_index(drop=True)
+    clutches_df["date_born_sort"] = pd.to_datetime(clutches_df["date_born_sort"], errors="coerce")
+    clutches_df = clutches_df.sort_values(["date_born_sort", "legacy_clutch_key"]).reset_index(drop=True)
 
-    clutches_df["clutch_code"] = [
-        f"LCL-{i:04d}" for i in range(1, len(clutches_df) + 1)
-    ]
+    clutches_df["clutch_code"] = [f"LCL-{i:04d}" for i in range(1, len(clutches_df) + 1)]
 
-    # ── build memberships table ─────────────────────────────────────────────
     mem_rows = []
-    for key, grp in df_valid.groupby(["legacy_clutch_key", "plate_code", "slot_index"]):
-        clutch_key, plate_code, slot_index = key
+    for (clutch_key, plate_code, slot_index), grp in df2.groupby(["legacy_clutch_key", "plate_code", "slot_index"], dropna=False):
         if plate_code is None or pd.isna(plate_code) or pd.isna(slot_index):
             continue
         mem_rows.append(
             {
-                "legacy_clutch_key": clutch_key,
+                "legacy_clutch_key": str(clutch_key),
                 "plate_code": str(plate_code),
                 "slot_index": int(slot_index),
                 "roi_count": int(len(grp)),
@@ -124,15 +122,8 @@ def build_clutches_and_memberships(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.D
         )
 
     mem_df = pd.DataFrame(mem_rows)
+    mem_df = mem_df.merge(clutches_df[["legacy_clutch_key", "clutch_code"]], on="legacy_clutch_key", how="left")
 
-    # attach clutch_code
-    mem_df = mem_df.merge(
-        clutches_df[["legacy_clutch_key", "clutch_code"]],
-        on="legacy_clutch_key",
-        how="left",
-    )
-
-    # tidy column order
     clutches_df = clutches_df[
         [
             "clutch_code",
@@ -162,17 +153,17 @@ def build_clutches_and_memberships(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.D
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build v9-native legacy clutches and memberships from v9 imaging CSV."
+        description="Build v9-native legacy clutches and memberships from the SAME ROI feed used to create plates/slots."
     )
     parser.add_argument(
         "--csv",
-        default="seed_kits/legacy_wrangling_v2/working/legacy_imaging_annotations_for_db_v9.csv",
-        help="Path to legacy_imaging_annotations_for_db_v9.csv",
+        default="seed_kits/legacy_wrangling_v4/working/legacy_imaging_annotations_for_loader_v9_compat.csv",
+        help="Path to legacy_imaging_annotations_for_loader_v9_compat.csv",
     )
     parser.add_argument(
         "--out-dir",
-        default="seed_kits/legacy_wrangling_v2/working",
-        help="Output directory for legacy_clutches_v9.csv and legacy_clutch_memberships_v9.csv",
+        default="seed_kits/legacy_wrangling_v4/working",
+        help="Output directory for legacy_clutches_v9.csv + legacy_clutch_memberships_v9.csv",
     )
     args = parser.parse_args()
 
@@ -183,7 +174,9 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, low_memory=False)
+    df.columns = [str(c).strip() for c in df.columns]
+
     clutches_df, mem_df = build_clutches_and_memberships(df)
 
     clutches_out = out_dir / "legacy_clutches_v9.csv"

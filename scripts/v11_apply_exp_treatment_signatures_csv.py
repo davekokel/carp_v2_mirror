@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import re
 import hashlib
 from typing import Dict, List, Tuple
@@ -12,6 +13,7 @@ from sqlalchemy import create_engine, text
 CSV_AUTO = "seed_kits/legacy_wrangling_v3/working/exp_treatment_signatures.csv"
 CSV_OVERRIDE = "seed_kits/legacy_wrangling_v3/working/exp_treatment_manual_overrides.csv"
 TOKEN_MAP = "seed_kits/legacy_wrangling_v3/working/exp_treatment_token_map.csv"
+CSV_V4_ROI_MAP = "seed_kits/legacy_wrangling_v4/working/legacy_imaging_annotations_for_loader_v9_compat.csv"
 
 _SIG_RE = re.compile(r"^\s*plasmids=([^|]*)\|rnas=([^|]*)\|dyes=([^|]*)\s*$", re.I)
 
@@ -139,6 +141,68 @@ def _translate_signature_tokens_to_basecodes(sig_tokens: str, tok2code: Dict[str
     return _canon_signature(plas2, rnas2, dyes2)
 
 
+def _resolve_roi_ids_from_bruker_ids_v4(engine, df_map: pd.DataFrame) -> pd.DataFrame:
+    """
+    Input df_map columns: bruker_roi_id, dataset_key, signature, source
+    Output adds: roi_path, roi_id (uuid)
+    Resolution path:
+      bruker_roi_id -> roi_path via v4 ROI map CSV (bruker_roi_id, roi_dir)
+      roi_path -> roi_id via public.imaging_roi_annotations.roi_path
+    """
+    if "bruker_roi_id" not in df_map.columns:
+        raise SystemExit("[STOP] expected bruker_roi_id in mapping dataframe")
+
+    if not os.path.exists(CSV_V4_ROI_MAP):
+        raise SystemExit(f"[STOP] missing v4 ROI map CSV: {CSV_V4_ROI_MAP}")
+
+    v4 = pd.read_csv(CSV_V4_ROI_MAP, dtype=str, keep_default_na=False, na_filter=False, low_memory=False)
+    v4.columns = [str(c).strip() for c in v4.columns]
+
+    need = ["bruker_roi_id", "roi_dir"]
+    missing = [c for c in need if c not in v4.columns]
+    if missing:
+        raise SystemExit(f"[STOP] {CSV_V4_ROI_MAP} missing columns {missing}; have {v4.columns.tolist()}")
+
+    v4["bruker_roi_id"] = v4["bruker_roi_id"].astype(str).map(_s)
+    v4["roi_path"] = v4["roi_dir"].astype(str).map(_s)
+
+    v4 = v4[(v4["bruker_roi_id"] != "") & (v4["roi_path"] != "")].copy()
+    v4 = v4[["bruker_roi_id", "roi_path"]].drop_duplicates()
+
+    # attach roi_path to mapping rows
+    out = df_map.merge(v4, on="bruker_roi_id", how="left")
+
+    # resolve roi_id from DB by roi_path
+    paths = sorted(set([_s(x) for x in out["roi_path"].tolist() if _s(x)]))
+    if not paths:
+        raise SystemExit("[STOP] no roi_path values resolved from bruker_roi_id (check v4 map + ids)")
+
+    # chunked IN to avoid giant parameter lists
+    roi_path_to_id = {}
+    q = text("SELECT id::text AS roi_id, roi_path FROM public.imaging_roi_annotations WHERE roi_path = ANY(:paths)")
+    with engine.begin() as cx:
+        for i in range(0, len(paths), 5000):
+            batch = paths[i:i+5000]
+            rows = cx.execute(q, {"paths": batch}).fetchall()
+            for rid, rpath in rows:
+                roi_path_to_id[str(rpath).strip()] = str(rid).strip()
+
+    out["roi_id"] = out["roi_path"].map(lambda p: roi_path_to_id.get(_s(p), ""))
+
+    n_total = len(out)
+    n_with_path = int((out["roi_path"].astype(str).map(_s) != "").sum())
+    n_with_id = int((out["roi_id"].astype(str).map(_s) != "").sum())
+
+    print(f"[RESOLVE] mapping_rows={n_total} with_roi_path={n_with_path} with_roi_id={n_with_id}")
+
+    if n_with_id == 0:
+        # show a few for diagnosis
+        show = out[["bruker_roi_id", "roi_path"]].head(25)
+        raise SystemExit("[STOP] no ROI ids matched DB roi_path. Sample:\n" + show.to_string(index=False))
+
+    return out
+
+
 def _read_mapping_csv(path: str, source_label: str, tok2code: Dict[str, str]) -> pd.DataFrame:
     df = pd.read_csv(path, dtype=str, keep_default_na=False, na_filter=False)
     df.columns = [str(c).strip() for c in df.columns]
@@ -217,6 +281,11 @@ def main() -> None:
     rev_code_to_token = {v: k for (k, v) in tok2code.items() if v}
 
     df_auto = _read_mapping_csv(CSV_AUTO, "auto", tok2code)
+
+    engine = create_engine(db_url)
+
+    # Resolve ROI ids in current v4/v11 system (bruker_roi_id -> roi_path -> roi_id)
+    df_auto = _resolve_roi_ids_from_bruker_ids_v4(engine, df_auto)
 
     if os.path.exists(CSV_OVERRIDE):
         df_ovr = _read_mapping_csv(CSV_OVERRIDE, "override", tok2code)

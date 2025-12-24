@@ -1,0 +1,44 @@
+# ============================================================
+# Legacy Imaging Pipeline — v4 (MOSAIC) — SINGLE SOURCE OF TRUTH
+# ============================================================
+
+[pipeline]
+name = "legacy_imaging_v4"
+fail_fast = true
+machine = "MOSAIC"
+
+[paths]
+raw_dir = "seed_kits/legacy_wrangling_v4/raw"
+working_dir = "seed_kits/legacy_wrangling_v4/working"
+final_dir = "seed_kits/legacy_wrangling_v4/final"
+
+[parent_definitions]
+csv = "seed_kits/legacy_wrangling_v2/working/Unique_parent_names__mom_dad_combined__preview_dqm_from_raw.csv"
+table = "raw.legacy_parent_definitions_v9"
+
+[roi_annotations]
+csv = "legacy_imaging_annotations_for_db_v9.csv"
+compat_csv = "legacy_imaging_annotations_for_db_v9_compat.csv"
+table = "raw.legacy_roi_enriched_v9"
+
+[imaging_sheet]
+xlsx = "seed_kits/legacy_wrangling_v4/raw/2025-12-22-161955-Cell Observatory - Zebrafish Development.xlsx"
+sheet = "Master Imaging list"
+
+[constructs]
+authoritative_source = "public.constructs"
+required_kinds = ["plasmid", "rna"]
+
+[genotypes]
+table = "public.genotypes_v11"
+join_table = "public.join_genotype_constructs_v11"
+source_system = "legacy_imaging"
+
+[invariants]
+forbidden_tokens = ["pswin04", "pswin05"]
+require_construct_fk = true
+require_join_rows = true
+
+[batch_ids]
+parent_definitions = "legacy_parent_definitions_v9"
+genotypes = "legacy_clutch_inference_v4"

@@ -133,14 +133,31 @@ def main() -> None:
             cx.execute(
                 text("""
                   INSERT INTO public.join_clutch_treatments
-                    (id, clutch_id, treatment_id, applied_at, created_at, notes)
+                    (
+                      id,
+                      clutch_id,
+                      treatment_id,
+                      applied_at,
+                      created_at,
+                      notes,
+                      treatment_infer_source,
+                      treatment_infer_rule,
+                      treatment_infer_batch_id,
+                      treatment_inferred_at
+                    )
                   VALUES
-                    (gen_random_uuid(),
-                     CAST(:cid AS uuid),
-                     CAST(:tid AS uuid),
-                     now(),
-                     now(),
-                     'legacy_v9/v10_mapping_csv')
+                    (
+                      gen_random_uuid(),
+                      CAST(:cid AS uuid),
+                      CAST(:tid AS uuid),
+                      now(),
+                      now(),
+                      'legacy_v9/v10_mapping_csv',
+                      'mapping_csv',
+                      'v11_apply_clutch_treatment_mapping',
+                      'clutch_treatment_mapping_v11',
+                      now()
+                    )
                 """),
                 {"cid": cid, "tid": tid},
             )

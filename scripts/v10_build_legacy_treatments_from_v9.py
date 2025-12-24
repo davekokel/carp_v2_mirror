@@ -262,7 +262,19 @@ def main() -> None:
         raise SystemExit("[STOP] unmapped injection values")
 
     if not sig_payload:
-        raise SystemExit("[STOP] no treatment-bearing rows found (after strict mapping)")
+        out_csv.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(
+            columns=[
+                "treatment_code",
+                "treatment_name",
+                "mix_code",
+                "ingredient_type",
+                "ingredient_code",
+                "concentration",
+            ]
+        ).to_csv(out_csv, index=False)
+        print(f"[OK] wrote 0 row(s) to {out_csv} (no treatment-bearing rows; continuing)")
+        return
 
     # Deterministic ordering
     sigs_sorted = sorted(sig_payload.keys())

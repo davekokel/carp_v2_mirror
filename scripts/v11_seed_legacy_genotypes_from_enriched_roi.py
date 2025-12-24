@@ -139,24 +139,33 @@ def main() -> None:
 
     upsert_geno = text(
         """
-        INSERT INTO public.genotypes_v11 (
-          genotype_code,
-          genotype_basecodes,
-          genotype_pretty,
-          source_system,
-          created_at
+        WITH upd AS (
+          UPDATE public.genotypes_v11
+          SET genotype_pretty = :genotype_pretty
+          WHERE genotype_basecodes = :genotype_basecodes
+          RETURNING id::uuid
+        ),
+        ins AS (
+          INSERT INTO public.genotypes_v11 (
+            genotype_code,
+            genotype_basecodes,
+            genotype_pretty,
+            source_system,
+            created_at
+          )
+          SELECT
+            :genotype_code,
+            :genotype_basecodes,
+            :genotype_pretty,
+            'legacy_imaging',
+            now()
+          WHERE NOT EXISTS (SELECT 1 FROM upd)
+          ON CONFLICT (genotype_code) DO UPDATE
+          SET genotype_basecodes = EXCLUDED.genotype_basecodes,
+              genotype_pretty   = EXCLUDED.genotype_pretty
+          RETURNING id::uuid
         )
-        VALUES (
-          :genotype_code,
-          :genotype_basecodes,
-          :genotype_pretty,
-          'legacy_imaging',
-          now()
-        )
-        ON CONFLICT (genotype_code) DO UPDATE
-        SET genotype_basecodes = EXCLUDED.genotype_basecodes,
-            genotype_pretty   = EXCLUDED.genotype_pretty
-        RETURNING id::uuid;
+        SELECT COALESCE((SELECT id FROM upd), (SELECT id FROM ins));
         """
     )
 
