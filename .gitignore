@@ -103,3 +103,7 @@ seed_kits/legacy_wrangling_v2/working/Unique_parent_names__mom_dad_combined__pre
 ~$*.xlsx
 
 seed_kits/legacy_wrangling_v3/working/exp_treatment_manual_overrides.csv
+
+# legacy imaging: huge filesystem scan artifacts (do not commit)
+seed_kits/legacy_wrangling_v4/raw/foundation_tiff_files_*.txt
+seed_kitsseed_kits/legacy_wrangling_v4/raw/foundation_tiff_files_*.txt.gz

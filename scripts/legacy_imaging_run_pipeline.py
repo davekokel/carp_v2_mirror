@@ -11,6 +11,17 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
 
 
+def run_psql(sql: str) -> None:
+    db_url = os.environ.get("DB_URL")
+    if not db_url:
+        raise SystemExit("DB_URL must be set")
+    print("\n[RUN] psql (cleanup legacy clutches)")
+    subprocess.run(
+        ["psql", db_url, "-v", "ON_ERROR_STOP=1", "-c", sql],
+        check=True,
+    )
+
+
 def main() -> None:
     db_url = os.environ.get("DB_URL")
     if not db_url:
@@ -18,67 +29,121 @@ def main() -> None:
     print("[DB]", db_url)
 
     repo = Path(__file__).resolve().parents[1]
-    v2 = repo / "seed_kits" / "legacy_wrangling_v2"
-    v3 = repo / "seed_kits" / "legacy_wrangling_v3"
-    work = v3 / "working"
+    v4 = repo / "seed_kits" / "legacy_wrangling_v4"
+    work = v4 / "working"
 
+    # Canonical ROI feed outputs
+    roi_csv_loader = work / "legacy_imaging_annotations_for_loader_v9_compat.csv"
+    roi_csv_loader_all = work / "legacy_imaging_annotations_for_db_v9_all_rois_compat.csv"
     roi_csv_for_db = work / "legacy_imaging_annotations_for_db_v9.csv"
-    roi_csv_compat = work / "legacy_imaging_annotations_for_db_v9_compat.csv"
-    memberships_v9 = v2 / "working" / "legacy_clutch_memberships_v9.csv"
-    clutches_v9_in = v2 / "working" / "legacy_clutches_v9.csv"
+    roi_csv_db_compat = work / "legacy_imaging_annotations_for_db_v9_compat.csv"
+
+    # Derived from the SAME canonical ROI loader feed (writes into v4/working)
+    clutches_v9_out = work / "legacy_clutches_v9.csv"
+    memberships_v9_out = work / "legacy_clutch_memberships_v9.csv"
     clutches_v9_for_loader = work / "legacy_clutches_v9_for_loader.csv"
-    imaging_sheet_xlsx = v2 / "raw" / "2025-11-21-220012-imaging_sheet.xlsx"
 
-    run(["python", "seed_kits/legacy_wrangling_v3/scripts/02_infer_missing_imaging_rows.py"])
-    run(["python", "seed_kits/legacy_wrangling_v3/scripts/01_link.py"])
-    run(["python", "-u", "seed_kits/legacy_wrangling_v3/scripts/02_enrich.py"])
-    run(["python", "seed_kits/legacy_wrangling_v3/scripts/05_make_v9_compat_from_v3.py"])
+    imaging_sheet_xlsx = v4 / "raw" / "2025-12-22-161955-Cell Observatory - Zebrafish Development.xlsx"
 
+    # 1) Canonical ROI extraction + deterministic linking to imaging sheet
+    run(["python", "seed_kits/legacy_wrangling_v4/scripts/01_link_v4.py"])
+
+    # 2) Build ROI loader-compatible CSV FROM THE CANONICAL ROI FEED
+    run(["python", "seed_kits/legacy_wrangling_v4/scripts/05_make_v9_loader_compat_from_link_v4.py"])
+
+    # 3) Enrich ROI rows (genotype/treatment rollups etc.) FROM THE SAME CANONICAL ROI FEED
+    run(["python", "-u", "seed_kits/legacy_wrangling_v4/scripts/02_enrich_v4.py"])
+    run(["python", "seed_kits/legacy_wrangling_v4/scripts/03_qc_v4.py"])
+
+    # 4) Build DB-compat ROI CSV aligned to the enriched ROI set (same roi_dir universe)
+    run(["python", "seed_kits/legacy_wrangling_v4/scripts/05_make_v9_compat_from_v4.py"])
+
+    # 5) Apply slot orientation (uses the imaging sheet + db_compat plate/slot IDs)
     run([
         "python", "scripts/v9_backfill_legacy_slot_orientation.py",
         "--sheet-xlsx", str(imaging_sheet_xlsx),
-        "--roi-csv", str(roi_csv_compat),
+        "--roi-csv", str(roi_csv_db_compat),
     ])
 
+    # 6) Build clutches + memberships from the SAME ROI FEED used to create plates/slots
     run([
         "python", "scripts/v9_build_legacy_clutches_from_v9.py",
-        "--csv", str(roi_csv_compat),
+        "--csv", str(roi_csv_db_compat),
+        "--out-dir", str(work),
     ])
 
+    # 7) Prepare clutch loader CSV (joins to roi_for_db for genotype basecodes)
     run([
         "python", "scripts/v9_prepare_legacy_clutches_for_loader.py",
-        "--in-csv", str(clutches_v9_in),
+        "--in-csv", str(clutches_v9_out),
         "--out-csv", str(clutches_v9_for_loader),
+        "--roi-compat-csv", str(roi_csv_db_compat),
+        "--roi-for-db-csv", str(roi_csv_for_db),
     ])
 
+    # 8) CLEANUP legacy clutches before reloading (prevents LCL-#### collisions)
+    run_psql(
+        """
+        BEGIN;
+
+        CREATE TEMP TABLE _legacy_clutches AS
+        SELECT id
+        FROM public.clutches
+        WHERE source_system = 'legacy_imaging';
+
+        DELETE FROM public.imaging_clutch_memberships m
+        USING _legacy_clutches lc
+        WHERE m.clutch_id = lc.id;
+
+        DELETE FROM public.join_clutch_treatments j
+        USING _legacy_clutches lc
+        WHERE j.clutch_id = lc.id;
+
+        DELETE FROM public.clutches c
+        USING _legacy_clutches lc
+        WHERE c.id = lc.id;
+
+        COMMIT;
+        """
+    )
+
+    # 9) Load clutches (and set genotype_v11_id via loader)
     run([
         "python", "scripts/loader_legacy_clutches.py",
         "--csv", str(clutches_v9_for_loader),
-        "--batch", "legacy_clutch_inference_v3",
+        "--batch", "legacy_clutch_inference_v4",
     ])
 
+    # 10) Load plates/slots/ROIs from the loader compat feed
     run([
         "python", "scripts/v9_load_imaging_legacy_rois.py",
-        "--csv", str(roi_csv_compat),
+        "--csv", str(roi_csv_loader_all),
     ])
 
+    # 11) Load memberships derived from the same clutch build step (same feed)
     run([
         "python", "scripts/v9_load_imaging_clutch_memberships_from_v9.py",
-        "--csv", str(memberships_v9),
+        "--csv", str(memberships_v9_out),
     ])
 
+    # 11b) Ensure every ROI slot has a clutch (even if genotype evidence is missing)
+    run([
+        "python", "scripts/v9_attach_missing_clutches_for_all_slots.py",
+        "--batch", "legacy_attach_missing_slots_v4",
+    ])
+
+    # 12) Treatments from enriched ROI feed
     run([
         "python", "scripts/v10_build_legacy_treatments_from_v9.py",
         "--roi-csv", str(roi_csv_for_db),
         "--out-csv", str(repo / "seed_kits" / "2025-11-15-121231-autoload" / "treatments_v10.csv"),
     ])
-
     run([
         "python", "scripts/v10_load_treatments_from_csv.py",
         "--csv", str(repo / "seed_kits" / "2025-11-15-121231-autoload" / "treatments_v10.csv"),
     ])
 
-    print("\n[OK] legacy imaging pipeline completed cleanly")
+    print("\n[OK] legacy imaging pipeline (v4) completed cleanly")
 
 
 if __name__ == "__main__":

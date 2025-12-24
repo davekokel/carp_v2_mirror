@@ -78,12 +78,23 @@ def _split_canonical_tx(v: Any) -> Tuple[str, str]:
     if v is None:
         return ("", "")
     s = str(v).strip()
-    if not s:
+    if not s or s.lower() in ("nan", "none", "na", "n/a", "<na>"):
         return ("", "")
     if " > " not in s:
         return (s, "")
     a, b = s.split(" > ", 1)
     return (a.strip(), b.strip())
+
+def _format_tx_parts(treat: str, gt: str) -> str:
+    a = (treat or "").strip()
+    b = (gt or "").strip()
+    out = []
+    if a:
+        out.append(f"treat={a}")
+    if b:
+        out.append(f"gt={b}")
+    return "\n".join(out)
+
 
 
 def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
@@ -100,9 +111,8 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
                     "r.roi_code ILIKE :q",
                     "r.roi_path ILIKE :q",
                     "r.clutch_code ILIKE :q",
-                    "r.treated_clutch_code ILIKE :q",
-                    "r.treatment_code ILIKE :q",
-                    "r.treatment_text ILIKE :q",
+                    "r.treated_clutch_codes ILIKE :q",
+                    "r.treatment_codes ILIKE :q",
                     "r.tx_gt_tg ILIKE :q",
                     "r.tx_gt_fluortag ILIKE :q",
                     "r.tx_gt_fluororganelle ILIKE :q",
@@ -113,6 +123,7 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
                     "r.plasmids_display ILIKE :q",
                     "r.rnas_display ILIKE :q",
                     "r.dyes_display ILIKE :q",
+                    "cast(r.n_tiffs as text) ILIKE :q",
                     "r.roi_note_anatomy ILIKE :q",
                     "r.slot_orientation ILIKE :q",
                     "r.plate_note ILIKE :q",
@@ -139,7 +150,7 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
         p["date_max"] = date_max
 
     if params.get("only_treated"):
-        where.append("coalesce(btrim(r.treatment_code),'') <> '' OR coalesce(btrim(r.treated_clutch_code),'') <> ''")
+        where.append("coalesce(btrim(r.treatment_codes),'') <> '' OR coalesce(btrim(r.treated_clutch_codes),'') <> ''")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
@@ -153,24 +164,25 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
       plate_note,
       slot_note,
       slot_orientation,
-      roi_code,
+      roi_id,
+      ('roi-' || left(roi_id::text, 8)) AS roi_code,
+      r.roi_code AS roi_label,
       roi_index_within_slot,
       roi_path,
       roi_note_anatomy,
+      n_tiffs,
       clutch_code,
-      treated_clutch_code,
-      treatment_code,
-      treatment_text,
+      treated_clutch_codes AS treated_clutch_code,
+      treatment_codes      AS treatment_code,
       tx_gt_tg,
       tx_gt_fluortag,
       tx_gt_fluororganelle,
-      rnas_display,
       plasmids_display,
+      rnas_display,
       dyes_display,
-      tg_label,
-      fluortag_label,
-      fluororganelle_name,
-      fluororganelle_basecodes
+      n_channels_total,
+      n_channels_kept,
+      kept_channels_key
     FROM public.v11_roi_flat_table_display r
     {where_sql}
     ORDER BY
@@ -185,11 +197,27 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
         df = pd.read_sql(text(sql), con, params=p)
 
     if len(df):
+        if "treatment_code" in df.columns:
+            df["treatment_code"] = df["treatment_code"].astype(str).fillna("").str.strip()
+        if "treated_clutch_code" in df.columns:
+            df["treated_clutch_code"] = df["treated_clutch_code"].astype(str).fillna("").str.strip()
+        df["has_treatment"] = (
+            df.get("treatment_code", "").astype(str).str.strip().ne("")
+            & ~df.get("treatment_code", "").astype(str).str.strip().str.lower().isin(["nan","none","na","n/a","<na>"])
+        ) | (
+            df.get("treated_clutch_code", "").astype(str).str.strip().ne("")
+            & ~df.get("treated_clutch_code", "").astype(str).str.strip().str.lower().isin(["nan","none","na","n/a","<na>"])
+        )
+        for c in ["tx_gt_fluortag_parts", "tx_gt_fluororganelle_parts"]:
+            if c in df.columns:
+                df[c] = df[c].replace(r"(?s)^treat=\s*\ngt=\s*$", "", regex=True)
+
+    if len(df):
         ft_parts = df["tx_gt_fluortag"].apply(_split_canonical_tx)
-        df["tx_gt_fluortag_parts"] = ft_parts.apply(lambda t: f"treat={t[0]}\ngt={t[1]}".strip())
+        df["tx_gt_fluortag_parts"] = ft_parts.apply(lambda t: _format_tx_parts(t[0], t[1]))
 
         fo_parts = df["tx_gt_fluororganelle"].apply(_split_canonical_tx)
-        df["tx_gt_fluororganelle_parts"] = fo_parts.apply(lambda t: f"treat={t[0]}\ngt={t[1]}".strip())
+        df["tx_gt_fluororganelle_parts"] = fo_parts.apply(lambda t: _format_tx_parts(t[0], t[1]))
 
     return df
 
@@ -236,22 +264,24 @@ st.caption(f"{n:,} row(s) shown | tx_gt_tg: {n_tg:,}/{n:,} | tx_gt_fluortag: {n_
 show_cols = [c for c in [
     "experiment_date",
     "experiment_name",
-    "slot_orientation",
     "roi_code",
+    "roi_label",
     "roi_index_within_slot",
-    "roi_path",
-    "clutch_code",
-    "treated_clutch_code",
-    "treatment_code",
     "tx_gt_tg",
     "tx_gt_fluortag",
     "tx_gt_fluororganelle",
-    "tx_gt_fluortag_parts",
-    "tx_gt_fluororganelle_parts",
+    "treated_clutch_code",
+    "treatment_code",
     "plasmids_display",
     "rnas_display",
     "dyes_display",
+    "n_tiffs",
+    "n_channels_kept",
+    "n_channels_total",
+    "kept_channels_key",
     "roi_note_anatomy",
+    "roi_path",
+    "clutch_code",
     "plate_note",
     "slot_note",
 ] if c in df.columns]
@@ -268,20 +298,21 @@ _width_px = {
     "experiment_date": 120,
     "experiment_name": 220,
     "slot_orientation": 90,
-    "roi_code": 220,
+    "roi_code": 240,
     "roi_index_within_slot": 80,
     "roi_path": 520,
     "clutch_code": 150,
-    "treated_clutch_code": 180,
+    "treated_clutch_code": 200,
     "treatment_code": 180,
-    "tx_gt_tg": 360,
-    "tx_gt_fluortag": 420,
-    "tx_gt_fluororganelle": 420,
+    "tx_gt_tg": 520,
+    "tx_gt_fluortag": 520,
+    "tx_gt_fluororganelle": 520,
     "tx_gt_fluortag_parts": 360,
     "tx_gt_fluororganelle_parts": 360,
-    "plasmids_display": 260,
-    "rnas_display": 260,
-    "dyes_display": 200,
+    "plasmids_display": 240,
+    "rnas_display": 240,
+    "dyes_display": 180,
+    "n_tiffs": 90,
     "roi_note_anatomy": 220,
     "plate_note": 220,
     "slot_note": 220,
@@ -297,49 +328,79 @@ headers = "".join([
     for c in show_cols
 ])
 
+def _row_class(r) -> str:
+    try:
+        v = r.get('has_treatment', False)
+        return ' class="is-treated"' if bool(v) else ''
+    except Exception:
+        return ''
+
+mono_cols = set(["roi_code", "roi_path", "kept_channels_key"])
+
 rows_html = []
-for _, r in df[show_cols].iterrows():
+for _, r in df.iterrows():
     tds = []
     for c in show_cols:
-        tds.append("<td><div class='cell'>" + _esc(r[c]) + "</div></td>")
-    rows_html.append("<tr>" + "".join(tds) + "</tr>")
+        cls = "cell mono" if c in mono_cols else "cell"
+        tds.append("<td><div class='" + cls + "'>" + _esc(r.get(c, "")) + "</div></td>")
+    rows_html.append("<tr" + _row_class(r) + ">" + "".join(tds) + "</tr>")
 
-css = """
-<style>
+css = """<style>
 .carp-roi-wrap {
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: 72vh;
+  max-height: 70vh;
+  overflow: auto;
   border: 1px solid #e6e6e6;
-  border-radius: 6px;
+  border-radius: 10px;
 }
+
 .carp-roi-table {
-  border-collapse: collapse;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
 }
+
 .carp-roi-table th, .carp-roi-table td {
-  border: 1px solid #e6e6e6;
+  border-bottom: 1px solid #f0f0f0;
   padding: 6px 8px;
   vertical-align: top;
 }
+
 .carp-roi-table th {
   position: sticky;
   top: 0;
-  background: white;
-  z-index: 2;
+  background: #fbfbfb;
+  z-index: 3;
   text-align: left;
-  font-weight: 600;
+  font-weight: 650;
   white-space: nowrap;
+  border-bottom: 1px solid #e6e6e6;
 }
+
+.carp-roi-table tbody tr:nth-child(even) td {
+  background: #fcfcfd;
+}
+
+.carp-roi-table tbody tr:hover td {
+  background: #f6f8ff;
+}
+
+.carp-roi-table tbody tr.is-treated td {
+  background: #fffef7;
+  border-left: 4px solid #f0c36d;
+}
+
 .carp-roi-table td .cell {
   font-size: 12px;
-  line-height: 1.2;
+  line-height: 1.25;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+
+.carp-roi-table td .cell.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
 }
 </style>
 """

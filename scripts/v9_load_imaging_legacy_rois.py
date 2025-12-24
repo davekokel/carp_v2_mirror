@@ -9,6 +9,7 @@ from typing import Optional, List, Dict
 import pandas as pd
 from sqlalchemy import text, create_engine
 from sqlalchemy.engine import Engine
+from pathlib import Path
 
 
 def get_engine(db_url: Optional[str] = None) -> Engine:
@@ -209,10 +210,21 @@ def upsert_imaging_slots(df: pd.DataFrame, engine: Engine) -> None:
             )
 
 
+ROI_OBSERVATIONS_TSV_DEFAULT = "seed_kits/legacy_wrangling_v4/working/roi_observations.tsv"
 _RE_TRAIL_SLASH = re.compile(r"/+$")
 _RE_ROI_SLASH = re.compile(r"/roi(?P<idx>\d+)(?:_(?P<label>[A-Za-z0-9][A-Za-z0-9_-]*))?$", re.IGNORECASE)
 _RE_ROI_UNDERSCORE = re.compile(r"_roi(?P<idx>\d+)(?:_(?P<label>[A-Za-z0-9][A-Za-z0-9_-]*))?$", re.IGNORECASE)
 
+
+def _guess_n_tiffs_from_obs(file_exts: object, n_paths: object) -> int:
+    ex = "" if file_exts is None else str(file_exts).lower()
+    try:
+        n = int(float(n_paths)) if n_paths is not None and str(n_paths).strip() != "" else 0
+    except Exception:
+        n = 0
+    if "tif" in ex:
+        return max(n, 0)
+    return 0
 
 def _infer_anatomy_from_roi_dir(roi_dir: object) -> str:
     if roi_dir is None:
@@ -239,6 +251,63 @@ def _infer_anatomy_from_roi_dir(roi_dir: object) -> str:
     return lab
 
 
+def _norm_code_element(x: object) -> str:
+    s = "" if x is None else str(x).strip().lower()
+    if not s or s in ("nan","none","na","n/a","<na>"):
+        return ""
+    s = re.sub(r"[^a-z0-9_]+", "_", s)   # keep '_' within element
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s
+
+def _norm_elem(s: str) -> str:
+    s = "" if s is None else str(s)
+    s = s.strip().lower()
+    # within-element delimiter: underscore
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s
+
+def _roi_code_from_path(roi_path: object) -> str:
+    """
+    Global rule:
+      - '-' between elements
+      - '_' within elements
+    We derive roi_code from the ROI's full path so roi_path -> roi_code is injective
+    (modulo normalization; collisions get a short -h<md5> suffix).
+    """
+    if roi_path is None:
+        return ""
+    s = str(roi_path).strip()
+    if not s or s.lower() in ("nan","none","na","n/a","<na>"):
+        return ""
+
+    # Normalize slashes
+    s = re.sub(r"/+", "/", s)
+
+    # Identify dataset + experiment folder + roi_rel (path under experiment folder)
+    # Expected: .../(Aang_Foundation|Korra_Foundation)/<experiment_folder>/<roi_rel...>
+    m = re.search(r"/(Aang_Foundation|Korra_Foundation)/([^/]+)/(.+)$", s)
+    if m:
+        foundation_long = m.group(1)
+        exp_folder = m.group(2)
+        roi_rel = m.group(3)
+        dataset = "aang" if "Aang_Foundation" in foundation_long else "korra"
+    else:
+        # Fallback: if it doesn't match, still make something stable from basename-ish
+        dataset = ""
+        exp_folder = ""
+        roi_rel = s.lstrip("/")
+
+    # Split roi_rel into segments, normalize each segment, then join with '-'
+    rel_segs = [seg for seg in roi_rel.split("/") if seg]
+    rel_norm = "-".join(_norm_elem(seg) for seg in rel_segs if _norm_elem(seg))
+
+    parts = [dataset, _norm_elem(exp_folder), rel_norm]
+    parts = [p for p in parts if p]
+    return "-".join(parts)
+
+ROI_N_TIFFS_TSV_DEFAULT = "seed_kits/legacy_wrangling_v4/working/roi_n_tiffs_by_roi_path.tsv"
+
 def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
     required_cols = [
         "plate_date",
@@ -256,54 +325,66 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
     df["plate_code"] = df.apply(plate_code_from_row, axis=1)
     df["slot_index"] = df["slot_id_filled"].astype(int)
     df["roi_index_int"] = df["roi_index_within_slot"].astype(int)
-
-    df["roi_code"] = df["bruker_roi_id"].astype(str).str.strip()
+    # Canonical identity is roi_path; roi_code is a globally-unique display code derived from path.
     df["roi_path"] = df["roi_dir"].astype(str).str.strip()
+    if "roi_note_anatomy" not in df.columns:
+        df["roi_note_anatomy"] = ""
 
-    bad_path = df["roi_path"].isna() | df["roi_path"].eq("") | df["roi_path"].str.lower().isin(["nan", "none", "<na>"])
-    if int(bad_path.sum()) != 0:
-        ex = df.loc[bad_path, ["plate_code", "slot_index", "roi_index_int", "bruker_roi_id", "roi_dir"]].head(50)
-        raise SystemExit(f"[STOP] {int(bad_path.sum())} ROI row(s) have blank roi_dir (refusing fallbacks). Examples:\n{ex.to_string(index=False)}")
+    # Attach n_tiffs from precomputed TSV (roi_path -> n_tiffs)
+    df["roi_path_key"] = df["roi_path"].astype(str).str.strip()
+    df["roi_path_key"] = df["roi_path_key"].str.replace(r"/+", "/", regex=True).str.rstrip("/")
 
-    src_col = None
-    if "roi_anatomy" in df.columns:
-        src_col = "roi_anatomy"
-    elif "roi_note_anatomy" in df.columns:
-        src_col = "roi_note_anatomy"
+    n_tiffs_path = Path(ROI_N_TIFFS_TSV_DEFAULT)
+    if n_tiffs_path.exists():
+        df_nt = pd.read_csv(n_tiffs_path, sep="\t", low_memory=False)
+        df_nt.columns = [str(c).strip() for c in df_nt.columns]
+        if "roi_path" not in df_nt.columns or "n_tiffs" not in df_nt.columns:
+            raise SystemExit(f"[STOP] n_tiffs TSV missing roi_path/n_tiffs columns: {n_tiffs_path}")
 
-    if src_col is not None:
-        df["_anatomy_src"] = df[src_col].astype(str).fillna("").map(lambda x: x.replace("\u00a0", " ").strip())
-        df["_anatomy_src"] = df["_anatomy_src"].where(~df["_anatomy_src"].str.lower().isin(["nan", "none", "<na>"]), "")
+        df_nt = df_nt.copy()
+        df_nt["roi_path_key"] = df_nt["roi_path"].astype(str).str.strip()
+        df_nt["roi_path_key"] = df_nt["roi_path_key"].str.replace(r"/+", "/", regex=True).str.rstrip("/")
+        df_nt["n_tiffs"] = pd.to_numeric(df_nt["n_tiffs"], errors="coerce").fillna(0).astype(int)
+
+        any_positive = int((df_nt["n_tiffs"] > 0).sum())
+        df = df.merge(df_nt[["roi_path_key", "n_tiffs"]], on="roi_path_key", how="left")
+
+        df["n_tiffs"] = pd.to_numeric(df["n_tiffs"], errors="coerce").fillna(0).astype(int)
+        join_hits = int((df["n_tiffs"] > 0).sum())
+        print(f"[N_TIFFS] tsv={n_tiffs_path} rows={len(df_nt)} any_positive={any_positive} join_hits_gt0={join_hits}")
+
+        if any_positive > 0 and join_hits == 0:
+            ex = df[["roi_path"]].head(25)
+            raise SystemExit("[STOP] n_tiffs TSV exists and has positive counts, but join_hits_gt0=0. Example roi_path values:\n" + ex.to_string(index=False))
     else:
-        df["_anatomy_src"] = ""
+        df["n_tiffs"] = 0
 
-    df["_anatomy_inf_path"] = df["roi_path"].map(_infer_anatomy_from_roi_dir)
+    if "n_tiffs" not in df.columns:
+        df["n_tiffs"] = 0
+    df["n_tiffs"] = pd.to_numeric(df["n_tiffs"], errors="coerce").fillna(0).astype(int)
 
-    if "Imaged Locations" in df.columns:
-        _loc = df["Imaged Locations"].astype(str).fillna("").map(lambda x: x.replace("\u00a0", " ").strip())
-        _loc = _loc.where(~_loc.str.lower().isin(["nan", "none", "<na>"]), "")
-        _loc = _loc.str.replace("|", ",", regex=False).str.replace(";", ",", regex=False)
-        _loc_list = _loc.map(lambda s: sorted({x.strip() for x in s.split(",") if x.strip()}))
-        df["_anatomy_inf_loc"] = _loc_list.map(lambda xs: xs[0] if len(xs) == 1 else "")
-    else:
-        df["_anatomy_inf_loc"] = ""
+    df["roi_code"] = df["roi_path"].map(_roi_code_from_path)
 
-    df["roi_note_anatomy"] = df["_anatomy_src"]
-    need_fill = df["roi_note_anatomy"].astype(str).str.strip().eq("")
-    df.loc[need_fill, "roi_note_anatomy"] = df.loc[need_fill, "_anatomy_inf_path"]
+    # If normalization still collides, make it globally unique by adding a short hash suffix.
+    # (Never uses "__"; uses "-h<8hex>" and only when needed.)
+    _base = df["roi_code"].astype(str).fillna("").str.strip()
+    _n = _base.groupby(_base).transform("size")
+    need_hash = (_n > 1) & (_base != "")
+    if int(need_hash.sum()) != 0:
+        import hashlib
+        def _h(x: str) -> str:
+            return hashlib.md5(x.encode("utf-8")).hexdigest()[:8]
+        df.loc[need_hash, "roi_code"] = (
+            df.loc[need_hash, "roi_code"].astype(str).str.strip()
+            + "-h"
+            + df.loc[need_hash, "roi_path"].astype(str).map(_h)
+        )
 
-    need_fill2 = df["roi_note_anatomy"].astype(str).str.strip().eq("")
-    df.loc[need_fill2, "roi_note_anatomy"] = df.loc[need_fill2, "_anatomy_inf_loc"]
+    bad_code = df["roi_code"].isna() | df["roi_code"].astype(str).str.strip().eq("")
+    if int(bad_code.sum()) != 0:
+        ex = df.loc[bad_code, ["plate_code", "slot_index", "roi_index_int", "roi_dir"]].head(50)
+        raise SystemExit(f"[STOP] {int(bad_code.sum())} ROI row(s) produced blank roi_code (check roi_path parsing). Examples:\n{ex.to_string(index=False)}")
 
-    n_src = int((df["_anatomy_src"].astype(str).str.strip() != "").sum())
-    n_path = int((df["_anatomy_inf_path"].astype(str).str.strip() != "").sum())
-    n_loc = int((df["_anatomy_inf_loc"].astype(str).str.strip() != "").sum())
-    n_final = int((df["roi_note_anatomy"].astype(str).str.strip() != "").sum())
-
-    print(f"[ANATOMY] src_nonblank={n_src} path_nonblank={n_path} loc_singleton_nonblank={n_loc} final_nonblank={n_final} rois={len(df)}")
-    if n_src == 0 and n_path == 0 and n_loc == 0:
-        ex = df[["roi_path"]].head(50)
-        raise SystemExit("[STOP] anatomy inference produced 0 nonblank values (src+path+loc); wiring is wrong. Example roi_path:\n" + ex.to_string(index=False))
 
     plate_codes = sorted(set(df["plate_code"].astype(str).str.strip().tolist()))
     if not plate_codes:
@@ -351,19 +432,22 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
             roi_index_within_slot,
             roi_code,
             roi_path,
-            roi_note_anatomy
+            roi_note_anatomy,
+            n_tiffs
         )
         SELECT
             slot_id,
             :roi_index_within_slot,
             :roi_code,
             :roi_path,
-            NULLIF(:roi_note_anatomy, '')
+            NULLIF(:roi_note_anatomy, ''),
+            :n_tiffs
         FROM slot
         ON CONFLICT (slot_id, roi_index_within_slot) DO UPDATE
         SET roi_code         = EXCLUDED.roi_code,
             roi_path         = EXCLUDED.roi_path,
-            roi_note_anatomy = EXCLUDED.roi_note_anatomy
+            roi_note_anatomy = EXCLUDED.roi_note_anatomy,
+            n_tiffs          = EXCLUDED.n_tiffs
         """
     )
 
@@ -380,7 +464,8 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
                 "roi_index_within_slot": int(row["roi_index_int"]),
                 "roi_code": row["roi_code"],
                 "roi_path": row["roi_path"],
-                "roi_note_anatomy": row["roi_note_anatomy"],
+                "roi_note_anatomy": row.get("roi_note_anatomy", ""),
+                "n_tiffs": int(row.get("n_tiffs", 0) or 0),
             }
             conn.execute(sql, params)
             upserted += 1
