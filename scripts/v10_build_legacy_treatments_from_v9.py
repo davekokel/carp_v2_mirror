@@ -194,14 +194,29 @@ def main() -> None:
     # Keep a representative mapping of signature -> (plasmids,rnas,dyes) sets
     sig_payload: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]] = {}
 
+    legacy_dye_text_by_token: Dict[str, str] = {}
+
     for _, row in df.iterrows():
         raw_plasmid = _norm_cell(row.get("additional plasmids injected"))
         raw_rna = _norm_cell(row.get("additional mRNAs injected"))
         raw_dye = _norm_cell(row.get("additonal dye and chemicals"))
 
+        unk_dye_token = ""
+        # Special case: ONLY additional_dye_and_chemicals is present.
+        # We keep the raw string as the human label, but cannot map it to any basecodes.
+        # Make a stable token so treatment_code remains deterministic and unique.
+        if raw_dye and (not raw_plasmid) and (not raw_rna):
+            h = hashlib.sha1(raw_dye.encode("utf-8")).hexdigest()[:10]
+            unk_dye_token = f"legacytext-{h}"
+
+
         pls: Set[str] = set()
         rnas: Set[str] = set()
         dyes: Set[str] = set()
+        if unk_dye_token:
+            dyes.add(unk_dye_token)
+            legacy_dye_text_by_token.setdefault(unk_dye_token, raw_dye)
+
 
         if raw_plasmid:
             if raw_plasmid not in plasmid_map:
@@ -223,7 +238,7 @@ def main() -> None:
                 continue
             rnas.update(bcs)
 
-        if raw_dye:
+        if raw_dye and (not unk_dye_token):
             try:
                 dn = _resolve_dye_strict(raw_dye)
             except SystemExit:
@@ -284,6 +299,10 @@ def main() -> None:
         pls, rnas, dyes = sig_payload[sig]
         tcode = _treat_code_for_signature(sig)
         tname = f"Legacy v9 mix {tcode}"
+        if (not pls) and (not rnas) and len(dyes) == 1 and str(dyes[0]).startswith('legacytext-'):
+            raw = legacy_dye_text_by_token.get(dyes[0], dyes[0])
+            tname = f"Legacy unknown chemical: {raw}"
+
         mix = "M1"
 
         for bc in pls:

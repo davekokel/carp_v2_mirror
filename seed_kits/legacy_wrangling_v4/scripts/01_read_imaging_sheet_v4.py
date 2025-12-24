@@ -85,6 +85,7 @@ def main() -> None:
             "additional_mrnas_injected": df.get("additional mRNAs injected", pd.NA),
             "additional_proteins_injected": df.get("additonal proteins injected", pd.NA),
             "additional_dye_and_chemicals": df.get("additonal dye and chemicals", pd.NA),
+            "free_text_label": df.get("free_text_label", pd.NA),
             "zf_female_genotype": df.get("ZF female genotype", pd.NA),
             "zf_male_genotype": df.get("ZF male genotype", pd.NA),
             "imaged_locations": df.get("Imaged Locations", pd.NA),

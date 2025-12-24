@@ -615,6 +615,10 @@ def main() -> None:
             raise SystemExit(f"missing required input: {p}")
 
     df = pd.read_csv(IN_STRUCT, low_memory=False)
+
+    # Pass-through: allow arbitrary free-text labels from imaging sheet to flow into enriched outputs
+    if "free_text_label" not in df.columns:
+        df["free_text_label"] = pd.NA
     if "roi_dir" not in df.columns:
         raise SystemExit("02_enrich.py: missing roi_dir in IN_STRUCT")
     if "roi_experiment_folder" not in df.columns:
@@ -789,15 +793,22 @@ def main() -> None:
     def _blank(v) -> bool:
         return not _nonempty(v)
 
-    df.loc[df["genotype_base_codes"].map(_blank), "include_in_db"] = False
+    ft = df.get("free_text_label", pd.Series([pd.NA] * len(df)))
+    has_free_text = ~ft.map(_blank)
 
-    bad = df["include_in_db"].astype(bool) & df["genotype_base_codes"].map(_blank)
+    df.loc[df["genotype_base_codes"].map(_blank) & ~has_free_text, "include_in_db"] = False
+
+    ft = df.get("free_text_label", pd.Series([pd.NA] * len(df)))
+    has_free_text = ~ft.map(_blank)
+
+    bad = df["include_in_db"].astype(bool) & df["genotype_base_codes"].map(_blank) & ~has_free_text
     n_bad = int(bad.sum())
     if n_bad:
         cols = [c for c in [
             "date_experiment",
             "roi_dir",
             "dataset_slug_norm",
+            "free_text_label",
             "ZF female genotype",
             "ZF male genotype",
             "additional plasmids injected",
@@ -808,7 +819,7 @@ def main() -> None:
             "include_in_db",
         ] if c in df.columns]
         print(df.loc[bad, cols].head(80).to_string(index=False))
-        raise SystemExit(f"STOP: {n_bad} row(s) have include_in_db=True but blank genotype_base_codes")
+        raise SystemExit(f"STOP: {n_bad} row(s) have include_in_db=True but blank genotype_base_codes AND no free_text_label")
     _step1a_fill_date_mount_from_roi_dir(df)
 
     # Output strategy:
@@ -823,6 +834,15 @@ def main() -> None:
     if "dataset_slug_norm" in all_rois.columns:
         all_rois = all_rois[~all_rois["dataset_slug_norm"].astype(str).str.strip().str.lower().eq("analysis_test")].copy()
     all_rois.to_csv(OUT_DB_ALL_ROIS, index=False)
+
+    # Ensure free_text_label is present on DB output
+    try:
+        _tmp = locals().get('out_db', None)
+        if _tmp is not None and hasattr(_tmp, 'columns'):
+            if 'free_text_label' not in _tmp.columns:
+                _tmp['free_text_label'] = df.get('free_text_label', pd.NA)
+    except Exception:
+        pass
 
     df[df["include_in_db"]].to_csv(OUT_DB, index=False)
 

@@ -55,7 +55,7 @@ def main() -> None:
         FROM ranked r
         JOIN public.clutches c
           ON c.id = r.clutch_id
-        ON CONFLICT (treated_clutch_code) DO NOTHING;
+        ON CONFLICT (clutch_id, treatment_id) DO NOTHING;
         """
     )
 

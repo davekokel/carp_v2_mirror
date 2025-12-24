@@ -70,6 +70,8 @@ def main() -> None:
     run(["python", "scripts/v11_autofill_exp_treatment_token_map.py"])
     run(["python", "scripts/v11_expand_exp_treatment_dataset_overrides.py"])
     run(["python", "scripts/v11_apply_exp_treatment_signatures_csv.py"])
+    run(["python", "scripts/v11_apply_free_text_label_treatments.py"])
+    run(["python", "scripts/v11_frontfill_imaging_clutch_memberships_treated.py"])
 
     run(["python", "scripts/v11_qc_legacy_imaging_treatments.py"])
     print("\n[OK] full local load pipeline completed cleanly")

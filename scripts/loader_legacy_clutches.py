@@ -367,10 +367,16 @@ def _assign_clutch_genotypes_strict(
     bad = df[df["genotype_basecodes"].apply(lambda x: not _nonempty(x))].copy()
     if len(bad):
         sample = bad[["clutch_code", "legacy_clutch_key"]].head(30).to_string(index=False)
-        raise SystemExit(
-            f"[STOP] loader_legacy_clutches: {len(bad)} clutch row(s) missing genotype_basecodes in input CSV.\n"
+        print(
+            f"[WARN] loader_legacy_clutches: {len(bad)} clutch row(s) missing genotype_basecodes in input CSV; "
+            f"skipping genotype assignment for these clutches (clutch still loaded).\n"
             f"Sample:\n{sample}"
         )
+        df = df[df["genotype_basecodes"].apply(lambda x: _nonempty(x))].copy()
+
+    if df.empty:
+        print("[WARN] loader_legacy_clutches: no clutches with genotype_basecodes to assign; continuing.")
+        return 0
 
     sql_upd = text(
         """

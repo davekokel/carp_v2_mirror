@@ -1,4 +1,58 @@
 from __future__ import annotations
+import re
+
+def _norm_payload_val(v) -> str:
+    if v is None:
+        return ""
+    s = str(v).strip()
+    if s.lower() in ("nan", "none", "na", "n/a", "<na>"):
+        return ""
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+def _payload_key(row: dict) -> tuple:
+    keys = [
+        "zf_female_genotype",
+        "zf_male_genotype",
+        "additional_plasmids_injected",
+        "additional_mrnas_injected",
+        "additional_proteins_injected",
+        "additional_dye_and_chemicals",
+    ]
+    return tuple(_norm_payload_val(row.get(k)) for k in keys)
+
+def _parse_int(v):
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s or s.lower() in ("nan", "none", "na", "n/a", "<na>"):
+        return None
+    s2 = re.sub(r"[^0-9]+", "", s)
+    if not s2:
+        return None
+    try:
+        return int(s2)
+    except Exception:
+        return None
+
+def _equiv_mount_pick(cand_df):
+    if cand_df is None or len(cand_df) == 0:
+        return None, ""
+    rows = cand_df.to_dict(orient="records")
+    keys = [_payload_key(r) for r in rows]
+    if len(set(keys)) != 1:
+        return None, ""
+
+    def sort_key(r):
+        mi = _parse_int(r.get("mount_id"))
+        sid = _parse_int(r.get("sheet_row_id"))
+        return (mi if mi is not None else 10**9, sid if sid is not None else 10**9, str(r.get("sheet_row_id") or ""))
+
+    rows_sorted = sorted(rows, key=sort_key)
+    chosen = rows_sorted[0]
+    equiv = [str(r.get("mount_id") or "").strip() for r in rows_sorted if str(r.get("mount_id") or "").strip()]
+    return chosen, ";".join(equiv)
+
 
 import argparse
 from pathlib import Path
@@ -50,14 +104,49 @@ def main() -> None:
         fd = getattr(r, "foundation")
         exp_date = getattr(r, "experiment_date")
 
+        # Candidate imaging-sheet rows for this ROI.
+        # Order:
+        #  1) experiment_key_guess == exp_key (if exp_key present)
+        #  2) fallback to date_mount (derived from ROI) if empty
+        #  3) fallback to exp_date if still empty
+        #  4) foundation filter ONLY if candidates have nonblank foundation_guess values
+        
         cand = sheet
         if exp_key:
-            cand = cand[cand["experiment_key_guess"].eq(exp_key)]
+            cand = cand[cand['experiment_key_guess'].eq(exp_key)]
+        
+        # derive date_mount (YYYY-MM-DD) from ROI row
+        date_mount = None
+        try:
+            v = getattr(r, 'experiment_date', None)
+            if v is not None:
+                s = str(v).strip()
+                if s and s.lower() not in ('nan','none','na','n/a','<na>'):
+                    date_mount = s[:10]
+        except Exception:
+            date_mount = None
+        if not date_mount:
+            try:
+                dk = getattr(r, 'date_key', None)
+                s2 = str(dk).strip()
+                if len(s2) == 8 and s2.isdigit():
+                    date_mount = s2[0:4] + '-' + s2[4:6] + '-' + s2[6:8]
+            except Exception:
+                date_mount = None
+        
+        if getattr(cand, 'empty', True) and date_mount:
+            cand = sheet[sheet['date_mount'].astype(str).str.strip().eq(str(date_mount))].copy()
         if len(cand) == 0:
-            cand = sheet[sheet["date_mount"].eq(exp_date)]
-        if fd:
-            cand = cand[cand["foundation_guess"].eq(fd)] if len(cand) else cand
-
+            cand = sheet[sheet['date_mount'].eq(exp_date)]
+        
+        # Only apply fd filter if it won't erase genotype-only rows (foundation_guess blank).
+        if fd and len(cand):
+            fg = cand.get('foundation_guess', None)
+            if fg is not None:
+                fg_nonblank = fg.astype(str).str.strip().ne('')
+                if bool(fg_nonblank.any()):
+                    cand = cand[fg.astype(str).str.strip().eq(fd)]
+        
         n = int(len(cand))
         if n == 1:
             sid = int(cand.iloc[0]["sheet_row_id"])
@@ -73,18 +162,33 @@ def main() -> None:
                 }
             )
         else:
-            links.append(
-                {
-                    "roi_root_rel": getattr(r, "roi_root_rel"),
-                    "sheet_row_id": pd.NA,
-                    "link_method": "unlinked" if n == 0 else "ambiguous",
-                    "link_score": 0.0,
-                    "n_candidates": n,
-                    "is_ambiguous": bool(n > 1),
-                    "link_notes": "",
-                }
-            )
-
+            # If multiple candidates are biologically identical, pick deterministically (lowest mount_id).
+            chosen, equiv = _equiv_mount_pick(cand)
+            if chosen is not None:
+                sid = int(chosen.get("sheet_row_id"))
+                links.append(
+                    {
+                        "roi_root_rel": getattr(r, "roi_root_rel"),
+                        "sheet_row_id": sid,
+                        "link_method": "imaging_sheet_equivalent_mounts",
+                        "link_score": 0.99,
+                        "n_candidates": n,
+                        "is_ambiguous": False,
+                        "link_notes": ("equiv_mount_ids=" + equiv) if equiv else "equiv_mounts",
+                    }
+                )
+            else:
+                links.append(
+                    {
+                        "roi_root_rel": getattr(r, "roi_root_rel"),
+                        "sheet_row_id": pd.NA,
+                        "link_method": "unlinked" if n == 0 else "ambiguous",
+                        "link_score": 0.0,
+                        "n_candidates": n,
+                        "is_ambiguous": bool(n > 1),
+                        "link_notes": "",
+                    }
+                )
     out_df = pd.DataFrame(links)
     out.parent.mkdir(parents=True, exist_ok=True)
     out_df.to_csv(out, sep="\t", index=False)
