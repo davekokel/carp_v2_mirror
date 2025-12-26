@@ -4,9 +4,12 @@ from pathlib import Path
 import re
 import pandas as pd
 
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 V4_WORK = REPO_ROOT / "seed_kits" / "legacy_wrangling_v4" / "working"
+
+SLUG_RULES = V4_WORK / "slug_marker_rules_v4.csv"
 V2_RAW = REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "raw"
 V2_WORKING = REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "working"
 AUTO = REPO_ROOT / "seed_kits" / "2025-11-15-121231-autoload"
@@ -385,10 +388,10 @@ def _parse_injections_from_sheet_columns(df: pd.DataFrame, rna_map: dict, pl_map
     return df
 
 
-def _infer_marker_family_basecode_from_slug(slug_norm: str) -> str | None:
+def _infer_treatment_rna_basecode_from_slug(slug_norm: str) -> str | None:
     s = str(slug_norm or "").strip().lower()
     if "mem-mito" in s:
-        return "MGCO-01"
+        return "MGCO-1"
     if "peroxi" in s:
         return "MGCO-49"
     return None
@@ -410,58 +413,89 @@ def _apply_slug_marker_inference(df: pd.DataFrame) -> pd.DataFrame:
     def _blank(v) -> bool:
         return not _nonempty(v)
 
-    need = (
-        df["dataset_slug_norm"].astype(str).str.strip().ne("")
-        & df["genotype_base_codes"].map(_blank)
-        & df["genotype_allele_codes"].map(_blank)
-        & df["treatment_rna_base_codes"].map(_blank)
-        & df["treatment_plasmid_base_codes"].map(_blank)
-        # do not slug-infer if parent genotypes exist
-        & df.get("ZF female genotype", pd.Series([pd.NA] * len(df))).map(_blank)
-        & df.get("ZF male genotype", pd.Series([pd.NA] * len(df))).map(_blank)
-    )
+    if not SLUG_RULES.exists():
+        print(f"[SLUG_RULES] missing {SLUG_RULES} (skip)")
+        return df
 
-    # if inferred_row exists, only apply slug inference to inferred rows
-    if "inferred_row" in df.columns:
-        need = need & df["inferred_row"].fillna(False).astype(bool)
+    rules = pd.read_csv(SLUG_RULES, low_memory=False).fillna("")
+    rules.columns = [str(c).strip() for c in rules.columns]
+    need_cols = [
+        "dataset_slug_norm",
+        "treatment_rna_base_codes",
+        "treatment_plasmid_base_codes",
+        "genotype_base_codes",
+        "genotype_allele_codes",
+        "rule_locked",
+    ]
+    miss = [c for c in need_cols if c not in rules.columns]
+    if miss:
+        raise SystemExit(f"[STOP] slug rules missing columns: {miss} in {SLUG_RULES}")
 
-    inferred = df["dataset_slug_norm"].map(_infer_marker_family_basecode_from_slug)
-    fill_mask = need & inferred.map(_nonempty)
+    rules["dataset_slug_norm"] = rules["dataset_slug_norm"].astype(str).str.strip().str.lower()
+    rules = rules[rules["dataset_slug_norm"].astype(str).str.strip().ne("")].copy()
+    rules["rule_locked"] = rules["rule_locked"].astype(str).str.strip().str.lower().isin(["1","t","true","y","yes"])
 
-    n_fill = int(fill_mask.sum())
-    if n_fill:
-        df.loc[fill_mask, "genotype_base_codes"] = df.loc[fill_mask, "dataset_slug_norm"].map(
-            _infer_marker_family_basecode_from_slug
-        )
+    rmap = {}
+    for r in rules.itertuples(index=False):
+        slug = str(getattr(r, "dataset_slug_norm")).strip().lower()
+        rmap[slug] = {
+            "treatment_rna_base_codes": str(getattr(r, "treatment_rna_base_codes")).strip(),
+            "treatment_plasmid_base_codes": str(getattr(r, "treatment_plasmid_base_codes")).strip(),
+            "genotype_base_codes": str(getattr(r, "genotype_base_codes")).strip(),
+            "genotype_allele_codes": str(getattr(r, "genotype_allele_codes")).strip(),
+            "rule_locked": bool(getattr(r, "rule_locked")),
+        }
 
-    bad = (
-        df["dataset_slug_norm"].astype(str).str.lower().str.contains(r"(?:mem-mito|peroxi)", regex=True, na=False)
-        & df["genotype_base_codes"].map(_blank)
-        & df["treatment_rna_base_codes"].map(_blank)
-        & df["treatment_plasmid_base_codes"].map(_blank)
-    )
-    if "inferred_row" in df.columns:
-        bad = bad & df["inferred_row"].fillna(False).astype(bool)
-    n_bad = int(bad.sum())
+    # Apply rules:
+    # - Only fill fields that are currently blank.
+    # - Do NOT overwrite nonblank values.
+    # - This is what fixes mem-mito: treatment_rna_base_codes gets filled even when genotype is present.
+    slugs = df["dataset_slug_norm"].astype(str).str.strip().str.lower()
 
-    print(f"[SLUG_INFER] filled_genotype_base_codes_from_slug={n_fill}")
-    print(f"[SLUG_INFER] remaining_slug_marker_rows_with_no_basecodes={n_bad}")
+    n_fill_trna = 0
+    n_fill_tpl = 0
+    n_fill_gb = 0
+    n_fill_ga = 0
 
-    if n_bad:
-        cols = [c for c in [
-            "roi_dir",
-            "dataset_slug_norm",
-            "genotype_base_codes",
-            "treatment_rna_base_codes",
-            "treatment_plasmid_base_codes",
-            "tr_rna_from_imaging",
-            "tr_plasmid_from_imaging",
-        ] if c in df.columns]
-        print(df.loc[bad, cols].head(60).to_string(index=False))
-        raise SystemExit(f"STOP: {n_bad} rows have slug markers but no genotype/treatment basecodes")
+    for slug, rule in rmap.items():
+        mask = slugs.str.endswith(slug)
+        if not int(mask.sum()):
+            continue
+
+        if rule["treatment_rna_base_codes"]:
+            m2 = mask & df["treatment_rna_base_codes"].map(_blank)
+            n = int(m2.sum())
+            if n:
+                df.loc[m2, "treatment_rna_base_codes"] = rule["treatment_rna_base_codes"]
+                n_fill_trna += n
+
+        if rule["treatment_plasmid_base_codes"]:
+            m2 = mask & df["treatment_plasmid_base_codes"].map(_blank)
+            n = int(m2.sum())
+            if n:
+                df.loc[m2, "treatment_plasmid_base_codes"] = rule["treatment_plasmid_base_codes"]
+                n_fill_tpl += n
+
+        if rule["genotype_base_codes"]:
+            m2 = mask & df["genotype_base_codes"].map(_blank)
+            n = int(m2.sum())
+            if n:
+                df.loc[m2, "genotype_base_codes"] = rule["genotype_base_codes"]
+                n_fill_gb += n
+
+        if rule["genotype_allele_codes"]:
+            m2 = mask & df["genotype_allele_codes"].map(_blank)
+            n = int(m2.sum())
+            if n:
+                df.loc[m2, "genotype_allele_codes"] = rule["genotype_allele_codes"]
+                n_fill_ga += n
+
+    print(f"[SLUG_RULES] filled_treatment_rna_base_codes={n_fill_trna}")
+    print(f"[SLUG_RULES] filled_treatment_plasmid_base_codes={n_fill_tpl}")
+    print(f"[SLUG_RULES] filled_genotype_base_codes={n_fill_gb}")
+    print(f"[SLUG_RULES] filled_genotype_allele_codes={n_fill_ga}")
 
     return df
-
 
 def _agg_exp_patch() -> pd.DataFrame:
     ep = pd.read_csv(EXP_PATCH, low_memory=False)

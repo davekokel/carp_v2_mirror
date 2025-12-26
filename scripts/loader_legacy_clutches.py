@@ -451,27 +451,17 @@ def _assign_clutch_genotypes_strict(
     return updated
 def _qc_report(engine: Engine, batch: str, out_dir: pathlib.Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_csv = out_dir / f"qc_missing_genotype_but_has_membership__{batch}.csv"
+    out_csv = out_dir / f"qc_legacy_clutches_missing_genotype__{batch}.csv"
 
     sql = text(
         """
-        WITH c AS (
-          SELECT id, clutch_code, genotype_v11_id
-          FROM public.clutches
-          WHERE source_system='legacy_imaging'
-            AND import_batch_id=:batch
-        ),
-        m AS (
-          SELECT DISTINCT clutch_id
-          FROM public.imaging_clutch_memberships
-        )
         SELECT
-          c.clutch_code,
-          (c.genotype_v11_id IS NULL) AS missing_genotype,
-          (m.clutch_id IS NOT NULL) AS has_membership
-        FROM c
-        LEFT JOIN m ON m.clutch_id = c.id
-        ORDER BY c.clutch_code;
+          clutch_code,
+          (genotype_v11_id IS NULL) AS missing_genotype
+        FROM public.clutches
+        WHERE source_system='legacy_imaging'
+          AND import_batch_id=:batch
+        ORDER BY clutch_code;
         """
     )
 
@@ -480,17 +470,15 @@ def _qc_report(engine: Engine, batch: str, out_dir: pathlib.Path) -> None:
 
     n_clutches = int(len(df))
     n_missing = int(df["missing_genotype"].sum())
-    n_missing_with_membership = int((df["missing_genotype"] & df["has_membership"]).sum())
 
-    print(f"[QC] legacy clutches in batch={n_clutches} missing_genotype={n_missing} missing_genotype_but_has_membership={n_missing_with_membership}")
+    print(f"[QC] legacy clutches in batch={n_clutches} missing_genotype={n_missing}")
 
-    bad = df[df["missing_genotype"] & df["has_membership"]].copy()
+    bad = df[df["missing_genotype"]].copy()
     if len(bad):
         bad.to_csv(out_csv, index=False)
         examples = ", ".join(bad["clutch_code"].head(30).tolist())
-        print(f"[WARN] {len(bad)} legacy clutches have imaging memberships but NULL genotype_v11_id. QC report: {out_csv}")
-        print(f"[WARN] examples: {examples}")
-
+        print(f"[INFO] wrote missing-genotype list (not inherently wrong): {out_csv}")
+        print(f"[INFO] examples: {examples}")
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Load inferred legacy clutches into public.clutches (STRICT)."

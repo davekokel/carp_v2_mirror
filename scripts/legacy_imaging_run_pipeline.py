@@ -11,6 +11,13 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
 
 
+def run_env(cmd: list[str], extra_env: dict[str, str]) -> None:
+    env = os.environ.copy()
+    env.update(extra_env)
+    print("\n[RUN]", " ".join(cmd))
+    subprocess.run(cmd, check=True, env=env)
+
+
 def run_psql(sql: str) -> None:
     db_url = os.environ.get("DB_URL")
     if not db_url:
@@ -34,7 +41,7 @@ def main() -> None:
 
     # Canonical ROI feed outputs
     roi_csv_loader = work / "legacy_imaging_annotations_for_loader_v9_compat.csv"
-    roi_csv_loader_all = work / "legacy_imaging_annotations_for_db_v9_all_rois_compat.csv"
+    roi_csv_loader_all = work / "legacy_imaging_annotations_for_loader_v9_compat.csv"
     roi_csv_for_db = work / "legacy_imaging_annotations_for_db_v9.csv"
     roi_csv_db_compat = work / "legacy_imaging_annotations_for_db_v9_compat.csv"
 
@@ -44,6 +51,20 @@ def main() -> None:
     clutches_v9_for_loader = work / "legacy_clutches_v9_for_loader.csv"
 
     imaging_sheet_xlsx = v4 / "raw" / "2025-12-22-161955-Cell Observatory - Zebrafish Development.xlsx"
+
+    # Ideal sheet outputs (v4)
+    ideal_tsv = work / "ideal_imaging_import_sheet_v4.tsv"
+    ideal_fixed_tsv = work / "ideal_imaging_import_sheet_v4.fixed.tsv"
+
+    # Patch CSVs for loader_legacy_clutches (derived from ideal sheet)
+    patch_geno_mem_histone = work / "legacy_clutches_patch_genotypes__ideal_mem_histone.csv"
+    patch_geno_mem_mito = work / "legacy_clutches_patch_genotypes__ideal_mem_mito.csv"
+
+    # Clutch→treatment mapping from v4 ROI sheet
+    clutch_treat_map_csv = work / "clutch_treatment_mapping_from_v4__ideal.csv"
+
+    # 0) Normalize imaging sheet (so downstream steps have a stable, greppable TSV)
+    run(["python", "seed_kits/legacy_wrangling_v4/scripts/01_read_imaging_sheet_v4.py"])
 
     # 1) Canonical ROI extraction + deterministic linking to imaging sheet
     run(["python", "seed_kits/legacy_wrangling_v4/scripts/01_link_v4.py"])
@@ -65,10 +86,10 @@ def main() -> None:
         "--roi-csv", str(roi_csv_db_compat),
     ])
 
-    # 6) Build clutches + memberships from the SAME ROI FEED used to create plates/slots
+    # 6) Build clutches + memberships from the SAME ROI FEED as the ROI loader (prevents drift)
     run([
         "python", "scripts/v9_build_legacy_clutches_from_v9.py",
-        "--csv", str(roi_csv_db_compat),
+        "--csv", str(roi_csv_loader_all),
         "--out-dir", str(work),
     ])
 
@@ -132,7 +153,7 @@ def main() -> None:
         "--batch", "legacy_attach_missing_slots_v4",
     ])
 
-    # 12) Treatments from enriched ROI feed
+    # 12) Build + load treatments (v10) from enriched ROI feed (kept as-is)
     run([
         "python", "scripts/v10_build_legacy_treatments_from_v9.py",
         "--roi-csv", str(roi_csv_for_db),
@@ -142,6 +163,44 @@ def main() -> None:
         "python", "scripts/v10_load_treatments_from_csv.py",
         "--csv", str(repo / "seed_kits" / "2025-11-15-121231-autoload" / "treatments_v10.csv"),
     ])
+
+    # 13) Build ideal ROI import sheet + apply deterministic fixes (mem-histone fill, etc.)
+    run(["python", "seed_kits/legacy_wrangling_v4/scripts/07_build_ideal_import_sheet_v4.py"])
+    run(["python", "seed_kits/legacy_wrangling_v4/scripts/08_fix_ideal_import_sheet_v4.py"])
+
+    # 14) Patch genotypes from the fixed ideal sheet back into clutches (repeatable)
+    run([
+        "python", "scripts/v11_patch_genotypes_from_ideal_sheet_v4.py",
+        "--only-slug", "mem-histone",
+        "--out-csv", str(patch_geno_mem_histone),
+    ])
+    run([
+        "python", "scripts/loader_legacy_clutches.py",
+        "--csv", str(patch_geno_mem_histone),
+        "--batch", "legacy_clutch_inference_v4",
+    ])
+
+    run([
+        "python", "scripts/v11_patch_genotypes_from_ideal_sheet_v4.py",
+        "--only-slug", "mem-mito",
+        "--out-csv", str(patch_geno_mem_mito),
+    ])
+    run([
+        "python", "scripts/loader_legacy_clutches.py",
+        "--csv", str(patch_geno_mem_mito),
+        "--batch", "legacy_clutch_inference_v4",
+    ])
+
+    # 15) Build + apply clutch→treatment mapping from IDEAL fixed TSV (single source of truth)
+    run([
+        "python", "scripts/v11_build_clutch_treatment_mapping_from_v4.py",
+        "--ideal-tsv", str(work / "ideal_imaging_import_sheet_v4.fixed.tsv"),
+        "--out-csv", str(clutch_treat_map_csv),
+    ])
+    run_env(
+        ["python", "scripts/v11_apply_clutch_treatment_mapping_from_v4.py"],
+        {"CLUTCH_TREAT_MAP_CSV": str(clutch_treat_map_csv)},
+    )
 
     print("\n[OK] legacy imaging pipeline (v4) completed cleanly")
 

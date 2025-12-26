@@ -5,29 +5,26 @@ import os
 import subprocess
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
-PARENT_XLSX = REPO / "seed_kits" / "legacy_wrangling_v2" / "raw" / "Unique_parent_names__mom_dad_combined__preview_dqm.xlsx"
-PARENT_CSV  = REPO / "seed_kits" / "legacy_wrangling_v2" / "working" / "Unique_parent_names__mom_dad_combined__preview_dqm_from_raw.csv"
 
 def run(cmd: list[str]) -> None:
     print("\n[RUN]", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
-def require_env(name: str) -> str:
-    v = os.environ.get(name)
-    if not v:
-        raise SystemExit(f"[STOP] {name} must be set")
-    return v
+
+def require_env(k: str) -> None:
+    if not os.environ.get(k):
+        raise SystemExit(f"[STOP] missing env var: {k}")
+
+
+PARENT_XLSX = REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "raw" / "Unique_parent_names__mom_dad_combined__preview_dqm.xlsx"
+PARENT_CSV = REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "working" / "Unique_parent_names__mom_dad_combined__preview_dqm_from_raw.csv"
+
 
 def ensure_parent_map_csv() -> None:
     if PARENT_CSV.exists():
         return
-    if not PARENT_XLSX.exists():
-        raise SystemExit(f"[STOP] missing parent XLSX: {PARENT_XLSX}")
-
-    PARENT_CSV.parent.mkdir(parents=True, exist_ok=True)
-
     code = (
         "import pandas as pd\n"
         f"p_in = r'''{PARENT_XLSX}'''\n"
@@ -38,6 +35,7 @@ def ensure_parent_map_csv() -> None:
         "print('WROTE', p_out, 'ROWS', len(df))\n"
     )
     run(["python", "-c", code])
+
 
 def assert_transgene_alleles_exist() -> None:
     code = (
@@ -54,6 +52,7 @@ def assert_transgene_alleles_exist() -> None:
     )
     run(["python", "-c", code])
 
+
 def main() -> None:
     require_env("DB_URL")
     print("[DB_URL]", os.environ["DB_URL"])
@@ -63,8 +62,13 @@ def main() -> None:
     run(["python", "scripts/foundation_run_pipeline.py"])
     assert_transgene_alleles_exist()
 
+    # Phase A / Step 1: link imaging sheet → build enriched ROI feeds → load clutches/ROIs/memberships/treatments
     run(["python", "scripts/legacy_imaging_run_pipeline.py"])
 
+    # Phase A / Step 2: infer missing genotypes (only where allowed by the script's rules)
+    run(["python", "scripts/v11_infer_genotypes_from_roi_folder.py", "--apply"])
+
+    # Phase A / Step 3: apply treatments and treated-clutch materialization
     run(["python", "scripts/v10_seed_construct_aliases_from_constructs.py"])
     run(["python", "scripts/v11_build_exp_treatment_signatures_with_basecodes.py"])
     run(["python", "scripts/v11_autofill_exp_treatment_token_map.py"])
@@ -75,6 +79,7 @@ def main() -> None:
 
     run(["python", "scripts/v11_qc_legacy_imaging_treatments.py"])
     print("\n[OK] full local load pipeline completed cleanly")
+
 
 if __name__ == "__main__":
     main()

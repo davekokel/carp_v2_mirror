@@ -55,6 +55,11 @@ def main() -> None:
         FROM ranked r
         JOIN public.clutches c
           ON c.id = r.clutch_id
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM public.treated_clutches_v11 tc
+          WHERE tc.treated_clutch_code = ('TREAT-' || c.clutch_code || '-' || lpad(r.idx0::text, 2, '0'))
+        )
         ON CONFLICT (clutch_id, treatment_id) DO NOTHING;
         """
     )

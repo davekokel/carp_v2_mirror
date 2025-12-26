@@ -179,7 +179,7 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
       n_channels_total,
       n_channels_kept,
       kept_channels_key
-    FROM public.v11_roi_flat_table_display r
+    FROM public.v11_roi_flat_table_display2 r
     {where_sql}
     ORDER BY
       r.experiment_date DESC NULLS LAST,

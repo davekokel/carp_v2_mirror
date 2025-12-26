@@ -63,6 +63,15 @@ def plate_code_from_row(row: pd.Series) -> str:
 
 def upsert_imaging_plates(df: pd.DataFrame, engine: Engine) -> None:
     df = df.copy()
+    if "roi_note_anatomy" in df.columns:
+        df["roi_note_anatomy"] = df["roi_note_anatomy"].astype(str).map(lambda x: "" if x.strip().lower() in ("nan","none","<na>") else x.strip())
+    else:
+        df["roi_note_anatomy"] = ""
+    if "n_tiffs" in df.columns:
+        df["n_tiffs"] = pd.to_numeric(df["n_tiffs"], errors="coerce").fillna(0).astype(int)
+    else:
+        df["n_tiffs"] = 0
+
     df["plate_code"] = df.apply(plate_code_from_row, axis=1)
     df["experiment_date"] = df["plate_date"].apply(experiment_date_from_plate_date)
 
@@ -336,7 +345,7 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
 
     n_tiffs_path = Path(ROI_N_TIFFS_TSV_DEFAULT)
     if n_tiffs_path.exists():
-        df_nt = pd.read_csv(n_tiffs_path, sep="\t", low_memory=False)
+        df_nt = pd.read_csv(n_tiffs_path, sep="\t", low_memory=False, dtype=str, keep_default_na=False, na_filter=False)
         df_nt.columns = [str(c).strip() for c in df_nt.columns]
         if "roi_path" not in df_nt.columns or "n_tiffs" not in df_nt.columns:
             raise SystemExit(f"[STOP] n_tiffs TSV missing roi_path/n_tiffs columns: {n_tiffs_path}")
@@ -440,7 +449,7 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
             :roi_index_within_slot,
             :roi_code,
             :roi_path,
-            NULLIF(:roi_note_anatomy, ''),
+            NULLIF(CAST(:roi_note_anatomy AS text), ''),
             :n_tiffs
         FROM slot
         ON CONFLICT (slot_id, roi_index_within_slot) DO UPDATE
@@ -458,13 +467,21 @@ def insert_imaging_rois(df: pd.DataFrame, engine: Engine) -> None:
 
         upserted = 0
         for _, row in df.iterrows():
+            _rna = row.get("roi_note_anatomy", "")
+            if pd.isna(_rna):
+                _rna = ""
+            else:
+                _rna = str(_rna).strip()
+                if _rna.lower() in ("nan", "none", "<na>"):
+                    _rna = ""
+
             params = {
                 "plate_code": row["plate_code"],
                 "slot_index": int(row["slot_index"]),
                 "roi_index_within_slot": int(row["roi_index_int"]),
                 "roi_code": row["roi_code"],
                 "roi_path": row["roi_path"],
-                "roi_note_anatomy": row.get("roi_note_anatomy", ""),
+                "roi_note_anatomy": _rna,
                 "n_tiffs": int(row.get("n_tiffs", 0) or 0),
             }
             conn.execute(sql, params)
@@ -482,7 +499,8 @@ def main() -> None:
     args = parser.parse_args()
 
     engine = get_engine(args.db_url)
-    df = pd.read_csv(args.csv, low_memory=False)
+    df = pd.read_csv(args.csv, low_memory=False, dtype=str, keep_default_na=False, na_filter=False)
+    df = df.fillna("")
     df.columns = [str(c).strip() for c in df.columns]
 
     needed = ["plate_date", "plate_id_filled", "slot_id_filled", "roi_index_within_slot", "roi_dir", "bruker_roi_id"]
