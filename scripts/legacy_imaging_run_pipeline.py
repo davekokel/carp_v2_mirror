@@ -213,6 +213,13 @@ def main() -> None:
         "--ideal-tsv", str(work / "ideal_imaging_import_sheet_v4.fixed.tsv"),
         "--out-csv", str(clutch_treat_map_db_csv),
     ])
+
+    # 15b) Ensure all treat_code referenced by the mapping exist (durable; avoids one-off psql)
+    run([
+        "psql", os.environ["DB_URL"],
+        "-v", "ON_ERROR_STOP=1",
+        "-f", "scripts/v11_ensure_treatments_for_v4_clutch_map.sql",
+    ])
     run_env(
         ["python", "scripts/v11_apply_clutch_treatment_mapping_from_v4.py"],
         {"CLUTCH_TREAT_MAP_CSV": str(clutch_treat_map_db_csv)},
