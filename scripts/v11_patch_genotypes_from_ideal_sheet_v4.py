@@ -138,11 +138,15 @@ def main() -> None:
         ).fetchall()
 
     map_df = pd.DataFrame(rows, columns=["roi_path", "clutch_code", "legacy_clutch_key"])
+    map_df = map_df[["roi_path", "clutch_code", "legacy_clutch_key"]].drop_duplicates().copy()
     map_df["roi_path"] = map_df["roi_path"].map(_s)
     map_df["clutch_code"] = map_df["clutch_code"].map(_s)
     map_df["legacy_clutch_key"] = map_df["legacy_clutch_key"].map(_s)
 
-    df = df.merge(map_df, on="roi_path", how="left")
+    for _c in ["clutch_code","legacy_clutch_key","clutch_code_x","clutch_code_y","legacy_clutch_key_x","legacy_clutch_key_y"]:
+        if _c in df.columns:
+            df = df.drop(columns=[_c])
+    df = df.merge(map_df, on="roi_path", how="left", validate="m:1")
 
     unmapped = df["clutch_code"].map(_s).eq("")
     if int(unmapped.sum()):

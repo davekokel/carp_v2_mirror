@@ -18,6 +18,15 @@ def _s(x: object) -> str:
         return ""
     return s
 
+def _legacy_clutch_key(foundation_guess: str, date_mount: str, mount_id: str) -> str:
+    f = _s(foundation_guess).lower()
+    d = _s(date_mount)
+    m = _s(mount_id)
+    if not (f and d and m):
+        return ""
+    return f"{f}|{d}|{m}"
+
+
 def _norm_pipe_blob(blob: object) -> str:
     s = _s(blob).lower()
     if not s:
@@ -97,7 +106,7 @@ def main() -> None:
 
     sheet = pd.read_csv(sheet_tsv, sep="\t", dtype=str, keep_default_na=False, na_filter=False)
     sheet.columns = [str(c).strip() for c in sheet.columns]
-    for c in ["data_location_cluster", "data_location", "foundation_guess", "zf_female_genotype", "zf_male_genotype"]:
+    for c in ["data_location_cluster", "data_location", "foundation_guess", "date_mount", "mount_id", "zf_female_genotype", "zf_male_genotype"]:
         if c not in sheet.columns:
             sheet[c] = ""
 
@@ -193,13 +202,16 @@ def main() -> None:
         out_rows.append(
             {
                 "roi_path": rp,
+                "foundation_guess": _s(m.get("foundation_guess", "")),
+                "date_mount": _s(m.get("date_mount", "")),
+                "mount_id": _s(m.get("mount_id", "")),
+                "legacy_clutch_key": _legacy_clutch_key(_s(m.get("foundation_guess", "")), _s(m.get("date_mount", "")), _s(m.get("mount_id", ""))),
                 "genotype_base_codes": _norm_pipe_blob(bc),
                 "genotype_allele_codes": _norm_alleles_pipe(al),
                 "locked_genotype": "",
                 "source_of_genotype": src,
             }
         )
-
     out_df = pd.DataFrame(out_rows)
     out.parent.mkdir(parents=True, exist_ok=True)
     out_df.to_csv(out, sep="\t", index=False)

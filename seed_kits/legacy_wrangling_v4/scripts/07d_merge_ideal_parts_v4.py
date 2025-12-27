@@ -209,6 +209,11 @@ def main() -> None:
     if "dataset_slug" in df.columns:
         df.loc[df["dataset_slug"].map(_s).str.lower().eq("analysis_test"), "include_in_db"] = "false"
 
+    # ENSURE_LEGACY_CLUTCH_COLS: carry clutch identity columns through the final output
+    for _c in ["foundation_guess", "date_mount", "mount_id", "legacy_clutch_key"]:
+        if _c not in df.columns and _c in t.columns:
+            df = df.merge(t[["roi_path", _c]].copy(), on="roi_path", how="left", validate="m:1")
+
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, sep="\t", index=False)
     print(str(out))

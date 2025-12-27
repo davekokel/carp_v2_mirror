@@ -20,11 +20,21 @@ def _plate_code_from_cols(plate_date: object, plate_id_filled: object) -> str | 
     if s.endswith(".0"):
         s = s[:-2]
 
-    m = re.search(r"(20\d{6})", s.replace("-", ""))
-    if not m:
-        return None
+    d_int: int | None = None
 
-    d_int = int(m.group(1))
+    m = re.search(r"(20\d{6})", s.replace("-", ""))
+    if m:
+        try:
+            d_int = int(m.group(1))
+        except Exception:
+            d_int = None
+    else:
+        dt = pd.to_datetime(s, errors="coerce", infer_datetime_format=True)
+        if pd.notna(dt):
+            d_int = int(dt.strftime("%Y%m%d"))
+
+    if d_int is None:
+        return None
 
     pid = plate_id_filled
     if isinstance(pid, str) and pid.strip().endswith(".0"):
