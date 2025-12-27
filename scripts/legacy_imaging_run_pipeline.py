@@ -154,6 +154,11 @@ def main() -> None:
         "--batch", "legacy_attach_missing_slots_v4",
     ])
 
+    # 11c) Apply deterministic ROI-level overrides (mem-mito, mem-histone, etc.) to produce roi_csv_for_db
+    run([
+        "python", "seed_kits/legacy_wrangling_v4/overrides/run_overrides_v4.py",
+    ])
+
     # 12) Build + load treatments (v10) from enriched ROI feed (kept as-is)
     run([
         "python", "scripts/v10_build_legacy_treatments_from_v9.py",
