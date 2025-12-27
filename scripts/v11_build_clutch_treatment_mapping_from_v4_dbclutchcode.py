@@ -43,6 +43,7 @@ def main() -> None:
 
     df["roi_path"] = df["roi_path"].map(_s)
     df["treat_code"] = df["treat_code"].map(_s)
+    df["treat_code"] = df["treat_code"].map(lambda t: ("T-LEGACY-" + t[6:14]) if t.startswith("T-EXP-") else t)
     df["signature_text"] = df["signature_text"].map(_s)
 
     df = df[df["roi_path"].ne("")].copy()
