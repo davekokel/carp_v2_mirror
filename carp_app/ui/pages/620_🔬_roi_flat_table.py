@@ -179,7 +179,7 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
       n_channels_total,
       n_channels_kept,
       kept_channels_key
-    FROM public.v11_roi_flat_table_display2 r
+    FROM public.v11_roi_flat_table_display r
     {where_sql}
     ORDER BY
       r.experiment_date DESC NULLS LAST,
@@ -204,16 +204,7 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
             df.get("treated_clutch_code", "").astype(str).str.strip().ne("")
             & ~df.get("treated_clutch_code", "").astype(str).str.strip().str.lower().isin(["nan","none","na","n/a","<na>"])
         )
-        for c in ["tx_gt_fluortag_parts", "tx_gt_fluororganelle_parts"]:
-            if c in df.columns:
-                df[c] = df[c].replace(r"(?s)^treat=\s*\ngt=\s*$", "", regex=True)
 
-    if len(df):
-        ft_parts = df["tx_gt_fluortag"].apply(_split_canonical_tx)
-        df["tx_gt_fluortag_parts"] = ft_parts.apply(lambda t: _format_tx_parts(t[0], t[1]))
-
-        fo_parts = df["tx_gt_fluororganelle"].apply(_split_canonical_tx)
-        df["tx_gt_fluororganelle_parts"] = fo_parts.apply(lambda t: _format_tx_parts(t[0], t[1]))
 
     return df
 
@@ -255,7 +246,7 @@ n_tg = _n_nonblank(df["tx_gt_tg"]) if "tx_gt_tg" in df.columns else 0
 n_ft = _n_nonblank(df["tx_gt_fluortag"]) if "tx_gt_fluortag" in df.columns else 0
 n_fo = _n_nonblank(df["tx_gt_fluororganelle"]) if "tx_gt_fluororganelle" in df.columns else 0
 
-st.caption(f"{n:,} row(s) shown | tx_gt_tg: {n_tg:,}/{n:,} | tx_gt_fluortag: {n_ft:,}/{n:,} | tx_gt_fluororganelle: {n_fo:,}/{n:,}")
+st.caption(f"{n:,} row(s) shown | TG: {n_tg:,}/{n:,} | FluorTag: {n_ft:,}/{n:,} | FluorOrganelle: {n_fo:,}/{n:,}")
 
 show_cols = [c for c in [
     "experiment_date",
@@ -303,8 +294,6 @@ _width_px = {
     "tx_gt_tg": 520,
     "tx_gt_fluortag": 520,
     "tx_gt_fluororganelle": 520,
-    "tx_gt_fluortag_parts": 360,
-    "tx_gt_fluororganelle_parts": 360,
     "plasmids_display": 240,
     "rnas_display": 240,
     "dyes_display": 180,

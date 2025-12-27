@@ -1,0 +1,13 @@
+dataset_slug_norm	genotype_base_codes	genotype_allele_codes	n_clutches	n_rois	sample_clutch_code	sample_roi_path	notes
+20250429_mem_cytosol			5	0	LCL-0003	1|/clusterfs/vast/abcabc/Korra_Foundation/20250429_mem_cytosol/fish1_24hpf	
+20250620_mitomSG			1	0	LCL-0164	1|/clusterfs/vast/abcabc/Korra_Foundation/20250620_mitomSG/fish1_roi1	
+20250715_mem_organelle			9	0	LCL-0193	1|/clusterfs/vast/abcabc/Korra_Foundation/20250715_mem_organelle/fish1_mem_sg_mito_msc3	
+20250718_histone_mSC3_transgenic_test			3	0	LCL-0202	1|/clusterfs/vast/abcabc/Korra_Foundation/20250718_histone_mSC3_transgenic_test/fish1	
+20250721_72hpf_mrna_mSG_organelle_LLS-SIM			1	0	LCL-0205	5|/clusterfs/vast/abcabc/Aang_Foundation/20250721_72hpf_mrna_mSG_organelle_LLS-SIM/er_roi1	
+20250808_mem_organelle			5	0	LCL-0230	1|/clusterfs/vast/abcabc/Aang_Foundation/20250808_mem_organelle/fish1_24hpf_mem-mchilada_lyso-mSG	
+20250811_mem_cytosol_test			3	0	LCL-0235	1|/clusterfs/vast/abcabc/Korra_Foundation/20250811_mem_cytosol_test/fish1_86	
+20251002_mem_mito			10	0	LCL-0323	1|/clusterfs/vast/abcabc/Aang_Foundation/20251002_mem_mito/fish1_24hpf_roi1	
+20251003_mem_tester			1	0	LCL-0333	8|/clusterfs/vast/abcabc/Aang_Foundation/20251003_mem_tester/fish1_48hpf_xscan_roi1_brain	
+20251017_microtubules			1	0	LCL-0371	1|/clusterfs/vast/abcabc/Korra_Foundation/20251017_microtubules/fish2_24hpf_roi1_test	
+20251017_nuclear_envelope			1	0	LCL-0370	2|/clusterfs/vast/abcabc/Aang_Foundation/20251017_nuclear_envelope/fish1_24hpf_roi1_test	
+20251219_mem-histone			2	0	LCL-0510	2|/clusterfs/vast/abcabc/Aang_Foundation/20251219_mem-histone/fish1_96hpf_roi1	
