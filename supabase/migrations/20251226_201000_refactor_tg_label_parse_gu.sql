@@ -1,5 +1,11 @@
 BEGIN;
 
+DROP VIEW IF EXISTS public.v11_roi_flat_table_display2;
+DROP VIEW IF EXISTS public.v11_roi_flat_table_display;
+DROP FUNCTION IF EXISTS public.parse_tg_label_pairs(text) CASCADE;
+DROP FUNCTION IF EXISTS public.ensure_transgene_allele(text,text);
+
+
 CREATE SEQUENCE IF NOT EXISTS public.global_allele_number_seq START 1;
 
 SELECT setval(
@@ -47,8 +53,8 @@ AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION public.ensure_transgene_allele(
-  in_base_code text,
-  in_allele_nickname text
+  p_construct_code text,
+  p_allele_nickname text
 )
 RETURNS TABLE (
   transgene_base_code text,
@@ -59,8 +65,8 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  base text := public.norm_transgene_base_code(in_base_code);
-  nick text := btrim(coalesce(in_allele_nickname,''));
+  base text := public.norm_transgene_base_code(p_construct_code);
+  nick text := btrim(coalesce(p_allele_nickname,''));
   n int;
   name text;
 BEGIN
@@ -143,6 +149,10 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+DROP VIEW IF EXISTS public.v11_roi_flat_table_display2;
+DROP VIEW IF EXISTS public.v11_roi_flat_table_display;
+DROP FUNCTION IF EXISTS public.parse_tg_label_pairs(text);
 
 CREATE OR REPLACE FUNCTION public.parse_tg_label_pairs(tg_label text)
 RETURNS TABLE (transgene_base_code text, allele_nickname text)
