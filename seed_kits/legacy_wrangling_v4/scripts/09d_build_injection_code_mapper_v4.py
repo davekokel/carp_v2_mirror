@@ -77,8 +77,7 @@ def main() -> None:
     out_all = pd.DataFrame(rows).drop_duplicates()
 
     # QC: tokens we could not normalize at all
-    missing = out_all[out_all["token_norm"].map(s).eq("")][["delivery_form","token_raw"]].drop_duplicates().copy()
-
+    missing = out_all[(out_all["token_raw"].map(s).ne("")) & (out_all["token_norm"].map(s).eq(""))][["delivery_form","token_raw"]].drop_duplicates().copy()
     # QC: multiple raw spellings collapsing to the same normalized key
     dup = (
         out_all[out_all["token_norm"].map(s).ne("")]

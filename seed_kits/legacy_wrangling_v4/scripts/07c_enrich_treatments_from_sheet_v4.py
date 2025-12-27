@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -9,6 +10,7 @@ import pandas as pd
 
 EMPTY_SIG = "plasmids=|rnas=|dyes="
 
+
 def _s(x: object) -> str:
     if x is None:
         return ""
@@ -17,27 +19,27 @@ def _s(x: object) -> str:
         return ""
     return s
 
+
 def _canon_codes_blob(blob: object) -> str:
-    s = _s(blob).lower()
+    s = _s(blob)
     if not s:
         return ""
-    toks = [t.strip() for t in re.split(r"[|,;]+", s) if t.strip()]
-    norm = []
-    for t in toks:
-        t = re.sub(r"[^a-z0-9\-]+", "", t)
-        m = re.match(r"^([a-z]+)-?0*([0-9]+)$", t)
-        if m:
-            t = f"{m.group(1)}-{int(m.group(2))}"
-        if t:
-            norm.append(t)
+    code_re = re.compile(r"(?i)\b(mgco|pdqm|pswin|swin|hc|is)\s*-?\s*0*(\d+)\b")
     out = []
     seen = set()
-    for t in norm:
-        if t in seen:
+    for mm in code_re.finditer(s):
+        pref = mm.group(1).lower()
+        num = int(mm.group(2))
+        if pref == "swin":
+            pref = "pswin"
+        tok = f"{pref}-{num}"
+        if tok in seen:
             continue
-        seen.add(t)
-        out.append(t)
+        seen.add(tok)
+        out.append(tok)
     return "|".join(out)
+
+
 
 def _pipe_to_sorted_csv(pipe_blob: str) -> str:
     s = _s(pipe_blob)
@@ -47,15 +49,27 @@ def _pipe_to_sorted_csv(pipe_blob: str) -> str:
     parts = sorted(dict.fromkeys(parts))
     return ",".join(parts)
 
+
 def _signature_text(plasmids_blob: object, rnas_blob: object) -> str:
     plas_pipe = _canon_codes_blob(plasmids_blob)
     rnas_pipe = _canon_codes_blob(rnas_blob)
     return f"plasmids={_pipe_to_sorted_csv(plas_pipe)}|rnas={_pipe_to_sorted_csv(rnas_pipe)}|dyes="
 
+
 def _treat_code_from_signature(sig: str) -> str:
     s = _s(sig)
     h = hashlib.sha1(s.encode("utf-8")).hexdigest()[:10]
     return f"T-EXP-{h}"
+
+
+def _legacy_clutch_key(foundation_guess: str, date_mount: str, mount_id: str) -> str:
+    f = _s(foundation_guess).lower()
+    d = _s(date_mount)
+    m = _s(mount_id)
+    if not (f and d and m):
+        return ""
+    return f"{f}|{d}|{m}"
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -80,7 +94,17 @@ def main() -> None:
 
     sheet = pd.read_csv(sheet_tsv, sep="\t", dtype=str, keep_default_na=False, na_filter=False)
     sheet.columns = [str(c).strip() for c in sheet.columns]
-    for c in ["data_location_cluster", "data_location", "foundation_guess", "additional_plasmids_injected", "additional_mrnas_injected", "sheet_row_id"]:
+
+    for c in [
+        "data_location_cluster",
+        "data_location",
+        "foundation_guess",
+        "date_mount",
+        "mount_id",
+        "additional_plasmids_injected",
+        "additional_mrnas_injected",
+        "sheet_row_id",
+    ]:
         if c not in sheet.columns:
             sheet[c] = ""
 
@@ -109,17 +133,33 @@ def main() -> None:
 
     out_rows = []
     for rp in base["roi_path"].astype(str).map(_s).tolist():
-        m = best_match(rp)
+        rp_norm = _s(rp).replace("\\", "/").rstrip("/")
+        fnd_from_path = "aang" if "/Aang_Foundation/" in rp_norm else "korra" if "/Korra_Foundation/" in rp_norm else ""
+
+        m = best_match(rp_norm)
+
+        fnd_sheet = _s(m.get("foundation_guess")).lower()
+        fnd_eff = fnd_sheet or fnd_from_path
+
+        date_mount = _s(m.get("date_mount"))
+        mount_id = _s(m.get("mount_id"))
+        lck = _legacy_clutch_key(fnd_eff, date_mount, mount_id)
+
         plas = _canon_codes_blob(m.get("additional_plasmids_injected", ""))
         rnas = _canon_codes_blob(m.get("additional_mrnas_injected", ""))
         sig = _signature_text(plas, rnas)
+
         src = ""
         if _s(sig) and sig != EMPTY_SIG:
             src = "imaging_sheet"
 
         out_rows.append(
             {
-                "roi_path": rp,
+                "roi_path": rp_norm,
+                "foundation_guess": fnd_eff,
+                "date_mount": date_mount,
+                "mount_id": mount_id,
+                "legacy_clutch_key": lck,
                 "treatment_plasmid_base_codes": plas,
                 "treatment_rna_base_codes": rnas,
                 "signature_text": sig,
@@ -134,6 +174,7 @@ def main() -> None:
     out_df.to_csv(out, sep="\t", index=False)
     print(str(out))
     print("[QC] rows", len(out_df))
+
 
 if __name__ == "__main__":
     main()
