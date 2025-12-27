@@ -31,7 +31,7 @@ BEGIN
       IF array_length(bases,1) IS NOT NULL AND array_length(alleles,1) IS NOT NULL
          AND array_length(bases,1) = array_length(alleles,1) THEN
         FOR i IN 1..array_length(bases,1) LOOP
-          out_parts := array_append(out_parts, format('tg(%s)guallelenumber-%s', bases[i], alleles[i]));
+          out_parts := array_append(out_parts, format('tg(%s)allele_number-%s', bases[i], alleles[i]));
         END LOOP;
         CONTINUE;
       END IF;

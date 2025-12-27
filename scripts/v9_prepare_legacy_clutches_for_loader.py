@@ -187,17 +187,39 @@ def main() -> None:
     if j.empty:
         raise SystemExit("[STOP] join roi_compat ↔ roi_for_db on roi_dir produced 0 rows")
 
-    j["base_tokens"] = j["genotype_base_codes"].apply(_split_tokens_pipe)
-    j["allele_tokens"] = j["genotype_allele_codes"].apply(_split_allele_tokens)
+    # Build clutch-level allele pairs from ROI rows (positional pairing).
+    # Key rule: allele_nickname is only meaningful WITHIN a basecode; do not infer token→base globally.
 
-    agg = (
-        j.groupby("legacy_clutch_key", dropna=False)
-        .agg(
-            genotype_basecodes=("base_tokens", lambda s: "|".join(sorted(set(sum(s.tolist(), [])))) if len(s) else ""),
-            genotype_allele_nicknames=("allele_tokens", lambda s: "|".join(sorted(set(sum(s.tolist(), [])))) if len(s) else ""),
-        )
-        .reset_index()
-    )
+    def _split_pipe_keep_order(raw: object) -> List[str]:
+        if not _nonempty(raw):
+            return []
+        parts = [p.strip() for p in TOKEN_SPLIT.split(str(raw)) if p.strip()]
+        out: List[str] = []
+        for p in parts:
+            c = _canon_basecode(p)
+            if c:
+                out.append(c)
+        return out
+
+    def _split_alleles_keep_order(raw: object) -> List[str]:
+        if not _nonempty(raw):
+            return []
+        parts = [p.strip() for p in TOKEN_SPLIT.split(str(raw)) if p.strip()]
+        out: List[str] = []
+        for p in parts:
+            x = str(p).strip()
+            if not x:
+                continue
+            xl = x.lower()
+            if xl in ("nan", "none", "na", "n/a", "<na>"):
+                continue
+            if x.endswith(".0") and x[:-2].isdigit():
+                x = x[:-2]
+            out.append(x)
+        return out
+
+    j["base_list"] = j["genotype_base_codes"].apply(_split_pipe_keep_order)
+    j["allele_list"] = j["genotype_allele_codes"].apply(_split_alleles_keep_order)
 
     eng = _get_engine()
     token_to_bases, base_token_to_info = _load_allele_lookup(eng)
@@ -205,109 +227,75 @@ def main() -> None:
     qc_rows: List[Dict[str, str]] = []
     display_by_key: Dict[str, str] = {}
 
-    for r in agg.itertuples(index=False):
-        lk = str(r.legacy_clutch_key).strip()
-        basecodes = _split_tokens_pipe(r.genotype_basecodes)
-        allele_toks = _split_allele_tokens(r.genotype_allele_nicknames)
+    # Collect pairs per clutch
+    pairs_by_key: Dict[str, Dict[str, List[str]]] = {}
 
-        if not lk or not basecodes or not allele_toks:
+    for r in j.itertuples(index=False):
+        lk = str(r.legacy_clutch_key).strip()
+        bases = list(getattr(r, "base_list"))
+        toks  = list(getattr(r, "allele_list"))
+
+        if not lk or not bases or not toks:
+            continue
+
+        if len(bases) == 1 and len(toks) >= 1:
+            # replicate the single base for all tokens
+            bases = [bases[0]] * len(toks)
+        elif len(bases) != len(toks):
+            qc_rows.append(
+                {
+                    "legacy_clutch_key": lk,
+                    "genotype_base_codes": "|".join(bases),
+                    "genotype_allele_codes": "|".join(toks),
+                    "error": f"basecode/token count mismatch in ROI row: n_basecodes={len(bases)} n_allele_tokens={len(toks)}",
+                }
+            )
+            continue
+
+        per_base = pairs_by_key.setdefault(lk, {})
+        for b_raw, tok_raw in zip(bases, toks):
+            b = _canon_basecode(b_raw)
+            t = str(tok_raw).strip().lower()
+            if not b or not t:
+                continue
+            if (b, t) not in base_token_to_info:
+                qc_rows.append(
+                    {
+                        "legacy_clutch_key": lk,
+                        "genotype_base_codes": "|".join(bases),
+                        "genotype_allele_codes": "|".join(toks),
+                        "error": f"allele token '{tok_raw}' not found for basecode='{b}' in transgene_alleles (allele_name/allele_nickname/nickname)",
+                    }
+                )
+                per_base.clear()
+                break
+            per_base.setdefault(b, [])
+            if t not in per_base[b]:
+                per_base[b].append(t)
+
+    # Build display strings per clutch from resolved (base, token) pairs
+    for lk, per_base in pairs_by_key.items():
+        if not per_base:
             display_by_key[lk] = ""
             continue
 
-        tok_to_base: Dict[str, str] = {}
-        for tok in allele_toks:
-            t = tok.strip().lower()
-            if not t:
-                continue
-            bases = token_to_bases.get(t, [])
-            if not bases:
-                qc_rows.append(
-                    {
-                        "legacy_clutch_key": lk,
-                        "genotype_base_codes": "|".join(basecodes),
-                        "genotype_allele_codes": "|".join(allele_toks),
-                        "error": f"allele token '{tok}' not found in transgene_alleles (allele_name/allele_nickname/nickname)",
-                    }
-                )
-                tok_to_base = {}
-                break
-            if len(bases) != 1:
-                qc_rows.append(
-                    {
-                        "legacy_clutch_key": lk,
-                        "genotype_base_codes": "|".join(basecodes),
-                        "genotype_allele_codes": "|".join(allele_toks),
-                        "error": f"allele token '{tok}' is ambiguous across basecodes={bases}",
-                    }
-                )
-                tok_to_base = {}
-                break
-            tok_to_base[t] = bases[0]
-
-        if not tok_to_base:
-            continue
-
-        extra_bases = sorted(set(tok_to_base.values()) - set(basecodes))
-        if extra_bases:
-            qc_rows.append(
-                {
-                    "legacy_clutch_key": lk,
-                    "genotype_base_codes": "|".join(basecodes),
-                    "genotype_allele_codes": "|".join(allele_toks),
-                    "error": f"allele token(s) map to basecode(s) not present in genotype_base_codes: {extra_bases}",
-                }
-            )
-            continue
-
-        per_base: Dict[str, List[str]] = {}
-        for tok in allele_toks:
-            t = tok.strip().lower()
-            b = tok_to_base.get(t)
-            if not b:
-                continue
-            per_base.setdefault(b, []).append(t)
-
-        missing_for_base = [b for b in basecodes if b not in per_base]
-        if missing_for_base:
-            qc_rows.append(
-                {
-                    "legacy_clutch_key": lk,
-                    "genotype_base_codes": "|".join(basecodes),
-                    "genotype_allele_codes": "|".join(allele_toks),
-                    "error": f"no allele token mapped to basecode(s)={missing_for_base}",
-                }
-            )
-            continue
-
         out_parts: List[str] = []
-        for b in basecodes:
-            toks_for_b = sorted(dict.fromkeys(per_base.get(b, [])))
+        for b in sorted(per_base.keys()):
             infos: List[Tuple[int, str, str]] = []
-            for t in toks_for_b:
+            for t in per_base[b]:
                 info = base_token_to_info.get((b, t))
                 if not info:
-                    qc_rows.append(
-                        {
-                            "legacy_clutch_key": lk,
-                            "genotype_base_codes": "|".join(basecodes),
-                            "genotype_allele_codes": "|".join(allele_toks),
-                            "error": f"internal: missing allele_name/nickname for basecode='{b}' token='{t}'",
-                        }
-                    )
                     infos = []
                     break
                 infos.append(info)
-
             if not infos:
                 out_parts = []
                 break
-
             infos = sorted(infos, key=lambda x: x[0])
             inner = "; ".join([f"tg({b}){an}-{ann}" for (_anum, an, ann) in infos])
             out_parts.append(inner)
 
-        if out_parts:
-            display_by_key[lk] = "; ".join(out_parts)
+        display_by_key[lk] = "; ".join(out_parts) if out_parts else ""
 
     if qc_rows:
         qc_p = out_p.parent / "qc_unpairable_genotype_alleles_in_clutch_loader_input.csv"
@@ -317,6 +305,20 @@ def main() -> None:
             f"[STOP] {len(qc_rows)} legacy_clutch_key(s) have unpairable allele tokens (DB pairing failed).\n"
             f"QC written: {qc_p}\nSample:\n{sample}"
         )
+
+    # Build clutch-level aggregates from resolved pairs
+    agg_rows = []
+    for lk, per_base in pairs_by_key.items():
+        if not per_base:
+            continue
+        basecodes = sorted(per_base.keys())
+        allele_toks = sorted({t for toks in per_base.values() for t in toks})
+        agg_rows.append({
+            "legacy_clutch_key": lk,
+            "genotype_basecodes": "|".join(basecodes),
+            "genotype_allele_nicknames": "|".join(allele_toks),
+        })
+    agg = pd.DataFrame(agg_rows, columns=["legacy_clutch_key","genotype_basecodes","genotype_allele_nicknames"])
 
     out = pd.DataFrame()
     out["clutch_code"] = df_cl["clutch_code"].astype(str).str.strip()
