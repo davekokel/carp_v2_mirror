@@ -1,0 +1,6 @@
+raw/
+working/
+qc_runs/
+__pycache__/
+*.pyc
+.DS_Store
