@@ -146,7 +146,7 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
         p["date_max"] = date_max
 
     if params.get("only_treated"):
-        where.append("coalesce(btrim(r.treatment_codes),'') <> '' OR coalesce(btrim(r.treated_clutch_codes),'') <> ''")
+        where.append("r.has_treatment")
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
@@ -154,7 +154,7 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
     p["limit"] = limit
 
     sql = f"""
-    SELECT
+        SELECT
       experiment_date,
       experiment_name,
       plate_note,
@@ -166,20 +166,19 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
       roi_index_within_slot,
       roi_path,
       roi_note_anatomy,
-      n_tiffs,
+      NULL::int AS n_tiffs,
       clutch_code,
-      treated_clutch_codes AS treated_clutch_code,
-      treatment_codes      AS treatment_code,
-      tx_gt_tg,
-      tx_gt_fluortag,
-      tx_gt_fluororganelle,
+      r.treated_clutch_code,
+      r.treatment_code,
+      r.treatment_text,
+      r.tg_label,
+      r.fluortag_label,
+      r.fluororganelle_name,
       plasmids_display,
       rnas_display,
       dyes_display,
-      n_channels_total,
-      n_channels_kept,
-      kept_channels_key
-    FROM public.v11_roi_flat_table_display r
+      has_treatment
+    FROM public.v11_roi_flat_table_display_v2 r
     {where_sql}
     ORDER BY
       r.experiment_date DESC NULLS LAST,
@@ -187,23 +186,85 @@ def _load_rois(params: Dict[str, Any]) -> pd.DataFrame:
       r.roi_code,
       r.roi_index_within_slot
     LIMIT :limit;
+
     """
 
     with _ENGINE.begin() as con:
         df = pd.read_sql(text(sql), con, params=p)
 
     if len(df):
-        if "treatment_code" in df.columns:
-            df["treatment_code"] = df["treatment_code"].astype(str).fillna("").str.strip()
-        if "treated_clutch_code" in df.columns:
-            df["treated_clutch_code"] = df["treated_clutch_code"].astype(str).fillna("").str.strip()
-        df["has_treatment"] = (
-            df.get("treatment_code", "").astype(str).str.strip().ne("")
-            & ~df.get("treatment_code", "").astype(str).str.strip().str.lower().isin(["nan","none","na","n/a","<na>"])
-        ) | (
-            df.get("treated_clutch_code", "").astype(str).str.strip().ne("")
-            & ~df.get("treated_clutch_code", "").astype(str).str.strip().str.lower().isin(["nan","none","na","n/a","<na>"])
-        )
+        for c in ["treatment_code", "treated_clutch_code", "plasmids_display", "rnas_display", "dyes_display"]:
+            if c in df.columns:
+                df[c] = df[c].astype(str).fillna("").str.strip()
+
+        if "has_treatment" in df.columns:
+            df["has_treatment"] = df["has_treatment"].fillna(False).astype(bool)
+        else:
+            def _nonnullish(col: str) -> pd.Series:
+                s = df.get(col, "").astype(str).str.strip()
+                return s.ne("") & ~s.str.lower().isin(["nan", "none", "na", "n/a", "<na>"])
+
+            df["has_treatment"] = (
+                _nonnullish("treatment_code")
+                | _nonnullish("treated_clutch_code")
+                | _nonnullish("plasmids_display")
+                | _nonnullish("rnas_display")
+                | _nonnullish("dyes_display")
+            )
+    # Optional: compute per-ROI file counts from roi_path (can be slow on clusterfs)
+    if params.get("compute_counts") and "roi_path" in df.columns and len(df):
+        from pathlib import Path as _P
+
+        def _tiff_paths(root: str):
+            try:
+                rp = _P(str(root))
+                if not rp.exists():
+                    return []
+                return list(rp.rglob("*.tif")) + list(rp.rglob("*.tiff")) + list(rp.rglob("*.TIF")) + list(rp.rglob("*.TIFF"))
+            except Exception:
+                return []
+
+        def _channel_token(name: str) -> str:
+            n = name.lower()
+            # common patterns: ch1 / ch01 / channel1 / c1 / 488 / 561 / 640 etc.
+            for rx in [
+                r"(?:^|[_\-\s])ch(?:annel)?\s*0*(\d+)(?:$|[_\-\s\.])",
+                r"(?:^|[_\-\s])c\s*0*(\d+)(?:$|[_\-\s\.])",
+                r"(?:^|[_\-\s])(405|445|458|488|514|532|561|594|633|640|647|660)(?:$|[_\-\s\.])",
+            ]:
+                m = re.search(rx, n)
+                if m:
+                    return m.group(1)
+            return ""
+
+        n_tiffs = []
+        n_channels_total = []
+        channels_key = []
+
+        for rp in df["roi_path"].astype(str).fillna("").tolist():
+            files = _tiff_paths(rp) if rp.strip() else []
+            n_tiffs.append(int(len(files)) if files else 0)
+
+            ch = []
+            for f in files:
+                tok = _channel_token(f.name)
+                if tok:
+                    ch.append(tok)
+            ch = sorted(set(ch), key=lambda x: (len(x), x))
+            n_channels_total.append(int(len(ch)))
+            channels_key.append(",".join(ch) if ch else "")
+
+        df["n_tiffs"] = n_tiffs
+        df["n_channels_total"] = n_channels_total
+        df["channels_key"] = channels_key
+    else:
+        # ensure columns exist for display even when not computed
+        if "n_tiffs" not in df.columns:
+            df["n_tiffs"] = None
+        if "n_channels_total" not in df.columns:
+            df["n_channels_total"] = None
+        if "channels_key" not in df.columns:
+            df["channels_key"] = ""
 
 
     return df
@@ -218,6 +279,7 @@ with st.expander("Filters", expanded=True):
     limit = c3.selectbox("Limit", options=[200, 500, 1000, 2000, 5000], index=2)
     only_treated = c4.checkbox("Only treated", value=False)
 
+    compute_counts = c4.checkbox("Compute file counts", value=False)
     d1, d2 = st.columns([1, 1])
     min_d = choices["min_date"]
     max_d = choices["max_date"]
@@ -232,7 +294,8 @@ df = _load_rois(
         "date_max": date_max,
         "limit": limit,
         "only_treated": only_treated,
-    }
+    
+        "compute_counts": compute_counts,}
 )
 
 def _n_nonblank(series: pd.Series) -> int:

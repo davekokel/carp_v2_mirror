@@ -7,6 +7,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+V5_DIR = REPO_ROOT / "seed_kits" / "legacy_wrangling_v5" / "working" / "snapshots"
+V5_CHANNELS_GLOB = "roi_channel_counts_v5_*.csv"
+V5_BASEMAP_GLOB = "roi_path_to_session_markers_v5_manual_*.csv"
+
 
 def run(cmd: list[str]) -> None:
     print("\n[RUN]", " ".join(cmd))
@@ -18,23 +22,13 @@ def require_env(k: str) -> None:
         raise SystemExit(f"[STOP] missing env var: {k}")
 
 
-PARENT_XLSX = REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "raw" / "Unique_parent_names__mom_dad_combined__preview_dqm.xlsx"
-PARENT_CSV = REPO_ROOT / "seed_kits" / "legacy_wrangling_v2" / "working" / "Unique_parent_names__mom_dad_combined__preview_dqm_from_raw.csv"
-
-
-def ensure_parent_map_csv() -> None:
-    if PARENT_CSV.exists():
-        return
-    code = (
-        "import pandas as pd\n"
-        f"p_in = r'''{PARENT_XLSX}'''\n"
-        f"p_out = r'''{PARENT_CSV}'''\n"
-        "df = pd.read_excel(p_in, dtype=str)\n"
-        "df.columns = [str(c).strip() for c in df.columns]\n"
-        "df.to_csv(p_out, index=False)\n"
-        "print('WROTE', p_out, 'ROWS', len(df))\n"
-    )
-    run(["python", "-c", code])
+def newest_snapshot_csv(glob_pat: str) -> Path:
+    if not V5_DIR.exists():
+        raise SystemExit(f"[STOP] missing snapshots dir: {V5_DIR}")
+    cands = sorted(V5_DIR.glob(glob_pat))
+    if not cands:
+        raise SystemExit(f"[STOP] no snapshots found: {V5_DIR}/{glob_pat}")
+    return cands[-1]
 
 
 def assert_transgene_alleles_exist() -> None:
@@ -53,32 +47,61 @@ def assert_transgene_alleles_exist() -> None:
     run(["python", "-c", code])
 
 
+def psql_stdin(sql: str) -> None:
+    db_url = os.environ["DB_URL"]
+    print("\n[RUN] psql (stdin)")
+    subprocess.run(
+        ["psql", db_url, "-X", "-v", "ON_ERROR_STOP=1"],
+        input=sql.encode("utf-8"),
+        check=True,
+    )
+
+
+def load_legacy_v5_roi_channels() -> None:
+    src = newest_snapshot_csv(V5_CHANNELS_GLOB)
+    print(f"[V5] roi_channels snapshot: {src}")
+
+    run(["psql", os.environ["DB_URL"], "-X", "-v", "ON_ERROR_STOP=1", "-c", "TRUNCATE TABLE public.legacy_roi_channels_v5;"])
+
+    sql = (
+        f"\\copy public.legacy_roi_channels_v5 (roi_path, channel_name, n_tiffs) FROM '{src.as_posix()}' WITH (FORMAT csv, HEADER true);\n"
+        "SELECT\n"
+        "  count(*) AS rows_loaded,\n"
+        "  count(distinct roi_path) AS roi_paths,\n"
+        "  count(distinct channel_name) AS channel_names,\n"
+        "  sum(n_tiffs) AS sum_n_tiffs\n"
+        "FROM public.legacy_roi_channels_v5;\n"
+    )
+    psql_stdin(sql)
+
+
+def load_legacy_v5_roi_path_map() -> None:
+    src = newest_snapshot_csv(V5_BASEMAP_GLOB)
+    print(f"[V5] roi_path_map snapshot: {src}")
+
+    run(["psql", os.environ["DB_URL"], "-X", "-v", "ON_ERROR_STOP=1", "-c", "TRUNCATE TABLE public.legacy_roi_path_map_v5;"])
+
+    sql = (
+        f"\\copy public.legacy_roi_path_map_v5 (roi_path, date_mount_id, genotype_base_codes, genotype_allele_codes, treatment_rna_base_codes, treatment_plasmid_base_codes) FROM '{src.as_posix()}' WITH (FORMAT csv, HEADER true);\n"
+        "SELECT\n"
+        "  count(*) AS rows_loaded,\n"
+        "  count(distinct roi_path) AS roi_paths\n"
+        "FROM public.legacy_roi_path_map_v5;\n"
+    )
+    psql_stdin(sql)
+
+
 def main() -> None:
     require_env("DB_URL")
     print("[DB_URL]", os.environ["DB_URL"])
 
-    ensure_parent_map_csv()
-
     run(["python", "scripts/foundation_run_pipeline.py"])
     assert_transgene_alleles_exist()
 
-    # Phase A / Step 1: link imaging sheet → build enriched ROI feeds → load clutches/ROIs/memberships/treatments
-    run(["python", "scripts/legacy_imaging_run_pipeline.py"])
+    load_legacy_v5_roi_channels()
+    load_legacy_v5_roi_path_map()
 
-    # Phase A / Step 2: infer missing genotypes (only where allowed by the script's rules)
-    run(["python", "scripts/v11_infer_genotypes_from_roi_folder.py", "--apply"])
-
-    # Phase A / Step 3: apply treatments and treated-clutch materialization
-    run(["python", "scripts/v10_seed_construct_aliases_from_constructs.py"])
-    run(["python", "scripts/v11_build_exp_treatment_signatures_with_basecodes.py"])
-    run(["python", "scripts/v11_autofill_exp_treatment_token_map.py"])
-    run(["python", "scripts/v11_expand_exp_treatment_dataset_overrides.py"])
-    run(["python", "scripts/v11_apply_exp_treatment_signatures_csv.py"])
-    run(["python", "scripts/v11_apply_free_text_label_treatments.py"])
-    run(["python", "scripts/v11_frontfill_imaging_clutch_memberships_treated.py"])
-
-    run(["python", "scripts/v11_qc_legacy_imaging_treatments.py"])
-    print("\n[OK] full local load pipeline completed cleanly")
+    print("\n[OK] legacy v5 full local load pipeline completed cleanly")
 
 
 if __name__ == "__main__":
