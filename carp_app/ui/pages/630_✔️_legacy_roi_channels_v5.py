@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 import pathlib
-from typing import Any
+from typing import Any, Dict
 
 import pandas as pd
 import streamlit as st
@@ -35,18 +35,13 @@ _ENGINE: Engine = get_engine()
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def _load_roi_paths_display() -> pd.DataFrame:
+def _load_roi_paths() -> pd.DataFrame:
     q = """
     SELECT
       roi_path,
-      tg_display AS "TG",
-      fluortag_display AS "FluorTag",
-      fluororganelle_display AS "FluorOrganelle",
-      date_mount_id,
-      genotype_base_codes,
-      genotype_allele_codes,
-      treatment_rna_base_codes,
-      treatment_plasmid_base_codes
+      tg_display AS display_basecode,
+      fluortag_display AS display_fluortag,
+      fluororganelle_display AS display_fluororganelle
     FROM public.v_legacy_roi_path_map_v5_display
     ORDER BY roi_path;
     """
@@ -91,17 +86,19 @@ def _apply_channel_edits(df: pd.DataFrame) -> None:
 
 
 st.subheader("ROI paths")
+rois = _load_roi_paths()
 
-rois_disp = _load_roi_paths_display()
-if rois_disp.empty:
+if rois.empty:
     st.info("No rows in v_legacy_roi_path_map_v5_display.")
     st.stop()
 
-csv_bytes = rois_disp.to_csv(index=False).encode("utf-8")
+rois_disp = rois[["roi_path","display_basecode","display_fluortag","display_fluororganelle"]].copy()
+
+roi_csv = rois_disp.to_csv(index=False).encode("utf-8")
 st.download_button(
-    label="Download ROI table (CSV)",
-    data=csv_bytes,
-    file_name="legacy_roi_paths_v5_display.csv",
+    "Download ROI paths CSV",
+    data=roi_csv,
+    file_name="legacy_roi_paths_v5.csv",
     mime="text/csv",
 )
 
@@ -109,19 +106,25 @@ if "selected_roi_path_v5" not in st.session_state:
     st.session_state.selected_roi_path_v5 = None
 
 event = st.dataframe(
-    rois_disp[["roi_path", "TG", "FluorTag", "FluorOrganelle"]],
+    rois_disp,
     width="stretch",
     hide_index=True,
     selection_mode="single-row",
     on_select="rerun",
     height=520,
+    column_config={
+        "roi_path": st.column_config.TextColumn("roi_path", disabled=True, width="large"),
+        "display_basecode": st.column_config.TextColumn("TG", disabled=True, width="large"),
+        "display_fluortag": st.column_config.TextColumn("FluorTag", disabled=True, width="large"),
+        "display_fluororganelle": st.column_config.TextColumn("FluorOrganelle", disabled=True, width="large"),
+    },
 )
 
-selected: Any = None
+selected = None
 try:
     sel_rows = event.selection.rows if event and hasattr(event, "selection") else []
     if sel_rows:
-        selected = rois_disp.iloc[sel_rows[0]]["roi_path"]
+        selected = rois.iloc[sel_rows[0]]["roi_path"]
 except Exception:
     selected = None
 
@@ -131,8 +134,8 @@ if selected:
 st.divider()
 
 st.subheader("Channels")
-
 roi_path = st.session_state.get("selected_roi_path_v5")
+
 if not roi_path:
     st.caption("Select an ROI path above to view/edit channels.")
     st.stop()
@@ -152,13 +155,21 @@ edited = st.data_editor(
     hide_index=True,
     num_rows="fixed",
     column_config={
-        "roi_path": st.column_config.TextColumn("roi_path", disabled=True),
-        "channel_name": st.column_config.TextColumn("channel_name", disabled=True),
-        "n_tiffs": st.column_config.NumberColumn("n_tiffs", disabled=True),
-        "decision_status": st.column_config.SelectboxColumn("decision_status", options=decision_options, required=True),
-        "note": st.column_config.TextColumn("note"),
+        "roi_path": st.column_config.TextColumn("roi_path", disabled=True, width="large"),
+        "channel_name": st.column_config.TextColumn("channel_name", disabled=True, width="medium"),
+        "n_tiffs": st.column_config.NumberColumn("n_tiffs", disabled=True, width="small"),
+        "decision_status": st.column_config.SelectboxColumn("decision_status", options=decision_options, required=True, width="small"),
+        "note": st.column_config.TextColumn("note", width="large"),
     },
     key=f"legacy_roi_channels_editor::{roi_path}",
+)
+
+channels_csv = edited.to_csv(index=False).encode("utf-8")
+st.download_button(
+    "Download channels CSV",
+    data=channels_csv,
+    file_name=f"legacy_roi_channels_v5__{roi_path.replace('/','__')}.csv",
+    mime="text/csv",
 )
 
 c1, c2, _ = st.columns([1, 1, 3])
