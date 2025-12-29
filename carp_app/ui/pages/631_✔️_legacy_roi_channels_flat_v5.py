@@ -36,6 +36,7 @@ st.title("🧪 Legacy ROI Channels (v5) — flat")
 _ENGINE: Engine = get_engine()
 
 _DATE8_RX = re.compile(r"(20\d{6})")
+_HPF_RX = re.compile(r"(\d{1,4})\s*hpf", re.I)
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -46,6 +47,9 @@ def _load_flat() -> pd.DataFrame:
       m.tg_display             AS display_basecode,
       m.fluortag_display       AS display_fluortag,
       m.fluororganelle_display AS display_fluororganelle,
+      m.orientation,
+      m.birthday,
+      m.anatomical_location,
       ch.channel_name,
       ch.n_tiffs,
       ch.decision_status,
@@ -57,8 +61,6 @@ def _load_flat() -> pd.DataFrame:
     """
     with _ENGINE.begin() as cx:
         return pd.read_sql(text(q), cx)
-
-
 def _apply_edits(df: pd.DataFrame) -> None:
     if df.empty:
         return
@@ -131,6 +133,28 @@ with c8:
 
 df = flat.copy()
 
+def _roi_hpf(roi_path: str) -> Optional[int]:
+    s = str(roi_path or "")
+    m = _HPF_RX.search(s)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except Exception:
+        return None
+
+df["imaging_date"] = df["roi_path"].astype(str).map(_roi_date)
+df["imaging_age_hpf"] = df["roi_path"].astype(str).map(_roi_hpf)
+
+# hpf -> days (float)
+df["imaging_age_days"] = df["imaging_age_hpf"].map(lambda x: (float(x) / 24.0) if x is not None else None)
+
+# birthday may come back as date/datetime; normalize and compute delta-days when possible
+bd = pd.to_datetime(df.get("birthday"), errors="coerce")
+im = pd.to_datetime(df.get("imaging_date"), errors="coerce")
+df["birthday"] = bd.dt.date
+df["imaging_age_days_from_birthday"] = (im - bd).dt.days
+
 if roi_q:
     df = df[df["roi_path"].astype(str).map(lambda x: _contains(x, roi_q))]
 
@@ -197,10 +221,18 @@ edited = st.data_editor(
         "display_basecode": st.column_config.TextColumn("TG", disabled=True, width="large"),
         "display_fluortag": st.column_config.TextColumn("FluorTag", disabled=True, width="large"),
         "display_fluororganelle": st.column_config.TextColumn("FluorOrganelle", disabled=True, width="large"),
+        "orientation": st.column_config.TextColumn("orientation", disabled=True, width="small"),
+        "birthday": st.column_config.DateColumn("birthday", disabled=True, width="small"),
+        "anatomical_location": st.column_config.TextColumn("anatomical_location", disabled=True, width="medium"),
+        "imaging_date": st.column_config.DateColumn("imaging_date", disabled=True, width="small"),
+        "imaging_age_hpf": st.column_config.NumberColumn("imaging_age_hpf", disabled=True, width="small"),
+        "imaging_age_days": st.column_config.NumberColumn("imaging_age_days", disabled=True, width="small"),
+        "imaging_age_days_from_birthday": st.column_config.NumberColumn("age_days", disabled=True, width="small"),
         "channel_name": st.column_config.TextColumn("channel_name", disabled=True, width="medium"),
         "n_tiffs": st.column_config.NumberColumn("n_tiffs", disabled=True, width="small"),
         "decision_status": st.column_config.SelectboxColumn("decision_status", options=decision_options, required=True, width="small"),
         "note": st.column_config.TextColumn("note", width="large"),
+        "imaging_age_days_from_birthday": st.column_config.NumberColumn("age_days", disabled=True, width="small"),
     },
     key="legacy_roi_channels_flat_editor_v5",
 )
