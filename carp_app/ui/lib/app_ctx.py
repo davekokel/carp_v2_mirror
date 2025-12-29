@@ -82,6 +82,9 @@ def _resolve_db_url():
 
     url = secrets_url or os.environ.get("DB_URL") or CONFIG_URL
     url = _normalize_url(url)
+    src = 'secrets' if secrets_url else ('env' if os.environ.get('DB_URL') else 'config')
+    print(f'DB_URL_SOURCE={src}')
+    print(f'DB_URL_EFFECTIVE={url}')
 
     # Mirror into session for display (Diagnostics etc.)
     st.session_state["DB_URL"] = url
