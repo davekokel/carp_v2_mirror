@@ -80,6 +80,28 @@ def load_modern_seed_data() -> None:
     run(["python", "scripts/v11_seed_fish_transgene_alleles_from_lines.py"])
 
 
+def ensure_tanks_for_all_fish(db_url: str) -> None:
+    sql = (
+        "INSERT INTO public.tanks (tank_code, fish_instance_id, status, notes)\n"
+        "SELECT f.fish_code || '-TANK1' AS tank_code, f.id AS fish_instance_id, 'active' AS status, NULL AS notes\n"
+        "FROM public.fish_instances_v10 f\n"
+        "WHERE f.fish_code IS NOT NULL\n"
+        "  AND NOT EXISTS (\n"
+        "    SELECT 1\n"
+        "    FROM public.tanks t\n"
+        "    WHERE t.fish_instance_id = f.id\n"
+        "       OR t.tank_code = (f.fish_code || '-TANK1')\n"
+        "  );\n"
+        "SELECT 'fish_instances_v10' AS t, count(*) FROM public.fish_instances_v10;\n"
+        "SELECT 'tanks' AS t, count(*) FROM public.tanks;\n"
+        "SELECT 'tanks_missing' AS t, count(*)\n"
+        "FROM public.fish_instances_v10 f\n"
+        "LEFT JOIN public.tanks t ON t.fish_instance_id = f.id\n"
+        "WHERE t.id IS NULL;\n"
+    )
+    psql_stdin(db_url, sql)
+
+
 def load_legacy_v5(db_url: str) -> None:
     roi_channels_src = newest_snapshot(V5_ROI_CHANNELS_GLOB)
     roi_map_manual_src = newest_snapshot(V5_ROI_PATH_MAP_MANUAL_GLOB)
@@ -158,13 +180,12 @@ def main() -> None:
     require_env("DB_URL")
     db_url = os.environ["DB_URL"]
     print("[DB_URL]", db_url)
-
-    run(["python", "scripts/foundation_run_pipeline.py"])
-    run(["python", "scripts/v11_seed_transgene_allele_aliases_from_fish_transgenics.py"])
     assert_transgene_alleles_exist()
 
     load_modern_seed_data()
     assert_transgene_alleles_exist()
+
+    ensure_tanks_for_all_fish(db_url)
 
     load_legacy_v5(db_url)
 

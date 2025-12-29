@@ -40,3 +40,5 @@ set -e
 
 psql "$DB_URL" -Atc "select 'tables', count(*) from information_schema.tables where table_schema='public'"
 psql "$DB_URL" -Atc "select 'views', count(*) from information_schema.views where table_schema='public'"
+python scripts/foundation_run_pipeline.py
+psql "$DB_URL" -Atc "select 'transgene_alleles', count(*) from public.transgene_alleles"
