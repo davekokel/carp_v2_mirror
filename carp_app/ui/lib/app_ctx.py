@@ -80,7 +80,7 @@ def _resolve_db_url():
     except Exception:
         secrets_url = ""
 
-    url = os.environ.get("DB_URL") or secrets_url or CONFIG_URL
+    url = secrets_url or os.environ.get("DB_URL") or CONFIG_URL
     url = _normalize_url(url)
 
     # Mirror into session for display (Diagnostics etc.)
