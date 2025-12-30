@@ -33,7 +33,25 @@ require_app_unlock()
 st.set_page_config(page_title="CARP — Legacy ROI Channels (v5, flat)", page_icon="🧪", layout="wide")
 st.title("🧪 Legacy ROI Channels (v5) — flat")
 
+tot = _load_totals_flat_v5()
+st.caption(
+    f"Totals — Channels: {int(tot.get('channel_rows', 0)):,} rows across {int(tot.get('channel_roi_paths', 0)):,} roi_path"
+)
+
+
 _ENGINE: Engine = get_engine()
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_totals_flat_v5() -> dict:
+    q = """
+    SELECT
+      (SELECT count(*) FROM public.v_legacy_roi_channels_v5_display) AS channel_rows,
+      (SELECT count(distinct roi_path) FROM public.v_legacy_roi_channels_v5_display) AS channel_roi_paths
+    """
+    with _ENGINE.begin() as cx:
+        row = cx.execute(text(q)).mappings().first()
+        return dict(row or {})
+
 
 _DATE8_RX = re.compile(r"(20\d{6})")
 _HPF_RX = re.compile(r"(\d{1,4})\s*hpf", re.I)
@@ -187,6 +205,8 @@ if only_typed_left:
 
 if only_with_note:
     df = df[df["note"].fillna("").astype(str).str.strip() != ""]
+
+st.caption(f"Filtered — {len(df):,} rows (of {len(flat):,} total)")
 
 st.divider()
 

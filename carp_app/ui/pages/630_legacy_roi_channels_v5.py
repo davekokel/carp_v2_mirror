@@ -31,6 +31,26 @@ require_app_unlock()
 st.set_page_config(page_title="CARP — Legacy ROI Channels (v5)", page_icon="🧪", layout="wide")
 st.title("🧪 Legacy ROI Channels (v5)")
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_totals_v5() -> Dict[str, Any]:
+    q = """
+    SELECT
+      (SELECT count(*) FROM public.v_legacy_roi_path_map_v5_display) AS roi_paths_rows,
+      (SELECT count(*) FROM public.v_legacy_roi_channels_v5_display) AS channel_rows,
+      (SELECT count(distinct roi_path) FROM public.v_legacy_roi_channels_v5_display) AS channel_roi_paths
+    """
+    with _ENGINE.begin() as cx:
+        row = cx.execute(text(q)).mappings().first()
+        return dict(row or {})
+
+
+tot = _load_totals_v5()
+st.caption(
+    f"Totals — ROI paths: {int(tot.get('roi_paths_rows', 0)):,} rows • "
+    f"Channels: {int(tot.get('channel_rows', 0)):,} rows across {int(tot.get('channel_roi_paths', 0)):,} roi_path"
+)
+
+
 _ENGINE: Engine = get_engine()
 
 
