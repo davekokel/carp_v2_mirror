@@ -33,10 +33,6 @@ require_app_unlock()
 st.set_page_config(page_title="CARP — Legacy ROI Channels (v5, flat)", page_icon="🧪", layout="wide")
 st.title("🧪 Legacy ROI Channels (v5) — flat")
 
-tot = _load_totals_flat_v5()
-st.caption(
-    f"Totals — Channels: {int(tot.get('channel_rows', 0)):,} rows across {int(tot.get('channel_roi_paths', 0)):,} roi_path"
-)
 
 
 _ENGINE: Engine = get_engine()
@@ -51,6 +47,12 @@ def _load_totals_flat_v5() -> dict:
     with _ENGINE.begin() as cx:
         row = cx.execute(text(q)).mappings().first()
         return dict(row or {})
+
+
+tot = _load_totals_flat_v5()
+st.caption(
+    f"Totals — Channels: {int(tot.get('channel_rows', 0)):,} rows across {int(tot.get('channel_roi_paths', 0)):,} roi_path"
+)
 
 
 _DATE8_RX = re.compile(r"(20\d{6})")
