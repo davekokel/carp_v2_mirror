@@ -31,6 +31,9 @@ require_app_unlock()
 st.set_page_config(page_title="CARP — Legacy ROI Channels (v5)", page_icon="🧪", layout="wide")
 st.title("🧪 Legacy ROI Channels (v5)")
 
+_ENGINE: Engine = get_engine()
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def _load_totals_v5() -> Dict[str, Any]:
     q = """
@@ -49,11 +52,6 @@ st.caption(
     f"Totals — ROI paths: {int(tot.get('roi_paths_rows', 0)):,} rows • "
     f"Channels: {int(tot.get('channel_rows', 0)):,} rows across {int(tot.get('channel_roi_paths', 0)):,} roi_path"
 )
-
-
-
-
-_ENGINE: Engine = get_engine()
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -114,7 +112,7 @@ if rois.empty:
     st.info("No rows in v_legacy_roi_path_map_v5_display.")
     st.stop()
 
-rois_disp = rois[["roi_path","display_basecode","display_fluortag","display_fluororganelle"]].copy()
+rois_disp = rois[["roi_path", "display_basecode", "display_fluortag", "display_fluororganelle"]].copy()
 
 roi_csv = rois_disp.to_csv(index=False).encode("utf-8")
 st.download_button(
